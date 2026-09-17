@@ -59,6 +59,7 @@ def run_checks():
         "frag-01",
         "cut-001",
         "v1",
+        empty,  # supersedes
         S.RoleBlockerLabel,
         S.TrackFToolsLabel,
         "admission_gate",
@@ -74,6 +75,7 @@ def run_checks():
     assert S.StoryFragmentId(frag)() == "frag-01"
     assert S.StoryFragmentCutId(frag)() == "cut-001"
     assert S.StoryFragmentStateVersion(frag)() == "v1"
+    assert M.IdentityCompare(S.StoryFragmentSupersedes(frag)(), empty)() is M.truth_value
     assert M.IdentityCompare(S.StoryFragmentRole(frag)(), S.RoleBlockerLabel)() is M.truth_value
     assert M.IdentityCompare(S.StoryFragmentTrack(frag)(), S.TrackFToolsLabel)() is M.truth_value
     assert S.StoryFragmentSubject(frag)() == "admission_gate"

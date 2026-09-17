@@ -7,6 +7,7 @@ try:
         EmptyList,
         Head,
         IdentityCompare,
+        IsPair,
         Pair,
         Tail,
         false_value,
@@ -20,6 +21,7 @@ except ImportError:
         EmptyList,
         Head,
         IdentityCompare,
+        IsPair,
         Pair,
         Tail,
         false_value,
@@ -69,6 +71,13 @@ class RenderedClauseLabel(StoryLabel):
 
 
 RenderedClauseLabel = RenderedClauseLabel()
+
+
+class StorySectionLabel(StoryLabel):
+    pass
+
+
+StorySectionLabel = StorySectionLabel()
 
 
 # --- Roles ---
@@ -322,6 +331,61 @@ CutAllLabel = CutAllLabel()
 
 
 # =============================================================================
+# Structural Term Equality Primitive (Machine-Native)
+# =============================================================================
+
+class TermSame(Edge):
+    """
+    Machine-native term identity and equality check safe for both Atoms and scalar values.
+    """
+
+    def __init__(self, x, y):
+        verdict = false_value
+        if x == y:
+            verdict = truth_value
+        else:
+            try:
+                if IdentityCompare(x, y)() is truth_value:
+                    verdict = truth_value
+            except Exception:
+                verdict = false_value
+        self.result = verdict
+        super().__init__(inputs=Pair(x, Pair(y, EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class StructuralEqual(Edge):
+    """
+    Pure machine-native structural term equality without external dependencies.
+    Recursively compares Pair cells and terminal values using TermSame.
+    """
+
+    def __init__(self, left, right):
+        self.result = self._compare(left, right)
+        super().__init__(inputs=Pair(left, Pair(right, EmptyList)), results=self.result)
+
+    def _compare(self, x, y):
+        if TermSame(x, y)() is truth_value:
+            return truth_value
+        try:
+            hx = Head(x)()
+            hy = Head(y)()
+            tx = Tail(x)()
+            ty = Tail(y)()
+        except Exception:
+            return false_value
+        head_eq = self._compare(hx, hy)
+        if TermSame(head_eq, truth_value)() is truth_value:
+            return self._compare(tx, ty)
+        return false_value
+
+    def __call__(self):
+        return self.result
+
+
+# =============================================================================
 # Machine-Native Story Terms and Accessors
 # =============================================================================
 
@@ -446,7 +510,21 @@ class EvidenceTermMarker(Edge):
 class StoryFragment(Edge):
     """
     Machine-native StoryFragment term for Programme L / Track S.
-    Carries 13 explicit fields as nested Pair cells.
+    Carries 14 explicit fields as nested Pair cells:
+      1. fragment_id
+      2. cut_id
+      3. accepted_state_version
+      4. supersedes          (prior fragment_id or EmptyList)
+      5. role                (RoleBlockerLabel, RoleActionLabel, etc.)
+      6. track               (TrackINTLabel, TrackELabel, etc.)
+      7. subject             (canonical machine term or identifier)
+      8. predicate           (property evaluated: composite_classification, etc.)
+      9. event               (EventCompletedLabel, EventHeldLabel, etc.)
+     10. evidence            (EvidenceTerm, AgreementScope, or term)
+     11. salience            (SalienceHighLabel, SalienceMediumLabel, SalienceLowLabel)
+     12. dependencies        (Pair chain of StoryEdge terms)
+     13. conflicts           (Pair chain of incompatible fragment IDs)
+     14. target_cuts         (Pair chain of audience cut labels, e.g. CutAllLabel)
     """
 
     def __init__(
@@ -454,6 +532,7 @@ class StoryFragment(Edge):
         fragment_id,
         cut_id,
         accepted_state_version,
+        supersedes,
         role,
         track,
         subject,
@@ -474,24 +553,27 @@ class StoryFragment(Edge):
                     Pair(
                         accepted_state_version,
                         Pair(
-                            role,
+                            supersedes,
                             Pair(
-                                track,
+                                role,
                                 Pair(
-                                    subject,
+                                    track,
                                     Pair(
-                                        predicate,
+                                        subject,
                                         Pair(
-                                            event,
+                                            predicate,
                                             Pair(
-                                                evidence,
+                                                event,
                                                 Pair(
-                                                    salience,
+                                                    evidence,
                                                     Pair(
-                                                        dependencies,
+                                                        salience,
                                                         Pair(
-                                                            conflicts,
-                                                            Pair(target_cuts, EmptyList),
+                                                            dependencies,
+                                                            Pair(
+                                                                conflicts,
+                                                                Pair(target_cuts, EmptyList),
+                                                            ),
                                                         ),
                                                     ),
                                                 ),
@@ -513,24 +595,27 @@ class StoryFragment(Edge):
                     Pair(
                         accepted_state_version,
                         Pair(
-                            role,
+                            supersedes,
                             Pair(
-                                track,
+                                role,
                                 Pair(
-                                    subject,
+                                    track,
                                     Pair(
-                                        predicate,
+                                        subject,
                                         Pair(
-                                            event,
+                                            predicate,
                                             Pair(
-                                                evidence,
+                                                event,
                                                 Pair(
-                                                    salience,
+                                                    evidence,
                                                     Pair(
-                                                        dependencies,
+                                                        salience,
                                                         Pair(
-                                                            conflicts,
-                                                            Pair(target_cuts, EmptyList),
+                                                            dependencies,
+                                                            Pair(
+                                                                conflicts,
+                                                                Pair(target_cuts, EmptyList),
+                                                            ),
                                                         ),
                                                     ),
                                                 ),
@@ -577,7 +662,7 @@ class StoryFragmentStateVersion(Edge):
         return self.result
 
 
-class StoryFragmentRole(Edge):
+class StoryFragmentSupersedes(Edge):
     def __init__(self, frag):
         self.result = Head(Tail(Tail(Tail(Tail(frag)())())())())()
         super().__init__(inputs=Pair(frag, EmptyList), results=self.result)
@@ -586,7 +671,7 @@ class StoryFragmentRole(Edge):
         return self.result
 
 
-class StoryFragmentTrack(Edge):
+class StoryFragmentRole(Edge):
     def __init__(self, frag):
         self.result = Head(Tail(Tail(Tail(Tail(Tail(frag)())())())())())()
         super().__init__(inputs=Pair(frag, EmptyList), results=self.result)
@@ -595,7 +680,7 @@ class StoryFragmentTrack(Edge):
         return self.result
 
 
-class StoryFragmentSubject(Edge):
+class StoryFragmentTrack(Edge):
     def __init__(self, frag):
         self.result = Head(Tail(Tail(Tail(Tail(Tail(Tail(frag)())())())())())())()
         super().__init__(inputs=Pair(frag, EmptyList), results=self.result)
@@ -604,7 +689,7 @@ class StoryFragmentSubject(Edge):
         return self.result
 
 
-class StoryFragmentPredicate(Edge):
+class StoryFragmentSubject(Edge):
     def __init__(self, frag):
         self.result = Head(Tail(Tail(Tail(Tail(Tail(Tail(Tail(frag)())())())())())())())()
         super().__init__(inputs=Pair(frag, EmptyList), results=self.result)
@@ -613,7 +698,7 @@ class StoryFragmentPredicate(Edge):
         return self.result
 
 
-class StoryFragmentEvent(Edge):
+class StoryFragmentPredicate(Edge):
     def __init__(self, frag):
         self.result = Head(Tail(Tail(Tail(Tail(Tail(Tail(Tail(Tail(frag)())())())())())())())())()
         super().__init__(inputs=Pair(frag, EmptyList), results=self.result)
@@ -622,7 +707,7 @@ class StoryFragmentEvent(Edge):
         return self.result
 
 
-class StoryFragmentEvidence(Edge):
+class StoryFragmentEvent(Edge):
     def __init__(self, frag):
         self.result = Head(Tail(Tail(Tail(Tail(Tail(Tail(Tail(Tail(Tail(frag)())())())())())())())())())()
         super().__init__(inputs=Pair(frag, EmptyList), results=self.result)
@@ -631,7 +716,7 @@ class StoryFragmentEvidence(Edge):
         return self.result
 
 
-class StoryFragmentSalience(Edge):
+class StoryFragmentEvidence(Edge):
     def __init__(self, frag):
         self.result = Head(Tail(Tail(Tail(Tail(Tail(Tail(Tail(Tail(Tail(Tail(frag)())())())())())())())())())())()
         super().__init__(inputs=Pair(frag, EmptyList), results=self.result)
@@ -640,7 +725,7 @@ class StoryFragmentSalience(Edge):
         return self.result
 
 
-class StoryFragmentDependencies(Edge):
+class StoryFragmentSalience(Edge):
     def __init__(self, frag):
         self.result = Head(Tail(Tail(Tail(Tail(Tail(Tail(Tail(Tail(Tail(Tail(Tail(frag)())())())())())())())())())())())()
         super().__init__(inputs=Pair(frag, EmptyList), results=self.result)
@@ -649,7 +734,7 @@ class StoryFragmentDependencies(Edge):
         return self.result
 
 
-class StoryFragmentConflicts(Edge):
+class StoryFragmentDependencies(Edge):
     def __init__(self, frag):
         self.result = Head(Tail(Tail(Tail(Tail(Tail(Tail(Tail(Tail(Tail(Tail(Tail(Tail(frag)())())())())())())())())())())())())()
         super().__init__(inputs=Pair(frag, EmptyList), results=self.result)
@@ -658,9 +743,18 @@ class StoryFragmentConflicts(Edge):
         return self.result
 
 
-class StoryFragmentTargetCuts(Edge):
+class StoryFragmentConflicts(Edge):
     def __init__(self, frag):
         self.result = Head(Tail(Tail(Tail(Tail(Tail(Tail(Tail(Tail(Tail(Tail(Tail(Tail(Tail(frag)())())())())())())())())())())())())())()
+        super().__init__(inputs=Pair(frag, EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class StoryFragmentTargetCuts(Edge):
+    def __init__(self, frag):
+        self.result = Head(Tail(Tail(Tail(Tail(Tail(Tail(Tail(Tail(Tail(Tail(Tail(Tail(Tail(Tail(frag)())())())())())())())())())())())())())())()
         super().__init__(inputs=Pair(frag, EmptyList), results=self.result)
 
     def __call__(self):
@@ -761,15 +855,15 @@ class StoryFixtureCorpus(Edge):
 
     def __init__(self, cut_id, state_version):
         empty = EmptyList
-        all_cuts = Pair(CutOperatorLabel, Pair(CutEngineerLabel, Pair(CutReviewLabel, Pair(CutMachineLabel, empty))))
+        all_cuts = Pair(CutAllLabel, Pair(CutOperatorLabel, Pair(CutEngineerLabel, Pair(CutReviewLabel, Pair(CutMachineLabel, empty)))))
         eng_rev = Pair(CutEngineerLabel, Pair(CutReviewLabel, empty))
-        op_all = Pair(CutOperatorLabel, Pair(CutReviewLabel, empty))
 
         # --- Fixture 1: Tao Problem 1.1 AST Knowledge Dump ---
         f1_frag = StoryFragment(
             "fixture-01",
             cut_id,
             state_version,
+            empty,  # supersedes
             RoleEvidenceLabel,
             TrackGLabel,
             "tao_problem_1_1_knowledge",
@@ -803,6 +897,7 @@ class StoryFixtureCorpus(Edge):
             "fixture-02",
             cut_id,
             state_version,
+            empty,
             RoleActionLabel,
             TrackELabel,
             "search_beam_worker_1846",
@@ -832,17 +927,17 @@ class StoryFixtureCorpus(Edge):
         )
 
         # --- Fixture 3: Stale Token Unexplained Rejection (Lossy Equality Example) ---
-        # Note: Non-equal terms carrying distinct generational markers
         ret_token_ev = EvidenceTerm("token-10", "generation-1_instance-a")()
         exp_token_ev = EvidenceTerm("token-10", "generation-2_instance-b")()
         f3_frag = StoryFragment(
             "fixture-03",
             cut_id,
             state_version,
+            empty,
             RoleBlockerLabel,
             TrackELabel,
             "search_bfs_packet_result",
-            "stale_token_rejection",
+            "token_generation_match",
             EventRejectedLabel,
             Pair(ret_token_ev, Pair(exp_token_ev, empty)),
             SalienceHighLabel,
@@ -872,6 +967,7 @@ class StoryFixtureCorpus(Edge):
             "fixture-04",
             cut_id,
             state_version,
+            empty,
             RoleBlockerLabel,
             TrackGLabel,
             "engel_e1_proof",
@@ -905,6 +1001,7 @@ class StoryFixtureCorpus(Edge):
             "fixture-05",
             cut_id,
             state_version,
+            empty,
             RoleSetupLabel,
             TrackINTLabel,
             "snapshot_roots",
@@ -938,6 +1035,7 @@ class StoryFixtureCorpus(Edge):
             "fixture-06",
             cut_id,
             state_version,
+            empty,
             RoleActionLabel,
             TrackELabel,
             "search_bfs_frontier",
@@ -971,6 +1069,7 @@ class StoryFixtureCorpus(Edge):
             "fixture-07",
             cut_id,
             state_version,
+            empty,
             RoleEvidenceLabel,
             TrackGLabel,
             "rule_filter_probes",
@@ -1000,11 +1099,11 @@ class StoryFixtureCorpus(Edge):
         )
 
         # --- Fixture 8: Tao 1.1 Non-Discharge within Budget vs Refutation ---
-        # Note: EventNonDischargeBudgetLabel distinguishes budget exhaustion from refutation!
         f8_frag = StoryFragment(
             "fixture-08",
             cut_id,
             state_version,
+            empty,
             RoleBlockerLabel,
             TrackGLabel,
             "tao_problem_1_1",
@@ -1034,10 +1133,12 @@ class StoryFixtureCorpus(Edge):
         )
 
         # --- Fixture 9: Applicability Scan Bottleneck ---
+        # Note: 9 causes 8!
         f9_frag = StoryFragment(
             "fixture-09",
             cut_id,
             state_version,
+            empty,
             RoleBlockerLabel,
             TrackELabel,
             "initial_cursor_applicability",
@@ -1049,7 +1150,6 @@ class StoryFixtureCorpus(Edge):
             empty,
             all_cuts,
         )()
-        # Causal edge: Applicability scan causes budget exhaustion
         f9_edge = StoryEdge(RelationCausesLabel, "fixture-09", "fixture-08")()
         f9_entry = Pair(
             "fixture-09-applicability-bottleneck",
@@ -1073,6 +1173,7 @@ class StoryFixtureCorpus(Edge):
             "fixture-10",
             cut_id,
             state_version,
+            empty,
             RoleActionLabel,
             TrackELabel,
             "search_dfs_worker_1857",
@@ -1102,12 +1203,13 @@ class StoryFixtureCorpus(Edge):
         )
 
         # --- Fixture 11: Sieve vs Trial Boundary Discrepancy Concealment ---
-        # Note: AgreementScope declares projection=composite, while discrepancy on 1 is explicit blocker!
+        # Note: target_cuts includes CutAllLabel so it survives all cuts!
         scope_ev = AgreementScope("projection=composite", "excluded_boundary=1")()
         f11_agree_frag = StoryFragment(
             "fixture-11-agree",
             cut_id,
             state_version,
+            empty,
             RoleEvidenceLabel,
             TrackGLabel,
             "sieve_trial_comparison",
@@ -1123,6 +1225,7 @@ class StoryFixtureCorpus(Edge):
             "fixture-11-discrepancy",
             cut_id,
             state_version,
+            empty,
             RoleDiscrepancyLabel,
             TrackGLabel,
             "integer_1_classification",
@@ -1188,6 +1291,395 @@ class StoryFixtureCorpus(Edge):
             inputs=Pair(cut_id, Pair(state_version, empty)),
             results=self.result,
         )
+
+    def __call__(self):
+        return self.result
+
+
+# =============================================================================
+# Cut L-S-3: The Seven Deterministic Narrative Merge Operators
+# =============================================================================
+
+class CoalesceRepeatedStatus(Edge):
+    """
+    Operator 1: COALESCE_REPEATED_STATUS
+    Merges fragments sharing identical predicate, event, and track into a single
+    coalesced fragment, chaining all original fragment IDs as provenance.
+    Never erases source IDs.
+    """
+
+    def __init__(self, fragments):
+        self.result = self._coalesce(fragments)
+        super().__init__(inputs=Pair(fragments, EmptyList), results=self.result)
+
+    def _coalesce(self, frags):
+        if TermSame(frags, EmptyList)() is truth_value:
+            return EmptyList
+        head_frag = Head(frags)()
+        rest = Tail(frags)()
+
+        # Collect matching fragments
+        matching_ids = Pair(StoryFragmentId(head_frag)(), EmptyList)
+        non_matching = EmptyList
+        curr = rest
+
+        h_pred = StoryFragmentPredicate(head_frag)()
+        h_ev = StoryFragmentEvent(head_frag)()
+        h_track = StoryFragmentTrack(head_frag)()
+
+        while TermSame(curr, EmptyList)() is false_value:
+            f = Head(curr)()
+            f_pred = StoryFragmentPredicate(f)()
+            f_ev = StoryFragmentEvent(f)()
+            f_track = StoryFragmentTrack(f)()
+
+            if (
+                TermSame(h_pred, f_pred)() is truth_value
+                and TermSame(h_ev, f_ev)() is truth_value
+                and TermSame(h_track, f_track)() is truth_value
+            ):
+                matching_ids = Pair(StoryFragmentId(f)(), matching_ids)
+            else:
+                non_matching = Pair(f, non_matching)
+            curr = Tail(curr)()
+
+        # If multiple matched, create coalesced fragment
+        if TermSame(Tail(matching_ids)(), EmptyList)() is false_value:
+            coalesced = StoryFragment(
+                "coalesced-" + StoryFragmentId(head_frag)(),
+                StoryFragmentCutId(head_frag)(),
+                StoryFragmentStateVersion(head_frag)(),
+                StoryFragmentSupersedes(head_frag)(),
+                StoryFragmentRole(head_frag)(),
+                h_track,
+                "multiple_subjects",
+                h_pred,
+                h_ev,
+                EvidenceTerm("coalesced_evidence", matching_ids)(),
+                StoryFragmentSalience(head_frag)(),
+                StoryFragmentDependencies(head_frag)(),
+                StoryFragmentConflicts(head_frag)(),
+                StoryFragmentTargetCuts(head_frag)(),
+            )()
+            return Pair(coalesced, self._coalesce(non_matching))
+
+        return Pair(head_frag, self._coalesce(rest))
+
+    def __call__(self):
+        return self.result
+
+
+class PromoteBlockers(Edge):
+    """
+    Operator 2: PROMOTE_BLOCKER
+    Partitions fragments into blockers/discrepancies vs normal flow, hoisting
+    blockers to the front of the narrative. Never drops or suppresses blockers.
+    """
+
+    def __init__(self, fragments):
+        self.result = self._promote(fragments)
+        super().__init__(inputs=Pair(fragments, EmptyList), results=self.result)
+
+    def _is_blocker(self, frag):
+        role = StoryFragmentRole(frag)()
+        ev = StoryFragmentEvent(frag)()
+        salience = StoryFragmentSalience(frag)()
+
+        if TermSame(role, RoleBlockerLabel)() is truth_value:
+            return truth_value
+        if TermSame(role, RoleDiscrepancyLabel)() is truth_value:
+            return truth_value
+        if TermSame(ev, EventFailedLabel)() is truth_value:
+            return truth_value
+        if TermSame(ev, EventRejectedLabel)() is truth_value:
+            return truth_value
+        if TermSame(ev, EventNonDischargeBudgetLabel)() is truth_value:
+            return truth_value
+        if TermSame(salience, SalienceHighLabel)() is truth_value:
+            return truth_value
+        return false_value
+
+    def _promote(self, frags):
+        blockers = EmptyList
+        others = EmptyList
+        curr = frags
+        while TermSame(curr, EmptyList)() is false_value:
+            f = Head(curr)()
+            if TermSame(self._is_blocker(f), truth_value)() is truth_value:
+                blockers = Pair(f, blockers)
+            else:
+                others = Pair(f, others)
+            curr = Tail(curr)()
+
+        # Concatenate blockers then others
+        res = others
+        curr_b = blockers
+        while TermSame(curr_b, EmptyList)() is false_value:
+            res = Pair(Head(curr_b)(), res)
+            curr_b = Tail(curr_b)()
+        return res
+
+    def __call__(self):
+        return self.result
+
+
+class CauseChain(Edge):
+    """
+    Operator 3: CAUSE_CHAIN
+    Applies only when a StoryEdge carries RelationCausesLabel.
+    Renders cause-and-effect narrative linking source evidence to consequence.
+    Rejects causal language if untyped or non-causal.
+    """
+
+    def __init__(self, cause_frag, effect_frag, edges):
+        self.result = self._link(cause_frag, effect_frag, edges)
+        super().__init__(
+            inputs=Pair(cause_frag, Pair(effect_frag, Pair(edges, EmptyList))),
+            results=self.result,
+        )
+
+    def _link(self, cause, effect, edges):
+        src_id = StoryFragmentId(cause)()
+        tgt_id = StoryFragmentId(effect)()
+
+        # Scan edges for explicit RelationCausesLabel
+        has_causal_edge = false_value
+        curr = edges
+        while TermSame(curr, EmptyList)() is false_value:
+            e = Head(curr)()
+            rel = StoryEdgeRelation(e)()
+            s = StoryEdgeSource(e)()
+            t = StoryEdgeTarget(e)()
+            if (
+                TermSame(rel, RelationCausesLabel)() is truth_value
+                and s == src_id
+                and t == tgt_id
+            ):
+                has_causal_edge = truth_value
+                break
+            curr = Tail(curr)()
+
+        if TermSame(has_causal_edge, truth_value)() is truth_value:
+            clause = RenderedClause(
+                "cause-" + src_id + "-" + tgt_id,
+                StoryFragmentSubject(cause)()
+                + " ("
+                + StoryFragmentPredicate(cause)()
+                + ") caused subsequent "
+                + StoryFragmentSubject(effect)()
+                + " ("
+                + StoryFragmentPredicate(effect)()
+                + ")",
+                Pair(src_id, Pair(tgt_id, EmptyList)),
+                "CAUSE_CHAIN",
+                CutAllLabel,
+            )()
+            return Pair(truth_value, Pair(clause, EmptyList))
+
+        # Rejected causal claim
+        return Pair(false_value, EmptyList)
+
+    def __call__(self):
+        return self.result
+
+
+class Contrast(Edge):
+    """
+    Operator 4: CONTRAST
+    Pairs ready/completed infrastructure with held/discrepant status when linked
+    by a RelationContrastsLabel edge.
+    """
+
+    def __init__(self, ready_frag, held_frag, edges):
+        self.result = self._contrast(ready_frag, held_frag, edges)
+        super().__init__(
+            inputs=Pair(ready_frag, Pair(held_frag, Pair(edges, EmptyList))),
+            results=self.result,
+        )
+
+    def _contrast(self, f1, f2, edges):
+        id1 = StoryFragmentId(f1)()
+        id2 = StoryFragmentId(f2)()
+
+        has_contrast_edge = false_value
+        curr = edges
+        while TermSame(curr, EmptyList)() is false_value:
+            e = Head(curr)()
+            rel = StoryEdgeRelation(e)()
+            s = StoryEdgeSource(e)()
+            t = StoryEdgeTarget(e)()
+            if TermSame(rel, RelationContrastsLabel)() is truth_value:
+                if (s == id1 and t == id2) or (s == id2 and t == id1):
+                    has_contrast_edge = truth_value
+                    break
+            curr = Tail(curr)()
+
+        if TermSame(has_contrast_edge, truth_value)() is truth_value:
+            clause = RenderedClause(
+                "contrast-" + id1 + "-" + id2,
+                StoryFragmentSubject(f1)()
+                + " completed; however, "
+                + StoryFragmentSubject(f2)()
+                + " carries discrepancy or hold.",
+                Pair(id1, Pair(id2, EmptyList)),
+                "CONTRAST",
+                CutAllLabel,
+            )()
+            return Pair(truth_value, Pair(clause, EmptyList))
+        return Pair(false_value, EmptyList)
+
+    def __call__(self):
+        return self.result
+
+
+class ElideRedundantIds(Edge):
+    """
+    Operator 5: ELIDE_REDUNDANT_IDS
+    Tracks entity mention counts across fragments.
+    First mention retains the canonical full ID; subsequent mentions use shortened aliases.
+    """
+
+    def __init__(self, fragments):
+        self.result = self._elide(fragments, EmptyList)
+        super().__init__(inputs=Pair(fragments, EmptyList), results=self.result)
+
+    def _elide(self, frags, seen_subjects):
+        if TermSame(frags, EmptyList)() is truth_value:
+            return EmptyList
+        f = Head(frags)()
+        subj = StoryFragmentSubject(f)()
+
+        is_seen = false_value
+        curr = seen_subjects
+        while TermSame(curr, EmptyList)() is false_value:
+            if Head(curr)() == subj:
+                is_seen = truth_value
+                break
+            curr = Tail(curr)()
+
+        next_seen = seen_subjects
+        resolved_subj = subj
+        if TermSame(is_seen, truth_value)() is truth_value:
+            resolved_subj = "the_" + subj.split("_")[-1]  # shortened referring expression
+        else:
+            next_seen = Pair(subj, seen_subjects)
+
+        shortened_frag = StoryFragment(
+            StoryFragmentId(f)(),
+            StoryFragmentCutId(f)(),
+            StoryFragmentStateVersion(f)(),
+            StoryFragmentSupersedes(f)(),
+            StoryFragmentRole(f)(),
+            StoryFragmentTrack(f)(),
+            resolved_subj,
+            StoryFragmentPredicate(f)(),
+            StoryFragmentEvent(f)(),
+            StoryFragmentEvidence(f)(),
+            StoryFragmentSalience(f)(),
+            StoryFragmentDependencies(f)(),
+            StoryFragmentConflicts(f)(),
+            StoryFragmentTargetCuts(f)(),
+        )()
+        return Pair(shortened_frag, self._elide(Tail(frags)(), next_seen))
+
+    def __call__(self):
+        return self.result
+
+
+class SectionByDecision(Edge):
+    """
+    Operator 6: SECTION_BY_DECISION
+    Organizes merged fragments into 4 canonical rhetorical sections:
+      Section 1: Decision / Verdict
+      Section 2: Supporting Evidence
+      Section 3: Blockers & Discrepancies
+      Section 4: Next Bounded Actions
+    """
+
+    def __init__(self, fragments):
+        self.result = self._section(fragments)
+        super().__init__(inputs=Pair(fragments, EmptyList), results=self.result)
+
+    def _section(self, frags):
+        s_dec = EmptyList
+        s_evi = EmptyList
+        s_blk = EmptyList
+        s_nxt = EmptyList
+
+        curr = frags
+        while TermSame(curr, EmptyList)() is false_value:
+            f = Head(curr)()
+            role = StoryFragmentRole(f)()
+            if TermSame(role, RoleActionLabel)() is truth_value or TermSame(role, RoleSetupLabel)() is truth_value:
+                s_dec = Pair(f, s_dec)
+            elif TermSame(role, RoleEvidenceLabel)() is truth_value:
+                s_evi = Pair(f, s_evi)
+            elif TermSame(role, RoleBlockerLabel)() is truth_value or TermSame(role, RoleDiscrepancyLabel)() is truth_value:
+                s_blk = Pair(f, s_blk)
+            elif TermSame(role, RoleNextActionLabel)() is truth_value:
+                s_nxt = Pair(f, s_nxt)
+            else:
+                s_evi = Pair(f, s_evi)
+            curr = Tail(curr)()
+
+        return Pair(
+            Pair("Section1_Decision", s_dec),
+            Pair(
+                Pair("Section2_Evidence", s_evi),
+                Pair(
+                    Pair("Section3_Blockers", s_blk),
+                    Pair(Pair("Section4_NextActions", s_nxt), EmptyList),
+                ),
+            ),
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class ScopeAgreement(Edge):
+    """
+    Operator 7: SCOPE_AGREEMENT
+    Authorizes an agreement claim only when qualified by its declared projection
+    scope from AgreementScope, and explicitly emits excluded boundary discrepancies.
+    """
+
+    def __init__(self, agree_frag, discrepancy_frag):
+        self.result = self._scope(agree_frag, discrepancy_frag)
+        super().__init__(
+            inputs=Pair(agree_frag, Pair(discrepancy_frag, EmptyList)),
+            results=self.result,
+        )
+
+    def _scope(self, agree_f, disc_f):
+        ev = StoryFragmentEvidence(agree_f)()
+        # Check if evidence is an AgreementScope term
+        is_scope = false_value
+        try:
+            tag = Head(ev)()
+            if TermSame(tag, AgreementScopeLabel)() is truth_value:
+                is_scope = truth_value
+        except Exception:
+            is_scope = false_value
+
+        if TermSame(is_scope, truth_value)() is truth_value:
+            proj = AgreementScopeProjection(ev)()
+            excl = AgreementScopeExclusions(ev)()
+            scoped_clause = RenderedClause(
+                "scoped-agreement-" + StoryFragmentId(agree_f)(),
+                "Agreement confirmed under "
+                + proj
+                + "; boundary discrepancy ("
+                + excl
+                + ") explicitly surfaced in "
+                + StoryFragmentId(disc_f)(),
+                Pair(StoryFragmentId(agree_f)(), Pair(StoryFragmentId(disc_f)(), EmptyList)),
+                "SCOPE_AGREEMENT",
+                CutAllLabel,
+            )()
+            return Pair(truth_value, Pair(scoped_clause, EmptyList))
+
+        return Pair(false_value, EmptyList)
 
     def __call__(self):
         return self.result
