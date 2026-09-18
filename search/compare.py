@@ -64,6 +64,11 @@ class CompareSearchModes(_ComparisonConsoleMixin, _ComparisonNatMixin, _Comparis
             self._decoded_packet_token(decoded), expected_packet_token,
         )()
 
+    def _is_worker_execution_failure(self, payload):
+        if M.IsPair(payload)() is M.false_value:
+            return M.false_value
+        return M.IdentityCompare(M.Head(payload)(), SearchFailureLabel)()
+
     def __init__(self, graph, start, goal, rules, heuristic, registry):
         t0 = time.time()
         self.graph = graph
@@ -453,7 +458,11 @@ class CompareSearchModes(_ComparisonConsoleMixin, _ComparisonNatMixin, _Comparis
                     slot_text = self._nat_text(self._worker_entry_slot(entry))
                     pid_text = str(self._worker_entry_process(entry).pid)
                     expected_packet_token = self._worker_entry_packet_token(entry)
-                    decoded = self._decode_parallel_worker_payload(payload, mode, expected_packet_token)
+                    execution_failure = self._is_worker_execution_failure(payload)
+                    if execution_failure is M.truth_value:
+                        decoded = self._decode_parallel_worker_payload(None, mode, expected_packet_token)
+                    else:
+                        decoded = self._decode_parallel_worker_payload(payload, mode, expected_packet_token)
                     returned_mode = self._decoded_mode(decoded)
                     returned_packet_token = self._decoded_packet_token(decoded)
                     if payload is not None:
@@ -481,7 +490,7 @@ class CompareSearchModes(_ComparisonConsoleMixin, _ComparisonNatMixin, _Comparis
                             finished = self._first_finished_worker(remaining_workers, M.EmptyList)
                             entry = M.Head(finished)()
                             continue
-                    if payload is None:
+                    if payload is None or execution_failure is M.truth_value:
                         _debug(
                             "search-compare: resident executor "
                             + slot_text
