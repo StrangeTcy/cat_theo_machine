@@ -14448,8 +14448,20 @@ class CompareSearchModesRecognizesMachineWorkerFailureTest(M.Edge):
             M.Pair(M.BFSLabel, M.Pair(M.one, M.EmptyList)),
         )
         normal = M.Pair(M.BFSLabel, M.Pair(M.SearchRunningLabel, M.EmptyList))
-        self.result = probe._is_worker_execution_failure(failure)
-        if probe._is_worker_execution_failure(normal) is M.truth_value:
+        self.result = probe._worker_failure_matches_entry(
+            failure, M.BFSLabel, M.one,
+        )
+        if probe._worker_failure_matches_entry(
+            normal, M.BFSLabel, M.one,
+        ) is M.truth_value:
+            self.result = M.false_value
+        elif probe._worker_failure_matches_entry(
+            failure, M.DFSLabel, M.one,
+        ) is M.truth_value:
+            self.result = M.false_value
+        elif probe._worker_failure_matches_entry(
+            failure, M.BFSLabel, M.two,
+        ) is M.truth_value:
             self.result = M.false_value
         super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
 
