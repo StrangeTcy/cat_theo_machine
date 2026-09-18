@@ -55,6 +55,15 @@ from .ui import _SearchComparisonPromptGuard, _SearchConsoleInput, _SearchStopCo
 
 
 class CompareSearchModes(_ComparisonConsoleMixin, _ComparisonNatMixin, _ComparisonTreeMixin, _ComparisonStateMixin, _ComparisonAttemptMixin, _ComparisonRuleMatchMixin, _ComparisonSemanticMixin, _ComparisonSubprocessMixin, _ComparisonPacketMixin, _ComparisonExecutorMixin, M.Edge):
+    def _worker_result_matches_entry(self, mode, expected_packet_token, decoded):
+        if M.IdentityCompare(self._decoded_mode(decoded), mode)() is M.false_value:
+            return M.false_value
+        if M.Compare(expected_packet_token, M.EmptyList)() is M.truth_value:
+            return M.truth_value
+        return M.TermEqual(
+            self._decoded_packet_token(decoded), expected_packet_token,
+        )()
+
     def __init__(self, graph, start, goal, rules, heuristic, registry):
         t0 = time.time()
         self.graph = graph
@@ -445,13 +454,18 @@ class CompareSearchModes(_ComparisonConsoleMixin, _ComparisonNatMixin, _Comparis
                     pid_text = str(self._worker_entry_process(entry).pid)
                     expected_packet_token = self._worker_entry_packet_token(entry)
                     decoded = self._decode_parallel_worker_payload(payload, mode, expected_packet_token)
+                    returned_mode = self._decoded_mode(decoded)
                     returned_packet_token = self._decoded_packet_token(decoded)
-                    if payload is not None and M.Compare(expected_packet_token, M.EmptyList)() is M.false_value:
-                        if M.TermEqual(returned_packet_token, expected_packet_token)() is M.false_value:
+                    if payload is not None:
+                        if self._worker_result_matches_entry(
+                            mode, expected_packet_token, decoded,
+                        ) is M.false_value:
                             _debug(
-                                "search-compare: ignoring stale "
+                                "search-compare: ignoring mismatched "
                                 + SearchModeText(mode)()
-                                + " packet result token="
+                                + " packet result mode="
+                                + SearchModeText(returned_mode)()
+                                + " token="
                                 + _debug_term(returned_packet_token, self.registry)
                                 + " expected="
                                 + _debug_term(expected_packet_token, self.registry)

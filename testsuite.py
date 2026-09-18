@@ -14395,6 +14395,44 @@ class CompareSearchModesIgnoresMismatchedPacketTokenResultTest(M.Edge):
         return self.result
 
 
+class CompareSearchModesRejectsCrossModeWorkerResultTest(M.Edge):
+    def __init__(self, graph):
+        registry = _registry(graph)
+        empty = M.EmptyList
+        probe = _CompareSearchModesProbe(
+            graph,
+            M.Thingy(),
+            M.Atom(),
+            empty,
+            M.Heuristic(M.BFSLabel, M.GoalHeadOrderLabel, M.three, M.one, M.one, M.one)(),
+            registry,
+        )
+        decoded = SearchWorkerResult(
+            M.DFSLabel,
+            M.SearchRunningLabel,
+            M.one,
+            M.Zero,
+            M.one,
+            M.one,
+            M.one,
+            M.one,
+            M.Zero,
+            empty,
+            M.Tree(empty),
+            empty,
+            M.Zero,
+            empty,
+            M.one,
+        )()
+        self.result = probe._worker_result_matches_entry(
+            M.BFSLabel, M.one, decoded,
+        )
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
 class CompareSearchModesStaleTokenRetryRequeuesOriginalPacketTest(M.Edge):
     def __init__(self, graph):
         registry = _registry(graph)
@@ -18064,6 +18102,14 @@ def install_default_tests(graph):
             "compare_search_modes_ignores_mismatched_packet_token_result_test",
             empty,
             CompareSearchModesIgnoresMismatchedPacketTokenResultTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_rejects_cross_mode_worker_result_test",
+            empty,
+            CompareSearchModesRejectsCrossModeWorkerResultTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
