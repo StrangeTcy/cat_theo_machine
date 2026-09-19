@@ -476,10 +476,30 @@ def run_rent_child(req_path, resp_path):
         bench = req["benchmark"]
         step_budget = int(bench["step_budget"])
         max_total_ms = int(bench["max_total_ms"])
-        # Install accepted laws first.
+        # Install accepted laws first — fail-closed: any decode or
+        # InstallLaw failure is launch-error (front intact), not rent-fail.
         for acc in req.get("accepted_proposals", []) or []:
-            law = _child_law_decode(ns, acc["law_encoding"])
-            gv = G.InstallLaw(gv, law)()
+            try:
+                enc_acc = acc["law_encoding"]
+            except Exception as exc:
+                result["status"] = "launch-error"; result["reason"] = RENT_LAUNCH_REASON
+                result["detail"] = "accepted entry missing law_encoding: " + str(exc)
+                _atomic_write_json(resp_path, result); return 0
+            try:
+                law = _child_law_decode(ns, enc_acc)
+            except Exception as exc:
+                result["status"] = "launch-error"; result["reason"] = RENT_LAUNCH_REASON
+                result["detail"] = "accepted law decode failed for %s: %s" % (str(acc.get("proposal_id","")), str(exc))
+                _atomic_write_json(resp_path, result); return 0
+            try:
+                new_gv = G.InstallLaw(gv, law)()
+                if new_gv is M.EmptyList or (M.IdentityCompare(new_gv, M.EmptyList)() is M.truth_value):
+                    raise ValueError("InstallLaw returned EmptyList for accepted law")
+                gv = new_gv
+            except Exception as exc:
+                result["status"] = "launch-error"; result["reason"] = RENT_LAUNCH_REASON
+                result["detail"] = "InstallLaw failed for accepted %s: %s" % (str(acc.get("proposal_id","")), str(exc))
+                _atomic_write_json(resp_path, result); return 0
         # Compile each spec's candidate rule and walk the installed
         # graph under the step budget (measures the graph install +
         # traversal cost, which dominates admission-time work).

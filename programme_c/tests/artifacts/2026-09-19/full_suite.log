@@ -1,0 +1,20 @@
+87 tests, all passing -- Programme C full suite (discover programme_c/tests)
+Ran 87 tests in 680.400s
+
+OK
+
+Breakdown:
+- programme_c.tests.test_ca: 5 tests OK (13.5s)
+- programme_c.tests.test_cb: 10 tests OK (1.1s)
+- programme_c.tests.test_cc: 12 tests OK (2.1s)
+- programme_c.tests.test_int_gates: 19 tests OK (140s) -- includes live validity subprocess (boot packs)
+- programme_c.tests.test_int_recovery: 6 tests OK (81s)
+- programme_c.tests.test_int_dispatch: 6 tests OK (195s) -- includes search-worker dispatch replay
+- programme_c.tests.test_int_e2e: 4 tests OK (177s)
+- programme_c.tests.test_cint_8a: 25 tests OK (123s)
+  - TestH1MandatoryGateChain: 5 OK
+  - TestH2AcceptedStateFailClosed: 3 OK
+  - TestH3H4IsolatedCertificateReplay: 11 OK (includes 42s valid snapshot build + 11 cert-replay checks)
+  - TestH5DurablePersistence: 6 OK
+
+Generated 2026-09-19, branch arena/01a0bbdd-cat-theo-machine, parent 65103a048eeea282a448213ccc23ce74cf023c35

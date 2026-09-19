@@ -3451,7 +3451,7 @@ def main():
         default="talk",
         choices=[
             "talk", "cold", "warm", "test", "inspect", "search-worker",
-            "validity-check", "rent-check",
+            "validity-check", "rent-check", "cert-replay",
             "ingest", "daemon", "live",
         ],
         help=(
@@ -3527,6 +3527,11 @@ def main():
             from hyge_int_pkg.programme_c.rent import run_rent_child
             run_rent_child(args.arg1, args.arg2)
             raise SystemExit(0)
+        elif args.mode == "cert-replay":
+            if args.arg1 is None or args.arg2 is None:
+                raise RuntimeError("cert-replay requires REQ_PATH RESP_PATH")
+            from hyge_int_pkg.programme_c.cert_replay import run_cert_replay_child
+            raise SystemExit(run_cert_replay_child(args.arg1, args.arg2))
         elif args.mode == "ingest":
             if args.arg1 is None:
                 raise RuntimeError("ingest requires a training-records file path")

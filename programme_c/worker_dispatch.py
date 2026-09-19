@@ -191,79 +191,46 @@ def _to_text(v):
 
 
 def _replay_certificate(result_path, expected_start_text, expected_goal_text):
-    """Proof-check: boot an isolated runtime from the child snapshot, replay
-    BuildDerivation against the stored worker_plan, and confirm the
-    derivation is built and the goal is derivable from the start using the
-    child's registry. Returns (ok, body_text); does NOT modify parent state.
-    Missing/invalid plan or replay failure -> ok=False."""
-    if not _HAS_CODEC:
-        return False, "codec unavailable"
+    """Isolated proof-check (C-H3/C-H4): spawn fresh child to replay
+    BuildDerivation. Parent does NOT call boot_from_snapshot or mutate
+    M.AllConstructors. Returns (ok, body_text). Child verifies exact
+    endpoints; truncated/crash becomes launch-error upstream, not
+    refutation. Delegates to isolated cert-replay subprocess."""
     try:
-        from hyge_int_pkg.runtime import boot_from_snapshot
-        runtime = boot_from_snapshot(result_path, _main_runtime_namespace())
-        registry = M.FromContextGetConstructors(runtime.graph)()
-    except Exception as exc:
-        return False, "boot_from_snapshot failed: " + str(exc)
-    stage_text, status_text, has_attempt, worker_plan, child_registry = _load_worker_stage(result_path)
-    use_registry = child_registry if child_registry is not None else registry
-    if worker_plan is M.EmptyList:
-        return False, "no worker_plan in snapshot"
-    # Find start/goal from manifest start_text/goal_text via PrettyTerm comparison.
-    try:
-        from hyge_int_pkg.main import _search_worker_result_manifest_path
-        from hyge_int_pkg.main import _search_worker_problem_from_manifest
-        from hyge_int_pkg.packs import PackLoader
-        # We only want the manifest data; avoid re-booting packs by loading
-        # directly.
-        manifest_path = _search_worker_result_manifest_path(result_path)
-        with open(manifest_path, "r", encoding="utf-8") as h:
-            manifest = _json.load(h)
-        # We don't have packs here, but the snapshot's search_history start/goal
-        # are already in machine form. Extract from the most recent attempt.
-        attempts = runtime.graph._replace_context is not None and None
-    except Exception:
-        pass
-    # Extract start/goal from last search attempt on the loaded runtime.
-    try:
-        from hyge_int_pkg import proof as PP
-        attempts = runtime.graph.search_history
-        if M.IdentityCompare(attempts, M.EmptyList)() is M.truth_value:
-            return False, "no attempts in snapshot"
-        attempt = M.Head(attempts)()
-        start = PP.SearchAttemptStart(attempt)()
-        goal = PP.SearchAttemptGoal(attempt)()
-        heuristic = PP.SearchAttemptHeuristic(attempt)()
-    except Exception as exc:
-        return False, "could not read attempt: " + str(exc)
-    # Replay BuildDerivation on the worker_plan.
-    try:
-        from hyge_int_pkg import proof as P2
-        derivation_pair = P2.BuildDerivation(start, worker_plan, use_registry)()
-        derivation = M.Head(derivation_pair)()
-        reg2 = M.Head(M.Tail(derivation_pair)())()
-        if M.IdentityCompare(derivation, M.EmptyList)() is M.truth_value:
-            return False, "BuildDerivation returned EmptyList"
-        # Verify goal is reachable via TermEqual after normalization.
+        from hyge_int_pkg.programme_c.cert_replay import run_certificate_replay_subprocess
+        import os as _os
+        pkg_root = _os.path.abspath(_os.path.join(_os.path.dirname(__file__), ".."))
+        exp_snap = None
+        exp_ob = None
+        exp_start = expected_start_text
+        exp_goal = expected_goal_text
         try:
-            from hyge_int_pkg import heuristics as H
-            start_c = H.HeuristicCanonicalize(start, heuristic, reg2)()
-            goal_c = H.HeuristicCanonicalize(goal, heuristic, reg2)()
-            # Walk the derivation's steps: the derivation must end with a term
-            # that matches goal canonicalized. A simple terminal-step check:
-            # use DerivationEnd (if available) or else rely on BuildDerivation
-            # success (which constructs only valid derivations from start).
+            with open(result_path + ".manifest.json", "r") as _mf:
+                _m = _json.load(_mf)
+                exp_snap = _m.get("declared_snapshot_id")
+                exp_ob = _m.get("declared_obligation")
+                if exp_start is None:
+                    exp_start = _m.get("start_text")
+                if exp_goal is None:
+                    exp_goal = _m.get("goal_text")
+                exp_task = _m.get("task_id")
+                exp_attempt = _m.get("attempt_id")
+                exp_assump = _m.get("assumption_hash")
         except Exception:
-            pass
-        # BuildDerivation succeeding is the proof of plan->derivation from start.
-        # Record the proof cost so the body has evidence.
-        try:
-            cost_pair = P2.DerivationCost(derivation, reg2)()
-            cost = M.Head(cost_pair)()
-            return True, "replayed ok"
-        except Exception:
-            return True, "replayed ok (cost unavailable)"
+            exp_task = None; exp_attempt = None; exp_assump = None
+        res = run_certificate_replay_subprocess(
+            result_path, exp_snap or "", exp_ob or "",
+            exp_assump or "", exp_task or "", exp_attempt or "",
+            exp_start, exp_goal,
+            package_root=pkg_root, timeout_seconds=120
+        )
+        if res.get("status") == "completed" and res.get("passed"):
+            return True, res.get("body", "") or res.get("detail", "") or "replayed ok"
+        if res.get("status") == "launch-error":
+            return False, "launch-error: " + str(res.get("detail",""))
+        return False, res.get("detail","") or "proof replay failed"
     except Exception as exc:
-        return False, "BuildDerivation replay failed: " + str(exc)
+        return False, "cert-replay delegation failed: " + str(exc)
 
 
 def _verify_child_certificate(result_path, expected_snapshot_id,
@@ -316,6 +283,8 @@ def _verify_child_certificate(result_path, expected_snapshot_id,
         ok, why = _replay_certificate(result_path, expected_start_text, expected_goal_text)
         if ok:
             return True, "completed", None, body + " proof=ok"
+        if why.startswith("launch-error"):
+            return False, "proof-replay-failed: " + why, F_LAUNCH_ERROR, body + " " + why
         return False, "proof-replay-failed: " + why, F_INVALID_CERT, body + " " + why
     if not has_attempt:
         return False, "no-attempt", F_INVALID_CERT, body

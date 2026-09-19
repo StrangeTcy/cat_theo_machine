@@ -99,9 +99,9 @@ class ActivationIdempotencyTests(unittest.TestCase):
         self.assertTrue(pid)
         ok, _, _ = ja.admit_next(
             make_validity_check(structural_only_validity_for_tests()),
-            make_rent_check(None),  # unused (no GATE_RENT)
-            make_human_check(None))
-        # No gates configured; admit succeeds.
+            lambda e, a, v: (True, None),
+            lambda e, a, v: (True, None))
+        # Mandatory chain validity->rent->human still runs even with gates=[]; all pass -> admit.
         self.assertTrue(ok)
         entry = ja.pending_activation()
         self.assertTrue(entry["activation_id"].startswith("act-"))
@@ -131,7 +131,7 @@ class ActivationIdempotencyTests(unittest.TestCase):
         self._bootstrap_claim(ja)
         ja.enqueue_proposal("law-x", "p", [])
         ja.admit_next(make_validity_check(structural_only_validity_for_tests()),
-                      make_rent_check(None), make_human_check(None))
+                      lambda e, a, v: (True, None), lambda e, a, v: (True, None))
         entry = ja.pending_activation()
         aid = entry["activation_id"]
         def _commit_and_raise(e, acc, v):
@@ -189,7 +189,7 @@ class ActivationIdempotencyTests(unittest.TestCase):
         self._bootstrap_claim(ja)
         ja.enqueue_proposal("law-x", "p", [])
         ja.admit_next(make_validity_check(structural_only_validity_for_tests()),
-                      make_rent_check(None), make_human_check(None))
+                      lambda e, a, v: (True, None), lambda e, a, v: (True, None))
         aid = ja.pending_activation()["activation_id"]
         # Manually put in 'activating' state to simulate crash.
         ja._accepted_proposals[-1]["state"] = "activating"

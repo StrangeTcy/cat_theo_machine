@@ -37,11 +37,12 @@ class ManifestError(RuntimeError):
 
 
 def _fsync_dir(path):
+    # Durability contract: fsync the parent directory. Any OSError
+    # (e.g., injected failure, I/O error) must propagate — caller
+    # must not report durable success.
     fd = os.open(path, os.O_RDONLY)
     try:
         os.fsync(fd)
-    except OSError:
-        pass
     finally:
         os.close(fd)
 

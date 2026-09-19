@@ -37,9 +37,9 @@ into machine terms. Representable shapes (shared with rent.py):
                                    PolicyEntry(Char(cls), Char(gate))))
 
 Invariant (C2 carry-forward: encoding surface fail-closed): any accepted
-entry or candidate that lacks a decodable proposal_encoding /
+entry that lacks a decodable proposal_encoding /
 law_encoding (missing key, unsupported shape, CompileRuleToLaw returns
-EmptyList) surfaces as F_LAUNCH_ERROR -- queue front held intact,
+EmptyList) surfaces as F_LAUNCH_ERROR (accepted replay) -- queue front held intact,
 no pop, no false pass, no F_INVALID_CERT misclassification. The
 parent-side serialization probe in run_validity_check_subprocess
 raises/returns launch-error before spawning the child for known-missing
@@ -328,27 +328,62 @@ def run_validity_child(req_path, resp_path):
         # Bootstrap safety invariants so CheckSafety can evaluate floor
         # violations on the candidate law.
         gv = G.BootstrapSafetyInvariants(raw_gv)()
+        # C-H2: fail-closed accepted-state replay — any decode or
+        # InstallLaw failure for an activated accepted law must be
+        # launch-error (front intact), not a silent skip.
         for acc in req.get("accepted_proposals", []) or []:
-            try:
-                if acc.get("state") != "activated":
-                    continue
-                law = _child_law_from_encoding(ns, acc["law_encoding"])
-                gv = G.InstallLaw(gv, law)()
-            except Exception:
+            if acc.get("state") != "activated":
                 continue
+            try:
+                enc_acc = acc["law_encoding"]
+            except Exception as exc:
+                response["status"] = "launch-error"
+                response["reason"] = LAUNCH_ERROR_REASON
+                response["detail"] = "accepted entry missing law_encoding: " + str(exc)
+                _write_resp(resp_path, response); return 0
+            try:
+                law = _child_law_from_encoding(ns, enc_acc)
+            except Exception as exc:
+                response["status"] = "launch-error"
+                response["reason"] = LAUNCH_ERROR_REASON
+                response["detail"] = "accepted law decode failed for %s: %s" % (str(acc.get("proposal_id", "")), str(exc))
+                _write_resp(resp_path, response); return 0
+            try:
+                new_gv = G.InstallLaw(gv, law)()
+                if new_gv is M.EmptyList or (M.IdentityCompare(new_gv, M.EmptyList)() is M.truth_value):
+                    raise ValueError("InstallLaw returned EmptyList")
+                gv = new_gv
+            except Exception as exc:
+                response["status"] = "launch-error"
+                response["reason"] = LAUNCH_ERROR_REASON
+                response["detail"] = "InstallLaw failed for accepted %s: %s" % (str(acc.get("proposal_id", "")), str(exc))
+                _write_resp(resp_path, response); return 0
         entry = req.get("entry") or {}
-        cand_prop = None
+        # Candidate decode: bad proposal -> invalid-certificate (not launch-error).
+        # Only accepted-state replay failures are launch-error (front intact).
         try:
             enc = entry["proposal_encoding"]
+        except Exception:
+            response["status"] = FAILED_STATUS
+            response["reason"] = INVALID_CERT_REASON
+            response["detail"] = "candidate missing proposal_encoding"
+            _write_resp(resp_path, response); return 0
+        try:
             law = _child_law_from_encoding(ns, enc)
+        except Exception as exc:
+            response["status"] = FAILED_STATUS
+            response["reason"] = INVALID_CERT_REASON
+            response["detail"] = "candidate law decode failed: " + str(exc)
+            _write_resp(resp_path, response); return 0
+        try:
             origin = entry.get("origin", "c-int-validity-check")
             try: origin = origin + ""
             except Exception: origin = "c-int-validity-check"
             cand_prop = G.Proposal(law, M.Char(origin))()
-        except Exception:
-            cand_prop = None
-        if cand_prop is None:
-            response["detail"] = "no decodable proposal_encoding"
+        except Exception as exc:
+            response["status"] = FAILED_STATUS
+            response["reason"] = INVALID_CERT_REASON
+            response["detail"] = "candidate Proposal construction failed: " + str(exc)
             _write_resp(resp_path, response); return 0
         existing = empty
         cand_entry = G.ProposalEntry(cand_prop, existing)()

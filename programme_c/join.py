@@ -113,7 +113,8 @@ def _opt(fn, term, key, fn2=None, term2=None, key2=None):
 
 
 class JoinAdmission:
-    def __init__(self, manifest_path=None, strict_manifest=True):
+    def __init__(self, manifest_path=None, strict_manifest=True,
+                 validity_check=None, rent_check=None, human_check=None):
         self.claims = {}
         self._lock = _threading.RLock()
         self._proposal_queue = []
@@ -123,6 +124,14 @@ class JoinAdmission:
         self._accepted_state_version = 0
         self.manifest_error = None
         self._activation_inflight = False
+        # C-H1: coordinator-owned mandatory gate chain. Test injection
+        # belongs on the fixture (these instance attributes), not on the
+        # proposal entry's gates list. The mandatory order is
+        # validity -> rent -> human.
+        self._validity_check = validity_check
+        self._rent_check = rent_check
+        self._human_check = human_check
+        self._mandatory_gates = [GATE_VALIDITY, GATE_RENT, GATE_HUMAN]
         if manifest_path is not None:
             from hyge_int_pkg.programme_c.admission_hooks import (
                 load_admission_manifest, ManifestError,
@@ -383,16 +392,24 @@ class JoinAdmission:
         except Exception:
             return bool(r), None
 
-    def admit_next(self, validity_check, rent_check, human_approval_check):
-        """One-at-a-time fail-closed gate chain. Returns False if any gate
-        fails (or raises) or if persistence fails, or if an activation is
-        pending. Bumps accepted_state_version ONLY on transition to
-        'admitted'; version is monotonic (never decremented).
+    def admit_next(self, validity_check=None, rent_check=None, human_approval_check=None):
+        """One-at-a-time fail-closed mandatory gate chain.
 
-        Validity returns a (bool, reason) pair from make_validity_check /
-        make_live_activate_proposal_check. On F_LAUNCH_ERROR the queue
-        front is NOT popped -- callers should halt and report rather
-        than dropping the proposal."""
+        C-H1: The coordinator owns the mandatory chain validity -> rent
+        -> human. The proposal entry's `gates` list is *not* authoritative;
+        it is stored for audit but ignored for admission decisions.
+        Caller-supplied omissions (e.g., gates=[] ) or unknown gate
+        tokens do not bypass any gate — the full chain is always run.
+        Test injection belongs on the JoinAdmission fixture
+        (self._validity_check / _rent_check / _human_check), not on the
+        per-proposal gates list. The mandatory order is strictly
+        validity -> rent -> human, with F_LAUNCH_ERROR holding the queue
+        front intact.
+
+        Returns False if any gate fails (or raises) or if persistence
+        fails, or if an activation is pending. Bumps
+        accepted_state_version ONLY on transition to 'admitted'; version
+        is monotonic (never decremented)."""
         with self._lock:
             if self.manifest_error is not None:
                 return False, "", "manifest error: " + str(self.manifest_error)
@@ -411,47 +428,54 @@ class JoinAdmission:
                     self._proposal_queue.pop(0); self._persist()
                     return True, entry["proposal_id"], "duplicate"
             entry["evidence_state_version"] = self._accepted_state_version
-            if GATE_VALIDITY in entry["gates"]:
-                ok, reason = self._run_gate(validity_check, entry,
-                                            list(self._accepted_proposals),
-                                            self._accepted_state_version)
-                if not ok:
-                    # Launch error: do NOT pop front; do NOT mutate state
-                    # so the caller can retry / halt-and-report.
-                    if reason is not None and M.IdentityCompare(
-                            reason, F_LAUNCH_ERROR)() is M.truth_value:
-                        return False, entry["proposal_id"], "validity-launch-error"
-                    entry["state"] = "rejected-validity"
+            # C-H1: mandatory coordinator-owned chain — always validity
+            # -> rent -> human in order, ignoring entry["gates"] for
+            # admission decisions. The gates list is retained only for
+            # audit. Instance-injected gates (fixture) take precedence
+            # over per-call arguments; this implements "test injection
+            # belongs on the JoinAdmission fixture".
+            eff_validity = self._validity_check if self._validity_check is not None else validity_check
+            eff_rent = self._rent_check if self._rent_check is not None else rent_check
+            eff_human = self._human_check if self._human_check is not None else human_approval_check
+            # Validity gate — fail-closed, launch-error holds front.
+            ok, reason = self._run_gate(eff_validity, entry,
+                                        list(self._accepted_proposals),
+                                        self._accepted_state_version)
+            if not ok:
+                if reason is not None and M.IdentityCompare(
+                        reason, F_LAUNCH_ERROR)() is M.truth_value:
+                    return False, entry["proposal_id"], "validity-launch-error"
+                entry["state"] = "rejected-validity"
+                entry["rejected_at"] = _time.time()
+                self._proposal_queue.pop(0); self._persist()
+                return False, entry["proposal_id"], "validity failed"
+            # Rent gate — launch-error holds front, rent-fail rejects.
+            ok, reason = self._run_gate(eff_rent, entry,
+                                        list(self._accepted_proposals),
+                                        self._accepted_state_version)
+            if not ok:
+                if reason is not None and M.IdentityCompare(
+                        reason, F_LAUNCH_ERROR)() is M.truth_value:
+                    return False, entry["proposal_id"], "rent-launch-error"
+                if reason is not None and M.IdentityCompare(
+                        reason, F_RENT_FAIL)() is M.truth_value:
+                    entry["state"] = "rejected-rent"
                     entry["rejected_at"] = _time.time()
                     self._proposal_queue.pop(0); self._persist()
-                    return False, entry["proposal_id"], "validity failed"
-            if GATE_RENT in entry["gates"]:
-                ok, reason = self._run_gate(rent_check, entry,
-                                            list(self._accepted_proposals),
-                                            self._accepted_state_version)
-                if not ok:
-                    if reason is not None and M.IdentityCompare(
-                            reason, F_LAUNCH_ERROR)() is M.truth_value:
-                        return False, entry["proposal_id"], "rent-launch-error"
-                    if reason is not None and M.IdentityCompare(
-                            reason, F_RENT_FAIL)() is M.truth_value:
-                        entry["state"] = "rejected-rent"
-                        entry["rejected_at"] = _time.time()
-                        self._proposal_queue.pop(0); self._persist()
-                        return False, entry["proposal_id"], "rent failed"
-                    # Plain False (no reason atom) / other -> hold awaiting rent.
-                    entry["state"] = "rent-hold"; self._persist()
-                    return False, entry["proposal_id"], "rent hold"
-            if GATE_HUMAN in entry["gates"]:
-                ok, reason = self._run_gate(human_approval_check, entry,
-                                            list(self._accepted_proposals),
-                                            self._accepted_state_version)
-                if not ok:
-                    if reason is not None and M.IdentityCompare(
-                            reason, F_LAUNCH_ERROR)() is M.truth_value:
-                        return False, entry["proposal_id"], "human-launch-error"
-                    entry["state"] = "awaiting-human"; self._persist()
-                    return False, entry["proposal_id"], "awaiting human"
+                    return False, entry["proposal_id"], "rent failed"
+                # Plain False (no reason atom) / other -> hold awaiting rent.
+                entry["state"] = "rent-hold"; self._persist()
+                return False, entry["proposal_id"], "rent hold"
+            # Human gate — launch-error is symmetric, otherwise deny -> awaiting-human.
+            ok, reason = self._run_gate(eff_human, entry,
+                                        list(self._accepted_proposals),
+                                        self._accepted_state_version)
+            if not ok:
+                if reason is not None and M.IdentityCompare(
+                        reason, F_LAUNCH_ERROR)() is M.truth_value:
+                    return False, entry["proposal_id"], "human-launch-error"
+                entry["state"] = "awaiting-human"; self._persist()
+                return False, entry["proposal_id"], "awaiting human"
             entry["state"] = "admitted"
             entry["admitted_at"] = _time.time()
             entry["admitted_at_version"] = self._accepted_state_version
