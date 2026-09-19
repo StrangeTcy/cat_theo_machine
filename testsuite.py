@@ -13385,6 +13385,25 @@ class SnapshotPreservesMachineEdgeStructureTest(M.Edge):
         return self.result
 
 
+class SnapshotHostObjectRefusalTest(M.Edge):
+    def __init__(self, _graph):
+        namespace = dict(vars(M))
+        namespace.update(vars(Lmod))
+        codec = SnapshotCodec(namespace)
+        self.result = M.false_value
+        try:
+            codec.capture_objects({"host_class": SnapshotCodec})
+        except RuntimeError as error:
+            if str(error).find("Snapshot capture refused") != -1:
+                self.result = M.truth_value
+        except Exception:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
 class SnapshotPreservesConstructorLabelsAndCharsTest(M.Edge):
     def __init__(self, _graph):
         empty = M.EmptyList
@@ -18015,6 +18034,14 @@ def install_default_tests(graph):
             "snapshot_preserves_machine_edge_structure_test",
             empty,
             SnapshotPreservesMachineEdgeStructureTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "snapshot_host_object_refusal_test",
+            empty,
+            SnapshotHostObjectRefusalTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:

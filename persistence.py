@@ -730,6 +730,17 @@ class SnapshotCodec:
         return M.false_value
 
     def _captured_object_id(self, target):
+        try:
+            target.id
+        except AttributeError:
+            try:
+                describe = target.__name__
+            except AttributeError:
+                describe = repr(target)
+            raise RuntimeError(
+                "Snapshot capture refused: host object without machine identity: "
+                + str(describe)
+            ) from None
         return T.IdentityRedBlackNatLookupValue(self.object_id_index, target)()
 
     def _capture_oid_number(self, oid):
