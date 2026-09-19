@@ -676,12 +676,7 @@ class _SearchModeWorkerExecutor:
                             + ")",
                         )
                         traceback.print_exc()
-                        result_queue.put(
-                            M.Pair(
-                                SearchFailureLabel,
-                                M.Pair(SearchRootWaveShardLaunchLabel, M.EmptyList),
-                            )
-                        )
+                        result_queue.put(None)
                     continue
             mode = SearchWorkerLaunchMode(launch)()
             mode_text = SearchModeText(mode)()
