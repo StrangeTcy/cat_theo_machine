@@ -944,6 +944,7 @@ class _ComparisonPacketMixin:
                     M.Pair(Append(self._reverse(acc, M.EmptyList), M.Tail(workers)())(), M.EmptyList),
                 ),
             )
+
         except queue.Empty:
             if process.is_alive():
                 return self._first_finished_root_wave_shard_worker(M.Tail(workers)(), M.Pair(entry, acc))
@@ -959,6 +960,11 @@ class _ComparisonPacketMixin:
                     M.Pair(Append(self._reverse(acc, M.EmptyList), M.Tail(workers)())(), M.EmptyList),
                 ),
             )
+
+    def _is_root_wave_execution_failure(self, payload):
+        if M.IsPair(payload)() is M.false_value:
+            return M.false_value
+        return M.IdentityCompare(M.Head(payload)(), SearchFailureLabel)()
 
     def _merge_root_wave_shard_results(self, shard_results):
         immediate_rules = M.EmptyList

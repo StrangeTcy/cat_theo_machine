@@ -11820,6 +11820,29 @@ class CompareSearchModesRootWaveRetriesFailedShardOnResidentTest(M.Edge):
         return self.result
 
 
+class CompareSearchModesRecognizesRootWaveMachineFailureTest(M.Edge):
+    def __init__(self, graph):
+        probe = _CompareSearchModesProbe(
+            graph,
+            M.Thingy(),
+            M.Atom(),
+            M.EmptyList,
+            M.Heuristic(M.BFSLabel, M.InsertionOrderLabel, M.one, M.one, M.one, M.one)(),
+            _registry(graph),
+        )
+        failure = M.Pair(
+            M.SearchFailureLabel,
+            M.Pair(M.SearchRootWaveShardLaunchLabel, M.EmptyList),
+        )
+        self.result = probe._is_root_wave_execution_failure(failure)
+        if probe._is_root_wave_execution_failure(M.EmptyList) is M.truth_value:
+            self.result = M.false_value
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
 class CompareSearchModesRootWaveReplacesExhaustedResidentTest(M.Edge):
     def __init__(self, graph):
         registry = _registry(graph)
@@ -17578,6 +17601,14 @@ def install_default_tests(graph):
             "compare_search_modes_root_wave_retries_failed_shard_on_resident_test",
             empty,
             CompareSearchModesRootWaveRetriesFailedShardOnResidentTest(graph),
+            M.truth_value,
+        )
+    if Gmod.TestShardAccept(graph)() is M.truth_value:
+        _register_test(
+            graph,
+            "compare_search_modes_recognizes_root_wave_machine_failure_test",
+            empty,
+            CompareSearchModesRecognizesRootWaveMachineFailureTest(graph),
             M.truth_value,
         )
     if Gmod.TestShardAccept(graph)() is M.truth_value:
