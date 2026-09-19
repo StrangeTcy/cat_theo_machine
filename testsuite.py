@@ -14486,6 +14486,12 @@ class CompareSearchModesRecognizesMachineWorkerFailureTest(M.Edge):
             failure, M.BFSLabel, M.two,
         ) is M.truth_value:
             self.result = M.false_value
+        elif probe._worker_failure_matches_entry(
+            M.Pair(M.SearchFailureLabel, M.EmptyList),
+            M.BFSLabel,
+            M.one,
+        ) is M.truth_value:
+            self.result = M.false_value
         super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
 
     def __call__(self):

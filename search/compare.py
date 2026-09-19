@@ -71,7 +71,7 @@ class CompareSearchModes(_ComparisonConsoleMixin, _ComparisonNatMixin, _Comparis
             return M.false_value
         context = M.Tail(payload)()
         if M.IdentityCompare(context, M.EmptyList)() is M.truth_value:
-            return M.truth_value
+            return M.false_value
         marker_mode = M.Head(context)()
         if M.IdentityCompare(marker_mode, mode)() is M.false_value:
             return M.false_value
