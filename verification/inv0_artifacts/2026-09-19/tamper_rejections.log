@@ -1,0 +1,11 @@
+rule: REJECTED (fresh process exit=1; attempt hash recomputed)
+["pair",["atom","inv0/RejectedTransition"],["pair",["atom","sha256/1a087f153cad49c0abe730557014689c43173f24f69a5b27242c61cd595321c0"],["pair",["atom","inv0/integrity-pattern mismatch"],["empty"]]]]
+
+substitution: REJECTED (fresh process exit=1; attempt hash recomputed)
+["pair",["atom","inv0/RejectedTransition"],["pair",["atom","sha256/5f1d2a46598ac6aaeb6c2ad656d000b072880a347691297d3dc4bcdb5defc3d8"],["pair",["atom","inv0/integrity-substitution"],["empty"]]]]
+
+rule_set: REJECTED (fresh process exit=1; attempt hash recomputed)
+["pair",["atom","inv0/RejectedTransition"],["pair",["atom","sha256/1399df6d80e62bf3b1fa42be14d1932e62918463bff15b39c6b5250b82e6f32b"],["pair",["atom","inv0/integrity-rule-set identity"],["empty"]]]]
+
+after_state: REJECTED (fresh process exit=1)
+["pair",["atom","inv0/RejectedTransition"],["pair",["atom","sha256/13268b164a8bba6bf0fd42e0bceb9e9dd3805948150e204ab75d4b3a44c9f0ec"],["pair",["atom","inv0/integrity-after-state"],["empty"]]]]

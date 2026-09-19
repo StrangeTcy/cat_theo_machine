@@ -36,14 +36,14 @@
 2. **Execution evidence.** `proof.py:396` RewriteAction(rule,path),
    `proof.py:1814` Step(current,action,next,registry), `proof.py:1995`
    Derivation(steps,cost,registry), and `proof.py:1878` ProofCost exist.
-   `proof.py:2333` RewriteAtPath and `proof.py:2368` BuildDerivation reconstruct
+   `proof.py:2333` RewriteAtPath and `proof.py:2365` BuildDerivation reconstruct
    applications. BuildDerivation is a producer, not an integrity verifier:
    its action replay at `proof.py:2505-2537` does not verify a supplied
    next-state or scope identity. New checker will rematch and reinstantiate;
    unsuccessful identity rewrites will not be confused with successful matches.
    Existing Step/Derivation require constructor registries; isolated records
    will carry checked transitions and paths without global registration.
-3. **Lists/naturals.** `core.py:197` Zero; `math/peano.py:177` Succ,
+3. **Lists/naturals.** `core.py:203` Zero; `math/peano.py:177` Succ,
    `math/peano.py:206` Count, `math/peano.py:320` NatEq,
    `math/peano.py:342` NatLess. Count counts positions (not unique tokens),
    but writes shared Zero.value (`math/peano.py:212`) and builds registry
@@ -70,7 +70,7 @@
    The declared world is ROOT list rewriting, not arbitrary subterm rewriting.
 7. **Existing invariants.** `invariance.py:1559` InvariantCandidate(phi,ruleset)
    exists, but lacks trace provenance/scope. `invariance.py:98` Preserves and
-   `invariance.py:1198` Invariant are a different observer language;
+   `invariance.py:1199` Invariant are a different observer language;
    `invariance.py:1276` ReachabilityPrune trusts an invariant-shaped term and
    compares PhiReading. They are not the independent parity proof/scoped
    certificate consumer required here and will remain untouched.
@@ -122,3 +122,6 @@ activation, admission, or live store change is needed. Replay can remain
 purely local. The term world is representable and transition production is
 separable from checking. **PASS: implementation may proceed after this
 inspection record is committed.**
+
+Post-inspection citation correction: Zero is at core.py:203, BuildDerivation at
+proof.py:2365, and Invariant at invariance.py:1199. No inspection conclusion changed.
