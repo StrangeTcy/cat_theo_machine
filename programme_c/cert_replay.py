@@ -1,4 +1,5 @@
-"""Isolated certificate replay with exact endpoint checking (C-INT-8A C-H3/C-H4).
+"""Isolated certificate replay with exact endpoint checking (C-INT-8A C-H3/C-H4,
+tightened 8A-F1 per Q-A).
 
 Coordinator must not call boot_from_snapshot or mutate M.AllConstructors for
 replay. Instead it spawns a fresh child that:
@@ -8,8 +9,28 @@ replay. Instead it spawns a fresh child that:
   - boots the snapshot via boot_from_snapshot in its own process
   - verifies success-derivation-built stage
   - replays BuildDerivation on the stored worker_plan
-  - verifies derivation start == declared start and derivation conclusion == declared goal
-  - returns a JSON response; truncated/crash/schema/boot failures become launch-error
+  - verifies derivation start == declared start and derivation conclusion entails
+    declared goal (ConclusionEntailsGoal)
+
+ConclusionEntailsGoal (named relation, 8A-F1):
+  accept iff TermEqual(d_end, goal) is truth
+       OR (IsKnowledge(d_end) and KnowledgeContains(d_end, goal))
+  where KnowledgeContains means:
+    if goal is Knowledge: FactsCover(KnowledgeFacts(goal), KnowledgeFacts(d_end))
+    else: goal is a single fact and KnowledgeFacts(d_end) contains a fact TermEqual to goal
+  Both disjuncts use the same use_registry canonicalization as DerivationStart.
+
+  Worked example (Tao Knowledge containment):
+    goal  = Length(Segment(v,w), APShortSide(Tao Problem 1.1 triangle))
+    d_end = Knowledge([Length(Segment(v,w), APShortSide(...)), SideOf(Segment(v,w), ...)])
+    TermEqual(d_end, goal) = false  (correct rejection of structural equality)
+    KnowledgeContains(d_end, goal) = true  (goal fact is member of Knowledge)
+    → accept.  A derivation whose conclusion neither equals nor contains the
+    declared goal is rejected as F_INVALID_CERT, even if BuildDerivation
+    succeeded internally (adversarial plan that proves a different proposition).
+
+  DerivationStart is now fatal: TermEqual(d_start, start) must be truth
+  under use_registry; mismatch → F_INVALID_CERT (not logged).
 
 Parent runtime singleton identities remain unchanged.
 """
@@ -193,6 +214,91 @@ def _callable0(v):
         return False
     except Exception:
         return True
+
+
+# ---- 8A-F1: explicit ConclusionEntailsGoal relation ----
+# Accept iff TermEqual(d_end, goal) OR KnowledgeContains(d_end, goal)
+# after same use_registry canonicalization as DerivationStart.
+# No prefix/skip/metadata-only acceptance.
+def _canonical_term(term, registry):
+    try:
+        import hyge_int_pkg.machine as _M
+        return _M.CanonicalArithmeticTerm(term, registry)()
+    except Exception:
+        return term
+
+
+def KnowledgeContains(d_end, goal, registry):
+    """True iff d_end is Knowledge and its fact set entails goal.
+
+    If goal is Knowledge: all facts of goal must be in d_end (FactsCover).
+    If goal is a single fact: that fact must be TermEqual to some member of d_end.
+    Both terms are assumed already canonicalized under registry; caller should
+    canonicalize via _canonical_term first (same as DerivationStart path).
+    """
+    try:
+        import hyge_int_pkg.machine as _M
+        import hyge_int_pkg.proof as _P
+        if _P.IsKnowledge(d_end)() is not _M.truth_value:
+            return _M.false_value
+        d_facts = _P.KnowledgeFacts(d_end)()
+        if _P.IsKnowledge(goal)() is _M.truth_value:
+            g_facts = _P.KnowledgeFacts(goal)()
+            # FactsCover(g_facts, d_facts) == every goal fact appears in d_end
+            return _P.FactsCover(g_facts, d_facts)()
+        else:
+            rem = d_facts
+            while _M.IdentityCompare(rem, _M.EmptyList)() is _M.false_value:
+                if _M.TermEqual(_M.Head(rem)(), goal)() is _M.truth_value:
+                    return _M.truth_value
+                rem = _M.Tail(rem)()
+            return _M.false_value
+    except Exception:
+        try:
+            import hyge_int_pkg.machine as _M2
+            return _M2.false_value
+        except Exception:
+            return False
+
+
+def ConclusionEntailsGoal(d_end, goal, registry):
+    """Named relation for Q-A: TermEqual OR KnowledgeContains after
+    same use_registry canonicalization.
+
+    Worked example (Tao):
+      goal  = Length(Segment(v,w), APShortSide(Tao Problem 1.1 triangle))
+      d_end = Knowledge([Length(Segment(v,w), APShortSide(...)),
+                         SideOf(Segment(v,w), ...)])
+      TermEqual(d_end, goal) == false  (structure mismatch)
+      KnowledgeContains(d_end, goal) == true (goal fact member of Knowledge)
+      → accept.
+    A derivation whose conclusion neither equals nor contains the declared
+    goal (e.g. a valid derivation of a *different* proposition) is rejected
+    even though BuildDerivation succeeded internally.
+    """
+    try:
+        import hyge_int_pkg.machine as _M
+        d_c = _canonical_term(d_end, registry)
+        g_c = _canonical_term(goal, registry)
+        if _M.TermEqual(d_c, g_c)() is _M.truth_value:
+            return _M.truth_value
+        kc = KnowledgeContains(d_c, g_c, registry)
+        # KnowledgeContains returns a machine bool or python bool
+        if kc is _M.truth_value or kc is True:
+            return _M.truth_value
+        return _M.false_value
+    except Exception:
+        try:
+            import hyge_int_pkg.machine as _M3
+            return _M3.false_value
+        except Exception:
+            return False
+
+
+# alias for internal use (python bool convenience)
+def _conclusion_entails_goal(d_end, goal, registry):
+    import hyge_int_pkg.machine as _M
+    return ConclusionEntailsGoal(d_end, goal, registry) is _M.truth_value
 
 
 def run_cert_replay_child(req_path, resp_path):
@@ -409,7 +515,7 @@ def run_cert_replay_child(req_path, resp_path):
         response["detail"] = "could not read attempt start/goal: " + str(exc)
         _write_resp(resp_path, response); return 0
 
-    # Step 5: Replay BuildDerivation
+    # Step 5: Replay BuildDerivation + strict endpoint verification (8A-F1)
     try:
         import hyge_int_pkg.proof as P2
         derivation_pair = P2.BuildDerivation(start, worker_plan, use_registry)()
@@ -418,30 +524,46 @@ def run_cert_replay_child(req_path, resp_path):
         if M.IdentityCompare(derivation, M.EmptyList)() is M.truth_value:
             response["detail"] = "BuildDerivation returned EmptyList"
             _write_resp(resp_path, response); return 0
-        # Endpoint verification: the original spec requires
-        # DerivationStart == declared start and DerivationEnd == declared
-        # goal via TermEqual, but for Knowledge-wrapped goals the
-        # derivation's final Knowledge contains the goal as a member rather
-        # than being syntactically equal to it.  BuildDerivation success
-        # already guarantees that the derivation proves the goal from the
-        # start under the registry, so we treat a non-empty derivation
-        # as success and do not enforce strict TermEqual on the
-        # conclusion.  The start check remains as a sanity check but is
-        # non-fatal if it fails due to canonicalization differences.
+        # DerivationStart is now fatal (Q-A).
+        # Must use same use_registry canonicalization for both start and goal paths.
         try:
-            import hyge_int_pkg.proof as Pmod
-            try:
-                d_start = Pmod.DerivationStart(derivation, reg2)()
-                if d_start is not None and M.TermEqual(d_start, start)() is not M.truth_value:
-                    # Log but do not fail: start mismatch is rare and
-                    # indicates a serious proof bug, but BuildDerivation
-                    # success is the primary proof obligation.
-                    pass
-            except Exception:
-                pass
-            # DerivationEnd check is intentionally lenient: see above.
+            d_start = P2.DerivationStart(derivation, reg2)()
+        except Exception as exc:
+            response["detail"] = "DerivationStart check failed: " + str(exc)
+            _write_resp(resp_path, response); return 0
+        # Canonicalize both sides under reg2 before TermEqual, mirroring
+        # ConclusionEntailsGoal's canonicalization discipline.
+        try:
+            d_start_c = _canonical_term(d_start, reg2)
+            start_c = _canonical_term(start, reg2)
         except Exception:
-            pass
+            d_start_c = d_start
+            start_c = start
+        if M.IdentityCompare(d_start, M.EmptyList)() is M.truth_value or M.TermEqual(d_start_c, start_c)() is not M.truth_value:
+            response["detail"] = "derivation start does not match declared start"
+            _write_resp(resp_path, response); return 0
+        # DerivationEnd -> ConclusionEntailsGoal (fatal, no prefix/skip).
+        # Accept iff TermEqual(d_end, goal) OR KnowledgeContains(d_end, goal)
+        # after same use_registry canonicalization.  Reject otherwise with
+        # F_INVALID_CERT detail "derivation conclusion does not entail declared goal".
+        try:
+            d_end = P2.DerivationEnd(derivation, reg2)()
+        except Exception as exc:
+            response["detail"] = "DerivationEnd check failed: " + str(exc)
+            _write_resp(resp_path, response); return 0
+        # Empty conclusion cannot entail anything.
+        try:
+            is_empty = M.IdentityCompare(d_end, M.EmptyList)() is M.truth_value
+        except Exception:
+            is_empty = (d_end is M.EmptyList)
+        if is_empty:
+            response["detail"] = "derivation conclusion does not entail declared goal"
+            _write_resp(resp_path, response); return 0
+        entails = ConclusionEntailsGoal(d_end, goal, reg2)
+        import hyge_int_pkg.machine as _Mchk
+        if entails is not _Mchk.truth_value:
+            response["detail"] = "derivation conclusion does not entail declared goal"
+            _write_resp(resp_path, response); return 0
         # Success
         response["status"] = COMPLETED_STATUS
         response["passed"] = True
