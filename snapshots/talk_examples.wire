@@ -1,0 +1,2 @@
+WIRE1
+( ( L:CorrespondenceExampleLabel ( ( L:SurfaceLabel ( ( C:triple ( C:two E ) ) E ) ) ( ( L:MeaningLabel ( ( L:ExprMulLabel ( ( L:SurfaceLabel ( ( C:three E ) E ) ) ( ( L:SurfaceLabel ( ( C:two E ) E ) ) E ) ) ) E ) ) ( C:trainer E ) ) ) ) ( ( L:CorrespondenceExampleLabel ( ( L:SurfaceLabel ( ( C:triple ( C:three E ) ) E ) ) ( ( L:MeaningLabel ( ( L:ExprMulLabel ( ( L:SurfaceLabel ( ( C:three E ) E ) ) ( ( L:SurfaceLabel ( ( C:three E ) E ) ) E ) ) ) E ) ) ( C:trainer E ) ) ) ) E ) )

@@ -81,16 +81,21 @@ class InstalledTaughtDerivations(M.Edge):
     def __init__(self, graph_version):
         reversed_derivations = M.EmptyList
         agenda = GraphNodes(graph_version)()
+        visited = M.EmptyList
         while M.IdentityCompare(agenda, M.EmptyList)() is M.false_value:
             node = M.Head(agenda)()
             agenda = M.Tail(agenda)()
             if M.IsPair(node)() is M.truth_value:
                 node_head = M.Head(node)()
                 if M.IsPair(node_head)() is M.truth_value:
-                    nested = node
-                    while M.IdentityCompare(nested, M.EmptyList)() is M.false_value:
-                        agenda = M.Pair(M.Head(nested)(), agenda)
-                        nested = M.Tail(nested)()
+                    # Shared subterms reach this pop once per path, so an
+                    # expansion already performed is not repeated.
+                    if ChainHasTerm(visited, node)() is M.false_value:
+                        visited = M.Pair(node, visited)
+                        nested = node
+                        while M.IdentityCompare(nested, M.EmptyList)() is M.false_value:
+                            agenda = M.Pair(M.Head(nested)(), agenda)
+                            nested = M.Tail(nested)()
                 elif M.Compare(
                     node_head, M.Char("taught-derivation"),
                 )() is M.truth_value:
@@ -150,16 +155,21 @@ class InstalledTaughtFacts(M.Edge):
     def __init__(self, graph_version):
         reversed_facts = M.EmptyList
         agenda = GraphNodes(graph_version)()
+        visited = M.EmptyList
         while M.IdentityCompare(agenda, M.EmptyList)() is M.false_value:
             node = M.Head(agenda)()
             agenda = M.Tail(agenda)()
             if M.IsPair(node)() is M.truth_value:
                 node_head = M.Head(node)()
                 if M.IsPair(node_head)() is M.truth_value:
-                    nested = node
-                    while M.IdentityCompare(nested, M.EmptyList)() is M.false_value:
-                        agenda = M.Pair(M.Head(nested)(), agenda)
-                        nested = M.Tail(nested)()
+                    # Shared subterms reach this pop once per path, so an
+                    # expansion already performed is not repeated.
+                    if ChainHasTerm(visited, node)() is M.false_value:
+                        visited = M.Pair(node, visited)
+                        nested = node
+                        while M.IdentityCompare(nested, M.EmptyList)() is M.false_value:
+                            agenda = M.Pair(M.Head(nested)(), agenda)
+                            nested = M.Tail(nested)()
                 elif M.Compare(
                     node_head, M.Char("taught-fact"),
                 )() is M.truth_value:
@@ -232,16 +242,21 @@ class InstalledTaughtRules(M.Edge):
     def __init__(self, graph_version):
         reversed_rules = M.EmptyList
         agenda = GraphNodes(graph_version)()
+        visited = M.EmptyList
         while M.IdentityCompare(agenda, M.EmptyList)() is M.false_value:
             node = M.Head(agenda)()
             agenda = M.Tail(agenda)()
             if M.IsPair(node)() is M.truth_value:
                 node_head = M.Head(node)()
                 if M.IsPair(node_head)() is M.truth_value:
-                    nested = node
-                    while M.IdentityCompare(nested, M.EmptyList)() is M.false_value:
-                        agenda = M.Pair(M.Head(nested)(), agenda)
-                        nested = M.Tail(nested)()
+                    # Shared subterms reach this pop once per path, so an
+                    # expansion already performed is not repeated.
+                    if ChainHasTerm(visited, node)() is M.false_value:
+                        visited = M.Pair(node, visited)
+                        nested = node
+                        while M.IdentityCompare(nested, M.EmptyList)() is M.false_value:
+                            agenda = M.Pair(M.Head(nested)(), agenda)
+                            nested = M.Tail(nested)()
                 elif M.Compare(
                     node_head, M.Char("taught-rule"),
                 )() is M.truth_value:
@@ -337,16 +352,21 @@ class RuleConstructors(M.Edge):
         )
         term_agenda = M.EmptyList
         agenda = GraphNodes(graph_version)()
+        visited = M.EmptyList
         while M.IdentityCompare(agenda, M.EmptyList)() is M.false_value:
             node = M.Head(agenda)()
             agenda = M.Tail(agenda)()
             if M.IsPair(node)() is M.truth_value:
                 node_head = M.Head(node)()
                 if M.IsPair(node_head)() is M.truth_value:
-                    nested = node
-                    while M.IdentityCompare(nested, M.EmptyList)() is M.false_value:
-                        agenda = M.Pair(M.Head(nested)(), agenda)
-                        nested = M.Tail(nested)()
+                    # Shared subterms reach this pop once per path, so an
+                    # expansion already performed is not repeated.
+                    if ChainHasTerm(visited, node)() is M.false_value:
+                        visited = M.Pair(node, visited)
+                        nested = node
+                        while M.IdentityCompare(nested, M.EmptyList)() is M.false_value:
+                            agenda = M.Pair(M.Head(nested)(), agenda)
+                            nested = M.Tail(nested)()
                 elif M.IdentityCompare(
                     node_head, Lmod.CorrespondsLabel,
                 )() is M.truth_value:
@@ -1445,16 +1465,21 @@ class InstalledGaps(M.Edge):
     def __init__(self, graph_version):
         reversed_gaps = M.EmptyList
         agenda = GraphNodes(graph_version)()
+        visited = M.EmptyList
         while M.IdentityCompare(agenda, M.EmptyList)() is M.false_value:
             node = M.Head(agenda)()
             agenda = M.Tail(agenda)()
             if M.IsPair(node)() is M.truth_value:
                 node_head = M.Head(node)()
                 if M.IsPair(node_head)() is M.truth_value:
-                    nested = node
-                    while M.IdentityCompare(nested, M.EmptyList)() is M.false_value:
-                        agenda = M.Pair(M.Head(nested)(), agenda)
-                        nested = M.Tail(nested)()
+                    # Shared subterms reach this pop once per path, so an
+                    # expansion already performed is not repeated.
+                    if ChainHasTerm(visited, node)() is M.false_value:
+                        visited = M.Pair(node, visited)
+                        nested = node
+                        while M.IdentityCompare(nested, M.EmptyList)() is M.false_value:
+                            agenda = M.Pair(M.Head(nested)(), agenda)
+                            nested = M.Tail(nested)()
                 elif M.Compare(
                     node_head, Lmod.GapRecordLabel,
                 )() is M.truth_value:
@@ -2443,18 +2468,23 @@ class InstalledAskedQuestions(M.Edge):
     def __init__(self, graph_version):
         reversed_records = M.EmptyList
         agenda = GraphNodes(graph_version)()
+        visited = M.EmptyList
         while M.IdentityCompare(agenda, M.EmptyList)() is M.false_value:
             node = M.Head(agenda)()
             agenda = M.Tail(agenda)()
             if M.IsPair(node)() is M.truth_value:
                 node_head = M.Head(node)()
                 if M.IsPair(node_head)() is M.truth_value:
-                    nested = node
-                    while M.IdentityCompare(
-                        nested, M.EmptyList,
-                    )() is M.false_value:
-                        agenda = M.Pair(M.Head(nested)(), agenda)
-                        nested = M.Tail(nested)()
+                    # Shared subterms reach this pop once per path, so an
+                    # expansion already performed is not repeated.
+                    if ChainHasTerm(visited, node)() is M.false_value:
+                        visited = M.Pair(node, visited)
+                        nested = node
+                        while M.IdentityCompare(
+                            nested, M.EmptyList,
+                        )() is M.false_value:
+                            agenda = M.Pair(M.Head(nested)(), agenda)
+                            nested = M.Tail(nested)()
                 elif M.Compare(
                     node_head, Lmod.AskedQuestionLabel,
                 )() is M.truth_value:

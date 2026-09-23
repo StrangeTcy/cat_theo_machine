@@ -40,3 +40,37 @@ yes
 rule: StepSieveKept(n) -> NatLess(one, n)
 yes
 fact: forall(n, iff(StepSieveKept(n), TrialSieveKept(n)))
+training example: double two <-> mul ( two , two )
+training example: double four <-> mul ( two , four )
+yes
+training example: double two <-> mul ( two , two )
+training example: double four <-> mul ( two , four )
+yes
+training example: triple 3 <-> mul(three, three)
+training example: triple 2 <-> mul(three, two)
+yes
+definition: the sieve of eratosthenes is a process for finding prime numbers
+bridge no
+yes
+definition: a prime is a number divisible only by one and itself
+yes
+definition: a composite is a number divisible by some number other than one and itself
+bridge yes
+yes
+bridge yes
+fact: number(zero)
+definition: a number is a number
+bridge yes
+rule: number(n) -> number(succ(n))
+yes
+rule: number(a), number(b) -> number(diff(a, b))
+yes
+rule: number(a), number(b), nonzero(b) -> number(frac(a, b))
+yes
+rule: number(a), number(b) -> number(complex(a, b))
+yes
+yes
+yes
+yes
+yes
+bridge yes

@@ -1291,16 +1291,21 @@ class InstalledCaseConclusions(M.Edge):
     def __init__(self, graph_version):
         reversed_conclusions = M.EmptyList
         agenda = GraphNodes(graph_version)()
+        visited = M.EmptyList
         while M.IdentityCompare(agenda, M.EmptyList)() is M.false_value:
             node = M.Head(agenda)()
             agenda = M.Tail(agenda)()
             if M.IsPair(node)() is M.truth_value:
                 node_head = M.Head(node)()
                 if M.IsPair(node_head)() is M.truth_value:
-                    nested = node
-                    while M.IdentityCompare(nested, M.EmptyList)() is M.false_value:
-                        agenda = M.Pair(M.Head(nested)(), agenda)
-                        nested = M.Tail(nested)()
+                    # Shared subterms reach this pop once per path, so an
+                    # expansion already performed is not repeated.
+                    if ChainHasTerm(visited, node)() is M.false_value:
+                        visited = M.Pair(node, visited)
+                        nested = node
+                        while M.IdentityCompare(nested, M.EmptyList)() is M.false_value:
+                            agenda = M.Pair(M.Head(nested)(), agenda)
+                            nested = M.Tail(nested)()
                 elif M.Compare(
                     node_head, M.Char("case-conclusion"),
                 )() is M.truth_value:
@@ -5887,6 +5892,8 @@ class AutonomyCycle(M.Edge):
         ledger,
         budget,
         generator_config=M.EmptyList,
+        examples=M.EmptyList,
+        word_entries=M.EmptyList,
     ):
         max_firings = M.EmptyList
         max_nodes = M.EmptyList
@@ -6023,6 +6030,22 @@ class AutonomyCycle(M.Edge):
             generate_correspondences,
             M.truth_value,
         )() is M.truth_value:
+            # Training examples are the third correspondence source: pairs
+            # of taught lines anti-unified into a parse law and a render
+            # law, validated against every recorded example before they
+            # become a pending proposal. The findings are questions for the
+            # human -- nothing fires or folds here.
+            if M.IdentityCompare(examples, M.EmptyList)() is M.false_value:
+                if M.IdentityCompare(
+                    word_entries, M.EmptyList,
+                )() is M.false_value:
+                    trained = GenerateCorrespondenceProposals(
+                        current_store,
+                        examples,
+                        word_entries,
+                        ledger.registry,
+                    )()
+                    current_store = M.Head(trained)()
             corresponded_rules = GenerateRuleCorrespondenceProposals(
                 current_store,
                 current_version,
@@ -8107,16 +8130,21 @@ class InstalledCaseSplits(M.Edge):
     def __init__(self, graph_version):
         reversed_splits = M.EmptyList
         agenda = GraphNodes(graph_version)()
+        visited = M.EmptyList
         while M.IdentityCompare(agenda, M.EmptyList)() is M.false_value:
             node = M.Head(agenda)()
             agenda = M.Tail(agenda)()
             if M.IsPair(node)() is M.truth_value:
                 node_head = M.Head(node)()
                 if M.IsPair(node_head)() is M.truth_value:
-                    nested = node
-                    while M.IdentityCompare(nested, M.EmptyList)() is M.false_value:
-                        agenda = M.Pair(M.Head(nested)(), agenda)
-                        nested = M.Tail(nested)()
+                    # Shared subterms reach this pop once per path, so an
+                    # expansion already performed is not repeated.
+                    if ChainHasTerm(visited, node)() is M.false_value:
+                        visited = M.Pair(node, visited)
+                        nested = node
+                        while M.IdentityCompare(nested, M.EmptyList)() is M.false_value:
+                            agenda = M.Pair(M.Head(nested)(), agenda)
+                            nested = M.Tail(nested)()
                 elif M.Compare(node_head, M.Char("case-split"))() is M.truth_value:
                     reversed_splits = M.Pair(node, reversed_splits)
         self.result = M.Reverse(reversed_splits)()
@@ -15243,6 +15271,8 @@ class WordsOfStream(M.Edge):
 
     def __call__(self):
         return self.result
+
+
 
 
 class WordsOfText(M.Edge):
@@ -23268,6 +23298,54 @@ class MergeFrontiers(M.Edge):
 
     def __call__(self):
         return self.result
+
+
+
+class LinesOfStream(M.Edge):
+    """A character stream as a chain of lines, one Char per line.
+
+    Companion to WordsOfStream on the host boundary: reading is host work,
+    and everything past this edge is a Pair chain under Head and Tail. The
+    replay cursor counts lesson lines, so the transcript reaches it as a
+    chain of lines rather than as a host list to be split and indexed.
+    """
+
+    def __init__(self, stream):
+        reversed_lines = M.EmptyList
+        run_text = ""
+        reading = M.truth_value
+        while M.IdentityCompare(reading, M.truth_value)() is M.truth_value:
+            symbol = stream.read(1)
+            if symbol == "":
+                reading = M.false_value
+                finished = run_text.strip()
+                if finished != "":
+                    reversed_lines = M.Pair(M.Char(finished), reversed_lines)
+                    run_text = ""
+            elif symbol == "\n":
+                finished = run_text.strip()
+                if finished != "":
+                    reversed_lines = M.Pair(M.Char(finished), reversed_lines)
+                    run_text = ""
+            else:
+                run_text = run_text + symbol
+        self.result = M.Reverse(reversed_lines)()
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class LinesOfText(M.Edge):
+    """Host text as a chain of lines. See LinesOfStream."""
+
+    def __init__(self, text):
+        self.result = LinesOfStream(io.StringIO(text))()
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
 
 
 from .vocabulary import *  # noqa: E402,F403 -- graph re-exports the teaching layer

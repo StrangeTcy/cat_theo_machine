@@ -665,10 +665,20 @@ class InstantiateFactList(M.Edge):
 
 
 class JoinPremises(M.Edge):
-    def __init__(self, premises, facts, bindings):
+    def __init__(self, premises, facts, bindings, index=M.EmptyList, registry=M.EmptyList):
         self.facts = facts
+        self.index = index
+        self.registry = registry
         self.result = self._join(premises, bindings)
-        super().__init__(inputs=M.Pair(premises, M.Pair(facts, M.Pair(bindings, M.EmptyList))), results=self.result)
+        super().__init__(inputs=M.Pair(premises, M.Pair(facts, M.Pair(bindings,
+                       M.Pair(index, M.Pair(registry, M.EmptyList))))), results=self.result)
+
+    def _candidates(self, premise):
+        if M.IdentityCompare(self.index, M.EmptyList)() is M.truth_value:
+            return self.facts
+        if IsVarPattern(premise)() is M.truth_value:
+            return self.facts
+        return K.KnowledgeHeadIndexBucket(self.index, premise, self.registry)()
 
     def _join(self, premises, bindings):
         if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
@@ -676,7 +686,7 @@ class JoinPremises(M.Edge):
         premise = M.Head(premises)()
         rest = M.Tail(premises)()
         acc = M.EmptyList
-        remaining = self.facts
+        remaining = self._candidates(premise)
         while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
             fact = M.Head(remaining)()
             match = M.Match(premise, fact)()

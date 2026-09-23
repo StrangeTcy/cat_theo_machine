@@ -45,6 +45,7 @@ DAEMON_POLL_SECONDS = 0.5
 DAEMON_BUDGET_CLAIMANTS = 2
 DAEMON_STATE_NAME = "talk_state.wire"
 DAEMON_INBOX_NAME = "talk_inbox.wire"
+DAEMON_EXAMPLES_NAME = "talk_examples.wire"
 # Presence of this file means a daemon is cycling. The inbox cannot serve
 # as that signal: the daemon consumes it, so its absence is ambiguous.
 DAEMON_LIVE_NAME = "talk_daemon.live"
@@ -754,6 +755,7 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
     """
     state_path = os.path.join(snapshot_dir, DAEMON_STATE_NAME)
     inbox_path = os.path.join(snapshot_dir, DAEMON_INBOX_NAME)
+    examples_path = os.path.join(snapshot_dir, DAEMON_EXAMPLES_NAME)
     # The fold takes the inbox by renaming it: atomic, so a submission
     # arriving mid-cycle lands in a fresh talk_inbox.wire the next cycle
     # drains, instead of being deleted unread by the end-of-cycle
@@ -895,6 +897,22 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
                 print("daemon: refused by the safety floor: " + refusal, flush=True)
                 stop_reason = DAEMON_STOP_SAFETY
             else:
+                # The conversation's training examples arrive as their own
+                # document, written once per taught line. EmptyList means
+                # nothing was taught yet, and the cycle mines on.
+                examples = M.EmptyList
+                if os.path.exists(examples_path):
+                    restored_examples = Wmod.load_examples(examples_path)
+                    if M.IdentityCompare(
+                        restored_examples, M.EmptyList,
+                    )() is M.false_value:
+                        examples = restored_examples
+                # Word entries are derived, not carried: the vocabulary the
+                # daemon builds from is its own, from the same default the
+                # conversation starts from. No foreground state crosses.
+                word_entries = M.Head(
+                    M.Tail(Gmod.DefaultCorrespondenceVocabulary()())(),
+                )()
                 # With workers, the cycle fans generation and firing out
                 # through Step 45's distributed_cycle: worker budgets have
                 # max_activations forced to Zero, claims are replayed against
@@ -931,6 +949,8 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
                             daemon_budget(graph_version),
                             generator_config,
                             worker_count,
+                            examples,
+                            word_entries,
                         )
                     finally:
                         worker_service_lock.release()
@@ -941,6 +961,8 @@ def run_daemon(snapshot_dir, max_cycles=M.EmptyList,
                         ledger,
                         daemon_budget(graph_version),
                         generator_config,
+                        examples,
+                        word_entries,
                     )()
                 graph_version = M.Head(outcome)()
                 proposal_store = M.Head(M.Tail(outcome)())()

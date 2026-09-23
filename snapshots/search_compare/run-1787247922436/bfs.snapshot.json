@@ -1,0 +1,5042 @@
+{
+  "header": {
+    "format": "hyge-proof-kernel",
+    "version": 4,
+    "protocol_version": 3
+  },
+  "roots": {
+    "constructor_registry": 1,
+    "all_rules": 4,
+    "rule_order": 4,
+    "derivations": 4,
+    "derivation_schemata": 4,
+    "search_history": 24,
+    "search_comparisons": 96,
+    "search_comparison_jobs": 4,
+    "search_jobs": 4,
+    "search_memo": 4,
+    "nat_value_index": 108,
+    "worker_stage": 349,
+    "worker_plan": 350
+  },
+  "symbols": {
+    "EmptyList": 4,
+    "Zero": 9,
+    "truth_value": 373,
+    "false_value": 374,
+    "VarTag": 375,
+    "TreeLabel": 348,
+    "ZeroLabel": 8,
+    "SuccLabel": 15,
+    "PairLabel": 376,
+    "ThingyLabel": 377,
+    "HypergraphLabel": 378,
+    "TestLabel": 379,
+    "TestOKLabel": 380,
+    "TestFailLabel": 381,
+    "TestNameLabel": 382,
+    "SequenceLabel": 383,
+    "LimitLabel": 384,
+    "IsCauchyLabel": 385,
+    "IsRealLabel": 386,
+    "DFSLabel": 387,
+    "BFSLabel": 69,
+    "BeamLabel": 388,
+    "AStarLabel": 389,
+    "KnowledgeLabel": 94,
+    "MachineContextLabel": 390,
+    "ContextSearchComparisonJobsLabel": 391,
+    "ContextSearchJobsLabel": 392,
+    "ContextSearchMemoLabel": 393,
+    "ContextNatValueIndexLabel": 394,
+    "FiniteLabel": 395,
+    "TotalMapLabel": 396,
+    "CardinalityLabel": 397,
+    "NatLessLabel": 398,
+    "InLabel": 399,
+    "NonEmptyLabel": 400,
+    "AttainsLabel": 401,
+    "ExtremalAtLabel": 402,
+    "VariationLabel": 403,
+    "BetterLabel": 404,
+    "ExistsLabel": 405,
+    "NotLabel": 406,
+    "ContradictionLabel": 407,
+    "CollisionLabel": 408,
+    "ExtremalLabel": 409,
+    "SymmetryLabel": 410,
+    "PigeonholeLabel": 411,
+    "DivideLabel": 412,
+    "BijectionLabel": 413,
+    "DoubleCountLabel": 414,
+    "ExtremalMinLabel": 415,
+    "ExtremalMaxLabel": 416,
+    "PlannerAlternativeLabel": 417,
+    "ProofCostLabel": 61,
+    "NewtonErrorIdentityLabel": 418,
+    "NewtonErrorShrinksLabel": 419,
+    "NewtonPositiveLabel": 420,
+    "NewtonStepTermLabel": 421,
+    "RealNumLabel": 422,
+    "RewriteDFSLabel": 423,
+    "GoalHeadOrderLabel": 68,
+    "SearchComparisonLabel": 424,
+    "SearchComparisonJobLabel": 425,
+    "SearchComparisonJobProblemLabel": 426,
+    "SearchComparisonJobRuntimeLabel": 427,
+    "SearchComparisonSummaryLabel": 428,
+    "SearchSignatureLabel": 429,
+    "SearchAttemptLabel": 95,
+    "HeuristicPerformanceLabel": 107,
+    "SearchCostLabel": 55,
+    "SearchSuccessLabel": 50,
+    "SearchFailureLabel": 430,
+    "SearchTimedOutLabel": 431,
+    "SearchAbortedByUserLabel": 432,
+    "SearchJobLabel": 433,
+    "SearchJobProgressLabel": 434,
+    "SearchJobStoresLabel": 435,
+    "SearchPairKeyLabel": 436,
+    "SearchPausedLabel": 437,
+    "SearchCtorKeyLabel": 438,
+    "ExactAtomKeyLabel": 135,
+    "ExactPairKeyLabel": 139,
+    "ExactCtorKeyLabel": 439,
+    "IndexAtomKeyLabel": 328,
+    "IndexPairKeyLabel": 345,
+    "IndexCtorKeyLabel": 440,
+    "TreePairKeyLabel": 441,
+    "TreeCtorKeyLabel": 442,
+    "TreeBucketLabel": 141,
+    "TreeBucketEntryLabel": 140,
+    "TreePatriciaTokenLabel": 160,
+    "TreePatriciaPairTokenLabel": 177,
+    "TreePatriciaStopTokenLabel": 159,
+    "TreePatriciaLeafLabel": 190,
+    "TreePatriciaBranchLabel": 280,
+    "TreePatriciaChoiceLabel": 193,
+    "SearchRootFastPathPhaseLabel": 443,
+    "SearchPacketSearchPhaseLabel": 444,
+    "SearchNoRootFastPathLabel": 445,
+    "SearchRootCacheResultLabel": 446,
+    "SearchRootSchemaResultLabel": 447,
+    "SearchRootGoalResultLabel": 448,
+    "SearchRootImmediateResultLabel": 449,
+    "SearchRootRulePacketLabel": 450,
+    "SearchRootWaveShardLaunchLabel": 451,
+    "SearchFrontierStatePacketLabel": 452,
+    "SearchWorkerBaselineLabel": 453,
+    "SearchWorkerBaselineProblemLabel": 454,
+    "SearchWorkerSetupLabel": 455,
+    "SearchWorkerReadyLabel": 456,
+    "SearchWorkerPacketLabel": 457,
+    "SearchWorkerPacketStoresLabel": 458,
+    "SearchWorkerPacketControlsLabel": 459,
+    "SearchWorkerStandalonePacketLabel": 460,
+    "SearchWorkerLaunchDispatchLabel": 461,
+    "SearchWorkerMetricsLabel": 462,
+    "SearchWorkerPayloadLabel": 463,
+    "SearchMatchAlternativesCursorLabel": 464,
+    "SearchMatchCursorLabel": 465,
+    "SearchRewriteCursorLabel": 466,
+    "SearchRewritePathFrameLabel": 467,
+    "SearchRewriteRuleBundleLabel": 468,
+    "SearchRunningLabel": 469,
+    "SearchStateLabel": 470,
+    "SearchTheoremCursorLabel": 471,
+    "SearchPatriciaTokenLabel": 472,
+    "SearchPatriciaPairTokenLabel": 473,
+    "SearchPatriciaStopTokenLabel": 474,
+    "SearchPatriciaLeafLabel": 475,
+    "SearchPatriciaBranchLabel": 476,
+    "SearchPatriciaChoiceLabel": 477,
+    "SqrtLabel": 478,
+    "SqrtSeqCauchyLabel": 479,
+    "SqrtSeqTermLabel": 480,
+    "StepLabel": 481,
+    "TheoremActionLabel": 372,
+    "TotalCostLabel": 42,
+    "WholeLabel": 482,
+    "IncreasingLabel": 483,
+    "DecreasingLabel": 484,
+    "BoundedAboveLabel": 485,
+    "BoundedBelowLabel": 486,
+    "ConvergesLabel": 487,
+    "GapContractsLabel": 488,
+    "LimitValueLabel": 489,
+    "MoveErasesLabel": 490,
+    "TerminalLabel": 491,
+    "BoardSumObservableLabel": 492,
+    "BoardSumLabel": 493,
+    "ParityLabel": 494,
+    "IsEvenLabel": 495,
+    "AbsDiffLabel": 496,
+    "MinLabel": 497,
+    "InitialBoardLabel": 498,
+    "FinalNumberLabel": 499,
+    "BlackboardProblemLabel": 500,
+    "OddLabel": 501,
+    "EvenLabel": 502,
+    "FractionLabel": 503,
+    "ExprAddLabel": 504,
+    "ExprMulLabel": 505,
+    "ExprFracLabel": 506,
+    "ExprDivLabel": 507,
+    "ExprPowLabel": 508,
+    "ExprIntLabel": 509,
+    "ExprNegLabel": 510,
+    "ExprEqLabel": 511,
+    "ExprLtLabel": 512,
+    "RewriteActionLabel": 513,
+    "DerivationLabel": 514,
+    "InsertionOrderLabel": 515,
+    "ContextConstructorsLabel": 516,
+    "ContextNodesLabel": 517,
+    "ContextEdgesLabel": 518,
+    "ContextTestsLabel": 519,
+    "ContextTestResultsLabel": 520,
+    "ContextAllRulesLabel": 521,
+    "ContextNextRuleIndexLabel": 522,
+    "ContextRuleOrderLabel": 523,
+    "ContextDerivationsLabel": 524,
+    "ContextDerivationSchemataLabel": 525,
+    "ContextSearchHistoryLabel": 526,
+    "ContextSearchComparisonsLabel": 527,
+    "PositiveLabel": 528,
+    "NonNegativeLabel": 529,
+    "GeometryFactLabel": 530,
+    "PolygonLabel": 531,
+    "EdgesLabel": 532,
+    "VerticesLabel": 533,
+    "TriangleLabel": 534,
+    "GivenLabel": 535,
+    "NeedLabel": 536,
+    "ParameterLabel": 537,
+    "SolvedLabel": 538,
+    "AreaLabel": 539,
+    "SideLengthsLabel": 540,
+    "AnglesLabel": 541,
+    "LengthLabel": 83,
+    "FirstAngleLabel": 542,
+    "FirstEdgeLabel": 543,
+    "SecondEdgeLabel": 544,
+    "ThirdEdgeLabel": 545,
+    "SecondAngleLabel": 546,
+    "ThirdAngleLabel": 547,
+    "CommonDifferenceLabel": 548,
+    "SineLabel": 549,
+    "CosineLabel": 550,
+    "SineRuleAvailableLabel": 551,
+    "CosineRuleAvailableLabel": 552,
+    "AreaFormulaAvailableLabel": 553,
+    "HeronFormulaAvailableLabel": 554,
+    "TriangleInequalityAvailableLabel": 555,
+    "PhysicalConstraintsKnownLabel": 556,
+    "EvaluateProblemLabel": 557,
+    "AlgebraicApproachLabel": 558,
+    "ArithmeticProgressionLabel": 559,
+    "CommonDifferenceGivenLabel": 560,
+    "CommonDifferenceParameterLabel": 561,
+    "SymmetricProgressionNotationLabel": 562,
+    "MiddleTermAverageLabel": 563,
+    "TaoProblem11TriangleLabel": 75,
+    "LessonLabel": 564,
+    "EntryLabel": 565,
+    "GroundedExampleLabel": 566,
+    "SourceLabel": 567,
+    "SurfaceLabel": 568,
+    "MathematicsLabel": 569,
+    "HistoryLabel": 570,
+    "ProblemLabel": 571,
+    "HintLabel": 572,
+    "UsesStrategyLabel": 573,
+    "DerivationFragmentLabel": 574,
+    "GoalLabel": 575,
+    "ClaimsLabel": 576,
+    "SupportsLabel": 577,
+    "HistoricalContradictsLabel": 578,
+    "OccursOnLabel": 579,
+    "BeforeLabel": 580,
+    "CausesLabel": 581,
+    "ParticipatesInLabel": 582,
+    "OccursAtLabel": 583,
+    "ClaimStoreLabel": 584,
+    "CorrespondenceLawLabel": 585,
+    "one": 40,
+    "two": 586,
+    "three": 588,
+    "four": 590,
+    "five": 592,
+    "six": 594,
+    "seven": 596,
+    "eight": 598,
+    "nine": 600
+  },
+  "objects": [
+    {
+      "id": 1,
+      "head": {
+        "tag": "ref",
+        "id": 18
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 2
+      }
+    },
+    {
+      "id": 2,
+      "head": {
+        "tag": "ref",
+        "id": 11
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 3
+      }
+    },
+    {
+      "id": 3,
+      "head": {
+        "tag": "ref",
+        "id": 5
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 4,
+      "name": "EmptyList"
+    },
+    {
+      "id": 5,
+      "head": {
+        "tag": "ref",
+        "id": 9
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 6
+      }
+    },
+    {
+      "id": 6,
+      "head": {
+        "tag": "ref",
+        "id": 7
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 7,
+      "head": {
+        "tag": "ref",
+        "id": 8
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 8,
+      "name": "ZeroLabel"
+    },
+    {
+      "id": 9,
+      "name": "Zero"
+    },
+    {
+      "id": 10,
+      "value": {
+        "tag": "scalar",
+        "value": {
+          "kind": "mpz",
+          "value": "0"
+        }
+      }
+    },
+    {
+      "id": 11,
+      "head": {
+        "tag": "ref",
+        "id": 16
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 12
+      }
+    },
+    {
+      "id": 12,
+      "head": {
+        "tag": "ref",
+        "id": 13
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 13,
+      "head": {
+        "tag": "ref",
+        "id": 15
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 14
+      }
+    },
+    {
+      "id": 14,
+      "head": {
+        "tag": "ref",
+        "id": 9
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 15,
+      "name": "SuccLabel"
+    },
+    {
+      "id": 16,
+      "value": {
+        "tag": "ref",
+        "id": 17
+      }
+    },
+    {
+      "id": 17,
+      "value": {
+        "tag": "scalar",
+        "value": {
+          "kind": "mpz",
+          "value": "1"
+        }
+      }
+    },
+    {
+      "id": 18,
+      "head": {
+        "tag": "ref",
+        "id": 22
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 19
+      }
+    },
+    {
+      "id": 19,
+      "head": {
+        "tag": "ref",
+        "id": 20
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 20,
+      "head": {
+        "tag": "ref",
+        "id": 15
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 21
+      }
+    },
+    {
+      "id": 21,
+      "head": {
+        "tag": "ref",
+        "id": 16
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 22,
+      "value": {
+        "tag": "ref",
+        "id": 23
+      }
+    },
+    {
+      "id": 23,
+      "value": {
+        "tag": "scalar",
+        "value": {
+          "kind": "mpz",
+          "value": "2"
+        }
+      }
+    },
+    {
+      "id": 24,
+      "head": {
+        "tag": "ref",
+        "id": 25
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 25,
+      "head": {
+        "tag": "ref",
+        "id": 95
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 26
+      }
+    },
+    {
+      "id": 26,
+      "head": {
+        "tag": "ref",
+        "id": 84
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 27
+      }
+    },
+    {
+      "id": 27,
+      "head": {
+        "tag": "ref",
+        "id": 70
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 28
+      }
+    },
+    {
+      "id": 28,
+      "head": {
+        "tag": "ref",
+        "id": 62
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 29
+      }
+    },
+    {
+      "id": 29,
+      "head": {
+        "tag": "ref",
+        "id": 50
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 30
+      }
+    },
+    {
+      "id": 30,
+      "head": {
+        "tag": "ref",
+        "id": 4
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 31
+      }
+    },
+    {
+      "id": 31,
+      "head": {
+        "tag": "ref",
+        "id": 56
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 32
+      }
+    },
+    {
+      "id": 32,
+      "head": {
+        "tag": "ref",
+        "id": 43
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 33
+      }
+    },
+    {
+      "id": 33,
+      "head": {
+        "tag": "ref",
+        "id": 34
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 34,
+      "head": {
+        "tag": "ref",
+        "id": 42
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 35
+      }
+    },
+    {
+      "id": 35,
+      "head": {
+        "tag": "ref",
+        "id": 22
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 36
+      }
+    },
+    {
+      "id": 36,
+      "head": {
+        "tag": "ref",
+        "id": 40
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 37
+      }
+    },
+    {
+      "id": 37,
+      "head": {
+        "tag": "ref",
+        "id": 40
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 38
+      }
+    },
+    {
+      "id": 38,
+      "head": {
+        "tag": "ref",
+        "id": 9
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 39
+      }
+    },
+    {
+      "id": 39,
+      "head": {
+        "tag": "ref",
+        "id": 22
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 40,
+      "name": "one"
+    },
+    {
+      "id": 41,
+      "value": {
+        "tag": "scalar",
+        "value": {
+          "kind": "mpz",
+          "value": "1"
+        }
+      }
+    },
+    {
+      "id": 42,
+      "name": "TotalCostLabel"
+    },
+    {
+      "id": 43,
+      "head": {
+        "tag": "ref",
+        "id": 55
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 44
+      }
+    },
+    {
+      "id": 44,
+      "head": {
+        "tag": "ref",
+        "id": 22
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 45
+      }
+    },
+    {
+      "id": 45,
+      "head": {
+        "tag": "ref",
+        "id": 53
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 46
+      }
+    },
+    {
+      "id": 46,
+      "head": {
+        "tag": "ref",
+        "id": 9
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 47
+      }
+    },
+    {
+      "id": 47,
+      "head": {
+        "tag": "ref",
+        "id": 40
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 48
+      }
+    },
+    {
+      "id": 48,
+      "head": {
+        "tag": "ref",
+        "id": 51
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 49
+      }
+    },
+    {
+      "id": 49,
+      "head": {
+        "tag": "ref",
+        "id": 50
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 50,
+      "name": "SearchSuccessLabel"
+    },
+    {
+      "id": 51,
+      "value": {
+        "tag": "ref",
+        "id": 52
+      }
+    },
+    {
+      "id": 52,
+      "value": {
+        "tag": "scalar",
+        "value": {
+          "kind": "mpz",
+          "value": "1"
+        }
+      }
+    },
+    {
+      "id": 53,
+      "value": {
+        "tag": "ref",
+        "id": 54
+      }
+    },
+    {
+      "id": 54,
+      "value": {
+        "tag": "scalar",
+        "value": {
+          "kind": "mpz",
+          "value": "1"
+        }
+      }
+    },
+    {
+      "id": 55,
+      "name": "SearchCostLabel"
+    },
+    {
+      "id": 56,
+      "head": {
+        "tag": "ref",
+        "id": 61
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 57
+      }
+    },
+    {
+      "id": 57,
+      "head": {
+        "tag": "ref",
+        "id": 9
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 58
+      }
+    },
+    {
+      "id": 58,
+      "head": {
+        "tag": "ref",
+        "id": 9
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 59
+      }
+    },
+    {
+      "id": 59,
+      "head": {
+        "tag": "ref",
+        "id": 9
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 60
+      }
+    },
+    {
+      "id": 60,
+      "head": {
+        "tag": "ref",
+        "id": 9
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 61,
+      "name": "ProofCostLabel"
+    },
+    {
+      "id": 62,
+      "head": {
+        "tag": "ref",
+        "id": 69
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 63
+      }
+    },
+    {
+      "id": 63,
+      "head": {
+        "tag": "ref",
+        "id": 68
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 64
+      }
+    },
+    {
+      "id": 64,
+      "head": {
+        "tag": "ref",
+        "id": 9
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 65
+      }
+    },
+    {
+      "id": 65,
+      "head": {
+        "tag": "ref",
+        "id": 40
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 66
+      }
+    },
+    {
+      "id": 66,
+      "head": {
+        "tag": "ref",
+        "id": 40
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 67
+      }
+    },
+    {
+      "id": 67,
+      "head": {
+        "tag": "ref",
+        "id": 40
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 68,
+      "name": "GoalHeadOrderLabel"
+    },
+    {
+      "id": 69,
+      "name": "BFSLabel"
+    },
+    {
+      "id": 70,
+      "head": {
+        "tag": "ref",
+        "id": 83
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 71
+      }
+    },
+    {
+      "id": 71,
+      "head": {
+        "tag": "ref",
+        "id": 77
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 72
+      }
+    },
+    {
+      "id": 72,
+      "head": {
+        "tag": "ref",
+        "id": 73
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 73,
+      "head": {
+        "tag": "ref",
+        "id": 76
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 74
+      }
+    },
+    {
+      "id": 74,
+      "head": {
+        "tag": "ref",
+        "id": 75
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 75,
+      "name": "TaoProblem11TriangleLabel"
+    },
+    {
+      "id": 76,
+      "name": "APShortSideLabel"
+    },
+    {
+      "id": 77,
+      "head": {
+        "tag": "ref",
+        "id": 82
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 78
+      }
+    },
+    {
+      "id": 78,
+      "head": {
+        "tag": "ref",
+        "id": 81
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 79
+      }
+    },
+    {
+      "id": 79,
+      "head": {
+        "tag": "ref",
+        "id": 80
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 80,
+      "name": "TaoProblem11VertexWLabel"
+    },
+    {
+      "id": 81,
+      "name": "TaoProblem11VertexVLabel"
+    },
+    {
+      "id": 82,
+      "name": "SegmentLabel"
+    },
+    {
+      "id": 83,
+      "name": "LengthLabel"
+    },
+    {
+      "id": 84,
+      "head": {
+        "tag": "ref",
+        "id": 94
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 85
+      }
+    },
+    {
+      "id": 85,
+      "head": {
+        "tag": "ref",
+        "id": 86
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 86,
+      "head": {
+        "tag": "ref",
+        "id": 87
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 87,
+      "head": {
+        "tag": "ref",
+        "id": 93
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 88
+      }
+    },
+    {
+      "id": 88,
+      "head": {
+        "tag": "ref",
+        "id": 90
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 89
+      }
+    },
+    {
+      "id": 89,
+      "head": {
+        "tag": "ref",
+        "id": 75
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 90,
+      "head": {
+        "tag": "ref",
+        "id": 82
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 91
+      }
+    },
+    {
+      "id": 91,
+      "head": {
+        "tag": "ref",
+        "id": 81
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 92
+      }
+    },
+    {
+      "id": 92,
+      "head": {
+        "tag": "ref",
+        "id": 80
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 93,
+      "name": "SideOfLabel"
+    },
+    {
+      "id": 94,
+      "name": "KnowledgeLabel"
+    },
+    {
+      "id": 95,
+      "name": "SearchAttemptLabel"
+    },
+    {
+      "id": 96,
+      "head": {
+        "tag": "ref",
+        "id": 97
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 97,
+      "head": {
+        "tag": "ref",
+        "id": 107
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 98
+      }
+    },
+    {
+      "id": 98,
+      "head": {
+        "tag": "ref",
+        "id": 25
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 99
+      }
+    },
+    {
+      "id": 99,
+      "head": {
+        "tag": "ref",
+        "id": 105
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 100
+      }
+    },
+    {
+      "id": 100,
+      "head": {
+        "tag": "ref",
+        "id": 103
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 101
+      }
+    },
+    {
+      "id": 101,
+      "head": {
+        "tag": "ref",
+        "id": 102
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 102,
+      "value": {
+        "tag": "scalar",
+        "value": {
+          "kind": "json",
+          "value": "running-derivation"
+        }
+      }
+    },
+    {
+      "id": 103,
+      "value": {
+        "tag": "ref",
+        "id": 104
+      }
+    },
+    {
+      "id": 104,
+      "value": {
+        "tag": "scalar",
+        "value": {
+          "kind": "mpz",
+          "value": "19556"
+        }
+      }
+    },
+    {
+      "id": 105,
+      "value": {
+        "tag": "ref",
+        "id": 106
+      }
+    },
+    {
+      "id": 106,
+      "value": {
+        "tag": "scalar",
+        "value": {
+          "kind": "mpz",
+          "value": "42239"
+        }
+      }
+    },
+    {
+      "id": 107,
+      "name": "HeuristicPerformanceLabel"
+    },
+    {
+      "id": 108,
+      "name": "NatValueIndex"
+    },
+    {
+      "id": 109,
+      "head": {
+        "tag": "ref",
+        "id": 348
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 110
+      }
+    },
+    {
+      "id": 110,
+      "head": {
+        "tag": "ref",
+        "id": 281
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 111
+      }
+    },
+    {
+      "id": 111,
+      "head": {
+        "tag": "ref",
+        "id": 112
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 112,
+      "head": {
+        "tag": "ref",
+        "id": 280
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 113
+      }
+    },
+    {
+      "id": 113,
+      "head": {
+        "tag": "ref",
+        "id": 262
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 114
+      }
+    },
+    {
+      "id": 114,
+      "head": {
+        "tag": "ref",
+        "id": 115
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 115,
+      "head": {
+        "tag": "ref",
+        "id": 194
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 116
+      }
+    },
+    {
+      "id": 116,
+      "head": {
+        "tag": "ref",
+        "id": 117
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 117,
+      "head": {
+        "tag": "ref",
+        "id": 193
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 118
+      }
+    },
+    {
+      "id": 118,
+      "head": {
+        "tag": "ref",
+        "id": 191
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 119
+      }
+    },
+    {
+      "id": 119,
+      "head": {
+        "tag": "ref",
+        "id": 120
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 120,
+      "head": {
+        "tag": "ref",
+        "id": 190
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 121
+      }
+    },
+    {
+      "id": 121,
+      "head": {
+        "tag": "ref",
+        "id": 142
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 122
+      }
+    },
+    {
+      "id": 122,
+      "head": {
+        "tag": "ref",
+        "id": 123
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 123,
+      "head": {
+        "tag": "ref",
+        "id": 141
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 124
+      }
+    },
+    {
+      "id": 124,
+      "head": {
+        "tag": "ref",
+        "id": 125
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 125,
+      "head": {
+        "tag": "ref",
+        "id": 126
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 126,
+      "head": {
+        "tag": "ref",
+        "id": 140
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 127
+      }
+    },
+    {
+      "id": 127,
+      "head": {
+        "tag": "ref",
+        "id": 130
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 128
+      }
+    },
+    {
+      "id": 128,
+      "head": {
+        "tag": "ref",
+        "id": 130
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 129
+      }
+    },
+    {
+      "id": 129,
+      "head": {
+        "tag": "ref",
+        "id": 130
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 130,
+      "head": {
+        "tag": "ref",
+        "id": 139
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 131
+      }
+    },
+    {
+      "id": 131,
+      "head": {
+        "tag": "ref",
+        "id": 136
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 132
+      }
+    },
+    {
+      "id": 132,
+      "head": {
+        "tag": "ref",
+        "id": 133
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 133,
+      "head": {
+        "tag": "ref",
+        "id": 135
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 134
+      }
+    },
+    {
+      "id": 134,
+      "head": {
+        "tag": "ref",
+        "id": 4
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 135,
+      "name": "ExactAtomKeyLabel"
+    },
+    {
+      "id": 136,
+      "head": {
+        "tag": "ref",
+        "id": 135
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 137
+      }
+    },
+    {
+      "id": 137,
+      "head": {
+        "tag": "ref",
+        "id": 138
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 138,
+      "symbol": "2",
+      "value": {
+        "tag": "none"
+      }
+    },
+    {
+      "id": 139,
+      "name": "ExactPairKeyLabel"
+    },
+    {
+      "id": 140,
+      "name": "TreeBucketEntryLabel"
+    },
+    {
+      "id": 141,
+      "name": "TreeBucketLabel"
+    },
+    {
+      "id": 142,
+      "head": {
+        "tag": "ref",
+        "id": 188
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 143
+      }
+    },
+    {
+      "id": 143,
+      "head": {
+        "tag": "ref",
+        "id": 186
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 144
+      }
+    },
+    {
+      "id": 144,
+      "head": {
+        "tag": "ref",
+        "id": 184
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 145
+      }
+    },
+    {
+      "id": 145,
+      "head": {
+        "tag": "ref",
+        "id": 182
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 146
+      }
+    },
+    {
+      "id": 146,
+      "head": {
+        "tag": "ref",
+        "id": 180
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 147
+      }
+    },
+    {
+      "id": 147,
+      "head": {
+        "tag": "ref",
+        "id": 178
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 148
+      }
+    },
+    {
+      "id": 148,
+      "head": {
+        "tag": "ref",
+        "id": 175
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 149
+      }
+    },
+    {
+      "id": 149,
+      "head": {
+        "tag": "ref",
+        "id": 173
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 150
+      }
+    },
+    {
+      "id": 150,
+      "head": {
+        "tag": "ref",
+        "id": 171
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 151
+      }
+    },
+    {
+      "id": 151,
+      "head": {
+        "tag": "ref",
+        "id": 169
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 152
+      }
+    },
+    {
+      "id": 152,
+      "head": {
+        "tag": "ref",
+        "id": 167
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 153
+      }
+    },
+    {
+      "id": 153,
+      "head": {
+        "tag": "ref",
+        "id": 165
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 154
+      }
+    },
+    {
+      "id": 154,
+      "head": {
+        "tag": "ref",
+        "id": 163
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 155
+      }
+    },
+    {
+      "id": 155,
+      "head": {
+        "tag": "ref",
+        "id": 161
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 156
+      }
+    },
+    {
+      "id": 156,
+      "head": {
+        "tag": "ref",
+        "id": 157
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 157,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 158
+      }
+    },
+    {
+      "id": 158,
+      "head": {
+        "tag": "ref",
+        "id": 159
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 159,
+      "name": "TreePatriciaStopTokenLabel"
+    },
+    {
+      "id": 160,
+      "name": "TreePatriciaTokenLabel"
+    },
+    {
+      "id": 161,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 162
+      }
+    },
+    {
+      "id": 162,
+      "head": {
+        "tag": "ref",
+        "id": 159
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 163,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 164
+      }
+    },
+    {
+      "id": 164,
+      "head": {
+        "tag": "ref",
+        "id": 159
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 165,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 166
+      }
+    },
+    {
+      "id": 166,
+      "head": {
+        "tag": "ref",
+        "id": 4
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 167,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 168
+      }
+    },
+    {
+      "id": 168,
+      "head": {
+        "tag": "ref",
+        "id": 159
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 169,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 170
+      }
+    },
+    {
+      "id": 170,
+      "head": {
+        "tag": "ref",
+        "id": 159
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 171,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 172
+      }
+    },
+    {
+      "id": 172,
+      "head": {
+        "tag": "ref",
+        "id": 4
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 173,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 174
+      }
+    },
+    {
+      "id": 174,
+      "head": {
+        "tag": "ref",
+        "id": 4
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 175,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 176
+      }
+    },
+    {
+      "id": 176,
+      "head": {
+        "tag": "ref",
+        "id": 177
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 177,
+      "name": "TreePatriciaPairTokenLabel"
+    },
+    {
+      "id": 178,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 179
+      }
+    },
+    {
+      "id": 179,
+      "head": {
+        "tag": "ref",
+        "id": 135
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 180,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 181
+      }
+    },
+    {
+      "id": 181,
+      "head": {
+        "tag": "ref",
+        "id": 177
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 182,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 183
+      }
+    },
+    {
+      "id": 183,
+      "head": {
+        "tag": "ref",
+        "id": 177
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 184,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 185
+      }
+    },
+    {
+      "id": 185,
+      "head": {
+        "tag": "ref",
+        "id": 159
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 186,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 187
+      }
+    },
+    {
+      "id": 187,
+      "head": {
+        "tag": "ref",
+        "id": 159
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 188,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 189
+      }
+    },
+    {
+      "id": 189,
+      "head": {
+        "tag": "ref",
+        "id": 4
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 190,
+      "name": "TreePatriciaLeafLabel"
+    },
+    {
+      "id": 191,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 192
+      }
+    },
+    {
+      "id": 192,
+      "head": {
+        "tag": "ref",
+        "id": 138
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 193,
+      "name": "TreePatriciaChoiceLabel"
+    },
+    {
+      "id": 194,
+      "head": {
+        "tag": "ref",
+        "id": 193
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 195
+      }
+    },
+    {
+      "id": 195,
+      "head": {
+        "tag": "ref",
+        "id": 260
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 196
+      }
+    },
+    {
+      "id": 196,
+      "head": {
+        "tag": "ref",
+        "id": 197
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 197,
+      "head": {
+        "tag": "ref",
+        "id": 190
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 198
+      }
+    },
+    {
+      "id": 198,
+      "head": {
+        "tag": "ref",
+        "id": 215
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 199
+      }
+    },
+    {
+      "id": 199,
+      "head": {
+        "tag": "ref",
+        "id": 200
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 200,
+      "head": {
+        "tag": "ref",
+        "id": 141
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 201
+      }
+    },
+    {
+      "id": 201,
+      "head": {
+        "tag": "ref",
+        "id": 202
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 202,
+      "head": {
+        "tag": "ref",
+        "id": 203
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 203,
+      "head": {
+        "tag": "ref",
+        "id": 140
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 204
+      }
+    },
+    {
+      "id": 204,
+      "head": {
+        "tag": "ref",
+        "id": 207
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 205
+      }
+    },
+    {
+      "id": 205,
+      "head": {
+        "tag": "ref",
+        "id": 207
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 206
+      }
+    },
+    {
+      "id": 206,
+      "head": {
+        "tag": "ref",
+        "id": 207
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 207,
+      "head": {
+        "tag": "ref",
+        "id": 139
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 208
+      }
+    },
+    {
+      "id": 208,
+      "head": {
+        "tag": "ref",
+        "id": 212
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 209
+      }
+    },
+    {
+      "id": 209,
+      "head": {
+        "tag": "ref",
+        "id": 210
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 210,
+      "head": {
+        "tag": "ref",
+        "id": 135
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 211
+      }
+    },
+    {
+      "id": 211,
+      "head": {
+        "tag": "ref",
+        "id": 4
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 212,
+      "head": {
+        "tag": "ref",
+        "id": 135
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 213
+      }
+    },
+    {
+      "id": 213,
+      "head": {
+        "tag": "ref",
+        "id": 214
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 214,
+      "symbol": "1",
+      "value": {
+        "tag": "none"
+      }
+    },
+    {
+      "id": 215,
+      "head": {
+        "tag": "ref",
+        "id": 258
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 216
+      }
+    },
+    {
+      "id": 216,
+      "head": {
+        "tag": "ref",
+        "id": 256
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 217
+      }
+    },
+    {
+      "id": 217,
+      "head": {
+        "tag": "ref",
+        "id": 254
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 218
+      }
+    },
+    {
+      "id": 218,
+      "head": {
+        "tag": "ref",
+        "id": 252
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 219
+      }
+    },
+    {
+      "id": 219,
+      "head": {
+        "tag": "ref",
+        "id": 250
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 220
+      }
+    },
+    {
+      "id": 220,
+      "head": {
+        "tag": "ref",
+        "id": 248
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 221
+      }
+    },
+    {
+      "id": 221,
+      "head": {
+        "tag": "ref",
+        "id": 246
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 222
+      }
+    },
+    {
+      "id": 222,
+      "head": {
+        "tag": "ref",
+        "id": 244
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 223
+      }
+    },
+    {
+      "id": 223,
+      "head": {
+        "tag": "ref",
+        "id": 242
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 224
+      }
+    },
+    {
+      "id": 224,
+      "head": {
+        "tag": "ref",
+        "id": 240
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 225
+      }
+    },
+    {
+      "id": 225,
+      "head": {
+        "tag": "ref",
+        "id": 238
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 226
+      }
+    },
+    {
+      "id": 226,
+      "head": {
+        "tag": "ref",
+        "id": 236
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 227
+      }
+    },
+    {
+      "id": 227,
+      "head": {
+        "tag": "ref",
+        "id": 234
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 228
+      }
+    },
+    {
+      "id": 228,
+      "head": {
+        "tag": "ref",
+        "id": 232
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 229
+      }
+    },
+    {
+      "id": 229,
+      "head": {
+        "tag": "ref",
+        "id": 230
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 230,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 231
+      }
+    },
+    {
+      "id": 231,
+      "head": {
+        "tag": "ref",
+        "id": 159
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 232,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 233
+      }
+    },
+    {
+      "id": 233,
+      "head": {
+        "tag": "ref",
+        "id": 159
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 234,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 235
+      }
+    },
+    {
+      "id": 235,
+      "head": {
+        "tag": "ref",
+        "id": 159
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 236,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 237
+      }
+    },
+    {
+      "id": 237,
+      "head": {
+        "tag": "ref",
+        "id": 4
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 238,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 239
+      }
+    },
+    {
+      "id": 239,
+      "head": {
+        "tag": "ref",
+        "id": 159
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 240,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 241
+      }
+    },
+    {
+      "id": 241,
+      "head": {
+        "tag": "ref",
+        "id": 159
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 242,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 243
+      }
+    },
+    {
+      "id": 243,
+      "head": {
+        "tag": "ref",
+        "id": 4
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 244,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 245
+      }
+    },
+    {
+      "id": 245,
+      "head": {
+        "tag": "ref",
+        "id": 4
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 246,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 247
+      }
+    },
+    {
+      "id": 247,
+      "head": {
+        "tag": "ref",
+        "id": 177
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 248,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 249
+      }
+    },
+    {
+      "id": 249,
+      "head": {
+        "tag": "ref",
+        "id": 135
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 250,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 251
+      }
+    },
+    {
+      "id": 251,
+      "head": {
+        "tag": "ref",
+        "id": 177
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 252,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 253
+      }
+    },
+    {
+      "id": 253,
+      "head": {
+        "tag": "ref",
+        "id": 177
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 254,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 255
+      }
+    },
+    {
+      "id": 255,
+      "head": {
+        "tag": "ref",
+        "id": 159
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 256,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 257
+      }
+    },
+    {
+      "id": 257,
+      "head": {
+        "tag": "ref",
+        "id": 159
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 258,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 259
+      }
+    },
+    {
+      "id": 259,
+      "head": {
+        "tag": "ref",
+        "id": 4
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 260,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 261
+      }
+    },
+    {
+      "id": 261,
+      "head": {
+        "tag": "ref",
+        "id": 214
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 262,
+      "head": {
+        "tag": "ref",
+        "id": 278
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 263
+      }
+    },
+    {
+      "id": 263,
+      "head": {
+        "tag": "ref",
+        "id": 276
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 264
+      }
+    },
+    {
+      "id": 264,
+      "head": {
+        "tag": "ref",
+        "id": 274
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 265
+      }
+    },
+    {
+      "id": 265,
+      "head": {
+        "tag": "ref",
+        "id": 272
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 266
+      }
+    },
+    {
+      "id": 266,
+      "head": {
+        "tag": "ref",
+        "id": 270
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 267
+      }
+    },
+    {
+      "id": 267,
+      "head": {
+        "tag": "ref",
+        "id": 268
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 268,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 269
+      }
+    },
+    {
+      "id": 269,
+      "head": {
+        "tag": "ref",
+        "id": 177
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 270,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 271
+      }
+    },
+    {
+      "id": 271,
+      "head": {
+        "tag": "ref",
+        "id": 135
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 272,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 273
+      }
+    },
+    {
+      "id": 273,
+      "head": {
+        "tag": "ref",
+        "id": 177
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 274,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 275
+      }
+    },
+    {
+      "id": 275,
+      "head": {
+        "tag": "ref",
+        "id": 177
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 276,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 277
+      }
+    },
+    {
+      "id": 277,
+      "head": {
+        "tag": "ref",
+        "id": 139
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 278,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 279
+      }
+    },
+    {
+      "id": 279,
+      "head": {
+        "tag": "ref",
+        "id": 177
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 280,
+      "name": "TreePatriciaBranchLabel"
+    },
+    {
+      "id": 281,
+      "head": {
+        "tag": "ref",
+        "id": 190
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 282
+      }
+    },
+    {
+      "id": 282,
+      "head": {
+        "tag": "ref",
+        "id": 298
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 283
+      }
+    },
+    {
+      "id": 283,
+      "head": {
+        "tag": "ref",
+        "id": 284
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 284,
+      "head": {
+        "tag": "ref",
+        "id": 141
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 285
+      }
+    },
+    {
+      "id": 285,
+      "head": {
+        "tag": "ref",
+        "id": 286
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 286,
+      "head": {
+        "tag": "ref",
+        "id": 293
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 287
+      }
+    },
+    {
+      "id": 287,
+      "head": {
+        "tag": "ref",
+        "id": 288
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 288,
+      "head": {
+        "tag": "ref",
+        "id": 140
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 289
+      }
+    },
+    {
+      "id": 289,
+      "head": {
+        "tag": "ref",
+        "id": 130
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 290
+      }
+    },
+    {
+      "id": 290,
+      "head": {
+        "tag": "ref",
+        "id": 292
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 291
+      }
+    },
+    {
+      "id": 291,
+      "head": {
+        "tag": "ref",
+        "id": 22
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 292,
+      "head": {
+        "tag": "ref",
+        "id": 138
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 293,
+      "head": {
+        "tag": "ref",
+        "id": 140
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 294
+      }
+    },
+    {
+      "id": 294,
+      "head": {
+        "tag": "ref",
+        "id": 207
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 295
+      }
+    },
+    {
+      "id": 295,
+      "head": {
+        "tag": "ref",
+        "id": 297
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 296
+      }
+    },
+    {
+      "id": 296,
+      "head": {
+        "tag": "ref",
+        "id": 16
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 297,
+      "head": {
+        "tag": "ref",
+        "id": 214
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 298,
+      "head": {
+        "tag": "ref",
+        "id": 346
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 299
+      }
+    },
+    {
+      "id": 299,
+      "head": {
+        "tag": "ref",
+        "id": 343
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 300
+      }
+    },
+    {
+      "id": 300,
+      "head": {
+        "tag": "ref",
+        "id": 341
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 301
+      }
+    },
+    {
+      "id": 301,
+      "head": {
+        "tag": "ref",
+        "id": 339
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 302
+      }
+    },
+    {
+      "id": 302,
+      "head": {
+        "tag": "ref",
+        "id": 337
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 303
+      }
+    },
+    {
+      "id": 303,
+      "head": {
+        "tag": "ref",
+        "id": 335
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 304
+      }
+    },
+    {
+      "id": 304,
+      "head": {
+        "tag": "ref",
+        "id": 333
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 305
+      }
+    },
+    {
+      "id": 305,
+      "head": {
+        "tag": "ref",
+        "id": 331
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 306
+      }
+    },
+    {
+      "id": 306,
+      "head": {
+        "tag": "ref",
+        "id": 329
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 307
+      }
+    },
+    {
+      "id": 307,
+      "head": {
+        "tag": "ref",
+        "id": 326
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 308
+      }
+    },
+    {
+      "id": 308,
+      "head": {
+        "tag": "ref",
+        "id": 324
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 309
+      }
+    },
+    {
+      "id": 309,
+      "head": {
+        "tag": "ref",
+        "id": 322
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 310
+      }
+    },
+    {
+      "id": 310,
+      "head": {
+        "tag": "ref",
+        "id": 320
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 311
+      }
+    },
+    {
+      "id": 311,
+      "head": {
+        "tag": "ref",
+        "id": 318
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 312
+      }
+    },
+    {
+      "id": 312,
+      "head": {
+        "tag": "ref",
+        "id": 316
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 313
+      }
+    },
+    {
+      "id": 313,
+      "head": {
+        "tag": "ref",
+        "id": 314
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 314,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 315
+      }
+    },
+    {
+      "id": 315,
+      "head": {
+        "tag": "ref",
+        "id": 159
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 316,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 317
+      }
+    },
+    {
+      "id": 317,
+      "head": {
+        "tag": "ref",
+        "id": 159
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 318,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 319
+      }
+    },
+    {
+      "id": 319,
+      "head": {
+        "tag": "ref",
+        "id": 159
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 320,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 321
+      }
+    },
+    {
+      "id": 321,
+      "head": {
+        "tag": "ref",
+        "id": 4
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 322,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 323
+      }
+    },
+    {
+      "id": 323,
+      "head": {
+        "tag": "ref",
+        "id": 159
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 324,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 325
+      }
+    },
+    {
+      "id": 325,
+      "head": {
+        "tag": "ref",
+        "id": 4
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 326,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 327
+      }
+    },
+    {
+      "id": 327,
+      "head": {
+        "tag": "ref",
+        "id": 328
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 328,
+      "name": "IndexAtomKeyLabel"
+    },
+    {
+      "id": 329,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 330
+      }
+    },
+    {
+      "id": 330,
+      "head": {
+        "tag": "ref",
+        "id": 177
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 331,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 332
+      }
+    },
+    {
+      "id": 332,
+      "head": {
+        "tag": "ref",
+        "id": 177
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 333,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 334
+      }
+    },
+    {
+      "id": 334,
+      "head": {
+        "tag": "ref",
+        "id": 159
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 335,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 336
+      }
+    },
+    {
+      "id": 336,
+      "head": {
+        "tag": "ref",
+        "id": 4
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 337,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 338
+      }
+    },
+    {
+      "id": 338,
+      "head": {
+        "tag": "ref",
+        "id": 328
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 339,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 340
+      }
+    },
+    {
+      "id": 340,
+      "head": {
+        "tag": "ref",
+        "id": 177
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 341,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 342
+      }
+    },
+    {
+      "id": 342,
+      "head": {
+        "tag": "ref",
+        "id": 177
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 343,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 344
+      }
+    },
+    {
+      "id": 344,
+      "head": {
+        "tag": "ref",
+        "id": 345
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 345,
+      "name": "IndexPairKeyLabel"
+    },
+    {
+      "id": 346,
+      "head": {
+        "tag": "ref",
+        "id": 160
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 347
+      }
+    },
+    {
+      "id": 347,
+      "head": {
+        "tag": "ref",
+        "id": 177
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 348,
+      "name": "TreeLabel"
+    },
+    {
+      "id": 349,
+      "value": {
+        "tag": "scalar",
+        "value": {
+          "kind": "json",
+          "value": "running-derivation"
+        }
+      }
+    },
+    {
+      "id": 350,
+      "head": {
+        "tag": "ref",
+        "id": 351
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 351,
+      "head": {
+        "tag": "ref",
+        "id": 372
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 352
+      }
+    },
+    {
+      "id": 352,
+      "head": {
+        "tag": "ref",
+        "id": 354
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 353
+      }
+    },
+    {
+      "id": 353,
+      "head": {
+        "tag": "ref",
+        "id": 4
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 354,
+      "inputs": {
+        "tag": "ref",
+        "id": 355
+      },
+      "results": {
+        "tag": "ref",
+        "id": 4
+      },
+      "value": {
+        "tag": "none"
+      }
+    },
+    {
+      "id": 355,
+      "head": {
+        "tag": "ref",
+        "id": 365
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 356
+      }
+    },
+    {
+      "id": 356,
+      "head": {
+        "tag": "ref",
+        "id": 357
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 357,
+      "head": {
+        "tag": "ref",
+        "id": 83
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 358
+      }
+    },
+    {
+      "id": 358,
+      "head": {
+        "tag": "ref",
+        "id": 362
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 359
+      }
+    },
+    {
+      "id": 359,
+      "head": {
+        "tag": "ref",
+        "id": 360
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 360,
+      "head": {
+        "tag": "ref",
+        "id": 76
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 361
+      }
+    },
+    {
+      "id": 361,
+      "head": {
+        "tag": "ref",
+        "id": 75
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 362,
+      "head": {
+        "tag": "ref",
+        "id": 82
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 363
+      }
+    },
+    {
+      "id": 363,
+      "head": {
+        "tag": "ref",
+        "id": 81
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 364
+      }
+    },
+    {
+      "id": 364,
+      "head": {
+        "tag": "ref",
+        "id": 80
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 365,
+      "head": {
+        "tag": "ref",
+        "id": 366
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 366,
+      "head": {
+        "tag": "ref",
+        "id": 93
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 367
+      }
+    },
+    {
+      "id": 367,
+      "head": {
+        "tag": "ref",
+        "id": 369
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 368
+      }
+    },
+    {
+      "id": 368,
+      "head": {
+        "tag": "ref",
+        "id": 75
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 369,
+      "head": {
+        "tag": "ref",
+        "id": 82
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 370
+      }
+    },
+    {
+      "id": 370,
+      "head": {
+        "tag": "ref",
+        "id": 81
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 371
+      }
+    },
+    {
+      "id": 371,
+      "head": {
+        "tag": "ref",
+        "id": 80
+      },
+      "tail": {
+        "tag": "ref",
+        "id": 4
+      }
+    },
+    {
+      "id": 372,
+      "name": "TheoremActionLabel"
+    },
+    {
+      "id": 373,
+      "name": "truth_value"
+    },
+    {
+      "id": 374,
+      "name": "false_value"
+    },
+    {
+      "id": 375,
+      "name": "VarTag"
+    },
+    {
+      "id": 376,
+      "name": "PairLabel"
+    },
+    {
+      "id": 377,
+      "name": "ThingyLabel"
+    },
+    {
+      "id": 378,
+      "name": "HypergraphLabel"
+    },
+    {
+      "id": 379,
+      "name": "TestLabel"
+    },
+    {
+      "id": 380,
+      "name": "TestOKLabel"
+    },
+    {
+      "id": 381,
+      "name": "TestFailLabel"
+    },
+    {
+      "id": 382,
+      "name": "TestNameLabel"
+    },
+    {
+      "id": 383,
+      "name": "SequenceLabel"
+    },
+    {
+      "id": 384,
+      "name": "LimitLabel"
+    },
+    {
+      "id": 385,
+      "name": "IsCauchyLabel"
+    },
+    {
+      "id": 386,
+      "name": "IsRealLabel"
+    },
+    {
+      "id": 387,
+      "name": "DFSLabel"
+    },
+    {
+      "id": 388,
+      "name": "BeamLabel"
+    },
+    {
+      "id": 389,
+      "name": "AStarLabel"
+    },
+    {
+      "id": 390,
+      "name": "MachineContextLabel"
+    },
+    {
+      "id": 391,
+      "name": "ContextSearchComparisonJobsLabel"
+    },
+    {
+      "id": 392,
+      "name": "ContextSearchJobsLabel"
+    },
+    {
+      "id": 393,
+      "name": "ContextSearchMemoLabel"
+    },
+    {
+      "id": 394,
+      "name": "ContextNatValueIndexLabel"
+    },
+    {
+      "id": 395,
+      "name": "FiniteLabel"
+    },
+    {
+      "id": 396,
+      "name": "TotalMapLabel"
+    },
+    {
+      "id": 397,
+      "name": "CardinalityLabel"
+    },
+    {
+      "id": 398,
+      "name": "NatLessLabel"
+    },
+    {
+      "id": 399,
+      "name": "InLabel"
+    },
+    {
+      "id": 400,
+      "name": "NonEmptyLabel"
+    },
+    {
+      "id": 401,
+      "name": "AttainsLabel"
+    },
+    {
+      "id": 402,
+      "name": "ExtremalAtLabel"
+    },
+    {
+      "id": 403,
+      "name": "VariationLabel"
+    },
+    {
+      "id": 404,
+      "name": "BetterLabel"
+    },
+    {
+      "id": 405,
+      "name": "ExistsLabel"
+    },
+    {
+      "id": 406,
+      "name": "NotLabel"
+    },
+    {
+      "id": 407,
+      "name": "ContradictionLabel"
+    },
+    {
+      "id": 408,
+      "name": "CollisionLabel"
+    },
+    {
+      "id": 409,
+      "name": "ExtremalLabel"
+    },
+    {
+      "id": 410,
+      "name": "SymmetryLabel"
+    },
+    {
+      "id": 411,
+      "name": "PigeonholeLabel"
+    },
+    {
+      "id": 412,
+      "name": "DivideLabel"
+    },
+    {
+      "id": 413,
+      "name": "BijectionLabel"
+    },
+    {
+      "id": 414,
+      "name": "DoubleCountLabel"
+    },
+    {
+      "id": 415,
+      "name": "ExtremalMinLabel"
+    },
+    {
+      "id": 416,
+      "name": "ExtremalMaxLabel"
+    },
+    {
+      "id": 417,
+      "name": "PlannerAlternativeLabel"
+    },
+    {
+      "id": 418,
+      "name": "NewtonErrorIdentityLabel"
+    },
+    {
+      "id": 419,
+      "name": "NewtonErrorShrinksLabel"
+    },
+    {
+      "id": 420,
+      "name": "NewtonPositiveLabel"
+    },
+    {
+      "id": 421,
+      "name": "NewtonStepTermLabel"
+    },
+    {
+      "id": 422,
+      "name": "RealNumLabel"
+    },
+    {
+      "id": 423,
+      "name": "RewriteDFSLabel"
+    },
+    {
+      "id": 424,
+      "name": "SearchComparisonLabel"
+    },
+    {
+      "id": 425,
+      "name": "SearchComparisonJobLabel"
+    },
+    {
+      "id": 426,
+      "name": "SearchComparisonJobProblemLabel"
+    },
+    {
+      "id": 427,
+      "name": "SearchComparisonJobRuntimeLabel"
+    },
+    {
+      "id": 428,
+      "name": "SearchComparisonSummaryLabel"
+    },
+    {
+      "id": 429,
+      "name": "SearchSignatureLabel"
+    },
+    {
+      "id": 430,
+      "name": "SearchFailureLabel"
+    },
+    {
+      "id": 431,
+      "name": "SearchTimedOutLabel"
+    },
+    {
+      "id": 432,
+      "name": "SearchAbortedByUserLabel"
+    },
+    {
+      "id": 433,
+      "name": "SearchJobLabel"
+    },
+    {
+      "id": 434,
+      "name": "SearchJobProgressLabel"
+    },
+    {
+      "id": 435,
+      "name": "SearchJobStoresLabel"
+    },
+    {
+      "id": 436,
+      "name": "SearchPairKeyLabel"
+    },
+    {
+      "id": 437,
+      "name": "SearchPausedLabel"
+    },
+    {
+      "id": 438,
+      "name": "SearchCtorKeyLabel"
+    },
+    {
+      "id": 439,
+      "name": "ExactCtorKeyLabel"
+    },
+    {
+      "id": 440,
+      "name": "IndexCtorKeyLabel"
+    },
+    {
+      "id": 441,
+      "name": "TreePairKeyLabel"
+    },
+    {
+      "id": 442,
+      "name": "TreeCtorKeyLabel"
+    },
+    {
+      "id": 443,
+      "name": "SearchRootFastPathPhaseLabel"
+    },
+    {
+      "id": 444,
+      "name": "SearchPacketSearchPhaseLabel"
+    },
+    {
+      "id": 445,
+      "name": "SearchNoRootFastPathLabel"
+    },
+    {
+      "id": 446,
+      "name": "SearchRootCacheResultLabel"
+    },
+    {
+      "id": 447,
+      "name": "SearchRootSchemaResultLabel"
+    },
+    {
+      "id": 448,
+      "name": "SearchRootGoalResultLabel"
+    },
+    {
+      "id": 449,
+      "name": "SearchRootImmediateResultLabel"
+    },
+    {
+      "id": 450,
+      "name": "SearchRootRulePacketLabel"
+    },
+    {
+      "id": 451,
+      "name": "SearchRootWaveShardLaunchLabel"
+    },
+    {
+      "id": 452,
+      "name": "SearchFrontierStatePacketLabel"
+    },
+    {
+      "id": 453,
+      "name": "SearchWorkerBaselineLabel"
+    },
+    {
+      "id": 454,
+      "name": "SearchWorkerBaselineProblemLabel"
+    },
+    {
+      "id": 455,
+      "name": "SearchWorkerSetupLabel"
+    },
+    {
+      "id": 456,
+      "name": "SearchWorkerReadyLabel"
+    },
+    {
+      "id": 457,
+      "name": "SearchWorkerPacketLabel"
+    },
+    {
+      "id": 458,
+      "name": "SearchWorkerPacketStoresLabel"
+    },
+    {
+      "id": 459,
+      "name": "SearchWorkerPacketControlsLabel"
+    },
+    {
+      "id": 460,
+      "name": "SearchWorkerStandalonePacketLabel"
+    },
+    {
+      "id": 461,
+      "name": "SearchWorkerLaunchDispatchLabel"
+    },
+    {
+      "id": 462,
+      "name": "SearchWorkerMetricsLabel"
+    },
+    {
+      "id": 463,
+      "name": "SearchWorkerPayloadLabel"
+    },
+    {
+      "id": 464,
+      "name": "SearchMatchAlternativesCursorLabel"
+    },
+    {
+      "id": 465,
+      "name": "SearchMatchCursorLabel"
+    },
+    {
+      "id": 466,
+      "name": "SearchRewriteCursorLabel"
+    },
+    {
+      "id": 467,
+      "name": "SearchRewritePathFrameLabel"
+    },
+    {
+      "id": 468,
+      "name": "SearchRewriteRuleBundleLabel"
+    },
+    {
+      "id": 469,
+      "name": "SearchRunningLabel"
+    },
+    {
+      "id": 470,
+      "name": "SearchStateLabel"
+    },
+    {
+      "id": 471,
+      "name": "SearchTheoremCursorLabel"
+    },
+    {
+      "id": 472,
+      "name": "SearchPatriciaTokenLabel"
+    },
+    {
+      "id": 473,
+      "name": "SearchPatriciaPairTokenLabel"
+    },
+    {
+      "id": 474,
+      "name": "SearchPatriciaStopTokenLabel"
+    },
+    {
+      "id": 475,
+      "name": "SearchPatriciaLeafLabel"
+    },
+    {
+      "id": 476,
+      "name": "SearchPatriciaBranchLabel"
+    },
+    {
+      "id": 477,
+      "name": "SearchPatriciaChoiceLabel"
+    },
+    {
+      "id": 478,
+      "name": "SqrtLabel"
+    },
+    {
+      "id": 479,
+      "name": "SqrtSeqCauchyLabel"
+    },
+    {
+      "id": 480,
+      "name": "SqrtSeqTermLabel"
+    },
+    {
+      "id": 481,
+      "name": "StepLabel"
+    },
+    {
+      "id": 482,
+      "name": "WholeLabel"
+    },
+    {
+      "id": 483,
+      "name": "IncreasingLabel"
+    },
+    {
+      "id": 484,
+      "name": "DecreasingLabel"
+    },
+    {
+      "id": 485,
+      "name": "BoundedAboveLabel"
+    },
+    {
+      "id": 486,
+      "name": "BoundedBelowLabel"
+    },
+    {
+      "id": 487,
+      "name": "ConvergesLabel"
+    },
+    {
+      "id": 488,
+      "name": "GapContractsLabel"
+    },
+    {
+      "id": 489,
+      "name": "LimitValueLabel"
+    },
+    {
+      "id": 490,
+      "name": "MoveErasesLabel"
+    },
+    {
+      "id": 491,
+      "name": "TerminalLabel"
+    },
+    {
+      "id": 492,
+      "name": "BoardSumObservableLabel"
+    },
+    {
+      "id": 493,
+      "name": "BoardSumLabel"
+    },
+    {
+      "id": 494,
+      "name": "ParityLabel"
+    },
+    {
+      "id": 495,
+      "name": "IsEvenLabel"
+    },
+    {
+      "id": 496,
+      "name": "AbsDiffLabel"
+    },
+    {
+      "id": 497,
+      "name": "MinLabel"
+    },
+    {
+      "id": 498,
+      "name": "InitialBoardLabel"
+    },
+    {
+      "id": 499,
+      "name": "FinalNumberLabel"
+    },
+    {
+      "id": 500,
+      "name": "BlackboardProblemLabel"
+    },
+    {
+      "id": 501,
+      "name": "OddLabel"
+    },
+    {
+      "id": 502,
+      "name": "EvenLabel"
+    },
+    {
+      "id": 503,
+      "name": "FractionLabel"
+    },
+    {
+      "id": 504,
+      "name": "ExprAddLabel"
+    },
+    {
+      "id": 505,
+      "name": "ExprMulLabel"
+    },
+    {
+      "id": 506,
+      "name": "ExprFracLabel"
+    },
+    {
+      "id": 507,
+      "name": "ExprDivLabel"
+    },
+    {
+      "id": 508,
+      "name": "ExprPowLabel"
+    },
+    {
+      "id": 509,
+      "name": "ExprIntLabel"
+    },
+    {
+      "id": 510,
+      "name": "ExprNegLabel"
+    },
+    {
+      "id": 511,
+      "name": "ExprEqLabel"
+    },
+    {
+      "id": 512,
+      "name": "ExprLtLabel"
+    },
+    {
+      "id": 513,
+      "name": "RewriteActionLabel"
+    },
+    {
+      "id": 514,
+      "name": "DerivationLabel"
+    },
+    {
+      "id": 515,
+      "name": "InsertionOrderLabel"
+    },
+    {
+      "id": 516,
+      "name": "ContextConstructorsLabel"
+    },
+    {
+      "id": 517,
+      "name": "ContextNodesLabel"
+    },
+    {
+      "id": 518,
+      "name": "ContextEdgesLabel"
+    },
+    {
+      "id": 519,
+      "name": "ContextTestsLabel"
+    },
+    {
+      "id": 520,
+      "name": "ContextTestResultsLabel"
+    },
+    {
+      "id": 521,
+      "name": "ContextAllRulesLabel"
+    },
+    {
+      "id": 522,
+      "name": "ContextNextRuleIndexLabel"
+    },
+    {
+      "id": 523,
+      "name": "ContextRuleOrderLabel"
+    },
+    {
+      "id": 524,
+      "name": "ContextDerivationsLabel"
+    },
+    {
+      "id": 525,
+      "name": "ContextDerivationSchemataLabel"
+    },
+    {
+      "id": 526,
+      "name": "ContextSearchHistoryLabel"
+    },
+    {
+      "id": 527,
+      "name": "ContextSearchComparisonsLabel"
+    },
+    {
+      "id": 528,
+      "name": "PositiveLabel"
+    },
+    {
+      "id": 529,
+      "name": "NonNegativeLabel"
+    },
+    {
+      "id": 530,
+      "name": "GeometryFactLabel"
+    },
+    {
+      "id": 531,
+      "name": "PolygonLabel"
+    },
+    {
+      "id": 532,
+      "name": "EdgesLabel"
+    },
+    {
+      "id": 533,
+      "name": "VerticesLabel"
+    },
+    {
+      "id": 534,
+      "name": "TriangleLabel"
+    },
+    {
+      "id": 535,
+      "name": "GivenLabel"
+    },
+    {
+      "id": 536,
+      "name": "NeedLabel"
+    },
+    {
+      "id": 537,
+      "name": "ParameterLabel"
+    },
+    {
+      "id": 538,
+      "name": "SolvedLabel"
+    },
+    {
+      "id": 539,
+      "name": "AreaLabel"
+    },
+    {
+      "id": 540,
+      "name": "SideLengthsLabel"
+    },
+    {
+      "id": 541,
+      "name": "AnglesLabel"
+    },
+    {
+      "id": 542,
+      "name": "FirstAngleLabel"
+    },
+    {
+      "id": 543,
+      "name": "FirstEdgeLabel"
+    },
+    {
+      "id": 544,
+      "name": "SecondEdgeLabel"
+    },
+    {
+      "id": 545,
+      "name": "ThirdEdgeLabel"
+    },
+    {
+      "id": 546,
+      "name": "SecondAngleLabel"
+    },
+    {
+      "id": 547,
+      "name": "ThirdAngleLabel"
+    },
+    {
+      "id": 548,
+      "name": "CommonDifferenceLabel"
+    },
+    {
+      "id": 549,
+      "name": "SineLabel"
+    },
+    {
+      "id": 550,
+      "name": "CosineLabel"
+    },
+    {
+      "id": 551,
+      "name": "SineRuleAvailableLabel"
+    },
+    {
+      "id": 552,
+      "name": "CosineRuleAvailableLabel"
+    },
+    {
+      "id": 553,
+      "name": "AreaFormulaAvailableLabel"
+    },
+    {
+      "id": 554,
+      "name": "HeronFormulaAvailableLabel"
+    },
+    {
+      "id": 555,
+      "name": "TriangleInequalityAvailableLabel"
+    },
+    {
+      "id": 556,
+      "name": "PhysicalConstraintsKnownLabel"
+    },
+    {
+      "id": 557,
+      "name": "EvaluateProblemLabel"
+    },
+    {
+      "id": 558,
+      "name": "AlgebraicApproachLabel"
+    },
+    {
+      "id": 559,
+      "name": "ArithmeticProgressionLabel"
+    },
+    {
+      "id": 560,
+      "name": "CommonDifferenceGivenLabel"
+    },
+    {
+      "id": 561,
+      "name": "CommonDifferenceParameterLabel"
+    },
+    {
+      "id": 562,
+      "name": "SymmetricProgressionNotationLabel"
+    },
+    {
+      "id": 563,
+      "name": "MiddleTermAverageLabel"
+    },
+    {
+      "id": 564,
+      "name": "LessonLabel"
+    },
+    {
+      "id": 565,
+      "name": "EntryLabel"
+    },
+    {
+      "id": 566,
+      "name": "GroundedExampleLabel"
+    },
+    {
+      "id": 567,
+      "name": "SourceLabel"
+    },
+    {
+      "id": 568,
+      "name": "SurfaceLabel"
+    },
+    {
+      "id": 569,
+      "name": "MathematicsLabel"
+    },
+    {
+      "id": 570,
+      "name": "HistoryLabel"
+    },
+    {
+      "id": 571,
+      "name": "ProblemLabel"
+    },
+    {
+      "id": 572,
+      "name": "HintLabel"
+    },
+    {
+      "id": 573,
+      "name": "UsesStrategyLabel"
+    },
+    {
+      "id": 574,
+      "name": "DerivationFragmentLabel"
+    },
+    {
+      "id": 575,
+      "name": "GoalLabel"
+    },
+    {
+      "id": 576,
+      "name": "ClaimsLabel"
+    },
+    {
+      "id": 577,
+      "name": "SupportsLabel"
+    },
+    {
+      "id": 578,
+      "name": "HistoricalContradictsLabel"
+    },
+    {
+      "id": 579,
+      "name": "OccursOnLabel"
+    },
+    {
+      "id": 580,
+      "name": "BeforeLabel"
+    },
+    {
+      "id": 581,
+      "name": "CausesLabel"
+    },
+    {
+      "id": 582,
+      "name": "ParticipatesInLabel"
+    },
+    {
+      "id": 583,
+      "name": "OccursAtLabel"
+    },
+    {
+      "id": 584,
+      "name": "ClaimStoreLabel"
+    },
+    {
+      "id": 585,
+      "name": "CorrespondenceLawLabel"
+    },
+    {
+      "id": 586,
+      "name": "two"
+    },
+    {
+      "id": 587,
+      "value": {
+        "tag": "scalar",
+        "value": {
+          "kind": "mpz",
+          "value": "2"
+        }
+      }
+    },
+    {
+      "id": 588,
+      "name": "three"
+    },
+    {
+      "id": 589,
+      "value": {
+        "tag": "scalar",
+        "value": {
+          "kind": "mpz",
+          "value": "3"
+        }
+      }
+    },
+    {
+      "id": 590,
+      "name": "four"
+    },
+    {
+      "id": 591,
+      "value": {
+        "tag": "scalar",
+        "value": {
+          "kind": "mpz",
+          "value": "4"
+        }
+      }
+    },
+    {
+      "id": 592,
+      "name": "five"
+    },
+    {
+      "id": 593,
+      "value": {
+        "tag": "scalar",
+        "value": {
+          "kind": "mpz",
+          "value": "5"
+        }
+      }
+    },
+    {
+      "id": 594,
+      "name": "six"
+    },
+    {
+      "id": 595,
+      "value": {
+        "tag": "scalar",
+        "value": {
+          "kind": "mpz",
+          "value": "6"
+        }
+      }
+    },
+    {
+      "id": 596,
+      "name": "seven"
+    },
+    {
+      "id": 597,
+      "value": {
+        "tag": "scalar",
+        "value": {
+          "kind": "mpz",
+          "value": "7"
+        }
+      }
+    },
+    {
+      "id": 598,
+      "name": "eight"
+    },
+    {
+      "id": 599,
+      "value": {
+        "tag": "scalar",
+        "value": {
+          "kind": "mpz",
+          "value": "8"
+        }
+      }
+    },
+    {
+      "id": 600,
+      "name": "nine"
+    },
+    {
+      "id": 601,
+      "value": {
+        "tag": "scalar",
+        "value": {
+          "kind": "mpz",
+          "value": "9"
+        }
+      }
+    }
+  ]
+}

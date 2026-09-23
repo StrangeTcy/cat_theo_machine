@@ -46,6 +46,7 @@ else:
     from . import euclid as Euc
     from . import story_talk_adapter as StoryTalk
     from . import proof_lookup_coordinator as ProofLookup
+    from . import knowledge as K
     from . import proof as P
     from . import rewrite_rules as R
     from .runtime import boot_from_packs, boot_from_snapshot, save_runtime
@@ -111,6 +112,31 @@ def _latest_snapshot_path():
 
 
 SNAPSHOT_PATH = _latest_snapshot_path()
+
+
+def _normalize_natural_nonexistence_claim(claim):
+    """Map a bounded natural-language nonexistence claim to the generic prover form."""
+    normalized = " ".join(claim.strip().rstrip("?").split())
+    match = re.match(
+        r"^for all ([a-zA-Z][a-zA-Z0-9_]*)\s*(>=|<=|>|<|=)\s*"
+        r"([0-9]+)\s+(.+?)\s+has no solution(?:s)? in "
+        r"(positive integers|integers)$",
+        normalized,
+        re.IGNORECASE,
+    )
+    if match is None:
+        return claim
+    variable, relation, bound, equation, domain = match.groups()
+    restriction = variable + " " + relation + " " + bound
+    return (
+        "no "
+        + domain.lower()
+        + " satisfy "
+        + equation
+        + " [universal restriction: "
+        + restriction
+        + "]"
+    )
 
 
 class PausedSearchRequested(RuntimeError):
@@ -1301,6 +1327,7 @@ def run_talk_mode(sentence: str = None):
     # daemon is the only writer of activations; talk submits and reads.
     talk_checkpoint_path = os.path.join(SNAPSHOT_DIR, "talk_state.wire")
     talk_mark_path = os.path.join(SNAPSHOT_DIR, "talk_state.mark")
+    examples_path = os.path.join(SNAPSHOT_DIR, Dmn.DAEMON_EXAMPLES_NAME)
     # A running daemon announces itself with a liveness file it writes at
     # start and removes at exit. The inbox cannot serve as that signal: the
     # daemon consumes it, so its absence is ambiguous.
@@ -1516,6 +1543,13 @@ def run_talk_mode(sentence: str = None):
                 M.Tail(M.Tail(read_back)())(),
             )()
             _debug("read the daemon's state back")
+            # The daemon's merge can install correspondence laws the
+            # foreground has never seen: the tokenizer reads a cached
+            # vocabulary, so without a rebuild here a law activated a
+            # moment ago stays unreadable, and every word it teaches
+            # answers "I do not know the word" until a restart.
+            _extend_vocabulary()
+            _debug("vocabulary rebuilt from the daemon's installed laws")
         # What the daemon found in the background becomes a question on
         # the table, one at a time: pending proposals the machine itself
         # submitted, waiting on the human, not yet surfaced.
@@ -1955,6 +1989,14 @@ def run_talk_mode(sentence: str = None):
         )()
 
     debug_enabled = True
+
+    # Replay rebuilds the taught state line by line, and the lesson
+    # handlers persist after each line that changes something. In live
+    # mode a persist is a full submission of the graph to the inbox, so
+    # a replayed transcript would ship the whole graph once per line.
+    # The replay loop persists once at its end; this flag is how the
+    # per-line handlers know that one submission already covers them.
+    replaying = False
 
     def _debug(text):
         if debug_enabled:
@@ -3929,6 +3971,84 @@ def run_talk_mode(sentence: str = None):
         _push_ask("rule", prompt_text)
         return M.truth_value
 
+    def _reraise_bridge_gap(term_word, term_text):
+        """Queue the bridge question an unbridged subject gates on.
+
+        A definition whose subject carries no Corresponds node compiles
+        to no law: the pattern side of every compiled rule is built from
+        the bridged constructor, so without the link the body names
+        nothing the rule graph can fire. The packs may know the word as
+        one of their own constructors -- then the link is the offer --
+        or it may name something new, and the trainer's own constructor
+        is the offer. Either way the question is re-proposed wherever
+        the missing bridge blocks, so a decision that predates the
+        reading or never happened can be made at the point of failure.
+        Returns truth when a bridge was queued.
+        """
+        nonlocal pending_bridge
+        # A bridge already queued or pending for this word is not
+        # re-proposed.
+        already_raised = M.false_value
+        if M.IdentityCompare(
+            pending_bridge, M.EmptyList,
+        )() is M.false_value:
+            if M.Compare(
+                M.Head(pending_bridge)(), term_word,
+            )() is M.truth_value:
+                already_raised = M.truth_value
+        queue_scan = pending_bridge_queue
+        while M.IdentityCompare(
+            queue_scan, M.EmptyList,
+        )() is M.false_value:
+            queued_entry = M.Head(queue_scan)()
+            if M.Compare(
+                M.Head(queued_entry)(), term_word,
+            )() is M.truth_value:
+                already_raised = M.truth_value
+                queue_scan = M.EmptyList
+            if M.IdentityCompare(
+                queue_scan, M.EmptyList,
+            )() is M.false_value:
+                queue_scan = M.Tail(queue_scan)()
+        if M.IdentityCompare(
+            already_raised, M.truth_value,
+        )() is M.truth_value:
+            return M.false_value
+        # Only a subject with no bridge is a gap.
+        existing_bridge = G.BridgeFor(learned_version, term_word)()
+        if M.IdentityCompare(
+            existing_bridge, M.EmptyList,
+        )() is M.false_value:
+            return M.false_value
+        term_display = term_text.replace("_", " ")
+        if M.IdentityCompare(
+            _pack_constructor_for(term_text), M.EmptyList,
+        )() is M.truth_value:
+            # The packs know no such constructor, so the word names
+            # something new and the trainer's own constructor is the
+            # link the compiler needs.
+            pending_bridge = M.Pair(
+                term_word,
+                M.Pair(M.Char(term_text), M.EmptyList),
+            )
+            _push_ask(
+                "bridge",
+                " The word '" + term_display + "' names something"
+                + " new; make it a constructor of its own?"
+                + " (bridge yes/bridge no)",
+            )
+            return M.truth_value
+        # The packs know this word as a constructor with its own
+        # ontology; the link is the offer, and _propose_bridge queues
+        # it. The preconditions are established above, so a queue that
+        # stayed empty means the offer could not be built.
+        _propose_bridge(term_text)
+        if M.IdentityCompare(
+            pending_bridge, M.EmptyList,
+        )() is M.false_value:
+            return M.truth_value
+        return M.false_value
+
     def _ensure_bridge_loaded():
         """Load the next queued open-word bridge, if one waits."""
         nonlocal pending_bridge, pending_bridge_queue
@@ -4363,6 +4483,8 @@ def run_talk_mode(sentence: str = None):
         examples = M.Pair(example, examples)
         _debug("evidence store now holds "
                + str(_count_chain(examples)) + " example(s)")
+        if os.path.exists(daemon_live_path):
+            W.save_examples(examples_path, examples)
         if record:
             _log_lesson(line)
             _debug("lesson line appended to " + lesson_path)
@@ -4512,15 +4634,22 @@ def run_talk_mode(sentence: str = None):
         """Write the shared checkpoint, unless a daemon owns it.
 
         One writer per file. With a daemon cycling, talk state reaches the
-        shared version through the inbox instead.
+        shared version through the inbox instead. The inbox submission is
+        the whole graph, so during a replay it is deferred to the single
+        persist at the end of the pass -- replaying a line cannot be the
+        last word on the state when the next line is still coming.
         """
         if os.path.exists(daemon_live_path):
+            if replaying:
+                return
             Dmn.submit_to_inbox(
                 SNAPSHOT_DIR,
                 proposal_store,
                 learned_version,
             )
             _debug("submitted taught graph data to the daemon inbox")
+            return
+        if replaying:
             return
         W.save_checkpoint(
             talk_checkpoint_path,
@@ -7677,6 +7806,7 @@ def run_talk_mode(sentence: str = None):
                 numeral_scan = M.Tail(numeral_scan)()
             _thinking("no direct schema matched; looking through known facts and approved rules")
             rules = G.InstalledTaughtRules(learned_version)()
+            _thinking("installed " + str(_count_chain(rules)) + " taught rule(s)")
             # The machine runs its own trial divisions: every ground
             # divisibility claim the goal or a rule's premises speak is
             # computed before chaining, and the computed polarity joins
@@ -7765,6 +7895,10 @@ def run_talk_mode(sentence: str = None):
                             facts,
                         )
                 computation_scan = M.Tail(computation_scan)()
+            _thinking(
+                "ground arithmetic computed; working set is "
+                + str(_count_chain(facts)) + " fact(s)",
+            )
             case_splits = G.InstalledCaseSplits(learned_version)()
             case_relevant = M.false_value
             relevant_splits_reversed = M.EmptyList
@@ -7808,6 +7942,12 @@ def run_talk_mode(sentence: str = None):
                     else:
                         relevance_candidates = M.Tail(relevance_candidates)()
                 relevance_scan = M.Tail(relevance_scan)()
+            _thinking(
+                "case splits scanned; "
+                + str(_count_chain(relevant_splits_reversed))
+                + " relevant split(s) of "
+                + str(_count_chain(case_splits)) + " installed",
+            )
             if M.IdentityCompare(case_relevant, M.truth_value)() is M.truth_value:
                 case_query = G.CaseSplitQuery(
                     facts,
@@ -7880,6 +8020,10 @@ def run_talk_mode(sentence: str = None):
                                 P.RulePremises(taught_rule)(),
                                 facts,
                                 M.EmptyList,
+                                index=K.KnowledgeHeadIndexInsertChain(
+                                    M.EmptyTree, facts, registry,
+                                )(),
+                                registry=registry,
                             )()
                             while M.IdentityCompare(
                                 bindings, M.EmptyList,
@@ -7946,6 +8090,13 @@ def run_talk_mode(sentence: str = None):
                     chain_capped = M.truth_value
                 else:
                     rounds_text = G.GMPSuccText(rounds_text)()
+                    round_index = K.KnowledgeHeadIndexInsertChain(
+                        M.EmptyTree, facts, registry,
+                    )()
+                    _thinking(
+                        "forward-chaining round " + rounds_text
+                        + "; " + str(_count_chain(facts)) + " fact(s)",
+                    )
                     goal_early = M.false_value
                     goal_scan = facts
                     while M.IdentityCompare(
@@ -7967,18 +8118,37 @@ def run_talk_mode(sentence: str = None):
                     else:
                         growing = M.false_value
                         remaining_rules = rules
+                    consumed_bindings = 0
                     while M.IdentityCompare(
                         remaining_rules, M.EmptyList,
                     )() is M.false_value:
                         taught_rule = M.Head(remaining_rules)()
+                        _thinking(
+                            "entering join over " + str(_count_chain(facts))
+                            + " fact(s)",
+                        )
                         bindings = P.JoinPremises(
                             P.RulePremises(taught_rule)(),
                             facts,
                             M.EmptyList,
+                            index=round_index,
+                            registry=registry,
                         )()
+                        _thinking(
+                            "join: " + str(_count_chain(facts))
+                            + " fact(s), emitted "
+                            + str(_count_chain(bindings)) + " binding(s)",
+                        )
                         while M.IdentityCompare(
                             bindings, M.EmptyList,
                         )() is M.false_value:
+                            consumed_bindings = consumed_bindings + 1
+                            if consumed_bindings % 10 == 0:
+                                _thinking(
+                                    "consumed " + str(consumed_bindings)
+                                    + " binding(s); facts now "
+                                    + str(_count_chain(facts)),
+                                )
                             binding = M.Head(bindings)()
                             instantiated = M.Instantiate(
                                 P.RuleReplacement(taught_rule)(),
@@ -8071,6 +8241,10 @@ def run_talk_mode(sentence: str = None):
                 else:
                     fact_scan = M.Tail(fact_scan)()
             last_goal = goal
+            _thinking(
+                "goal scan complete; found=" + str(goal_found)
+                + " refuted=" + str(goal_refuted),
+            )
             last_proof_registry = registry
             last_derivation = M.EmptyList
             last_outcome = M.EmptyList
@@ -11328,9 +11502,10 @@ def run_talk_mode(sentence: str = None):
                         + unknown + "(seven)'."
                     )
                 # No laws and no open words: the blocker may be an
-                # operator that still stands uninterpreted, or a body
-                # with no template. Either gap is re-proposed here, at
-                # the point of failure.
+                # operator that still stands uninterpreted, a body
+                # with no template, or a subject with no bridge to a
+                # constructor. Either gap is re-proposed here, at the
+                # point of failure.
                 defined_term = G.DefinitionTerm(defined)()
                 if M.IdentityCompare(
                     _reraise_operator_gap(
@@ -11356,12 +11531,46 @@ def run_talk_mode(sentence: str = None):
                         + " compiles to no law."
                         + _ask_next_line()
                     )
+                if M.IdentityCompare(
+                    _reraise_bridge_gap(defined_term, str(defined_term())),
+                    M.truth_value,
+                )() is M.truth_value:
+                    return (
+                        "I have a definition of '" + unknown + "': "
+                        + _speak_chain(body_chain)
+                        + ". But its subject has no bridge to a"
+                        + " constructor, so it compiles to no law."
+                        + _ask_next_line()
+                    )
                 return (
                     "I have a definition of '" + unknown + "': "
                     + _speak_chain(body_chain)
                     + ". But it compiled to no law, so I cannot read it"
                     + " in a sentence."
                 )
+            # The word may be unreadable only because the law that would
+            # read it still sits undecided: with a daemon running, an
+            # approval is a submission, so the word arrives on the next
+            # cycle rather than this one. The read loop does not repeat
+            # the pending prompt, so deafness here would hide the one
+            # rule that answers it. Name the proposal instead.
+            if M.IdentityCompare(pending_queue, M.EmptyList)() is M.false_value:
+                pending_entry = M.Head(pending_queue)()
+                pending_proposal = M.Head(pending_entry)()
+                pending_pattern = M.Head(
+                    G.GraphNodes(
+                        G.LawLeft(G.ProposalLaw(pending_proposal)())(),
+                    )(),
+                )()
+                if G.SurfaceChainHasWord(
+                    M.Head(M.Tail(pending_pattern)())(), unknown_word,
+                )() is M.truth_value:
+                    return (
+                        "I do not know the word: " + unknown
+                        + ", but a rule for it awaits your decision:"
+                        + "\nhyge> "
+                        + M.Head(M.Tail(pending_entry)())()
+                    )
             return "I do not know the word: " + unknown
         if M.IdentityCompare(
             reason_label,
@@ -11393,23 +11602,50 @@ def run_talk_mode(sentence: str = None):
     if os.path.exists(lesson_path):
         try:
             with open(lesson_path, "r", encoding="utf-8") as stream:
-                lesson_lines = [item.strip() for item in stream.read().splitlines()]
+                lesson_lines = G.LinesOfText(stream.read())()
         except OSError:
-            lesson_lines = []
+            lesson_lines = M.EmptyList
         # Replay only lines the checkpoint has not already absorbed. The
         # cursor counts non-blank lines, matching how the mark was written,
-        # so blank-line edits cannot shift the boundary.
+        # so a blank-line edit cannot shift the boundary. A mark past the
+        # end of the transcript means the checkpoint and the file disagree
+        # about how much was taught: every line would be skipped and the
+        # teaching silently forgotten. The transcript is the record, so an
+        # impossible mark replays everything rather than nothing.
+        line_count_text = M.GMPRepText(M.CountRep(lesson_lines)())()
+        if M.IdentityCompare(
+            G.GMPLessText(line_count_text, replay_mark_text)(), M.truth_value,
+        )() is M.truth_value:
+            replay_mark_text = "0"
         cursor_text = "0"
+        # The internals of one replayed line are loud -- dozens of graph
+        # operations each. This is a pass over the transcript, not a
+        # debugging session, so the internals stay quiet and the marker
+        # above is the only signal.
         debug_enabled = False
-        for lesson in lesson_lines:
-            if lesson:
-                if G.GMPLessText(cursor_text, replay_mark_text)() is M.truth_value:
-                    skipped = skipped + 1
-                else:
-                    _respond(lesson, record=False)
-                    replayed = replayed + 1
-                cursor_text = G.GMPSuccText(cursor_text)()
+        replaying = True
+        remaining = lesson_lines
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            lesson = M.Head(remaining)()
+            remaining = M.Tail(remaining)()
+            if M.IdentityCompare(
+                G.GMPLessText(cursor_text, replay_mark_text)(), M.truth_value,
+            )() is M.truth_value:
+                skipped = skipped + 1
+            else:
+                # A replayed line is real work against the restored graph
+                # -- a definition installation, an approval, an induction.
+                # Without this marker the whole pass runs silent, and a
+                # slow line is indistinguishable from a dead one.
+                print(
+                    "replay " + cursor_text + ": " + lesson()[:78],
+                    flush=True,
+                )
+                _respond(lesson(), record=False)
+                replayed = replayed + 1
+            cursor_text = G.GMPSuccText(cursor_text)()
         debug_enabled = True
+        replaying = False
         if replayed:
             _persist_talk_state()
             try:
