@@ -685,11 +685,12 @@ class JoinPremises(M.Edge):
             return M.Pair(bindings, M.EmptyList)
         premise = M.Head(premises)()
         rest = M.Tail(premises)()
+        specialized = M.Head(M.Instantiate(premise, bindings)())()
         acc = M.EmptyList
-        remaining = self._candidates(premise)
+        remaining = self._candidates(specialized)
         while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
             fact = M.Head(remaining)()
-            match = M.Match(premise, fact)()
+            match = M.Match(specialized, fact)()
             if M.IdentityCompare(M.Head(match)(), M.truth_value)() is M.truth_value:
                 merged = M.MergeBindings(bindings, M.Tail(match)())()
                 if M.IdentityCompare(M.Head(merged)(), M.truth_value)() is M.truth_value:
