@@ -36,11 +36,13 @@ class Search(M.Edge):
         self.registry = registry
         self.rules = ordered_rules
         self.heuristic = heuristic
+        self.original_goal = goal
         self.start = HeuristicCanonicalize(start, heuristic, registry)()
         self.goal = HeuristicCanonicalize(goal, heuristic, registry)()
         self.search_aborted = M.false_value
         self.search_outcome_on_abort = SearchFailureLabel
         self._active_search_job = None
+        self._stall_frontier = M.EmptyList
         self._premise_bindings_cache = M.EmptyList
         self._console_input = self.graph._search_console_input
         if self._console_input is None:
@@ -67,10 +69,18 @@ class Search(M.Edge):
                     if M.IdentityCompare(SearchJobStatus(job)(), SearchPausedLabel)() is M.truth_value:
                         self.graph.store_search_job(job)
                         break
+                    if M.IdentityCompare(
+                        SearchJobFrontier(job)(), M.EmptyList,
+                    )() is M.false_value:
+                        self._stall_frontier = SearchJobFrontier(job)()
                     burst_pair = SearchBurst(self.graph, job, self._burst_budget(), self.registry, self._stop_listener, self)()
                     job = M.Head(burst_pair)()
                     self.registry = M.Head(M.Tail(burst_pair)())()
                     self.graph._replace_context(constructors=self.registry)
+                    if M.IdentityCompare(
+                        SearchJobFrontier(job)(), M.EmptyList,
+                    )() is M.false_value:
+                        self._stall_frontier = SearchJobFrontier(job)()
                     job = self._maybe_abort_slow_dfs(job)
                     if M.IdentityCompare(SearchJobStatus(job)(), SearchPausedLabel)() is M.truth_value:
                         self.graph.store_search_job(job)
@@ -105,6 +115,19 @@ class Search(M.Edge):
 
             outcome = SearchJobStatus(job)()
             self._active_search_job = job
+            stall = M.EmptyList
+            if M.IdentityCompare(outcome, SearchFailureLabel)() is M.truth_value:
+                from .. import graph as Gmod
+
+                stall = Gmod.StallRecord(
+                    self.original_goal,
+                    Gmod.StallFrontierPrefix(self._stall_frontier)(),
+                    M.EmptyList,
+                    SearchJobExpanded(job)(),
+                    self.start,
+                    self.rules,
+                    self.heuristic,
+                )()
             self._final_status_text = self._completion_status_text(outcome)
             if M.IdentityCompare(outcome, SearchPausedLabel)() is M.false_value:
                 self.graph.remove_search_job(self.start, self.goal, self.heuristic)
@@ -123,7 +146,10 @@ class Search(M.Edge):
             search_cost = M.Head(cost_pair)()
             self.registry = M.Head(M.Tail(cost_pair)())()
             self.graph._replace_context(constructors=self.registry)
-            self.result = M.Pair(plan, M.Pair(search_cost, M.EmptyList))
+            self.result = M.Pair(
+                plan,
+                M.Pair(search_cost, M.Pair(stall, M.EmptyList)),
+            )
             _debug(self.mode_text + ": " + self._final_status_text)
             super().__init__(inputs=M.Pair(graph, M.Pair(start, M.Pair(goal, M.Pair(ordered_rules, M.Pair(heuristic, M.Pair(registry, M.EmptyList)))))), results=self.result)
         finally:

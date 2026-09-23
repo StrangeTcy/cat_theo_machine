@@ -183,7 +183,17 @@ def deserialize_term(blob):
         elif token == "V":
             value = M.VarTag
         elif token.startswith("L:"):
-            value = getattr(Lmod, token[2:])
+            try:
+                value = getattr(Lmod, token[2:])
+            except AttributeError:
+                # A checkpoint written by a labels.py this branch does
+                # not carry. The token keeps its place as an interned,
+                # inert atom -- distinct unknown labels stay distinct,
+                # and every head comparison against known labels fails
+                # -- instead of sinking the whole boot.
+                if token not in interned:
+                    interned[token] = M.Thingy()
+                value = interned[token]
         elif token.startswith("C:"):
             if token not in interned:
                 interned[token] = M.Char(urllib.parse.unquote(token[2:]))
@@ -239,7 +249,8 @@ def deserialize_ledger(blob, registry=M.EmptyList):
 
 
 def worker_task(serialized_version, serialized_store, serialized_budget,
-                serialized_generator_config, slice_index_text, slice_count_text):
+                serialized_generator_config, slice_index_text, slice_count_text,
+                serialized_examples=b"", serialized_word_entries=b""):
     """Step 43: one worker turn — generate and fire, NEVER activate.
 
     Every argument crosses the wire as canonical WIRE1 bytes (the budget and
@@ -268,6 +279,8 @@ def worker_task(serialized_version, serialized_store, serialized_budget,
     graph_version = deserialize_term(serialized_version)
     proposal_store = deserialize_term(serialized_store)
     generator_config = deserialize_term(serialized_generator_config)
+    examples = deserialize_term(serialized_examples)
+    word_entries = deserialize_term(serialized_word_entries)
     ledger = Gmod.FiringLedger(M.EmptyList)
     generator_config = M.Pair(
         M.Pair(
@@ -288,6 +301,8 @@ def worker_task(serialized_version, serialized_store, serialized_budget,
         ledger,
         budget,
         generator_config,
+        examples,
+        word_entries,
     )()
     frontier_version = M.Head(cycle)()
     result_store = M.Head(M.Tail(cycle)())()
@@ -301,19 +316,26 @@ def worker_task(serialized_version, serialized_store, serialized_budget,
 
 def _worker_entry(queue, serialized_version, serialized_store,
                   serialized_budget, serialized_config, slice_index_text,
-                  slice_count_text):
-    queue.put(worker_task(
-        serialized_version,
-        serialized_store,
-        serialized_budget,
-        serialized_config,
-        slice_index_text,
-        slice_count_text,
-    ))
+                  slice_count_text, serialized_examples, serialized_word_entries):
+    try:
+        queue.put(worker_task(
+            serialized_version,
+            serialized_store,
+            serialized_budget,
+            serialized_config,
+            slice_index_text,
+            slice_count_text,
+            serialized_examples,
+            serialized_word_entries,
+        ))
+    except KeyboardInterrupt:
+        # A console interrupt reaches every attached process; the
+        # worker bows out quietly instead of spewing its death stack.
+        return None
 
 
 def run_workers(graph_version, proposal_store, budget, generator_config,
-                worker_count):
+                worker_count, examples=M.EmptyList, word_entries=M.EmptyList):
     """Step 43: fan one generation turn out over a multiprocessing Pool.
 
     Worker i mines candidate slice i of worker_count; per-worker budgets are
@@ -323,6 +345,8 @@ def run_workers(graph_version, proposal_store, budget, generator_config,
 
     serialized_version = serialize_term(graph_version)
     serialized_store = serialize_term(proposal_store)
+    serialized_examples = serialize_term(examples)
+    serialized_word_entries = serialize_term(word_entries)
     zeroed = M.EmptyList
     remaining_budget = budget
     from . import graph as Gmod
@@ -365,6 +389,8 @@ def run_workers(graph_version, proposal_store, budget, generator_config,
                 serialized_config,
                 str(index),
                 str(worker_count),
+                serialized_examples,
+                serialized_word_entries,
             ),
         )
         process.start()
@@ -379,7 +405,8 @@ def run_workers(graph_version, proposal_store, budget, generator_config,
 
 
 def distributed_cycle(graph_version, proposal_store, ledger, budget,
-                      generator_config, worker_count):
+                      generator_config, worker_count,
+                      examples=M.EmptyList, word_entries=M.EmptyList):
     """Step 45: run_workers -> merge_frontiers -> single-process activation.
 
     A linear Next chain with exactly three links and no branching:
@@ -404,6 +431,8 @@ def distributed_cycle(graph_version, proposal_store, ledger, budget,
         budget,
         generator_config,
         worker_count,
+        examples,
+        word_entries,
     )
 
     # run_workers hands back host tuples across the process boundary; convert
@@ -494,3 +523,40 @@ def load_checkpoint(path, registry=M.EmptyList):
         graph_version,
         M.Pair(proposal_store, M.Pair(ledger, M.EmptyList)),
     )
+
+
+def save_examples(path, examples):
+    """One machine term -- the correspondence examples chain -- as a file.
+
+    Separate from the state checkpoint because the writers differ: the
+    conversation appends an example on every training line while the
+    daemon writes the state every cycle. One writer per file.
+    """
+    payload = (
+        _WIRE_HEADER + "\n" + serialize_term(examples).decode("utf-8") + "\n"
+    )
+    temporary = path + ".tmp"
+    with open(temporary, "w", encoding="utf-8") as handle:
+        handle.write(payload)
+    os.replace(temporary, path)
+    return path
+
+
+def load_examples(path):
+    """The examples chain, or EmptyList when the document cannot hold one.
+
+    find returns -1 when no newline exists and negative indexing would
+    slice from the end, so the sentinel is tested before it reaches a
+    slice. An empty body would index an empty frame in deserialize_term.
+    """
+    with open(path, "r", encoding="utf-8") as handle:
+        text = handle.read()
+    newline_at = text.find("\n")
+    if newline_at < 0:
+        return M.EmptyList
+    if text[:newline_at] != _WIRE_HEADER:
+        return M.EmptyList
+    body = text[newline_at + 1:]
+    if body.strip() == "":
+        return M.EmptyList
+    return deserialize_term(body.encode("utf-8"))

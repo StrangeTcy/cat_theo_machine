@@ -238,10 +238,18 @@ SNAPSHOT_SYMBOL_NAMES = [
     "NonEmptyLabel",
     "AttainsLabel",
     "ExtremalAtLabel",
+    "RelationArityLabel",
+    "ExtensionalAtLabel",
+    "CongruentLabel",
     "VariationLabel",
     "BetterLabel",
     "ExistsLabel",
     "NotLabel",
+    "ForAllLabel",
+    "SmallFactorLabel",
+    "IffLabel",
+    "StepSieveLabel",
+    "TrialSieveLabel",
     "ContradictionLabel",
     "CollisionLabel",
     "ExtremalLabel",
@@ -376,6 +384,7 @@ SNAPSHOT_SYMBOL_NAMES = [
     "ExprNegLabel",
     "ExprEqLabel",
     "ExprLtLabel",
+    "ExprLeLabel",
     "RewriteActionLabel",
     "DerivationLabel",
     "InsertionOrderLabel",
@@ -461,6 +470,41 @@ SNAPSHOT_SYMBOL_NAMES = [
     "seven",
     "eight",
     "nine",
+    "EntityLabel",
+    "EventLabel",
+    "RelationLabel",
+    "StoryLabel",
+    "RoleLabel",
+    "SameAsLabel",
+    "BecauseLabel",
+    "AfterLabel",
+    "PredicateLabel",
+    "CanonicalNameLabel",
+    "AttributeLabel",
+    "EventChainLabel",
+    "StoryRefLabel",
+    "RolesLabel",
+    "ProvenanceLabel",
+    "ConfidenceLabel",
+    "SchemaLabel",
+    "StorySchemaLabel",
+    "SemanticGoalLabel",
+    "TaskTypeLabel",
+    "ConceptLabel",
+    "IntermediateLabel",
+    "ConceptTypeLabel",
+    "TimeLabel",
+    "LocationLabel",
+    "DomainLabel",
+    "AttributeValueLabel",
+    "ConnectionLabel",
+    "ExplanationLabel",
+    "NarrativeLabel",
+    "VerificationLabel",
+    "ConfidenceScoreLabel",
+    "SemanticStateLabel",
+    "FocusLabel",
+    "UncertainLabel",
 ]
 
 
@@ -686,6 +730,17 @@ class SnapshotCodec:
         return M.false_value
 
     def _captured_object_id(self, target):
+        try:
+            target.id
+        except AttributeError:
+            try:
+                describe = target.__name__
+            except AttributeError:
+                describe = repr(target)
+            raise RuntimeError(
+                "Snapshot capture refused: host object without machine identity: "
+                + str(describe)
+            ) from None
         return T.IdentityRedBlackNatLookupValue(self.object_id_index, target)()
 
     def _capture_oid_number(self, oid):
