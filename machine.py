@@ -45,6 +45,7 @@ from .labels import (
     ExprFracLabel,
     ExprIntLabel,
     ExprLtLabel,
+    ExprLeLabel,
     ExprMulLabel,
     ExprNegLabel,
     ExprPowLabel,
@@ -350,12 +351,25 @@ class Instantiate(Edge):
         self.result = Pair(self._inst(template, bindings), EmptyList)
         super().__init__(inputs=Pair(template, Pair(bindings, EmptyList)), results=self.result)
 
+    def _is_var_pattern(self, p):
+        if IsPair(p)() is false_value:
+            return false_value
+        h = Head(p)()
+        t = Tail(p)()
+        if IdentityCompare(h, VarTag)() is false_value:
+            return false_value
+        if IsPair(t)() is false_value:
+            return false_value
+        if IdentityCompare(Tail(t)(), EmptyList)() is false_value:
+            return false_value
+        return truth_value
+
     def _inst(self, t, bindings):
-        lookup = FindBinding(bindings, t)()
-        flag = Head(lookup)()
-        val = Tail(lookup)()
-        if IdentityCompare(flag, truth_value)() is truth_value:
-            return val
+        if self._is_var_pattern(t) is truth_value:
+            lookup = FindBinding(bindings, t)()
+            if IdentityCompare(Head(lookup)(), truth_value)() is truth_value:
+                return Tail(lookup)()
+            return t
         if IsPair(t)() is truth_value:
             new_h = self._inst(Head(t)(), bindings)
             new_t = self._inst(Tail(t)(), bindings)
