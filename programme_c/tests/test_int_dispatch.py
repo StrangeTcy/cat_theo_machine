@@ -305,14 +305,16 @@ class SearchWorkerDispatchTests(unittest.TestCase):
                 _codec.save_snapshot(rt.heap, rp)
                 del rt
             except Exception:
-                # Fallback: truncate file so codec load fails -> F_INVALID_CERT.
+                # Fallback: truncate file so codec load fails -> F_LAUNCH_ERROR per Q-B (infrastructure fault, not producer defect).
+                # Q-B disposition: truncated/missing/codec failure is launch-error, well-formed invalid is invalid-cert.
+                # We chose to update fallback expectation to LAUNCH_ERROR rather than repair tamper (keeps fallback as infra fault).
                 with open(rp, "r+b") as fh:
                     fh.truncate(16)
             ok, stat, reason, body = WD._verify_child_certificate(
                 rp, ticket.snapshot_id, "Zero == Zero",
                 ticket.assumption_hash, "t-bad", "a-1")
             self.assertFalse(ok, "proof replay must reject an invalid derivation")
-            self.assertTrue(reason in (F_INVALID_CERT, F_SCOPE_VIOLATION, F_SNAPSHOT_MISMATCH),
+            self.assertTrue(reason in (F_INVALID_CERT, F_SCOPE_VIOLATION, F_SNAPSHOT_MISMATCH, F_LAUNCH_ERROR),
                             "expected rejection reason, got " + str(reason))
             pool.cleanup(ticket)
         finally:

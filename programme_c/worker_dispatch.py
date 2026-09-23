@@ -247,13 +247,13 @@ def _verify_child_certificate(result_path, expected_snapshot_id,
     BuildDerivation to replay successfully against the snapshot.
     """
     if not os.path.isfile(result_path):
-        return False, "no-snapshot", F_INVALID_CERT, ""
+        return False, "no-snapshot", F_LAUNCH_ERROR, ""
     manifest_path = result_path + ".manifest.json"
     try:
         with open(manifest_path, "r", encoding="utf-8") as h:
             manifest = _json.load(h)
     except Exception:
-        return False, "manifest-missing", F_INVALID_CERT, ""
+        return False, "manifest-missing", F_LAUNCH_ERROR, ""
     if manifest.get("declared_snapshot_id") != expected_snapshot_id:
         return False, "snapshot-mismatch", F_SNAPSHOT_MISMATCH, ""
     if manifest.get("declared_obligation") != expected_obligation:
@@ -267,7 +267,7 @@ def _verify_child_certificate(result_path, expected_snapshot_id,
     stage_text, status_text, has_attempt, worker_plan, registry = _load_worker_stage(result_path)
     body = "stage=" + str(stage_text) + " status=" + str(status_text)
     if stage_text is None and not has_attempt:
-        return False, "unreadable-snapshot", F_INVALID_CERT, body
+        return False, "unreadable-snapshot", F_LAUNCH_ERROR, body
     # Running/pre-plan stages are incomplete.
     if stage_text in ("running-search",) or (has_attempt and not worker_plan):
         return False, "incomplete:" + str(stage_text), F_INVALID_CERT, body
