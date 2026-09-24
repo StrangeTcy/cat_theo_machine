@@ -42,10 +42,11 @@ live activation: none
 | `researcher_v0/tests/run_g2_tests.py` | runner: generation, then tests, exit 0 / 1 |
 | `researcher_v0/CONSTRAINTS.md` | the operator's standing constraints, recorded verbatim (carried from the G1 branch's `c0b3ebd` so the registry lives inside this package) |
 
-Two pre-existing files were touched beyond the additions: `g1_replay_procedure.md`
-received a one-word wording fix (a stray adverb removed so the standing
-constraints' verification grep passes; no semantic change), and nothing else
-of G1's changed.
+One pre-existing file was touched beyond the additions:
+`g1_replay_procedure.md` received a one-word wording fix (a stray adverb
+removed so the standing constraints' verification grep passes; no semantic
+change). G1's module code was not modified. The full prior-gate ledger,
+with before/after and license, is §8.
 
 House idiom throughout, as G1: each operation is an `Edge` class called as
 `Class(args)()`; no module-level function, no Python container, no
@@ -208,10 +209,11 @@ regression:  cd /home/user && python3 -m cat_theo_machine.researcher_v0.tests.ru
 | 14 | inertness: no checker or outcome vocabulary | the generation module holds none of the guarded tokens |
 | 15 | generation: rerun reproduces tasks.jsonl | deterministic byte-for-byte |
 
-## 7. Deferred to checker
+## 7. Deferred to checker and standing acceptance items
 
 Recorded here per the G2 hand-off; **no checker code is written at G2**. The
-checker gates (G3/G4) must include a named acceptance test:
+checker gates (G3/G4) must include a named acceptance test (standing item
+**A2.1-R**):
 
 ```text
 MissingPhiReadingIsNotChecked
@@ -224,7 +226,41 @@ which a naive comparison would treat as a differing value). G2 calls no
 reading function; the scope-break observer rides as inert pattern data for
 that later test to consume.
 
-## 8. Integrity
+Second standing item, recorded per the G2 review — **PENDING-REF** (binding
+G3 and G5):
+
+```text
+PENDING-REF (standing; binds G3 and G5)
+  1. A scope_break_test row whose certificate slot is pending:* is
+     UNSUPPORTED at execution time unless the pending reference has been
+     resolved to a real certificate id minted in the same run.
+  2. Resolution is recorded as an explicit event (task_id, pending_ref,
+     certificate_id); an unresolved pending is never an error, never a
+     refutation, and never CHECKED_*.
+```
+
+A `pending:*` reference never satisfies a replay. This closes the gap the
+placeholder scheme opens: an unresolved reference is "not yet supported"
+and never evidence.
+
+## 8. Prior-gate modifications (G2 review bookkeeping)
+
+Recorded on demand of the G2 review as first-class facts, not session
+narrative. `git show --stat 97a746f` is the ledger: seven files, six created
+(`task_generation.py`, `tests/test_g2_tasks.py`, `tests/run_g2_tests.py`,
+`tasks/tasks.jsonl`, `tasks/canonicalization_report.md`, `CONSTRAINTS.md`)
+and **one prior-gate file modified**, `g1_replay_procedure.md` (`2 +-`, one
+word). The two flagged items, named with before/after and license:
+
+| item | files | before → after | license / regression evidence |
+|---|---|---|---|
+| encoder fix (flagged in the review as "the G1 encoder") | `task_generation.py` (G2-owned) and `tests/test_g2_tasks.py` (G2-owned) | the canonical encoder first offered the `Knowledge`-wrapped state term to `ruleset_digest.TermText`, which refuses it (`UnsupportedTermContent`: a value-less atom outside the declared singleton list); the encoder now offers the state fact chain (`FactsOfState`) — the same content the later checker reads — and the discipline test checks state-fact, rule and observer atoms | G1's encoder module `ruleset_digest.py` is **unmodified** in `97a746f`: the review flag named the module that raised the refusal, not a file that changed. G1 suite 23/23 green after the change; the G1 digest values are test-pinned and verbatim-unchanged (`R_even 15f5467c…`, `R_plus 533cb46b…`) |
+| replay-procedure wording fix | `g1_replay_procedure.md` (G1-owned) — the one prior-gate file modified | `g1_replay_procedure.md:44`: "the ruleset ⟨deny-listed adverb, elided here so the verification grep stays clean⟩ walked" → "the ruleset it walked" | non-semantic prose fix; licensed by the standing constraints' verification command (deny-list strings appear only in `CONSTRAINTS.md`) and G1's own wording-fix precedent (`fe1e480`). No code path changed; G1 23/23 and G2 15/15 green after |
+
+Both edits are hereby named for the archive: an auditor reads this table
+instead of reconstructing the change from session prose.
+
+## 9. Integrity
 
 ```text
 core.py                      untouched
@@ -253,7 +289,7 @@ Files changed: `researcher_v0/task_generation.py`,
 (`token_domain.py`, `ruleset_digest.py`, `chains.py`) is unchanged and reused
 by import. Runtime `__pycache__` caches are not committed.
 
-## 9. The distinction this report keeps
+## 10. The distinction this report keeps
 
 ```text
 tasks generated   46   (42 delivered rows, 34 non-isomorphic canonical)
@@ -262,7 +298,7 @@ tasks run          0   (zero outcomes is the correct G2 end state)
 
 A generated task is a question. Nothing here is an answer.
 
-## 10. Next bounded item
+## 11. Next bounded item
 
 G3 runs the delivered canonical set under BASELINE and MINING with the
 operational replay of `g1_replay_procedure.md` — including
