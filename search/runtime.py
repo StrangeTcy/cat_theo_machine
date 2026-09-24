@@ -706,7 +706,15 @@ class _SearchModeWorkerExecutor:
                     + ")",
                 )
                 traceback.print_exc()
-                result_queue.put(None)
+                result_queue.put(
+                    M.Pair(
+                        SearchFailureLabel,
+                        M.Pair(
+                            mode,
+                            M.Pair(SearchWorkerPacketPacketToken(payload), M.EmptyList),
+                        ),
+                    )
+                )
 
 
 

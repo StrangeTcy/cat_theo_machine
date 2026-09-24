@@ -1,313 +1,78 @@
 from __future__ import annotations
 
-import io
-import multiprocessing
-
-from . import context as Ctx
-from . import machine as M
-from . import proof as P
-from . import schemata as S
 from . import labels as Lmod
-from . import trees as Tmod
-from .gmprep import GMPAddText, GMPEqualText, GMPLessText, GMPMulText, GMPRepDigitList, GMPSubText, GMPSuccText
-from .search.patricia import SearchPatriciaIsTree, SearchPatriciaEntries
-from .search.model import (
-    SearchMatchCursor,
-    SearchMatchCursorComplete,
-    SearchMatchCursorPending,
-    SearchMatchCursorRoot,
-    SearchState,
-    SearchStateCursor,
-)
-from . import graph
+from . import machine as M
+from .graph import *
 
-class CompileRuleToLaw(M.Edge):
-    """
-    Step 11. A rewrite rule with left pattern P and right result R becomes the
-    Law (L, K, R, k_to_left, k_to_right, obligations).
+class FiringRecord(M.Edge):
+    """A committed firing together with its exact graph and trace counts."""
 
-    L and R are the graph encodings of P and R; K is the subterm occurrences
-    shared by both, so the K-maps are identity Sends into each side.
-    Obligations are empty for now.
-
-    Returns M.EmptyList for a rule this encoding cannot express: a rule with
-    no pattern, or a multi-premise rule, whose left side is not a single term.
-    """
-
-    def __init__(self, rule):
-        self.result = self._compile(rule)
-        super().__init__(inputs=M.Pair(rule, M.EmptyList), results=self.result)
-
-    def _compile(self, rule):
-        premises = P.RulePremises(rule)()
-        if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
-            return M.EmptyList
-        if M.IdentityCompare(M.Tail(premises)(), M.EmptyList)() is M.false_value:
-            return M.EmptyList
-        pattern = M.Head(premises)()
-        replacement = P.RuleReplacement(rule)()
-        if M.IdentityCompare(replacement, M.EmptyList)() is M.truth_value:
-            return M.EmptyList
-        left = EncodeTermAsGraph(pattern)()
-        right = EncodeTermAsGraph(replacement)()
-        shared = SharedSubterms(pattern, replacement)()
-        interface = M.Pair(M.HypergraphLabel, M.Pair(shared, M.Pair(M.EmptyList, M.EmptyList)))
-        sends = IdentitySendsFor(shared)()
-        k_to_left = Map(interface, left, sends)()
-        k_to_right = Map(interface, right, sends)()
-        return Law(left, interface, right, k_to_left, k_to_right, M.EmptyList)()
-
-    def __call__(self):
-        return self.result
-
-
-class EncodePremisesAsGraph(M.Edge):
-    """One graph holding every premise of a multi-premise rule.
-
-    EncodeTermAsGraph turns a single term into Hypergraph(subterms, edges).
-    A conjunction of premises is the union of those: every premise's
-    subterms are nodes of the one L-side, every premise's applications are
-    its edges, and a variable occurring in two premises is one node in the
-    union because subterm occurrences are compared structurally. That
-    sharing is what makes the conjunction mean "the same shape" rather
-    than "some shape each" -- Polygon(?s) and Edges(?s, three) constrain
-    one ?s precisely because ?s appears once in the merged node store.
-    """
-
-    def __init__(self, premises):
-        nodes = M.EmptyList
-        edges = M.EmptyList
-        remaining = premises
-        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-            encoded = EncodeTermAsGraph(M.Head(remaining)())()
-            nodes = ChainAddMissing(nodes, GraphNodes(encoded)())()
-            edges = ChainAddMissing(edges, GraphEdges(encoded)())()
-            remaining = M.Tail(remaining)()
+    def __init__(
+        self,
+        law,
+        g0,
+        g1,
+        trace,
+        nodes_before,
+        nodes_after,
+        edges_before,
+        edges_after,
+        trace_steps,
+    ):
         self.result = M.Pair(
-            M.HypergraphLabel,
-            M.Pair(nodes, M.Pair(edges, M.EmptyList)),
-        )
-        super().__init__(
-            inputs=M.Pair(premises, M.EmptyList),
-            results=self.result,
-        )
-
-    def __call__(self):
-        return self.result
-
-
-class SharedSubtermsAcross(M.Edge):
-    """Subterms shared between a premise chain and one replacement term.
-
-    The interface K of a multi-premise law: what the premises and the
-    conclusion have in common, which is what must be preserved when the
-    law fires. Collected in premise order, duplicates dropped, so the K
-    of a single-premise rule is exactly what SharedSubterms already gives.
-    """
-
-    def __init__(self, premises, replacement):
-        right_subterms = TermSubterms(replacement)()
-        reversed_shared = M.EmptyList
-        remaining = premises
-        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-            candidates = TermSubterms(M.Head(remaining)())()
-            while M.IdentityCompare(
-                candidates, M.EmptyList,
-            )() is M.false_value:
-                candidate = M.Head(candidates)()
-                if ChainHasTerm(right_subterms, candidate)() is M.truth_value:
-                    if ChainHasTerm(
-                        reversed_shared, candidate,
-                    )() is M.false_value:
-                        reversed_shared = M.Pair(candidate, reversed_shared)
-                candidates = M.Tail(candidates)()
-            remaining = M.Tail(remaining)()
-        self.result = M.Reverse(reversed_shared)()
-        super().__init__(
-            inputs=M.Pair(premises, M.Pair(replacement, M.EmptyList)),
-            results=self.result,
-        )
-
-    def __call__(self):
-        return self.result
-
-
-class CompileMultiRuleToLaw(M.Edge):
-    """A multi-premise rule becomes a Law whose L-side is a conjunction.
-
-    CompileRuleToLaw refuses anything with more than one premise, because
-    its L is EncodeTermAsGraph of a single term. The refusal is not a
-    principle -- the L/K/R shape has room for a conjunction, since L is
-    already a node-and-edge store rather than a term. Building it needs
-    three things and nothing more:
-
-      L  the union of the premise encodings (EncodePremisesAsGraph)
-      K  the subterms the premises share with the conclusion
-      R  the conclusion's own encoding, unchanged
-
-    The K-maps stay identity Sends into each side, exactly as the single
-    premise case, because K is a subset of both stores by construction.
-    """
-
-    def __init__(self, rule):
-        self.result = self._compile(rule)
-        super().__init__(inputs=M.Pair(rule, M.EmptyList), results=self.result)
-
-    def _compile(self, rule):
-        premises = P.RulePremises(rule)()
-        if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
-            return M.EmptyList
-        replacement = P.RuleReplacement(rule)()
-        if M.IdentityCompare(replacement, M.EmptyList)() is M.truth_value:
-            return M.EmptyList
-        left = EncodePremisesAsGraph(premises)()
-        right = EncodeTermAsGraph(replacement)()
-        shared = SharedSubtermsAcross(premises, replacement)()
-        interface = M.Pair(
-            M.HypergraphLabel,
-            M.Pair(shared, M.Pair(M.EmptyList, M.EmptyList)),
-        )
-        sends = IdentitySendsFor(shared)()
-        k_to_left = Map(interface, left, sends)()
-        k_to_right = Map(interface, right, sends)()
-        return Law(
-            left, interface, right, k_to_left, k_to_right, M.EmptyList,
-        )()
-
-    def __call__(self):
-        return self.result
-
-
-class CompileDeductionToLaw(M.Edge):
-    """A monotone rule: the premises stay, the conclusion is added.
-
-    CompileMultiRuleToLaw sets K to the subterms the premises share with
-    the conclusion, so firing deletes every premise element the
-    conclusion does not mention. That is exactly right for a rewrite --
-    the redex is consumed -- and exactly wrong for a deduction. A parse
-    rule compiled that way eats its own daughters, and a fact derived
-    once could never be used twice.
-
-    Here K is the whole of L and R is L together with the conclusion.
-    Nothing is deleted, one fact is added, and the K-maps are identity
-    Sends over every element of L rather than over the shared subterms
-    only. Everything else -- the ledger, the obligations, the firing
-    record, the proposal lifecycle -- is the ordinary law machinery,
-    because this is an ordinary Law.
-    """
-
-    def __init__(self, rule):
-        self.result = self._compile(rule)
-        super().__init__(inputs=M.Pair(rule, M.EmptyList), results=self.result)
-
-    def _compile(self, rule):
-        premises = P.RulePremises(rule)()
-        if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
-            return M.EmptyList
-        replacement = P.RuleReplacement(rule)()
-        if M.IdentityCompare(replacement, M.EmptyList)() is M.truth_value:
-            return M.EmptyList
-        left = EncodePremisesAsGraph(premises)()
-        conclusion = EncodeTermAsGraph(replacement)()
-        right = M.Pair(
-            M.HypergraphLabel,
+            Lmod.FiringRecordLabel,
             M.Pair(
-                ChainAddMissing(GraphNodes(left)(), GraphNodes(conclusion)())(),
+                law,
                 M.Pair(
-                    ChainAddMissing(
-                        GraphEdges(left)(), GraphEdges(conclusion)(),
-                    )(),
-                    M.EmptyList,
+                    g0,
+                    M.Pair(
+                        g1,
+                        M.Pair(
+                            trace,
+                            M.Pair(
+                                nodes_before,
+                                M.Pair(
+                                    nodes_after,
+                                    M.Pair(
+                                        edges_before,
+                                        M.Pair(
+                                            edges_after,
+                                            M.Pair(trace_steps, M.EmptyList),
+                                        ),
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
                 ),
             ),
         )
-        interface = M.Pair(
-            M.HypergraphLabel,
-            M.Pair(
-                GraphNodes(left)(),
-                M.Pair(GraphEdges(left)(), M.EmptyList),
+        super().__init__(
+            inputs=M.Pair(
+                law,
+                M.Pair(
+                    g0,
+                    M.Pair(
+                        g1,
+                        M.Pair(
+                            trace,
+                            M.Pair(
+                                nodes_before,
+                                M.Pair(
+                                    nodes_after,
+                                    M.Pair(
+                                        edges_before,
+                                        M.Pair(
+                                            edges_after,
+                                            M.Pair(trace_steps, M.EmptyList),
+                                        ),
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
             ),
-        )
-        sends = IdentitySendsFor(GraphElements(interface)())()
-        k_to_left = Map(interface, left, sends)()
-        k_to_right = Map(interface, right, sends)()
-        return Law(
-            left, interface, right, k_to_left, k_to_right, M.EmptyList,
-        )()
-
-    def __call__(self):
-        return self.result
-
-
-class UncompiledRules(M.Edge):
-    """Step 12 term-native record of rules skipped from the trigonometry pack."""
-
-    def __init__(self):
-        # Multiple premises cannot be represented by the Step 11 term encoder.
-        sine_rule = M.Pair(
-            M.Char("triangle_yields_sine_rule_equation"),
-            M.Pair(M.Char("multiple premises"), M.EmptyList),
-        )
-        # Multiple premises cannot be represented by the Step 11 term encoder.
-        cosine_rule = M.Pair(
-            M.Char("triangle_yields_generic_cosine_relation"),
-            M.Pair(M.Char("multiple premises"), M.EmptyList),
-        )
-        self.result = M.Pair(sine_rule, M.Pair(cosine_rule, M.EmptyList))
-        super().__init__(inputs=M.EmptyList, results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class CompileRulePackToLaws(M.Edge):
-    """Compile a Pair chain of rules, retaining compiled Laws and skipped rules."""
-
-    def __init__(self, rules):
-        reversed_laws = M.EmptyList
-        reversed_uncompiled = M.EmptyList
-        remaining = rules
-        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-            rule = M.Head(remaining)()
-            law = CompileRuleToLaw(rule)()
-            if M.IdentityCompare(law, M.EmptyList)() is M.truth_value:
-                reversed_uncompiled = M.Pair(rule, reversed_uncompiled)
-            else:
-                reversed_laws = M.Pair(law, reversed_laws)
-            remaining = M.Tail(remaining)()
-        laws = Reverse(reversed_laws)()
-        uncompiled = Reverse(reversed_uncompiled)()
-        self.result = M.Pair(laws, M.Pair(uncompiled, M.EmptyList))
-        super().__init__(inputs=M.Pair(rules, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class InstantiateLaw(M.Edge):
-    """Instantiate a compiled term Law with bindings from its legacy Rule match."""
-
-    def __init__(self, law, bindings):
-        self.result = M.EmptyList
-        if IsLawTerm(law)() is M.truth_value:
-            left_nodes = GraphNodes(LawLeft(law)())()
-            right_nodes = GraphNodes(LawRight(law)())()
-            if M.IdentityCompare(left_nodes, M.EmptyList)() is M.false_value:
-                if M.IdentityCompare(right_nodes, M.EmptyList)() is M.false_value:
-                    left_term = M.Head(M.Instantiate(M.Head(left_nodes)(), bindings)())()
-                    right_term = M.Head(M.Instantiate(M.Head(right_nodes)(), bindings)())()
-                    grounded = CompileRuleToLaw(P.Rule(left_term, right_term))()
-                    if M.IdentityCompare(grounded, M.EmptyList)() is M.false_value:
-                        self.result = Law(
-                            LawLeft(grounded)(),
-                            LawInterface(grounded)(),
-                            LawRight(grounded)(),
-                            LawKToLeft(grounded)(),
-                            LawKToRight(grounded)(),
-                            LawObligations(law)(),
-                        )()
-        super().__init__(
-            inputs=M.Pair(law, M.Pair(bindings, M.EmptyList)),
             results=self.result,
         )
 
@@ -315,255 +80,126 @@ class InstantiateLaw(M.Edge):
         return self.result
 
 
-class ChainSetEqual(M.Edge):
-    """Structural set equality of two Pair-chain graph stores."""
-
-    def __init__(self, left, right):
-        self.result = self._equal(left, right)
-        super().__init__(inputs=M.Pair(left, M.Pair(right, M.EmptyList)), results=self.result)
-
-    def _covered(self, source, target):
-        remaining = source
-        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-            if ChainHasTerm(target, M.Head(remaining)())() is M.false_value:
-                return M.false_value
-            remaining = M.Tail(remaining)()
-        return M.truth_value
-
-    def _equal(self, left, right):
-        left_covered = self._covered(left, right)
-        right_covered = self._covered(right, left)
-        return M.AndAtom(left_covered, right_covered)()
+class FiringRecordLaw(M.Edge):
+    def __init__(self, record):
+        self.result = M.Head(M.Tail(record)())()
+        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
 
     def __call__(self):
         return self.result
 
 
-class GraphStoresEqual(M.Edge):
-    """Order-independent structural set equality of graph node and edge stores."""
-
-    def __init__(self, left, right):
-        nodes_equal = ChainSetEqual(GraphNodes(left)(), GraphNodes(right)())()
-        edges_equal = ChainSetEqual(GraphEdges(left)(), GraphEdges(right)())()
-        self.result = M.AndAtom(nodes_equal, edges_equal)()
-        super().__init__(inputs=M.Pair(left, M.Pair(right, M.EmptyList)), results=self.result)
+class FiringRecordG0(M.Edge):
+    def __init__(self, record):
+        args = M.Tail(record)()
+        args = M.Tail(args)()
+        self.result = M.Head(args)()
+        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
 
     def __call__(self):
         return self.result
 
 
-class ChainAddMissing(M.Edge):
-    """Add structurally absent elements to a Pair-chain store."""
-
-    def __init__(self, store, additions):
-        result = store
-        remaining = additions
-        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-            element = M.Head(remaining)()
-            if ChainHasTerm(result, element)() is M.false_value:
-                result = M.Pair(element, result)
-            remaining = M.Tail(remaining)()
-        self.result = result
-        super().__init__(
-            inputs=M.Pair(store, M.Pair(additions, M.EmptyList)),
-            results=self.result,
-        )
+class FiringRecordG1(M.Edge):
+    def __init__(self, record):
+        args = M.Tail(record)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        self.result = M.Head(args)()
+        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
 
     def __call__(self):
         return self.result
 
 
-class InstallLaw(M.Edge):
-    """Install a Law and its L/K/R elements in a fresh GraphVersion."""
-
-    def __init__(self, graph_version, law):
-        nodes = ChainAddMissing(
-            GraphNodes(graph_version)(),
-            M.Pair(law, M.EmptyList),
-        )()
-        edges = GraphEdges(graph_version)()
-
-        left = LawLeft(law)()
-        nodes = ChainAddMissing(nodes, GraphNodes(left)())()
-        edges = ChainAddMissing(edges, GraphEdges(left)())()
-
-        interface = LawInterface(law)()
-        nodes = ChainAddMissing(nodes, GraphNodes(interface)())()
-        edges = ChainAddMissing(edges, GraphEdges(interface)())()
-
-        right = LawRight(law)()
-        nodes = ChainAddMissing(nodes, GraphNodes(right)())()
-        edges = ChainAddMissing(edges, GraphEdges(right)())()
-
-        invariants = ChainAddMissing(
-            GraphVersionInvariants(graph_version)(),
-            M.Pair(InstalledLaw(law)(), M.EmptyList),
-        )()
-        self.result = GraphVersion(nodes, edges, invariants)()
-        super().__init__(
-            inputs=M.Pair(graph_version, M.Pair(law, M.EmptyList)),
-            results=self.result,
-        )
+class FiringRecordTrace(M.Edge):
+    def __init__(self, record):
+        args = M.Tail(record)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        self.result = M.Head(args)()
+        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
 
     def __call__(self):
         return self.result
 
 
-class RetireLaw(M.Edge):
-    """Step 33: append a Retired mark; nodes, edges, and history untouched."""
-
-    def __init__(self, graph_version, law):
-        invariants = M.Pair(
-            Retired(law)(),
-            GraphVersionInvariants(graph_version)(),
-        )
-        self.result = GraphVersion(
-            GraphNodes(graph_version)(),
-            GraphEdges(graph_version)(),
-            invariants,
-        )()
-        super().__init__(
-            inputs=M.Pair(graph_version, M.Pair(law, M.EmptyList)),
-            results=self.result,
-        )
+class FiringRecordNodesBefore(M.Edge):
+    def __init__(self, record):
+        args = M.Tail(record)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        self.result = M.Head(args)()
+        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
 
     def __call__(self):
         return self.result
 
 
-class UnretireLaw(M.Edge):
-    """Step 33 reversal: append a fresh InstalledLaw mark restoring the law."""
-
-    def __init__(self, graph_version, law):
-        invariants = M.Pair(
-            InstalledLaw(law)(),
-            GraphVersionInvariants(graph_version)(),
-        )
-        self.result = GraphVersion(
-            GraphNodes(graph_version)(),
-            GraphEdges(graph_version)(),
-            invariants,
-        )()
-        super().__init__(
-            inputs=M.Pair(graph_version, M.Pair(law, M.EmptyList)),
-            results=self.result,
-        )
+class FiringRecordNodesAfter(M.Edge):
+    def __init__(self, record):
+        args = M.Tail(record)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        self.result = M.Head(args)()
+        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
 
     def __call__(self):
         return self.result
 
 
-class InstalledLaws(M.Edge):
-    """Active installed Laws: the newest status mark per law must be install."""
-
-    def __init__(self, graph_version):
-        reversed_laws = M.EmptyList
-        seen = M.EmptyList
-        remaining = GraphVersionInvariants(graph_version)()
-        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-            invariant = M.Head(remaining)()
-            law = M.EmptyList
-            active = M.false_value
-            if IsInstalledLaw(invariant)() is M.truth_value:
-                law = InstalledLawValue(invariant)()
-                active = M.truth_value
-            elif IsRetired(invariant)() is M.truth_value:
-                law = RetiredLaw(invariant)()
-            if M.IdentityCompare(law, M.EmptyList)() is M.false_value:
-                already = M.false_value
-                remaining_seen = seen
-                while M.IdentityCompare(
-                    remaining_seen,
-                    M.EmptyList,
-                )() is M.false_value:
-                    if M.TermEqual(M.Head(remaining_seen)(), law)() is M.truth_value:
-                        already = M.truth_value
-                        remaining_seen = M.EmptyList
-                    else:
-                        remaining_seen = M.Tail(remaining_seen)()
-                if M.IdentityCompare(already, M.false_value)() is M.truth_value:
-                    seen = M.Pair(law, seen)
-                    if M.IdentityCompare(active, M.truth_value)() is M.truth_value:
-                        reversed_laws = M.Pair(law, reversed_laws)
-            remaining = M.Tail(remaining)()
-        self.result = Reverse(reversed_laws)()
-        super().__init__(inputs=M.Pair(graph_version, M.EmptyList), results=self.result)
+class FiringRecordEdgesBefore(M.Edge):
+    def __init__(self, record):
+        args = M.Tail(record)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        self.result = M.Head(args)()
+        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
 
     def __call__(self):
         return self.result
 
 
-class AllLawsWithStatus(M.Edge):
-    """Every law ever installed paired with its current status Char."""
-
-    def __init__(self, graph_version):
-        reversed_entries = M.EmptyList
-        seen = M.EmptyList
-        remaining = GraphVersionInvariants(graph_version)()
-        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-            invariant = M.Head(remaining)()
-            law = M.EmptyList
-            status = M.Char("retired")
-            if IsInstalledLaw(invariant)() is M.truth_value:
-                law = InstalledLawValue(invariant)()
-                status = M.Char("active")
-            elif IsRetired(invariant)() is M.truth_value:
-                law = RetiredLaw(invariant)()
-            if M.IdentityCompare(law, M.EmptyList)() is M.false_value:
-                already = M.false_value
-                remaining_seen = seen
-                while M.IdentityCompare(
-                    remaining_seen,
-                    M.EmptyList,
-                )() is M.false_value:
-                    if M.TermEqual(M.Head(remaining_seen)(), law)() is M.truth_value:
-                        already = M.truth_value
-                        remaining_seen = M.EmptyList
-                    else:
-                        remaining_seen = M.Tail(remaining_seen)()
-                if M.IdentityCompare(already, M.false_value)() is M.truth_value:
-                    seen = M.Pair(law, seen)
-                    reversed_entries = M.Pair(
-                        M.Pair(law, M.Pair(status, M.EmptyList)),
-                        reversed_entries,
-                    )
-            remaining = M.Tail(remaining)()
-        self.result = Reverse(reversed_entries)()
-        super().__init__(inputs=M.Pair(graph_version, M.EmptyList), results=self.result)
+class FiringRecordEdgesAfter(M.Edge):
+    def __init__(self, record):
+        args = M.Tail(record)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        self.result = M.Head(args)()
+        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
 
     def __call__(self):
         return self.result
 
 
-class GraphElements(M.Edge):
-    """Unique structural elements of a graph, nodes followed by absent edges."""
-
-    def __init__(self, graph):
-        self.result = ChainAddMissing(GraphNodes(graph)(), GraphEdges(graph)())()
-        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class GraphElementCompatible(M.Edge):
-    """Shape compatibility used while expanding Step-10 match states."""
-
-    def __init__(self, pattern, candidate):
-        self.result = M.false_value
-        if P.IsVarPattern(pattern)() is M.truth_value:
-            self.result = M.truth_value
-        else:
-            pattern_pair = M.IsPair(pattern)()
-            candidate_pair = M.IsPair(candidate)()
-            if M.AndAtom(pattern_pair, candidate_pair)() is M.truth_value:
-                self.result = M.TermEqual(M.Head(pattern)(), M.Head(candidate)())()
-            elif M.OrAtom(pattern_pair, candidate_pair)() is M.false_value:
-                self.result = M.TermEqual(pattern, candidate)()
-        super().__init__(
-            inputs=M.Pair(pattern, M.Pair(candidate, M.EmptyList)),
-            results=self.result,
-        )
+class FiringRecordTraceSteps(M.Edge):
+    def __init__(self, record):
+        args = M.Tail(record)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        args = M.Tail(args)()
+        self.result = M.Head(args)()
+        super().__init__(inputs=M.Pair(record, M.EmptyList), results=self.result)
 
     def __call__(self):
         return self.result
@@ -676,7 +312,11 @@ class FireAny(M.Edge):
         remaining = laws
         while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
             law = M.Head(remaining)()
-            mapping = FirstCompletedMatch(LawLeft(law)(), graph_version)()
+            mapping = M.EmptyList
+            if M.IdentityCompare(
+                GraphNodes(LawLeft(law)())(), M.EmptyList,
+            )() is M.false_value:
+                mapping = FirstCompletedMatch(LawLeft(law)(), graph_version)()
             active_law = law
             if M.IdentityCompare(mapping, M.EmptyList)() is M.false_value:
                 bindings = LawMatchBindings(law, mapping)()
@@ -909,9 +549,13 @@ class SaturateLaws(M.Edge):
                         law_scan_text = GMPSuccText(law_scan_text)()
                         law = M.Head(remaining_laws)()
                         match_scan_text = "0"
-                        remaining_matches = CompletedMatches(
-                            LawLeft(law)(), current, match_cap_text,
-                        )()
+                        remaining_matches = M.EmptyList
+                        if M.IdentityCompare(
+                            GraphNodes(LawLeft(law)())(), M.EmptyList,
+                        )() is M.false_value:
+                            remaining_matches = CompletedMatches(
+                                LawLeft(law)(), current, match_cap_text,
+                            )()
                         while M.IdentityCompare(
                             remaining_matches, M.EmptyList,
                         )() is M.false_value:
@@ -970,7 +614,6 @@ class SaturateLaws(M.Edge):
 
     def __call__(self):
         return self.result
-
 
 
 class FireLaw(M.Edge):
@@ -1557,13 +1200,552 @@ class MapExtendOneStep(M.Edge):
 
 
 
+class SignedRational(M.Edge):
+    """Exact signed rational (positive_total - negative_total) / samples."""
 
-# Late bindings: method bodies above forward-reference ledger machinery
-# (as in the original monolith). Import after every class definition so
-# the names are present in this module's globals when methods execute.
-from .ledger import (  # noqa: E402
-    FiringRecord,
-    InstalledPreference,
-    ScheduleOrdering,
-)
-__all__ = [name for name in globals() if not name.startswith("_")]
+    def __init__(self, positive_total, negative_total, samples):
+        self.result = M.Pair(
+            Lmod.SignedRationalLabel,
+            M.Pair(
+                positive_total,
+                M.Pair(negative_total, M.Pair(samples, M.EmptyList)),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                positive_total,
+                M.Pair(negative_total, M.Pair(samples, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class SignedRationalPositive(M.Edge):
+    def __init__(self, signed_rational):
+        self.result = M.Head(M.Tail(signed_rational)())()
+        super().__init__(inputs=M.Pair(signed_rational, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SignedRationalNegative(M.Edge):
+    def __init__(self, signed_rational):
+        args = M.Tail(signed_rational)()
+        self.result = M.Head(M.Tail(args)())()
+        super().__init__(inputs=M.Pair(signed_rational, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SignedRationalSamples(M.Edge):
+    def __init__(self, signed_rational):
+        args = M.Tail(signed_rational)()
+        args = M.Tail(args)()
+        self.result = M.Head(M.Tail(args)())()
+        super().__init__(inputs=M.Pair(signed_rational, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FiringLedgerByLaw(M.Edge):
+    """Group a chronological record shard into Pair law associations."""
+
+    def __init__(self, records):
+        groups = M.EmptyList
+        remaining_records = records
+        while M.IdentityCompare(remaining_records, M.EmptyList)() is M.false_value:
+            record = M.Head(remaining_records)()
+            law = FiringRecordLaw(record)()
+            remaining_groups = groups
+            reversed_groups = M.EmptyList
+            found = M.false_value
+            while M.IdentityCompare(remaining_groups, M.EmptyList)() is M.false_value:
+                group = M.Head(remaining_groups)()
+                group_law = M.Head(group)()
+                if M.TermEqual(group_law, law)() is M.truth_value:
+                    group_records = M.Head(M.Tail(group)())()
+                    reversed_group_records = M.Reverse(group_records)()
+                    group_records = M.Reverse(M.Pair(record, reversed_group_records))()
+                    group = M.Pair(law, M.Pair(group_records, M.EmptyList))
+                    found = M.truth_value
+                reversed_groups = M.Pair(group, reversed_groups)
+                remaining_groups = M.Tail(remaining_groups)()
+            groups = M.Reverse(reversed_groups)()
+            if M.IdentityCompare(found, M.false_value)() is M.truth_value:
+                reversed_groups = M.Reverse(groups)()
+                groups = M.Reverse(
+                    M.Pair(
+                        M.Pair(law, M.Pair(M.Pair(record, M.EmptyList), M.EmptyList)),
+                        reversed_groups,
+                    )
+                )()
+            remaining_records = M.Tail(remaining_records)()
+        self.result = groups
+        super().__init__(inputs=M.Pair(records, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FiringLedgerByLawShard(M.Edge):
+    """Spawn-safe worker edge for one by-law record shard."""
+
+    def __init__(self, records, result_queue):
+        self.result = FiringLedgerByLaw(records)()
+        result_queue.put(self.result)
+        super().__init__(inputs=M.Pair(records, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class FiringLedgerDelta(M.Edge):
+    """Exact node totals for one law over one chronological record shard."""
+
+    def __init__(self, records, law, registry):
+        positive_total = M.Zero
+        negative_total = M.Zero
+        samples = M.Zero
+        remaining_records = records
+        while M.IdentityCompare(remaining_records, M.EmptyList)() is M.false_value:
+            record = M.Head(remaining_records)()
+            if M.TermEqual(FiringRecordLaw(record)(), law)() is M.truth_value:
+                positive_pair = M.Add(
+                    positive_total,
+                    FiringRecordNodesAfter(record)(),
+                    registry,
+                )()
+                positive_total = M.Head(positive_pair)()
+                registry = M.Head(M.Tail(positive_pair)())()
+                negative_pair = M.Add(
+                    negative_total,
+                    FiringRecordNodesBefore(record)(),
+                    registry,
+                )()
+                negative_total = M.Head(negative_pair)()
+                registry = M.Head(M.Tail(negative_pair)())()
+                samples_pair = M.Succ(samples, registry)()
+                samples = M.Head(samples_pair)()
+                registry = M.Head(M.Tail(samples_pair)())()
+            remaining_records = M.Tail(remaining_records)()
+        signed_rational = SignedRational(positive_total, negative_total, samples)()
+        self.result = M.Pair(signed_rational, M.Pair(registry, M.EmptyList))
+        super().__init__(
+            inputs=M.Pair(records, M.Pair(law, M.Pair(registry, M.EmptyList))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class FiringLedgerDeltaShard(M.Edge):
+    """Spawn-safe worker edge for one exact-delta record shard."""
+
+    def __init__(self, records, law, result_queue):
+        registry = M.Tree(M.EmptyList)
+        self.result = FiringLedgerDelta(records, law, registry)()
+        result_queue.put(self.result)
+        super().__init__(
+            inputs=M.Pair(records, M.Pair(law, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class FiringLedger(M.Edge):
+    """Mutable chronological ledger of committed firing records."""
+
+    def __init__(self, registry=M.EmptyList):
+        if M.IdentityCompare(registry, M.EmptyList)() is M.truth_value:
+            registry = M.AllConstructors
+        self.records = M.EmptyList
+        self.misses = M.EmptyList
+        self.registry = registry
+        super().__init__(inputs=M.Pair(registry, M.EmptyList), results=self.records)
+
+    def append(self, record):
+        reversed_records = M.Reverse(self.records)()
+        self.records = M.Reverse(M.Pair(record, reversed_records))()
+        self.results = self.records
+        return self.records
+
+    def record_miss(self, law, reason):
+        reversed_misses = M.Reverse(self.misses)()
+        self.misses = M.Reverse(
+            M.Pair(M.Pair(law, M.Pair(reason, M.EmptyList)), reversed_misses)
+        )()
+        return self.misses
+
+    def all(self):
+        return self.records
+
+    def by_law(self):
+        record_count = 0
+        remaining_records = self.records
+        while M.IdentityCompare(remaining_records, M.EmptyList)() is M.false_value:
+            record_count = record_count + 1
+            remaining_records = M.Tail(remaining_records)()
+        try:
+            worker_capacity = multiprocessing.cpu_count()
+        except NotImplementedError:
+            return FiringLedgerByLaw(self.records)()
+        if worker_capacity > record_count:
+            worker_capacity = record_count
+        if worker_capacity < 2:
+            return FiringLedgerByLaw(self.records)()
+        try:
+            mp_context = multiprocessing.get_context("fork")
+        except ValueError:
+            mp_context = multiprocessing.get_context("spawn")
+
+        shard_width = record_count // worker_capacity
+        wide_shards = record_count % worker_capacity
+        workers = M.EmptyList
+        remaining_records = self.records
+        slot = 0
+        while slot != worker_capacity:
+            active_width = shard_width
+            if slot < wide_shards:
+                active_width = active_width + 1
+            reversed_shard = M.EmptyList
+            copied = 0
+            while copied != active_width:
+                reversed_shard = M.Pair(M.Head(remaining_records)(), reversed_shard)
+                remaining_records = M.Tail(remaining_records)()
+                copied = copied + 1
+            shard = M.Reverse(reversed_shard)()
+            result_queue = mp_context.Queue()
+            process = mp_context.Process(
+                target=FiringLedgerByLawShard,
+                args=(shard, result_queue),
+            )
+            process.start()
+            worker = M.Pair(process, M.Pair(result_queue, M.EmptyList))
+            workers = M.Pair(worker, workers)
+            slot = slot + 1
+        workers = M.Reverse(workers)()
+
+        groups = M.EmptyList
+        remaining_workers = workers
+        while M.IdentityCompare(remaining_workers, M.EmptyList)() is M.false_value:
+            worker = M.Head(remaining_workers)()
+            process = M.Head(worker)()
+            result_queue = M.Head(M.Tail(worker)())()
+            shard_groups = result_queue.get()
+            process.join()
+            result_queue.close()
+            remaining_shard_groups = shard_groups
+            while M.IdentityCompare(remaining_shard_groups, M.EmptyList)() is M.false_value:
+                shard_group = M.Head(remaining_shard_groups)()
+                shard_law = M.Head(shard_group)()
+                shard_records = M.Head(M.Tail(shard_group)())()
+                remaining_groups = groups
+                reversed_groups = M.EmptyList
+                found = M.false_value
+                while M.IdentityCompare(remaining_groups, M.EmptyList)() is M.false_value:
+                    group = M.Head(remaining_groups)()
+                    group_law = M.Head(group)()
+                    if M.TermEqual(group_law, shard_law)() is M.truth_value:
+                        group_records = M.Head(M.Tail(group)())()
+                        reversed_group_records = M.Reverse(group_records)()
+                        remaining_shard_records = shard_records
+                        while M.IdentityCompare(
+                            remaining_shard_records,
+                            M.EmptyList,
+                        )() is M.false_value:
+                            reversed_group_records = M.Pair(
+                                M.Head(remaining_shard_records)(),
+                                reversed_group_records,
+                            )
+                            remaining_shard_records = M.Tail(remaining_shard_records)()
+                        group = M.Pair(
+                            shard_law,
+                            M.Pair(M.Reverse(reversed_group_records)(), M.EmptyList),
+                        )
+                        found = M.truth_value
+                    reversed_groups = M.Pair(group, reversed_groups)
+                    remaining_groups = M.Tail(remaining_groups)()
+                groups = M.Reverse(reversed_groups)()
+                if M.IdentityCompare(found, M.false_value)() is M.truth_value:
+                    reversed_groups = M.Reverse(groups)()
+                    groups = M.Reverse(M.Pair(shard_group, reversed_groups))()
+                remaining_shard_groups = M.Tail(remaining_shard_groups)()
+            remaining_workers = M.Tail(remaining_workers)()
+        return groups
+
+    def size_delta(self, law):
+        record_count = 0
+        remaining_records = self.records
+        while M.IdentityCompare(remaining_records, M.EmptyList)() is M.false_value:
+            record_count = record_count + 1
+            remaining_records = M.Tail(remaining_records)()
+        try:
+            worker_capacity = multiprocessing.cpu_count()
+        except NotImplementedError:
+            delta_pair = FiringLedgerDelta(self.records, law, self.registry)()
+            self.registry = M.Head(M.Tail(delta_pair)())()
+            return M.Head(delta_pair)()
+        if worker_capacity > record_count:
+            worker_capacity = record_count
+        if worker_capacity < 2:
+            delta_pair = FiringLedgerDelta(self.records, law, self.registry)()
+            self.registry = M.Head(M.Tail(delta_pair)())()
+            return M.Head(delta_pair)()
+        try:
+            mp_context = multiprocessing.get_context("fork")
+        except ValueError:
+            mp_context = multiprocessing.get_context("spawn")
+
+        shard_width = record_count // worker_capacity
+        wide_shards = record_count % worker_capacity
+        workers = M.EmptyList
+        remaining_records = self.records
+        slot = 0
+        while slot != worker_capacity:
+            active_width = shard_width
+            if slot < wide_shards:
+                active_width = active_width + 1
+            reversed_shard = M.EmptyList
+            copied = 0
+            while copied != active_width:
+                reversed_shard = M.Pair(M.Head(remaining_records)(), reversed_shard)
+                remaining_records = M.Tail(remaining_records)()
+                copied = copied + 1
+            shard = M.Reverse(reversed_shard)()
+            result_queue = mp_context.Queue()
+            process = mp_context.Process(
+                target=FiringLedgerDeltaShard,
+                args=(shard, law, result_queue),
+            )
+            process.start()
+            worker = M.Pair(process, M.Pair(result_queue, M.EmptyList))
+            workers = M.Pair(worker, workers)
+            slot = slot + 1
+        workers = M.Reverse(workers)()
+
+        positive_total = M.Zero
+        negative_total = M.Zero
+        samples = M.Zero
+        registry = self.registry
+        remaining_workers = workers
+        while M.IdentityCompare(remaining_workers, M.EmptyList)() is M.false_value:
+            worker = M.Head(remaining_workers)()
+            process = M.Head(worker)()
+            result_queue = M.Head(M.Tail(worker)())()
+            partial_pair = result_queue.get()
+            process.join()
+            result_queue.close()
+            partial = M.Head(partial_pair)()
+            positive_pair = M.Add(
+                positive_total,
+                SignedRationalPositive(partial)(),
+                registry,
+            )()
+            positive_total = M.Head(positive_pair)()
+            registry = M.Head(M.Tail(positive_pair)())()
+            negative_pair = M.Add(
+                negative_total,
+                SignedRationalNegative(partial)(),
+                registry,
+            )()
+            negative_total = M.Head(negative_pair)()
+            registry = M.Head(M.Tail(negative_pair)())()
+            samples_pair = M.Add(
+                samples,
+                SignedRationalSamples(partial)(),
+                registry,
+            )()
+            samples = M.Head(samples_pair)()
+            registry = M.Head(M.Tail(samples_pair)())()
+            remaining_workers = M.Tail(remaining_workers)()
+        self.registry = registry
+        return SignedRational(positive_total, negative_total, samples)()
+
+    def __call__(self):
+        return self.records
+
+
+LAW_ORDERING_SCAN_CAP = M.GMPRep("200")
+
+
+class LawLedgerScore(M.Edge):
+    """Success count and exact mean-delta fraction for one law's groups."""
+
+    def __init__(self, law, groups):
+        cap_text = M.GMPRepText(LAW_ORDERING_SCAN_CAP)()
+        scan_text = "0"
+        success_text = "0"
+        numerator_text = "0"
+        denominator_text = "1"
+        remaining_groups = groups
+        while M.IdentityCompare(remaining_groups, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining_groups = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                group = M.Head(remaining_groups)()
+                if M.TermEqual(M.Head(group)(), law)() is M.truth_value:
+                    positive_text = "0"
+                    negative_text = "0"
+                    record_scan_text = "0"
+                    remaining_records = M.Head(M.Tail(group)())()
+                    while M.IdentityCompare(
+                        remaining_records,
+                        M.EmptyList,
+                    )() is M.false_value:
+                        if GMPEqualText(
+                            record_scan_text,
+                            cap_text,
+                        )() is M.truth_value:
+                            remaining_records = M.EmptyList
+                        else:
+                            record_scan_text = GMPSuccText(record_scan_text)()
+                            record = M.Head(remaining_records)()
+                            success_text = GMPSuccText(success_text)()
+                            positive_text = GMPAddText(
+                                positive_text,
+                                M.GMPRepText(
+                                    M.NatRepOf(
+                                        FiringRecordNodesAfter(record)(),
+                                        M.AllConstructors,
+                                    )()
+                                )(),
+                            )()
+                            negative_text = GMPAddText(
+                                negative_text,
+                                M.GMPRepText(
+                                    M.NatRepOf(
+                                        FiringRecordNodesBefore(record)(),
+                                        M.AllConstructors,
+                                    )()
+                                )(),
+                            )()
+                            remaining_records = M.Tail(remaining_records)()
+                    if GMPEqualText(success_text, "0")() is M.false_value:
+                        numerator_text = GMPSubText(positive_text, negative_text)()
+                        denominator_text = success_text
+                    remaining_groups = M.EmptyList
+                else:
+                    remaining_groups = M.Tail(remaining_groups)()
+        self.result = M.Pair(
+            success_text,
+            M.Pair(numerator_text, M.Pair(denominator_text, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(law, M.Pair(groups, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class LawScorePrecedes(M.Edge):
+    """Strict ordering: higher success first, then lower exact mean delta."""
+
+    def __init__(self, left_score, right_score):
+        left_success = M.Head(left_score)()
+        left_numerator = M.Head(M.Tail(left_score)())()
+        left_denominator = M.Head(M.Tail(M.Tail(left_score)())())()
+        right_success = M.Head(right_score)()
+        right_numerator = M.Head(M.Tail(right_score)())()
+        right_denominator = M.Head(M.Tail(M.Tail(right_score)())())()
+        if GMPLessText(right_success, left_success)() is M.truth_value:
+            self.result = M.truth_value
+        elif GMPLessText(left_success, right_success)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            left_cross = GMPMulText(left_numerator, right_denominator)()
+            right_cross = GMPMulText(right_numerator, left_denominator)()
+            self.result = GMPLessText(left_cross, right_cross)()
+        super().__init__(
+            inputs=M.Pair(left_score, M.Pair(right_score, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class LawPreference(M.Edge):
+    """Preferred-order law list as an installable labeled term."""
+
+    def __init__(self, ordering):
+        self.result = M.Pair(
+            Lmod.LawPreferenceLabel,
+            M.Pair(ordering, M.EmptyList),
+        )
+        super().__init__(inputs=M.Pair(ordering, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class LawPreferenceOrdering(M.Edge):
+    def __init__(self, preference):
+        self.result = M.Head(M.Tail(preference)())()
+        super().__init__(inputs=M.Pair(preference, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class InstalledPreference(M.Edge):
+    """Ordering of the newest installed LawPreference term, or EmptyList."""
+
+    def __init__(self, graph_version):
+        cap_text = M.GMPRepText(LAW_ORDERING_SCAN_CAP)()
+        scan_text = "0"
+        self.result = M.EmptyList
+        remaining = GraphVersionInvariants(graph_version)()
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
+                remaining = M.EmptyList
+            else:
+                scan_text = GMPSuccText(scan_text)()
+                invariant = M.Head(remaining)()
+                if IsInstalledLaw(invariant)() is M.truth_value:
+                    law = InstalledLawValue(invariant)()
+                    element_scan_text = "0"
+                    remaining_elements = GraphNodes(LawRight(law)())()
+                    while M.IdentityCompare(
+                        remaining_elements,
+                        M.EmptyList,
+                    )() is M.false_value:
+                        if GMPEqualText(
+                            element_scan_text,
+                            cap_text,
+                        )() is M.truth_value:
+                            remaining_elements = M.EmptyList
+                        else:
+                            element_scan_text = GMPSuccText(element_scan_text)()
+                            element = M.Head(remaining_elements)()
+                            if M.IsPair(element)() is M.truth_value:
+                                if M.TermEqual(
+                                    M.Head(element)(),
+                                    Lmod.LawPreferenceLabel,
+                                )() is M.truth_value:
+                                    self.result = LawPreferenceOrdering(element)()
+                                    remaining_elements = M.EmptyList
+                                    remaining = M.EmptyList
+                                else:
+                                    remaining_elements = M.Tail(remaining_elements)()
+                            else:
+                                remaining_elements = M.Tail(remaining_elements)()
+                if M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+                    remaining = M.Tail(remaining)()
+        super().__init__(inputs=M.Pair(graph_version, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+

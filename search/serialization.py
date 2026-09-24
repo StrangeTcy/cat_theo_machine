@@ -127,6 +127,8 @@ def _search_pickled_singleton(name):
         return Lmod.ExprEqLabel
     if name == "ExprLtLabel":
         return Lmod.ExprLtLabel
+    if name == "ExprLeLabel":
+        return Lmod.ExprLeLabel
     if name == "DFSLabel":
         return Lmod.DFSLabel
     if name == "BFSLabel":

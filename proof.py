@@ -664,21 +664,32 @@ class InstantiateFactList(M.Edge):
 
 
 class JoinPremises(M.Edge):
-    def __init__(self, premises, facts, bindings):
+    def __init__(self, premises, facts, bindings, index=M.EmptyList, registry=M.EmptyList):
         self.facts = facts
+        self.index = index
+        self.registry = registry
         self.result = self._join(premises, bindings)
-        super().__init__(inputs=M.Pair(premises, M.Pair(facts, M.Pair(bindings, M.EmptyList))), results=self.result)
+        super().__init__(inputs=M.Pair(premises, M.Pair(facts, M.Pair(bindings,
+                       M.Pair(index, M.Pair(registry, M.EmptyList))))), results=self.result)
+
+    def _candidates(self, premise):
+        if M.IdentityCompare(self.index, M.EmptyList)() is M.truth_value:
+            return self.facts
+        if IsVarPattern(premise)() is M.truth_value:
+            return self.facts
+        return K.KnowledgeHeadIndexBucket(self.index, premise, self.registry)()
 
     def _join(self, premises, bindings):
         if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
             return M.Pair(bindings, M.EmptyList)
         premise = M.Head(premises)()
         rest = M.Tail(premises)()
+        specialized = M.Head(M.Instantiate(premise, bindings)())()
         acc = M.EmptyList
-        remaining = self.facts
+        remaining = self._candidates(specialized)
         while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
             fact = M.Head(remaining)()
-            match = M.Match(premise, fact)()
+            match = M.Match(specialized, fact)()
             if M.IdentityCompare(M.Head(match)(), M.truth_value)() is M.truth_value:
                 merged = M.MergeBindings(bindings, M.Tail(match)())()
                 if M.IdentityCompare(M.Head(merged)(), M.truth_value)() is M.truth_value:
@@ -2393,7 +2404,7 @@ class BuildDerivation(M.Edge):
         if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
             return M.false_value
         fact = M.Head(facts)()
-        if M.TermEqual(fact, target)() is M.truth_value:
+        if M.Compare(fact, target)() is M.truth_value:
             return M.truth_value
         return self._knowledge_has_fact(M.Tail(facts)(), target)
 
@@ -2604,14 +2615,14 @@ class ExplainDerivation(M.Edge):
         if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
             return M.false_value
         fact = M.Head(facts)()
-        if M.TermEqual(fact, target)() is M.truth_value:
+        if M.Compare(fact, target)() is M.truth_value:
             return M.truth_value
         return self._knowledge_has_fact(M.Tail(facts)(), target)
 
     def _goal_reached(self, current):
         if IsKnowledge(current)() is M.truth_value:
             return self._knowledge_has_fact(KnowledgeFacts(current)(), self.goal)
-        return M.TermEqual(current, self.goal)()
+        return M.Compare(current, self.goal)()
 
     def __call__(self):
         return self.result
@@ -2918,7 +2929,7 @@ class Prove(M.Edge):
         if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
             return M.false_value
         fact = M.Head(facts)()
-        if M.TermEqual(fact, target)() is M.truth_value:
+        if M.Compare(fact, target)() is M.truth_value:
             return M.truth_value
         return self._knowledge_has_fact(M.Tail(facts)(), target)
 
@@ -3611,6 +3622,35 @@ class Prove(M.Edge):
                     derivation = M.Head(deriv_pair)()
                     new_registry = M.Head(M.Tail(deriv_pair)())()
                     return self._store_success(derivation, new_registry, zero_search_cost, self.heuristic)
+
+        schema_hit = self.graph.lookup_derivation_schema(
+            self.start,
+            self.goal,
+        )
+        if M.Compare(schema_hit, M.EmptyList)() is M.false_value:
+            plan = M.Head(schema_hit)()
+            bindings = M.Head(M.Tail(schema_hit)())()
+            derivation_pair = BuildDerivation(
+                self.start,
+                plan,
+                M.FromContextGetConstructors(self.graph)(),
+                bindings,
+            )()
+            derivation = M.Head(derivation_pair)()
+            new_registry = M.Head(M.Tail(derivation_pair)())()
+            if M.Compare(derivation, M.EmptyList)() is M.false_value:
+                if self._derivation_reaches_goal(
+                    derivation, new_registry,
+                ) is M.truth_value:
+                    zero_search_pair = self._zero_search_cost(new_registry)
+                    zero_search_cost = M.Head(zero_search_pair)()
+                    zero_registry = M.Head(M.Tail(zero_search_pair)())()
+                    return self._store_success(
+                        derivation,
+                        zero_registry,
+                        zero_search_cost,
+                        self.heuristic,
+                    )
 
         start_has_var = ContainsVar(self.start)()
         goal_has_var = ContainsVar(self.goal)()

@@ -1,17 +1,20 @@
 from __future__ import annotations
 
+import gc
 import json
 import multiprocessing
 import os
 import pickle
 import sys
 import tempfile
+import threading
 import time
 import gmpy2
 
 from . import machine as M
 from . import context as Ctxmod
 from . import constructors as C
+from . import wire as Wiremod
 from . import core as Core
 from . import graph as Gmod
 from . import gmprep as Gmpmod
@@ -24,6 +27,177 @@ from . import rewrite_rules as Rmod
 from . import search as Smod
 from . import theorem_rules as Tmod
 from . import trees as T
+
+SNAPSHOT_CAPTURE_PROGRESS_SECONDS = 2.0
+SNAPSHOT_DEADLINE_OBJECT_INTERVAL = 128
+
+
+class SnapshotSaveTimeout(RuntimeError):
+    def __init__(
+        self,
+        timeout_seconds,
+        phase,
+        elapsed_seconds,
+        discovered_count,
+        encoded_count,
+        temporary_path,
+        temporary_size,
+    ):
+        self.timeout_seconds = timeout_seconds
+        self.phase = phase
+        self.elapsed_seconds = elapsed_seconds
+        self.discovered_count = discovered_count
+        self.encoded_count = encoded_count
+        self.temporary_path = temporary_path
+        self.temporary_size = temporary_size
+        message = (
+            "snapshot save FAILED: exceeded "
+            + format(timeout_seconds, ".0f")
+            + " seconds during "
+            + phase
+            + " (elapsed "
+            + format(elapsed_seconds, ".1f")
+            + "s; objects discovered="
+            + str(discovered_count)
+            + "; encoded="
+            + str(encoded_count)
+        )
+        if temporary_path is not None:
+            message = message + "; temporary file=" + temporary_path
+            if temporary_size is not None:
+                message = message + " (" + str(temporary_size) + " bytes)"
+        message = message + ")"
+        super().__init__(message)
+
+
+class SnapshotSaveDeadline:
+    def __init__(self, timeout_seconds):
+        self.timeout_seconds = timeout_seconds
+        self.started_at = time.monotonic()
+        self.expires_at = self.started_at + timeout_seconds
+        self.phase = "namespace synchronization"
+        self.discovered_count = 0
+        self.encoded_count = 0
+        self.temporary_path = None
+        self.state = "active"
+        self.timeout_error = None
+        self.lock = threading.Lock()
+        self.watchdog = threading.Timer(timeout_seconds, self.expire)
+        self.watchdog.daemon = True
+        self.watchdog.start()
+
+    def set_phase(self, phase):
+        with self.lock:
+            self.phase = phase
+
+    def set_counts(self, discovered_count, encoded_count):
+        with self.lock:
+            self.discovered_count = discovered_count
+            self.encoded_count = encoded_count
+
+    def set_temporary_path(self, temporary_path):
+        with self.lock:
+            self.temporary_path = temporary_path
+
+    def expire(self):
+        with self.lock:
+            if self.state != "active":
+                return
+            temporary_size = None
+            if self.temporary_path is not None:
+                try:
+                    temporary_size = os.path.getsize(self.temporary_path)
+                except OSError:
+                    temporary_size = None
+            if self.temporary_path is not None:
+                quarantine_path = (
+                    self.temporary_path
+                    + ".timed-out-"
+                    + str(int(time.monotonic() * 1000000))
+                )
+                try:
+                    os.replace(self.temporary_path, quarantine_path)
+                    self.temporary_path = quarantine_path
+                except OSError:
+                    pass
+            self.timeout_error = SnapshotSaveTimeout(
+                self.timeout_seconds,
+                self.phase,
+                time.monotonic() - self.started_at,
+                self.discovered_count,
+                self.encoded_count,
+                self.temporary_path,
+                temporary_size,
+            )
+            self.state = "expired"
+            print(str(self.timeout_error), flush=True)
+
+    def require_remaining(self, phase):
+        timeout_reached = None
+        with self.lock:
+            self.phase = phase
+            if self.state == "expired":
+                raise self.timeout_error
+            if time.monotonic() >= self.expires_at:
+                timeout_reached = "yes"
+            else:
+                return self.expires_at - time.monotonic()
+        if timeout_reached is not None:
+            self.expire()
+            raise self.timeout_error
+
+    def require_capture_progress(self, phase, discovered_count, encoded_count):
+        timeout_reached = None
+        with self.lock:
+            self.phase = phase
+            self.discovered_count = discovered_count
+            self.encoded_count = encoded_count
+            if self.state == "expired":
+                raise self.timeout_error
+            if time.monotonic() >= self.expires_at:
+                timeout_reached = "yes"
+            else:
+                return self.expires_at - time.monotonic()
+        if timeout_reached is not None:
+            self.expire()
+            raise self.timeout_error
+
+    def replace_temporary_snapshot(self, path):
+        timeout_reached = None
+        with self.lock:
+            if self.state == "expired":
+                raise self.timeout_error
+            if time.monotonic() >= self.expires_at:
+                timeout_reached = "yes"
+            else:
+                os.replace(self.temporary_path, path)
+                self.temporary_path = None
+                self.state = "replaced"
+        if timeout_reached is not None:
+            self.expire()
+            raise self.timeout_error
+
+    def discard_temporary_output(self):
+        with self.lock:
+            if self.temporary_path is None:
+                return
+            try:
+                os.remove(self.temporary_path)
+                print(
+                    "snapshot save: removed incomplete temporary output "
+                    + self.temporary_path,
+                    flush=True,
+                )
+                self.temporary_path = None
+            except OSError:
+                pass
+
+    def close(self):
+        with self.lock:
+            if self.state == "active":
+                self.state = "completed"
+        self.watchdog.cancel()
+
 
 SNAPSHOT_SYMBOL_NAMES = [
     "EmptyList",
@@ -64,10 +238,18 @@ SNAPSHOT_SYMBOL_NAMES = [
     "NonEmptyLabel",
     "AttainsLabel",
     "ExtremalAtLabel",
+    "RelationArityLabel",
+    "ExtensionalAtLabel",
+    "CongruentLabel",
     "VariationLabel",
     "BetterLabel",
     "ExistsLabel",
     "NotLabel",
+    "ForAllLabel",
+    "SmallFactorLabel",
+    "IffLabel",
+    "StepSieveLabel",
+    "TrialSieveLabel",
     "ContradictionLabel",
     "CollisionLabel",
     "ExtremalLabel",
@@ -143,6 +325,8 @@ SNAPSHOT_SYMBOL_NAMES = [
     "SearchWorkerLaunchDispatchLabel",
     "SearchWorkerMetricsLabel",
     "SearchWorkerPayloadLabel",
+    "SearchMatchAlternativesCursorLabel",
+    "SearchMatchCursorLabel",
     "SearchRewriteCursorLabel",
     "SearchRewritePathFrameLabel",
     "SearchRewriteRuleBundleLabel",
@@ -200,6 +384,7 @@ SNAPSHOT_SYMBOL_NAMES = [
     "ExprNegLabel",
     "ExprEqLabel",
     "ExprLtLabel",
+    "ExprLeLabel",
     "RewriteActionLabel",
     "DerivationLabel",
     "InsertionOrderLabel",
@@ -253,6 +438,28 @@ SNAPSHOT_SYMBOL_NAMES = [
     "SymmetricProgressionNotationLabel",
     "MiddleTermAverageLabel",
     "TaoProblem11TriangleLabel",
+    "LessonLabel",
+    "EntryLabel",
+    "GroundedExampleLabel",
+    "SourceLabel",
+    "SurfaceLabel",
+    "MathematicsLabel",
+    "HistoryLabel",
+    "ProblemLabel",
+    "HintLabel",
+    "UsesStrategyLabel",
+    "DerivationFragmentLabel",
+    "GoalLabel",
+    "ClaimsLabel",
+    "SupportsLabel",
+    "HistoricalContradictsLabel",
+    "OccursOnLabel",
+    "BeforeLabel",
+    "CausesLabel",
+    "ParticipatesInLabel",
+    "OccursAtLabel",
+    "ClaimStoreLabel",
+    "CorrespondenceLawLabel",
     "ZeroLabel",
     "one",
     "two",
@@ -263,6 +470,41 @@ SNAPSHOT_SYMBOL_NAMES = [
     "seven",
     "eight",
     "nine",
+    "EntityLabel",
+    "EventLabel",
+    "RelationLabel",
+    "StoryLabel",
+    "RoleLabel",
+    "SameAsLabel",
+    "BecauseLabel",
+    "AfterLabel",
+    "PredicateLabel",
+    "CanonicalNameLabel",
+    "AttributeLabel",
+    "EventChainLabel",
+    "StoryRefLabel",
+    "RolesLabel",
+    "ProvenanceLabel",
+    "ConfidenceLabel",
+    "SchemaLabel",
+    "StorySchemaLabel",
+    "SemanticGoalLabel",
+    "TaskTypeLabel",
+    "ConceptLabel",
+    "IntermediateLabel",
+    "ConceptTypeLabel",
+    "TimeLabel",
+    "LocationLabel",
+    "DomainLabel",
+    "AttributeValueLabel",
+    "ConnectionLabel",
+    "ExplanationLabel",
+    "NarrativeLabel",
+    "VerificationLabel",
+    "ConfidenceScoreLabel",
+    "SemanticStateLabel",
+    "FocusLabel",
+    "UncertainLabel",
 ]
 
 
@@ -435,8 +677,20 @@ class SnapshotCodec:
     def __init__(self, namespace, symbol_names=None):
         self.namespace = namespace
         self.symbol_names = symbol_names if symbol_names is not None else SNAPSHOT_SYMBOL_NAMES
-        self.obj_to_id = {}
-        self.next_id = 1
+        self.object_id_index = M.EmptyList
+        self.next_id = M.GMPRep("1")
+        self.capture_progress = M.false_value
+        self.capture_started_at = 0.0
+        self.capture_last_progress_at = 0.0
+        self.capture_discovered_count = 0
+        self.capture_encoded_count = 0
+        self.capture_visited_count = 0
+        self.capture_next_deadline_visit = 0
+        self.capture_next_deadline_encoding = 0
+        self.capture_free_queue = M.EmptyList
+        self.last_capture_discovery_seconds = 0.0
+        self.last_capture_record_seconds = 0.0
+        self.last_capture_total_seconds = 0.0
 
     def _restore_tree_root_worker(queue, state, namespace, root_name, registry):
         # Legacy worker retained for older platforms, but on Windows "spawn"
@@ -454,7 +708,12 @@ class SnapshotCodec:
         return self.namespace[name]
 
     def _is_pair_object(self, obj):
-        return self._ns_get("IsPair")(obj)() is self._ns_get("truth_value")
+        try:
+            obj.head.value
+            obj.tail.value
+        except Exception:
+            return M.false_value
+        return M.truth_value
 
     def _is_edge_object(self, obj):
         try:
@@ -464,22 +723,81 @@ class SnapshotCodec:
                 obj.inputs
                 obj.results
             except Exception:
-                return self._ns_get("false_value")
-            return self._ns_get("truth_value")
-        return self._ns_get("IdentityCompare")(marker, obj)() is self._ns_get("truth_value")
+                return M.false_value
+            return M.truth_value
+        if marker.id == obj.id:
+            return M.truth_value
+        return M.false_value
 
     def _captured_object_id(self, target):
-        for obj in self.obj_to_id:
-            oid = self.obj_to_id[obj]
-            if obj is target:
-                return oid
-        return None
+        try:
+            target.id
+        except AttributeError:
+            try:
+                describe = target.__name__
+            except AttributeError:
+                describe = repr(target)
+            raise RuntimeError(
+                "Snapshot capture refused: host object without machine identity: "
+                + str(describe)
+            ) from None
+        return T.IdentityRedBlackNatLookupValue(self.object_id_index, target)()
+
+    def _capture_oid_number(self, oid):
+        return int(oid()())
+
+    def _take_capture_oid(self):
+        self.next_id = M.GMPRep(self.capture_discovered_count + 2)
 
     def _scalar_payload(self, x):
         try:
-            return self._encode_scalar(x)
-        except (TypeError, ValueError):
-            return None
+            x.id
+        except Exception:
+            try:
+                return self._encode_scalar(x)
+            except (TypeError, ValueError):
+                return None
+        return None
+
+    def _registry_entries_snapshot_root(self, registry):
+        """Snapshot format 4: persist constructor_registry as its entry chain.
+
+        Restore has always replayed TreeInsert from (key, fact) entries and
+        thrown the serialised trie nodes away, so the Patricia structure is
+        pure derived data on the wire. Capturing the entry chain instead of
+        walking the trie removes the trie and key_store objects from the
+        snapshot entirely. Old snapshots (version 3, trie-shaped root) stay
+        readable: every load path keeps its tree-shaped branch.
+        """
+        empty = self._ns_get("EmptyList")
+        if registry is empty:
+            return empty
+        tree_label = self._ns_get("TreeLabel")
+        try:
+            payload = registry()
+            if payload is None:
+                return registry
+            if payload.head.value is not tree_label:
+                return registry
+        except Exception:
+            return registry
+        return self._ns_get("TreeEntries")(registry)()
+
+    def _rebuild_tree_from_entry_chain(self, chain):
+        rebuilt = self._ns_get("Tree")(self._ns_get("EmptyList"))
+        empty = self._ns_get("EmptyList")
+        head = self._ns_get("Head")
+        tail = self._ns_get("Tail")
+        identity = self.namespace["IdentityCompare"]
+        truth = self.namespace["truth_value"]
+        current = chain
+        while identity(current, empty)() is not truth:
+            entry = head(current)()
+            key = head(entry)()
+            fact = head(tail(entry)())()
+            rebuilt = self._ns_get("TreeInsert")(rebuilt, key, fact, rebuilt)()
+            current = tail(current)()
+        return rebuilt
 
     def _collect_tree_items(self, tree):
         return self._collect_tree_items_from_entries(self._ns_get("TreeEntries")(tree)())
@@ -519,10 +837,18 @@ class SnapshotCodec:
             pass
         return M.false_value
 
+    def _is_entry_chain(self, obj):
+        # Snapshot format 4 stores tree roots as (key, fact) entry chains.
+        # Format 3 and older stored Tree/TreeNode atoms, never a bare Pair,
+        # so a Pair-shaped root uniquely identifies the entry-chain format.
+        return self._is_pair_object(obj)
+
     def _restore_tree_root(self, state, root_name, registry):
         if root_name not in state.root_ids:
             return self.namespace["EmptyList"]
         loaded_tree = state.roots.get(root_name, self.namespace["EmptyList"])
+        if self._is_entry_chain(loaded_tree) is M.truth_value:
+            return self._rebuild_tree_from_entry_chain(loaded_tree)
         if self._is_current_tree(loaded_tree) is M.truth_value:
             return loaded_tree
         return self._rebuild_tree_from_record_id(state, state.root_ids[root_name], registry)
@@ -543,7 +869,7 @@ class SnapshotCodec:
         if not snapshot_path:
             raise RuntimeError("parallel root restore requires state.snapshot_path")
 
-        num_workers = min(8, len(root_names), multiprocessing.cpu_count())
+        num_workers = min(8, len(root_names), Wiremod.host_process_budget(0))
         if debug is M.truth_value:
             print(
                 "DEBUG: restoring roots",
@@ -636,16 +962,29 @@ class SnapshotCodec:
 
     def _restore_constructor_registry_parallel(self, state, debug=M.false_value):
         """Restore constructor_registry using multiple spawned workers (Windows-safe)."""
+        loaded_registry = state.roots.get(
+            "constructor_registry", self.namespace["EmptyList"],
+        )
+        if self._is_entry_chain(loaded_registry) is M.truth_value:
+            # Snapshot format 4: the root is already the (key, fact) entry
+            # chain that replay consumes, so the record-scanning shard
+            # workers have nothing to do — rebuild directly in-process.
+            if debug is M.truth_value:
+                print(
+                    "DEBUG: constructor_registry is an entry chain; "
+                    "rebuilding in-process",
+                    flush=True,
+                )
+            return self._rebuild_tree_from_entry_chain(loaded_registry)
         try:
             snapshot_path = state.snapshot_path
         except AttributeError:
             snapshot_path = ""
         if not snapshot_path:
-            loaded_registry = state.roots["constructor_registry"]
             return self._restore_tree_root(state, "constructor_registry", loaded_registry)
 
         ctx = multiprocessing.get_context("spawn")
-        shard_count = min(8, multiprocessing.cpu_count())
+        shard_count = min(8, Wiremod.host_process_budget(0))
         if debug is M.truth_value:
             print(f"DEBUG: restoring constructor_registry using {shard_count} processes", flush=True)
 
@@ -907,9 +1246,12 @@ class SnapshotCodec:
     def _encode_field(self, x):
         if x is None:
             return {"tag": "none"}
+        scalar = self._scalar_payload(x)
+        if scalar is not None:
+            return {"tag": "scalar", "value": scalar}
         oid = self._captured_object_id(x)
-        if oid is not None:
-            return {"tag": "ref", "id": oid}
+        if oid is not M.EmptyList:
+            return {"tag": "ref", "id": self._capture_oid_number(oid)}
         return {"tag": "scalar", "value": self._encode_scalar(x)}
 
     def _encode_scalar(self, x):
@@ -945,15 +1287,30 @@ class SnapshotCodec:
         return self._decode_scalar(payload["value"])
 
     def _child_refs(self, obj):
-        if self._is_pair_object(obj):
+        if self._is_pair_object(obj) is M.truth_value:
             return (obj.head.value, obj.tail.value)
-        if self._is_edge_object(obj) is self._ns_get("truth_value"):
+        if self._is_edge_object(obj) is M.truth_value:
             return (obj.inputs, obj.results, obj.value)
         if obj.value is None:
             return ()
         return (obj.value,)
 
-    def _intern(self, obj):
+    def _queue_uncaptured(self, candidate, queue, Pair):
+        if candidate is None:
+            return queue
+        if self._scalar_payload(candidate) is not None:
+            return queue
+        if self._captured_object_id(candidate) is not M.EmptyList:
+            return queue
+        if self.capture_free_queue is M.EmptyList:
+            return Pair(candidate, queue)
+        reusable = self.capture_free_queue
+        self.capture_free_queue = reusable.tail.value
+        reusable.head.value = candidate
+        reusable.tail.value = queue
+        return reusable
+
+    def _intern(self, obj, deadline=None):
         # Non-recursive intern. Use a machine Pair chain as the work queue so we
         # don't depend on Python recursion or Python container worklists.
         if obj is None:
@@ -962,63 +1319,91 @@ class SnapshotCodec:
             return None
 
         existing = self._captured_object_id(obj)
-        if existing is not None:
+        if existing is not M.EmptyList:
             return existing
+        root_oid = M.EmptyList
 
         Pair = self.namespace["Pair"]
         EmptyList = self.namespace["EmptyList"]
-        Head = self.namespace["Head"]
-        Tail = self.namespace["Tail"]
-        IdentityCompare = self.namespace["IdentityCompare"]
-        truth_value = self.namespace["truth_value"]
 
-        queue = Pair(obj, EmptyList)
-        while IdentityCompare(queue, EmptyList)() is not truth_value:
-            current = Head(queue)()
-            queue = Tail(queue)()
+        queue = EmptyList
+        current = obj
+        active = M.truth_value
+        while active is M.truth_value:
             if current is None:
+                if queue is EmptyList:
+                    active = M.false_value
+                    continue
+                consumed = queue
+                current = consumed.head.value
+                queue = consumed.tail.value
+                consumed.tail.value = self.capture_free_queue
+                self.capture_free_queue = consumed
                 continue
+            self.capture_visited_count = self.capture_visited_count + 1
+            if deadline is not None:
+                if self.capture_visited_count >= self.capture_next_deadline_visit:
+                    deadline.require_capture_progress(
+                        "capture discovery",
+                        self.capture_discovered_count,
+                        self.capture_encoded_count,
+                    )
+                    self.capture_next_deadline_visit = (
+                        self.capture_visited_count + SNAPSHOT_DEADLINE_OBJECT_INTERVAL
+                    )
             if self._scalar_payload(current) is not None:
+                current = None
                 continue
-            if self._captured_object_id(current) is not None:
+            insertion = T.IdentityRedBlackNatInsertMissing(
+                self.object_id_index,
+                current,
+                self.next_id,
+            )
+            next_object_id_index = insertion()
+            if insertion.inserted is M.false_value:
+                current = None
                 continue
+            if root_oid is M.EmptyList:
+                root_oid = insertion.inserted_value
 
-            oid = self.next_id
-            self.next_id += 1
-            self.obj_to_id[current] = oid
+            self._take_capture_oid()
+            self.object_id_index = next_object_id_index
+            self.capture_discovered_count = self.capture_discovered_count + 1
+            if self.capture_progress is M.truth_value:
+                capture_now = time.monotonic()
+                if capture_now - self.capture_last_progress_at >= SNAPSHOT_CAPTURE_PROGRESS_SECONDS:
+                    print(
+                        "snapshot capture: discovery: "
+                        + str(self.capture_discovered_count)
+                        + " objects found ("
+                        + format(capture_now - self.capture_started_at, ".1f")
+                        + "s elapsed)",
+                        flush=True,
+                    )
+                    self.capture_last_progress_at = capture_now
 
-            for child in self._child_refs(current):
-                if child is None:
-                    continue
-                if self._scalar_payload(child) is not None:
-                    continue
-                if self._captured_object_id(child) is not None:
-                    continue
-                queue = Pair(child, queue)
+            if self._is_pair_object(current) is M.truth_value:
+                queue = self._queue_uncaptured(current.head.value, queue, Pair)
+                current = current.tail.value
+                continue
+            if self._is_edge_object(current) is M.truth_value:
+                queue = self._queue_uncaptured(current.inputs, queue, Pair)
+                queue = self._queue_uncaptured(current.results, queue, Pair)
+                current = current.value
+                continue
+            current = current.value
 
-        return self._captured_object_id(obj)
+        return root_oid
 
-    def _record_for(self, obj):
-        oid = self.obj_to_id[obj]
-        namespace_name = None
-        for name in self.namespace:
-            if self.namespace[name] is obj:
-                namespace_name = name
-                break
-        if namespace_name is not None:
-            return {
-                "id": oid,
-                "name": namespace_name,
-            }
-
-        if self._is_pair_object(obj):
+    def _record_for(self, obj, oid):
+        if self._is_pair_object(obj) is M.truth_value:
             return {
                 "id": oid,
                 "head": self._encode_field(obj.head.value),
                 "tail": self._encode_field(obj.tail.value),
             }
 
-        if self._is_edge_object(obj) is self._ns_get("truth_value"):
+        if self._is_edge_object(obj) is M.truth_value:
             return {
                 "id": oid,
                 "inputs": self._encode_field(obj.inputs),
@@ -1042,46 +1427,225 @@ class SnapshotCodec:
             "value": self._encode_field(obj.value),
         }
 
-    def _capture_from_roots(self, roots):
-        self.obj_to_id = {}
-        self.next_id = 1
+    def _encode_captured_subtree(
+        self,
+        tree,
+        objects,
+        discovery_finished_at,
+        deadline,
+    ):
+        if tree is M.EmptyList:
+            return
+        self._encode_captured_subtree(
+            tree.head.value,
+            objects,
+            discovery_finished_at,
+            deadline,
+        )
+        entry = tree.value
+        obj = entry.head.value
+        oid = self._capture_oid_number(entry.tail)
+        objects[oid - 1] = self._record_for(obj, oid)
+        self.capture_encoded_count = self.capture_encoded_count + 1
+        if deadline is not None:
+            if self.capture_encoded_count >= self.capture_next_deadline_encoding:
+                deadline.require_capture_progress(
+                    "record encoding",
+                    self.capture_discovered_count,
+                    self.capture_encoded_count,
+                )
+                self.capture_next_deadline_encoding = (
+                    self.capture_encoded_count + SNAPSHOT_DEADLINE_OBJECT_INTERVAL
+                )
+        if self.capture_progress is M.truth_value:
+            capture_now = time.monotonic()
+            if capture_now - self.capture_last_progress_at >= SNAPSHOT_CAPTURE_PROGRESS_SECONDS:
+                print(
+                    "snapshot capture: record encoding: "
+                    + str(self.capture_encoded_count)
+                    + " / "
+                    + str(self.capture_discovered_count)
+                    + " objects ("
+                    + format(capture_now - discovery_finished_at, ".1f")
+                    + "s in phase, "
+                    + format(capture_now - self.capture_started_at, ".1f")
+                    + "s total)",
+                    flush=True,
+                )
+                self.capture_last_progress_at = capture_now
+        self._encode_captured_subtree(
+            tree.tail.value,
+            objects,
+            discovery_finished_at,
+            deadline,
+        )
+
+    def _capture_from_roots(self, roots, progress=M.false_value, deadline=None):
+        self.object_id_index = M.EmptyList
+        self.next_id = M.GMPRep("1")
+        self.capture_progress = progress
+        self.capture_started_at = time.monotonic()
+        self.capture_last_progress_at = self.capture_started_at
+        self.capture_discovered_count = 0
+        self.capture_encoded_count = 0
+        self.capture_visited_count = 0
+        self.capture_next_deadline_visit = 0
+        self.capture_next_deadline_encoding = 0
+        self.capture_free_queue = M.EmptyList
+        self.last_capture_discovery_seconds = 0.0
+        self.last_capture_record_seconds = 0.0
+        self.last_capture_total_seconds = 0.0
+        if deadline is not None:
+            deadline.require_remaining("capture discovery")
+        if self.capture_progress is M.truth_value:
+            print("snapshot capture: discovery started", flush=True)
 
         for name in roots:
-            self._intern(roots[name])
+            if deadline is not None:
+                deadline.require_remaining("capture discovery")
+            if self.capture_progress is M.truth_value:
+                print(
+                    "snapshot capture: root "
+                    + name
+                    + " starting at "
+                    + str(self.capture_discovered_count)
+                    + " objects",
+                    flush=True,
+                )
+            self._intern(roots[name], deadline)
+            if self.capture_progress is M.truth_value:
+                print(
+                    "snapshot capture: root "
+                    + name
+                    + " complete at "
+                    + str(self.capture_discovered_count)
+                    + " objects",
+                    flush=True,
+                )
 
         symbols = {}
         for name in self.symbol_names:
+            if deadline is not None:
+                deadline.require_remaining("capture discovery")
             if name in self.namespace:
                 obj = self.namespace[name]
                 symbols[name] = obj
-                self._intern(obj)
+                self._intern(obj, deadline)
 
-        objects = [None] * len(self.obj_to_id)
-        for obj in self.obj_to_id:
-            oid = self.obj_to_id[obj]
-            objects[oid - 1] = self._record_for(obj)
+        discovery_finished_at = time.monotonic()
+        self.last_capture_discovery_seconds = discovery_finished_at - self.capture_started_at
+        object_count = int(self.next_id()) - 1
+        if self.capture_progress is M.truth_value:
+            print(
+                "snapshot capture: discovery complete: "
+                + str(object_count)
+                + " objects in "
+                + format(self.last_capture_discovery_seconds, ".2f")
+                + "s",
+                flush=True,
+            )
+            print(
+                "snapshot capture: record encoding started: "
+                + str(object_count)
+                + " objects",
+                flush=True,
+            )
+
+        objects = [None] * object_count
+        self.capture_last_progress_at = discovery_finished_at
+        if deadline is not None:
+            deadline.require_capture_progress(
+                "record encoding",
+                self.capture_discovered_count,
+                self.capture_encoded_count,
+            )
+        self._encode_captured_subtree(
+            self.object_id_index,
+            objects,
+            discovery_finished_at,
+            deadline,
+        )
+        if deadline is not None:
+            deadline.require_capture_progress(
+                "record encoding",
+                self.capture_discovered_count,
+                self.capture_encoded_count,
+            )
+        for name in self.namespace:
+            if deadline is not None:
+                deadline.require_remaining("record encoding")
+            namespace_object = self.namespace[name]
+            try:
+                namespace_object.id
+            except Exception:
+                continue
+            namespace_oid = self._captured_object_id(namespace_object)
+            if namespace_oid is M.EmptyList:
+                continue
+            namespace_oid_number = self._capture_oid_number(namespace_oid)
+            if "name" in objects[namespace_oid_number - 1]:
+                continue
+            objects[namespace_oid_number - 1] = {
+                "id": namespace_oid_number,
+                "name": name,
+            }
+
+        records_finished_at = time.monotonic()
+        self.last_capture_record_seconds = records_finished_at - discovery_finished_at
+        if self.capture_progress is M.truth_value:
+            print(
+                "snapshot capture: record encoding complete: "
+                + str(self.capture_encoded_count)
+                + " objects in "
+                + format(self.last_capture_record_seconds, ".2f")
+                + "s",
+                flush=True,
+            )
 
         root_ids = {}
         for name in roots:
-            root_ids[name] = self.obj_to_id[roots[name]]
+            root_ids[name] = self._capture_oid_number(
+                self._captured_object_id(roots[name])
+            )
 
         symbol_ids = {}
         for name in symbols:
-            symbol_ids[name] = self.obj_to_id[symbols[name]]
+            symbol_ids[name] = self._capture_oid_number(
+                self._captured_object_id(symbols[name])
+            )
 
-        return {
-            "header": {"format": "hyge-proof-kernel", "version": 3, "protocol_version": 3},
+        self.last_capture_total_seconds = time.monotonic() - self.capture_started_at
+        if self.capture_progress is M.truth_value:
+            print(
+                "snapshot capture: complete: "
+                + str(object_count)
+                + " objects in "
+                + format(self.last_capture_total_seconds, ".2f")
+                + "s",
+                flush=True,
+            )
+
+        snapshot = {
+            "header": {"format": "hyge-proof-kernel", "version": 4, "protocol_version": 3},
             "roots": root_ids,
             "symbols": symbol_ids,
             "objects": objects,
         }
+        return snapshot
 
-    def capture_objects(self, roots):
-        return self._capture_from_roots(roots)
+    def capture_objects(self, roots, progress=M.false_value, deadline=None):
+        collection_thresholds = gc.get_threshold()
+        gc.set_threshold(0)
+        try:
+            return self._capture_from_roots(roots, progress, deadline)
+        finally:
+            gc.set_threshold(*collection_thresholds)
 
-    def capture(self, graph, extra_roots=None):
+    def capture(self, graph, extra_roots=None, progress=M.false_value, deadline=None):
         roots = {
-            "constructor_registry": graph.constructor_registry,
+            "constructor_registry": self._registry_entries_snapshot_root(
+                graph.constructor_registry,
+            ),
             "all_rules": graph.all_rules,
             "rule_order": graph.rule_order,
             "derivations": graph.derivations,
@@ -1096,20 +1660,93 @@ class SnapshotCodec:
         if extra_roots is not None:
             for name in extra_roots:
                 roots[name] = extra_roots[name]
-        return self._capture_from_roots(roots)
+        collection_thresholds = gc.get_threshold()
+        gc.set_threshold(0)
+        try:
+            return self._capture_from_roots(roots, progress, deadline)
+        finally:
+            gc.set_threshold(*collection_thresholds)
 
-    def save(self, graph, path):
-        snapshot = self.capture(graph)
+    def save(self, graph, path, progress=M.truth_value, deadline=None):
+        save_started_at = time.monotonic()
+        if progress is M.truth_value:
+            print("snapshot save: capture discovery starting", flush=True)
+        snapshot = self.capture(graph, progress=progress, deadline=deadline)
+        capture_finished_at = time.monotonic()
+        if progress is M.truth_value:
+            print(
+                "snapshot save: capture finished in "
+                + format(capture_finished_at - save_started_at, ".2f")
+                + "s; JSON write starting",
+                flush=True,
+            )
         tmp_path = path + ".tmp"
-        with open(tmp_path, "w", encoding="utf-8") as f:
-            json.dump(snapshot, f, ensure_ascii=False, indent=2)
-        os.replace(tmp_path, path)
-        return path
+        try:
+            if deadline is not None:
+                deadline.set_temporary_path(tmp_path)
+                deadline.require_remaining("JSON writing")
+            payload = json.dumps(snapshot, ensure_ascii=False, separators=(",", ":"))
+            if deadline is not None:
+                deadline.require_remaining("JSON encoding")
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                f.write(payload)
+                f.flush()
+                os.fsync(f.fileno())
+            if deadline is not None:
+                deadline.require_remaining("JSON writing")
+            write_finished_at = time.monotonic()
+            if progress is M.truth_value:
+                try:
+                    snapshot_bytes = os.path.getsize(tmp_path)
+                except OSError:
+                    snapshot_bytes = None
+                if snapshot_bytes is None:
+                    print(
+                        "snapshot save: JSON write complete in "
+                        + format(write_finished_at - capture_finished_at, ".2f")
+                        + "s; atomic replace starting",
+                        flush=True,
+                    )
+                else:
+                    print(
+                        "snapshot save: JSON write complete: "
+                        + str(snapshot_bytes)
+                        + " bytes in "
+                        + format(write_finished_at - capture_finished_at, ".2f")
+                        + "s; atomic replace starting",
+                        flush=True,
+                    )
+            if deadline is not None:
+                deadline.require_remaining("atomic replacement")
+                deadline.replace_temporary_snapshot(path)
+            else:
+                os.replace(tmp_path, path)
+            if progress is M.truth_value:
+                print(
+                    "snapshot save: complete in "
+                    + format(time.monotonic() - save_started_at, ".2f")
+                    + "s",
+                    flush=True,
+                )
+            self.object_id_index = M.EmptyList
+            self.capture_free_queue = M.EmptyList
+            return path
+        except Exception:
+            if deadline is not None:
+                deadline.discard_temporary_output()
+            try:
+                if os.path.exists(tmp_path):
+                    os.remove(tmp_path)
+            except OSError:
+                pass
+            self.object_id_index = M.EmptyList
+            self.capture_free_queue = M.EmptyList
+            raise
 
     def load_snapshot(self, snapshot):
         if snapshot["header"]["format"] != "hyge-proof-kernel":
             raise RuntimeError("Wrong snapshot format")
-        if snapshot["header"]["version"] != 3:
+        if snapshot["header"]["version"] not in (3, 4):
             raise RuntimeError("Unsupported snapshot version")
 
         id_to_obj = {}
@@ -1212,7 +1849,13 @@ class SnapshotCodec:
         state.snapshot_path = os.path.abspath(path)
         return state
 
-    def activate(self, state, graph, debug=M.false_value):
+    def activate(
+        self,
+        state,
+        graph,
+        debug=M.false_value,
+        save_upgraded_snapshot=M.truth_value,
+    ):
         t0 = time.monotonic()
         for name in state.symbols:
             self.namespace[name] = state.symbols[name]
@@ -1295,12 +1938,15 @@ class SnapshotCodec:
                     needs_upgrade = M.truth_value
                     break
             if needs_upgrade is M.truth_value:
-                if debug is M.truth_value:
-                    print("DEBUG: activate: saving upgraded snapshot...", flush=True)
-                t_save0 = time.monotonic()
-                self.save(graph, snapshot_path)
-                if debug is M.truth_value:
-                    print(f"DEBUG: activate: upgraded snapshot saved ({time.monotonic() - t_save0:.2f}s)", flush=True)
+                if save_upgraded_snapshot is M.truth_value:
+                    if debug is M.truth_value:
+                        print("DEBUG: activate: saving upgraded snapshot...", flush=True)
+                    t_save0 = time.monotonic()
+                    self.save(graph, snapshot_path, progress=debug)
+                    if debug is M.truth_value:
+                        print(f"DEBUG: activate: upgraded snapshot saved ({time.monotonic() - t_save0:.2f}s)", flush=True)
+                elif debug is M.truth_value:
+                    print("DEBUG: activate: deferred upgraded snapshot save", flush=True)
 
         return graph
 
@@ -1309,6 +1955,8 @@ __all__ = [
     "SNAPSHOT_SYMBOL_NAMES",
     "SnapshotState",
     "SnapshotCodec",
+    "SnapshotSaveDeadline",
+    "SnapshotSaveTimeout",
 ]
 
 

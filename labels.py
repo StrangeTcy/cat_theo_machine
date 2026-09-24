@@ -227,6 +227,10 @@ class ExprLtLabel(ConstructorLabel):
     pass
 
 
+class ExprLeLabel(ConstructorLabel):
+    pass
+
+
 class DFSLabel(ConstructorLabel):
     pass
 
@@ -436,6 +440,14 @@ class SearchStateLabel(ConstructorLabel):
 
 
 class SearchTheoremCursorLabel(ConstructorLabel):
+    pass
+
+
+class SearchMatchAlternativesCursorLabel(ConstructorLabel):
+    pass
+
+
+class SearchMatchCursorLabel(ConstructorLabel):
     pass
 
 
@@ -967,6 +979,10 @@ class ReasonPositionalLabel(ConstructorLabel):
     pass
 
 
+class ReasonStaleLabel(ConstructorLabel):
+    pass
+
+
 class MatchPreparedLabel(ConstructorLabel):
     pass
 
@@ -1007,11 +1023,251 @@ class LawLabel(ConstructorLabel):
     pass
 
 
+class InstalledLawLabel(ConstructorLabel):
+    pass
+
+
+class ProposalLabel(ConstructorLabel):
+    pass
+
+
+class ComposedFromLabel(ConstructorLabel):
+    pass
+
+
+class JustifiedByLabel(ConstructorLabel):
+    pass
+
+
+class ApprovedLabel(ConstructorLabel):
+    pass
+
+
+class AutonomyAuthorityLabel(ConstructorLabel):
+    pass
+
+
+class RejectedLabel(ConstructorLabel):
+    pass
+
+
+class ProposalStoreLabel(ConstructorLabel):
+    pass
+
+
+class ProposalEntryLabel(ConstructorLabel):
+    pass
+
+
+class ActivationLabel(ConstructorLabel):
+    pass
+
+
+class ReasonUnapprovedLabel(ConstructorLabel):
+    pass
+
+
+class ReasonObligationLabel(ConstructorLabel):
+    pass
+
+
 class FireLabel(ConstructorLabel):
     pass
 
 
 class NextLabel(ConstructorLabel):
+    pass
+
+
+class FiringRecordLabel(ConstructorLabel):
+    pass
+
+
+class SignedRationalLabel(ConstructorLabel):
+    pass
+
+
+class ReasonGroupValueLabel(ConstructorLabel):
+    pass
+
+
+class SelfModelLabel(ConstructorLabel):
+    pass
+
+
+class SafetyInvariantLabel(ConstructorLabel):
+    pass
+
+
+class ReasonSafetyLabel(ConstructorLabel):
+    pass
+
+
+class MetaRecordLabel(ConstructorLabel):
+    pass
+
+
+class MetaHandleLabel(ConstructorLabel):
+    pass
+
+
+class SchedulePolicyLabel(ConstructorLabel):
+    pass
+
+
+class LawPreferenceLabel(ConstructorLabel):
+    pass
+
+
+class RetiredLabel(ConstructorLabel):
+    pass
+
+
+class PolicyEntryLabel(ConstructorLabel):
+    pass
+
+
+class CountersignedLabel(ConstructorLabel):
+    pass
+
+
+class ReasonUncountersignedLabel(ConstructorLabel):
+    pass
+
+
+class ContractLabel(ConstructorLabel):
+    pass
+
+
+class ReasonContractLabel(ConstructorLabel):
+    pass
+
+
+class RobustnessLabel(ConstructorLabel):
+    pass
+
+
+class DefinitionLabel(ConstructorLabel):
+    pass
+
+
+class EvenPropLabel(ConstructorLabel):
+    pass
+
+
+class OddPropLabel(ConstructorLabel):
+    pass
+
+
+class ConfirmedLabel(ConstructorLabel):
+    pass
+
+
+class RefutedLabel(ConstructorLabel):
+    pass
+
+
+class WitnessLabel(ConstructorLabel):
+    pass
+
+
+class DividesLabel(ConstructorLabel):
+    pass
+
+
+class InductionLabel(ConstructorLabel):
+    pass
+
+
+class BaseCaseLabel(ConstructorLabel):
+    pass
+
+
+class StepCaseLabel(ConstructorLabel):
+    pass
+
+
+class ModuloLabel(ConstructorLabel):
+    pass
+
+
+class GcdLabel(ConstructorLabel):
+    pass
+
+
+class CostSavingsLabel(ConstructorLabel):
+    pass
+
+
+class ReuseLabel(ConstructorLabel):
+    pass
+
+
+class NoveltyLabel(ConstructorLabel):
+    pass
+
+
+class ConflictLabel(ConstructorLabel):
+    pass
+
+
+class MigrationLabel(ConstructorLabel):
+    pass
+
+
+class EqualLabel(ConstructorLabel):
+    pass
+
+
+class SurfaceLabel(ConstructorLabel):
+    pass
+
+
+class MeaningLabel(ConstructorLabel):
+    pass
+
+
+class CorrespondsLabel(ConstructorLabel):
+    pass
+
+
+class UnderstoodLabel(ConstructorLabel):
+    pass
+
+
+class NotUnderstoodLabel(ConstructorLabel):
+    pass
+
+
+class AmbiguousLabel(ConstructorLabel):
+    pass
+
+
+class ReasonUnknownWordLabel(ConstructorLabel):
+    pass
+
+
+class ReasonNoCorrespondenceLabel(ConstructorLabel):
+    pass
+
+
+class ReasonGroupLabel(ConstructorLabel):
+    pass
+
+
+class ReasonEvaluationLabel(ConstructorLabel):
+    pass
+
+
+class CorrespondenceExampleLabel(ConstructorLabel):
+    pass
+
+
+class TaskLabel(ConstructorLabel):
+    pass
+
+
+class HandleLabel(ConstructorLabel):
     pass
 
 
@@ -1075,6 +1331,26 @@ class NotLabel(ConstructorLabel):
     pass
 
 
+class ForAllLabel(ConstructorLabel):
+    pass
+
+
+class SmallFactorLabel(ConstructorLabel):
+    pass
+
+
+class IffLabel(ConstructorLabel):
+    pass
+
+
+class StepSieveLabel(ConstructorLabel):
+    pass
+
+
+class TrialSieveLabel(ConstructorLabel):
+    pass
+
+
 class ContradictionLabel(ConstructorLabel):
     pass
 
@@ -1131,6 +1407,38 @@ class PlannerJobLabel(ConstructorLabel):
     pass
 
 
+class TrainingRecordLabel(ConstructorLabel):
+    pass
+
+
+class ProblemStatementLabel(ConstructorLabel):
+    pass
+
+
+class MeaningStructureLabel(ConstructorLabel):
+    pass
+
+
+class StrategyHintLabel(ConstructorLabel):
+    pass
+
+
+class ObligationSkeletonLabel(ConstructorLabel):
+    pass
+
+
+class TestInstanceLabel(ConstructorLabel):
+    pass
+
+
+class AttemptResultLabel(ConstructorLabel):
+    pass
+
+
+class InvarianceLabel(ConstructorLabel):
+    pass
+
+
 class ProvedLabel(ConstructorLabel):
     pass
 
@@ -1172,6 +1480,150 @@ class ArccosLabel(ConstructorLabel):
 
 
 class TaoProblem11PerimeterValueLabel(ConstructorLabel):
+    pass
+
+
+class SignatureLabel(ConstructorLabel):
+    pass
+
+
+class DefinitionGenusLabel(ConstructorLabel):
+    pass
+
+
+class DefinitionCountedLabel(ConstructorLabel):
+    pass
+
+
+class ProductionLabel(ConstructorLabel):
+    pass
+
+
+class WordSymbolLabel(ConstructorLabel):
+    pass
+
+
+class CategorySymbolLabel(ConstructorLabel):
+    pass
+
+
+class ConstituentLabel(ConstructorLabel):
+    pass
+
+
+class ReadingPolicyLabel(ConstructorLabel):
+    pass
+
+
+class ObservedSymbolStepLabel(ConstructorLabel):
+    pass
+
+
+class FormArcLabel(ConstructorLabel):
+    pass
+
+
+class FormSenseLabel(ConstructorLabel):
+    pass
+
+
+class FormScanLabel(ConstructorLabel):
+    pass
+
+
+class ReadingLabel(ConstructorLabel):
+    pass
+
+
+class IndexSpecLabel(ConstructorLabel):
+    pass
+
+
+class DeductionPlanLabel(ConstructorLabel):
+    pass
+
+
+class DeltaAgendaLabel(ConstructorLabel):
+    pass
+
+
+class IndexedFiringLabel(ConstructorLabel):
+    pass
+
+
+class LexiconRootLabel(ConstructorLabel):
+    pass
+
+
+class ObservedByLabel(ConstructorLabel):
+    pass
+
+
+class BinaryProductionLabel(ConstructorLabel):
+    pass
+
+
+class FreshenedLabel(ConstructorLabel):
+    pass
+
+
+class ComposeMeaningLabel(ConstructorLabel):
+    pass
+
+
+class DefinitionNodeLabel(ConstructorLabel):
+    pass
+
+
+class DefiniendumLabel(ConstructorLabel):
+    pass
+
+
+class CategoryLabel(ConstructorLabel):
+    pass
+
+
+class OnlyLabel(ConstructorLabel):
+    pass
+
+
+class NoLabel(ConstructorLabel):
+    pass
+
+
+class BinderLabel(ConstructorLabel):
+    pass
+
+
+class HoleLabel(ConstructorLabel):
+    pass
+
+
+class NoDefinitionInstalledLabel(ConstructorLabel):
+    pass
+
+
+class ExactFillersLabel(ConstructorLabel):
+    pass
+
+
+class DefinitionMeaningLabel(ConstructorLabel):
+    pass
+
+
+class ProjectRightLabel(ConstructorLabel):
+    pass
+
+
+class ReflexiveLabel(ConstructorLabel):
+    pass
+
+
+class RestrictionLabel(ConstructorLabel):
+    pass
+
+
+class LexicalNpLabel(ConstructorLabel):
     pass
 
 
@@ -1218,6 +1670,7 @@ ReasonApartLabel = ReasonApartLabel()
 ReasonAlreadyMappedLabel = ReasonAlreadyMappedLabel()
 ReasonShapeLabel = ReasonShapeLabel()
 ReasonPositionalLabel = ReasonPositionalLabel()
+ReasonStaleLabel = ReasonStaleLabel()
 MatchPreparedLabel = MatchPreparedLabel()
 DeletionAdmittedLabel = DeletionAdmittedLabel()
 ComplementProducedLabel = ComplementProducedLabel()
@@ -1228,8 +1681,68 @@ DanglingDeleteLabel = DanglingDeleteLabel()
 FireRejectedLabel = FireRejectedLabel()
 MissLabel = MissLabel()
 LawLabel = LawLabel()
+InstalledLawLabel = InstalledLawLabel()
+ProposalLabel = ProposalLabel()
+ComposedFromLabel = ComposedFromLabel()
+JustifiedByLabel = JustifiedByLabel()
+ApprovedLabel = ApprovedLabel()
+AutonomyAuthorityLabel = AutonomyAuthorityLabel()
+RejectedLabel = RejectedLabel()
+ProposalStoreLabel = ProposalStoreLabel()
+ProposalEntryLabel = ProposalEntryLabel()
+ActivationLabel = ActivationLabel()
+ReasonUnapprovedLabel = ReasonUnapprovedLabel()
+ReasonObligationLabel = ReasonObligationLabel()
 FireLabel = FireLabel()
 NextLabel = NextLabel()
+FiringRecordLabel = FiringRecordLabel()
+SignedRationalLabel = SignedRationalLabel()
+ReasonGroupValueLabel = ReasonGroupValueLabel()
+SelfModelLabel = SelfModelLabel()
+SafetyInvariantLabel = SafetyInvariantLabel()
+ReasonSafetyLabel = ReasonSafetyLabel()
+MetaRecordLabel = MetaRecordLabel()
+MetaHandleLabel = MetaHandleLabel()
+SchedulePolicyLabel = SchedulePolicyLabel()
+LawPreferenceLabel = LawPreferenceLabel()
+RetiredLabel = RetiredLabel()
+PolicyEntryLabel = PolicyEntryLabel()
+CountersignedLabel = CountersignedLabel()
+ReasonUncountersignedLabel = ReasonUncountersignedLabel()
+ContractLabel = ContractLabel()
+ReasonContractLabel = ReasonContractLabel()
+RobustnessLabel = RobustnessLabel()
+DefinitionLabel = DefinitionLabel()
+EvenPropLabel = EvenPropLabel()
+OddPropLabel = OddPropLabel()
+ConfirmedLabel = ConfirmedLabel()
+RefutedLabel = RefutedLabel()
+WitnessLabel = WitnessLabel()
+DividesLabel = DividesLabel()
+InductionLabel = InductionLabel()
+BaseCaseLabel = BaseCaseLabel()
+StepCaseLabel = StepCaseLabel()
+ModuloLabel = ModuloLabel()
+GcdLabel = GcdLabel()
+CostSavingsLabel = CostSavingsLabel()
+ReuseLabel = ReuseLabel()
+NoveltyLabel = NoveltyLabel()
+ConflictLabel = ConflictLabel()
+MigrationLabel = MigrationLabel()
+EqualLabel = EqualLabel()
+SurfaceLabel = SurfaceLabel()
+MeaningLabel = MeaningLabel()
+CorrespondsLabel = CorrespondsLabel()
+UnderstoodLabel = UnderstoodLabel()
+NotUnderstoodLabel = NotUnderstoodLabel()
+AmbiguousLabel = AmbiguousLabel()
+ReasonUnknownWordLabel = ReasonUnknownWordLabel()
+ReasonNoCorrespondenceLabel = ReasonNoCorrespondenceLabel()
+ReasonGroupLabel = ReasonGroupLabel()
+ReasonEvaluationLabel = ReasonEvaluationLabel()
+CorrespondenceExampleLabel = CorrespondenceExampleLabel()
+TaskLabel = TaskLabel()
+HandleLabel = HandleLabel()
 GraphVersionLabel = GraphVersionLabel()
 KObligationLabel = KObligationLabel()
 PlannerProblemLabel = PlannerProblemLabel()
@@ -1245,6 +1758,11 @@ VariationLabel = VariationLabel()
 BetterLabel = BetterLabel()
 ExistsLabel = ExistsLabel()
 NotLabel = NotLabel()
+ForAllLabel = ForAllLabel()
+SmallFactorLabel = SmallFactorLabel()
+IffLabel = IffLabel()
+StepSieveLabel = StepSieveLabel()
+TrialSieveLabel = TrialSieveLabel()
 ContradictionLabel = ContradictionLabel()
 CollisionLabel = CollisionLabel()
 ExtremalLabel = ExtremalLabel()
@@ -1259,6 +1777,14 @@ PlannerAlternativeLabel = PlannerAlternativeLabel()
 PlannerObligationLabel = PlannerObligationLabel()
 PlannerDependencyLabel = PlannerDependencyLabel()
 PlannerJobLabel = PlannerJobLabel()
+TrainingRecordLabel = TrainingRecordLabel()
+ProblemStatementLabel = ProblemStatementLabel()
+MeaningStructureLabel = MeaningStructureLabel()
+StrategyHintLabel = StrategyHintLabel()
+ObligationSkeletonLabel = ObligationSkeletonLabel()
+TestInstanceLabel = TestInstanceLabel()
+AttemptResultLabel = AttemptResultLabel()
+InvarianceLabel = InvarianceLabel()
 ProvedLabel = ProvedLabel()
 PendingLabel = PendingLabel()
 FailedLabel = FailedLabel()
@@ -1314,6 +1840,7 @@ ExprIntLabel = ExprIntLabel()
 ExprNegLabel = ExprNegLabel()
 ExprEqLabel = ExprEqLabel()
 ExprLtLabel = ExprLtLabel()
+ExprLeLabel = ExprLeLabel()
 DFSLabel = DFSLabel()
 BFSLabel = BFSLabel()
 BeamLabel = BeamLabel()
@@ -1367,6 +1894,8 @@ SearchJobProgressLabel = SearchJobProgressLabel()
 SearchJobStoresLabel = SearchJobStoresLabel()
 SearchStateLabel = SearchStateLabel()
 SearchTheoremCursorLabel = SearchTheoremCursorLabel()
+SearchMatchAlternativesCursorLabel = SearchMatchAlternativesCursorLabel()
+SearchMatchCursorLabel = SearchMatchCursorLabel()
 SearchRewriteCursorLabel = SearchRewriteCursorLabel()
 SearchRewritePathFrameLabel = SearchRewritePathFrameLabel()
 SearchRewriteRuleBundleLabel = SearchRewriteRuleBundleLabel()
@@ -1467,10 +1996,81 @@ TaoProblem11AlphaValueLabel = TaoProblem11AlphaValueLabel()
 TaoProblem11BetaValueLabel = TaoProblem11BetaValueLabel()
 TaoProblem11GammaValueLabel = TaoProblem11GammaValueLabel()
 DistinctLabel = DistinctLabel()
+SignatureLabel = SignatureLabel()
+DefinitionGenusLabel = DefinitionGenusLabel()
+DefinitionCountedLabel = DefinitionCountedLabel()
+ProductionLabel = ProductionLabel()
+WordSymbolLabel = WordSymbolLabel()
+CategorySymbolLabel = CategorySymbolLabel()
+ConstituentLabel = ConstituentLabel()
+ReadingPolicyLabel = ReadingPolicyLabel()
+ObservedSymbolStepLabel = ObservedSymbolStepLabel()
+FormArcLabel = FormArcLabel()
+FormSenseLabel = FormSenseLabel()
+FormScanLabel = FormScanLabel()
+ReadingLabel = ReadingLabel()
+IndexSpecLabel = IndexSpecLabel()
+DeductionPlanLabel = DeductionPlanLabel()
+DeltaAgendaLabel = DeltaAgendaLabel()
+IndexedFiringLabel = IndexedFiringLabel()
+LexiconRootLabel = LexiconRootLabel()
+ObservedByLabel = ObservedByLabel()
+BinaryProductionLabel = BinaryProductionLabel()
+FreshenedLabel = FreshenedLabel()
+ComposeMeaningLabel = ComposeMeaningLabel()
+DefinitionNodeLabel = DefinitionNodeLabel()
+DefiniendumLabel = DefiniendumLabel()
+CategoryLabel = CategoryLabel()
+OnlyLabel = OnlyLabel()
+NoLabel = NoLabel()
+BinderLabel = BinderLabel()
+HoleLabel = HoleLabel()
+NoDefinitionInstalledLabel = NoDefinitionInstalledLabel()
+ExactFillersLabel = ExactFillersLabel()
+DefinitionMeaningLabel = DefinitionMeaningLabel()
+ProjectRightLabel = ProjectRightLabel()
+ReflexiveLabel = ReflexiveLabel()
+RestrictionLabel = RestrictionLabel()
+LexicalNpLabel = LexicalNpLabel()
 
 
 def sync_from_namespace(namespace):
     for name in (
+        "SignatureLabel",
+        "DefinitionGenusLabel",
+        "DefinitionCountedLabel",
+        "ProductionLabel",
+        "WordSymbolLabel",
+        "CategorySymbolLabel",
+        "ConstituentLabel",
+        "ReadingPolicyLabel",
+        "ObservedSymbolStepLabel",
+        "FormArcLabel",
+        "FormSenseLabel",
+        "FormScanLabel",
+        "ReadingLabel",
+        "IndexSpecLabel",
+        "DeductionPlanLabel",
+        "DeltaAgendaLabel",
+        "IndexedFiringLabel",
+        "LexiconRootLabel",
+        "ObservedByLabel",
+        "BinaryProductionLabel",
+        "FreshenedLabel",
+        "ComposeMeaningLabel",
+        "DefinitionNodeLabel",
+        "DefiniendumLabel",
+        "CategoryLabel",
+        "BinderLabel",
+        "DividesLabel",
+        "HoleLabel",
+        "NoDefinitionInstalledLabel",
+        "ExactFillersLabel",
+        "DefinitionMeaningLabel",
+        "ProjectRightLabel",
+        "ReflexiveLabel",
+        "RestrictionLabel",
+        "LexicalNpLabel",
         "TreeLabel",
         "ZeroLabel",
         "SuccLabel",
@@ -1526,6 +2126,7 @@ def sync_from_namespace(namespace):
         "ExprNegLabel",
         "ExprEqLabel",
         "ExprLtLabel",
+        "ExprLeLabel",
         "DFSLabel",
         "BFSLabel",
         "BeamLabel",
@@ -1578,6 +2179,8 @@ def sync_from_namespace(namespace):
         "SearchJobStoresLabel",
         "SearchStateLabel",
         "SearchTheoremCursorLabel",
+        "SearchMatchAlternativesCursorLabel",
+        "SearchMatchCursorLabel",
         "SearchRewriteCursorLabel",
         "SearchRewritePathFrameLabel",
         "SearchRewriteRuleBundleLabel",
@@ -1623,8 +2226,67 @@ def sync_from_namespace(namespace):
         "FireRejectedLabel",
         "MissLabel",
         "LawLabel",
+        "InstalledLawLabel",
+        "ProposalLabel",
+        "ComposedFromLabel",
+        "JustifiedByLabel",
+        "ApprovedLabel",
+        "AutonomyAuthorityLabel",
+        "RejectedLabel",
+        "ProposalStoreLabel",
+        "ProposalEntryLabel",
+        "ActivationLabel",
+        "ReasonUnapprovedLabel",
+        "ReasonObligationLabel",
         "FireLabel",
         "NextLabel",
+        "FiringRecordLabel",
+        "SignedRationalLabel",
+        "ReasonGroupValueLabel",
+        "SelfModelLabel",
+        "SafetyInvariantLabel",
+        "ReasonSafetyLabel",
+        "MetaRecordLabel",
+        "MetaHandleLabel",
+        "SchedulePolicyLabel",
+        "LawPreferenceLabel",
+        "RetiredLabel",
+        "PolicyEntryLabel",
+        "CountersignedLabel",
+        "ReasonUncountersignedLabel",
+        "ContractLabel",
+        "ReasonContractLabel",
+        "RobustnessLabel",
+        "DefinitionLabel",
+        "EvenPropLabel",
+        "OddPropLabel",
+        "ConfirmedLabel",
+        "RefutedLabel",
+        "WitnessLabel",
+        "InductionLabel",
+        "BaseCaseLabel",
+        "StepCaseLabel",
+        "ModuloLabel",
+        "GcdLabel",
+        "CostSavingsLabel",
+        "ReuseLabel",
+        "NoveltyLabel",
+        "ConflictLabel",
+        "MigrationLabel",
+        "EqualLabel",
+        "SurfaceLabel",
+        "MeaningLabel",
+        "CorrespondsLabel",
+        "UnderstoodLabel",
+        "NotUnderstoodLabel",
+        "AmbiguousLabel",
+        "ReasonUnknownWordLabel",
+        "ReasonNoCorrespondenceLabel",
+        "ReasonGroupLabel",
+        "ReasonEvaluationLabel",
+        "CorrespondenceExampleLabel",
+        "TaskLabel",
+        "HandleLabel",
         "PlannerProblemLabel",
         "FiniteLabel",
         "TotalMapLabel",
@@ -1638,6 +2300,11 @@ def sync_from_namespace(namespace):
         "BetterLabel",
         "ExistsLabel",
         "NotLabel",
+        "ForAllLabel",
+        "SmallFactorLabel",
+        "IffLabel",
+        "StepSieveLabel",
+        "TrialSieveLabel",
         "ContradictionLabel",
         "CollisionLabel",
         "ExtremalLabel",
@@ -1760,12 +2427,612 @@ def sync_from_namespace(namespace):
         "TaoProblem11BetaValueLabel",
         "TaoProblem11GammaValueLabel",
         "DistinctLabel",
-        "PerimeterLabel",
-        "ArccosLabel",
-        "TaoProblem11PerimeterValueLabel",
+        "TrainingRecordLabel",
+        "ProblemStatementLabel",
+        "MeaningStructureLabel",
+        "StrategyHintLabel",
+        "ObligationSkeletonLabel",
+        "TestInstanceLabel",
+        "AttemptResultLabel",
+        "InvarianceLabel",
+        "LessonLabel",
+        "EntryLabel",
+        "GroundedExampleLabel",
+        "SourceLabel",
+        "MathematicsLabel",
+        "HistoryLabel",
+        "ProblemLabel",
+        "HintLabel",
+        "UsesStrategyLabel",
+        "DerivationFragmentLabel",
+        "GoalLabel",
+        "ClaimsLabel",
+        "SupportsLabel",
+        "HistoricalContradictsLabel",
+        "OccursOnLabel",
+        "BeforeLabel",
+        "CausesLabel",
+        "ParticipatesInLabel",
+        "OccursAtLabel",
+        "ClaimStoreLabel",
+        "CorrespondenceLawLabel",
+        "EntityLabel",
+        "EventLabel",
+        "RelationLabel",
+        "StoryLabel",
+        "RoleLabel",
+        "SameAsLabel",
+        "BecauseLabel",
+        "AfterLabel",
+        "PredicateLabel",
+        "CanonicalNameLabel",
+        "AttributeLabel",
+        "EventChainLabel",
+        "StoryRefLabel",
+        "RolesLabel",
+        "ProvenanceLabel",
+        "ConfidenceLabel",
+        "SchemaLabel",
+        "StorySchemaLabel",
+        "SemanticGoalLabel",
+        "TaskTypeLabel",
+        "ConceptLabel",
+        "IntermediateLabel",
+        "ConceptTypeLabel",
+        "TimeLabel",
+        "LocationLabel",
+        "DomainLabel",
+        "AttributeValueLabel",
+        "ConnectionLabel",
+        "ExplanationLabel",
+        "NarrativeLabel",
+        "VerificationLabel",
+        "ConfidenceScoreLabel",
+        "SemanticStateLabel",
+        "FocusLabel",
+        "UncertainLabel",
     ):
         if name in namespace:
             globals()[name] = namespace[name]
+            globals()[name] = namespace[name]
+
+
+class LessonLabel(ConstructorLabel):
+    pass
+
+
+class EntryLabel(ConstructorLabel):
+    pass
+
+
+class GroundedExampleLabel(ConstructorLabel):
+    pass
+
+
+class SourceLabel(ConstructorLabel):
+    pass
+
+
+class MathematicsLabel(ConstructorLabel):
+    pass
+
+
+class HistoryLabel(ConstructorLabel):
+    pass
+
+
+class ProblemLabel(ConstructorLabel):
+    pass
+
+
+class HintLabel(ConstructorLabel):
+    pass
+
+
+class UsesStrategyLabel(ConstructorLabel):
+    pass
+
+
+class DerivationFragmentLabel(ConstructorLabel):
+    pass
+
+
+class GoalLabel(ConstructorLabel):
+    pass
+
+
+class ClaimsLabel(ConstructorLabel):
+    pass
+
+
+class SupportsLabel(ConstructorLabel):
+    pass
+
+
+class HistoricalContradictsLabel(ConstructorLabel):
+    pass
+
+
+class OccursOnLabel(ConstructorLabel):
+    pass
+
+
+class BeforeLabel(ConstructorLabel):
+    pass
+
+
+class CausesLabel(ConstructorLabel):
+    pass
+
+
+class ParticipatesInLabel(ConstructorLabel):
+    pass
+
+
+class OccursAtLabel(ConstructorLabel):
+    pass
+
+
+class ClaimStoreLabel(ConstructorLabel):
+    pass
+
+
+class WordLabel(ConstructorLabel):
+    pass
+
+
+class ConceptLabel(ConstructorLabel):
+    pass
+
+
+class IsALabel(ConstructorLabel):
+    pass
+
+
+class PartOfLabel(ConstructorLabel):
+    pass
+
+
+class WornByLabel(ConstructorLabel):
+    pass
+
+
+class LocatedAtLabel(ConstructorLabel):
+    pass
+
+
+class EvidenceForLabel(ConstructorLabel):
+    pass
+
+
+class SupportedLabel(ConstructorLabel):
+    pass
+
+
+class RoleOfLabel(ConstructorLabel):
+    pass
+
+
+class CanAccessLabel(ConstructorLabel):
+    pass
+
+
+class ResponsibleForLabel(ConstructorLabel):
+    pass
+
+
+class OpportunityLabel(ConstructorLabel):
+    pass
+
+
+class ModifierOfLabel(ConstructorLabel):
+    pass
+
+
+class UndefinedConceptLabel(ConstructorLabel):
+    pass
+
+
+class ResidualGapLabel(ConstructorLabel):
+    pass
+
+
+class UngroundedModifierLabel(ConstructorLabel):
+    pass
+
+
+class NoUsageExampleLabel(ConstructorLabel):
+    pass
+
+
+class NoParentLabel(ConstructorLabel):
+    pass
+
+
+class DanglingReferenceLabel(ConstructorLabel):
+    pass
+
+
+class MissingRenderLawLabel(ConstructorLabel):
+    pass
+
+
+class RankedGapsLabel(ConstructorLabel):
+    pass
+
+
+class AskedQuestionLabel(ConstructorLabel):
+    pass
+
+
+class AcknowledgedLabel(ConstructorLabel):
+    pass
+
+
+class ConceptCausesLabel(ConstructorLabel):
+    pass
+
+
+class ResponsibilityRoleLabel(ConstructorLabel):
+    pass
+
+
+class WearableObjectLabel(ConstructorLabel):
+    pass
+
+
+class HouseholdRoleLabel(ConstructorLabel):
+    pass
+
+
+class WeatherEventLabel(ConstructorLabel):
+    pass
+
+
+class WetDirtLabel(ConstructorLabel):
+    pass
+
+
+class DirtLabel(ConstructorLabel):
+    pass
+
+
+class PlaceLabel(ConstructorLabel):
+    pass
+
+
+class PersonLabel(ConstructorLabel):
+    pass
+
+
+class ConceptEventLabel(ConstructorLabel):
+    pass
+
+
+class GapRecordLabel(ConstructorLabel):
+    pass
+
+
+class CorrespondenceLawLabel(ConstructorLabel):
+    pass
+
+
+# Mystery / deduction-domain labels (Rung 1). No reasoning machinery yet:
+# these name the construction heads of a fact stream so a story pack can be
+# authored, and so the sourced-claim / contradiction discipline from the
+# history work can be pointed at testimony. BeforeLabel already exists and
+# is reused for scene ordering (Before(s1, s2)) rather than duplicated.
+class SaysLabel(ConstructorLabel):
+    pass
+
+
+class SceneLabel(ConstructorLabel):
+    pass
+
+
+class AtSceneLabel(ConstructorLabel):
+    pass
+
+
+class SuspectLabel(ConstructorLabel):
+    pass
+
+
+class CulpritLabel(ConstructorLabel):
+    pass
+
+
+class ContradictsLabel(ConstructorLabel):
+    pass
+
+
+# `rule:` teaching verb. PredicateApplication carries an unresolved
+# Pred(word) ( args ) meaning form; the rule handler resolves the word
+# through BridgeFor and the args through the meaning path before compiling.
+# UnknownConstructor, AmbiguousRule, and RuleRefused name the three explicit
+# failure terms the `rule:` handler returns instead of guessing.
+class PredicateApplicationLabel(ConstructorLabel):
+    pass
+
+
+class UnknownConstructorLabel(ConstructorLabel):
+    pass
+
+
+class AmbiguousRuleLabel(ConstructorLabel):
+    pass
+
+
+class RuleRefusedLabel(ConstructorLabel):
+    pass
+
+
+LessonLabel = LessonLabel()
+EntryLabel = EntryLabel()
+GroundedExampleLabel = GroundedExampleLabel()
+SourceLabel = SourceLabel()
+MathematicsLabel = MathematicsLabel()
+HistoryLabel = HistoryLabel()
+ProblemLabel = ProblemLabel()
+HintLabel = HintLabel()
+UsesStrategyLabel = UsesStrategyLabel()
+DerivationFragmentLabel = DerivationFragmentLabel()
+GoalLabel = GoalLabel()
+ClaimsLabel = ClaimsLabel()
+SupportsLabel = SupportsLabel()
+HistoricalContradictsLabel = HistoricalContradictsLabel()
+OccursOnLabel = OccursOnLabel()
+BeforeLabel = BeforeLabel()
+CausesLabel = CausesLabel()
+ParticipatesInLabel = ParticipatesInLabel()
+OccursAtLabel = OccursAtLabel()
+ClaimStoreLabel = ClaimStoreLabel()
+WordLabel = WordLabel()
+ConceptLabel = ConceptLabel()
+IsALabel = IsALabel()
+PartOfLabel = PartOfLabel()
+WornByLabel = WornByLabel()
+LocatedAtLabel = LocatedAtLabel()
+EvidenceForLabel = EvidenceForLabel()
+SupportedLabel = SupportedLabel()
+RoleOfLabel = RoleOfLabel()
+CanAccessLabel = CanAccessLabel()
+ResponsibleForLabel = ResponsibleForLabel()
+OpportunityLabel = OpportunityLabel()
+ModifierOfLabel = ModifierOfLabel()
+UndefinedConceptLabel = UndefinedConceptLabel()
+ResidualGapLabel = ResidualGapLabel()
+UngroundedModifierLabel = UngroundedModifierLabel()
+NoUsageExampleLabel = NoUsageExampleLabel()
+NoParentLabel = NoParentLabel()
+DanglingReferenceLabel = DanglingReferenceLabel()
+MissingRenderLawLabel = MissingRenderLawLabel()
+RankedGapsLabel = RankedGapsLabel()
+AskedQuestionLabel = AskedQuestionLabel()
+AcknowledgedLabel = AcknowledgedLabel()
+ConceptCausesLabel = ConceptCausesLabel()
+ResponsibilityRoleLabel = ResponsibilityRoleLabel()
+WearableObjectLabel = WearableObjectLabel()
+HouseholdRoleLabel = HouseholdRoleLabel()
+WeatherEventLabel = WeatherEventLabel()
+WetDirtLabel = WetDirtLabel()
+DirtLabel = DirtLabel()
+PlaceLabel = PlaceLabel()
+PersonLabel = PersonLabel()
+ConceptEventLabel = ConceptEventLabel()
+GapRecordLabel = GapRecordLabel()
+CorrespondenceLawLabel = CorrespondenceLawLabel()
+SaysLabel = SaysLabel()
+SceneLabel = SceneLabel()
+AtSceneLabel = AtSceneLabel()
+SuspectLabel = SuspectLabel()
+CulpritLabel = CulpritLabel()
+ContradictsLabel = ContradictsLabel()
+PredicateApplicationLabel = PredicateApplicationLabel()
+UnknownConstructorLabel = UnknownConstructorLabel()
+AmbiguousRuleLabel = AmbiguousRuleLabel()
+RuleRefusedLabel = RuleRefusedLabel()
+
+
+class EntityLabel(ConstructorLabel):
+    pass
+
+
+class EventLabel(ConstructorLabel):
+    pass
+
+
+class RelationLabel(ConstructorLabel):
+    pass
+
+
+class StoryLabel(ConstructorLabel):
+    pass
+
+
+class RoleLabel(ConstructorLabel):
+    pass
+
+
+class SameAsLabel(ConstructorLabel):
+    pass
+
+
+class BecauseLabel(ConstructorLabel):
+    pass
+
+
+class AfterLabel(ConstructorLabel):
+    pass
+
+
+class PredicateLabel(ConstructorLabel):
+    pass
+
+
+class CanonicalNameLabel(ConstructorLabel):
+    pass
+
+
+class AttributeLabel(ConstructorLabel):
+    pass
+
+
+class EventChainLabel(ConstructorLabel):
+    pass
+
+
+class StoryRefLabel(ConstructorLabel):
+    pass
+
+
+class RolesLabel(ConstructorLabel):
+    pass
+
+
+class ProvenanceLabel(ConstructorLabel):
+    pass
+
+
+class ConfidenceLabel(ConstructorLabel):
+    pass
+
+
+class SchemaLabel(ConstructorLabel):
+    pass
+
+
+class StorySchemaLabel(ConstructorLabel):
+    pass
+
+
+EntityLabel = EntityLabel()
+EventLabel = EventLabel()
+RelationLabel = RelationLabel()
+StoryLabel = StoryLabel()
+RoleLabel = RoleLabel()
+SameAsLabel = SameAsLabel()
+BecauseLabel = BecauseLabel()
+AfterLabel = AfterLabel()
+PredicateLabel = PredicateLabel()
+CanonicalNameLabel = CanonicalNameLabel()
+AttributeLabel = AttributeLabel()
+EventChainLabel = EventChainLabel()
+StoryRefLabel = StoryRefLabel()
+RolesLabel = RolesLabel()
+ProvenanceLabel = ProvenanceLabel()
+ConfidenceLabel = ConfidenceLabel()
+SchemaLabel = SchemaLabel()
+StorySchemaLabel = StorySchemaLabel()
+
+
+class SemanticGoalLabel(ConstructorLabel):
+    pass
+
+
+class TaskTypeLabel(ConstructorLabel):
+    pass
+
+
+class ConceptLabel(ConstructorLabel):
+    pass
+
+
+class IntermediateLabel(ConstructorLabel):
+    pass
+
+
+class ConceptTypeLabel(ConstructorLabel):
+    pass
+
+
+class TimeLabel(ConstructorLabel):
+    pass
+
+
+class LocationLabel(ConstructorLabel):
+    pass
+
+
+class DomainLabel(ConstructorLabel):
+    pass
+
+
+class AttributeValueLabel(ConstructorLabel):
+    pass
+
+
+class ConnectionLabel(ConstructorLabel):
+    pass
+
+
+class ExplanationLabel(ConstructorLabel):
+    pass
+
+
+class NarrativeLabel(ConstructorLabel):
+    pass
+
+
+class VerificationLabel(ConstructorLabel):
+    pass
+
+
+class ConfidenceScoreLabel(ConstructorLabel):
+    pass
+
+
+class SemanticStateLabel(ConstructorLabel):
+    pass
+
+
+class FocusLabel(ConstructorLabel):
+    pass
+
+
+class UncertainLabel(ConstructorLabel):
+    pass
+
+
+SemanticGoalLabel = SemanticGoalLabel()
+TaskTypeLabel = TaskTypeLabel()
+ConceptLabel = ConceptLabel()
+IntermediateLabel = IntermediateLabel()
+ConceptTypeLabel = ConceptTypeLabel()
+TimeLabel = TimeLabel()
+LocationLabel = LocationLabel()
+DomainLabel = DomainLabel()
+AttributeValueLabel = AttributeValueLabel()
+ConnectionLabel = ConnectionLabel()
+ExplanationLabel = ExplanationLabel()
+NarrativeLabel = NarrativeLabel()
+VerificationLabel = VerificationLabel()
+ConfidenceScoreLabel = ConfidenceScoreLabel()
+SemanticStateLabel = SemanticStateLabel()
+FocusLabel = FocusLabel()
+UncertainLabel = UncertainLabel()
+
+
+class RelationArityLabel(ConstructorLabel):
+    pass
+
+
+class ExtensionalAtLabel(ConstructorLabel):
+    pass
+
+
+class CongruentLabel(ConstructorLabel):
+    pass
+
+
+RelationArityLabel = RelationArityLabel()
+ExtensionalAtLabel = ExtensionalAtLabel()
+CongruentLabel = CongruentLabel()
+
+
+# --- [F] ---
+# CheckpointLoaded is printed by tools/f1_checkpoint.sh audit, not a
+# ConstructorLabel, until research.py exists.
 
 
 __all__ = [name for name in globals() if not name.startswith("_")]

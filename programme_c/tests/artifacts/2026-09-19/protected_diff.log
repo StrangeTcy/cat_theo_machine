@@ -1,0 +1,11 @@
+Protected files diff verification (C-INT-8A)
+Base peeled commit: 137446435362a9727c2f7c181c663adab9d4c357
+Files: core.py, search/compare_executors.py, search/compare_subprocess.py
+
+$ git diff --stat 137446435362 -- core.py search/compare_executors.py search/compare_subprocess.py
+(no output -- no changes)
+
+$ git diff 137446435362 -- core.py search/compare_executors.py search/compare_subprocess.py
+(empty -- byte-for-byte unchanged)
+
+Result: PASS -- protected files unchanged, as required.

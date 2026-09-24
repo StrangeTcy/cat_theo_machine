@@ -1,0 +1,15 @@
+{
+  "captured_at": "2026-09-16T18:28:59.263313+00:00",
+  "code_hash": "b9a9cbed3e72f467abea3654ede181cddab6247d7242c917c98a14b79b55de82",
+  "hash_alg": "blake2b-256",
+  "header": {
+    "format": "test"
+  },
+  "object_count": 3,
+  "root_set": [
+    "r"
+  ],
+  "schema_version": 1,
+  "snapshot_id": "21033741def069e8ac63f3d6ee317b60c9aba61769db29d3112d9e1f28eb07f6",
+  "symbol_count": 1
+}
