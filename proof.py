@@ -19,7 +19,6 @@ from .labels import (
     DerivationLabel,
     GoalHeadOrderLabel,
     KnowledgeLabel,
-    InvariantLabel,
     PreferEarlierPremiseLabel,
     PreferFewerVariablesLabel,
     PreferGreaterSpecificityLabel,
@@ -1814,25 +1813,17 @@ class OrderRules(M.Edge):
 
 class Step(M.Edge):
     def __init__(self, current, action, next_term, registry):
-        # Change B of the snapshot-cost plan: Step no longer registers in
-        # the constructor tree. Measured over the e2 proof, the TreeLookup
-        # dedup never hit once (10 calls -> 10 entries) while the insert
-        # paid TreePatriciaPath tokenization on the largest keys in the
-        # system (205-700 tokens each). The readers -- StepCurrent /
-        # StepAction / StepNext via GetConstructor -- resolve through the
-        # node attribute set here, never through the tree.
-        #
-        # LOAD-BEARING CONSEQUENCE: .constructor is not serialized, and
-        # the registry entry was its only persistent record. Proof
-        # runtimes always cold-boot from packs (the invariant behind the
-        # sqrt fix, commit 73efb13), so nothing reads step structure
-        # after a reload today. Whoever implements snapshot proof-replay
-        # must either restore Step registration here or serialize
-        # .constructor in the snapshot codec.
         args = M.Pair(current, M.Pair(action, M.Pair(next_term, M.EmptyList)))
-        node = M.Atom()
-        node.constructor = M.Pair(StepLabel, args)
-        self.result = M.Pair(node, M.Pair(registry, M.EmptyList))
+        key = M.Pair(StepLabel, args)
+        existing = M.TreeLookup(registry, key, registry)()
+        if M.IdentityCompare(existing, M.EmptyList)() is M.truth_value:
+            node = M.Atom()
+            constructed = M.ConstructedBy(node, StepLabel, args, registry)()
+            new_registry = M.Head(M.Tail(constructed)())()
+        else:
+            node = existing
+            new_registry = registry
+        self.result = M.Pair(node, M.Pair(new_registry, M.EmptyList))
         super().__init__(inputs=M.Pair(current, M.Pair(action, M.Pair(next_term, M.Pair(registry, M.EmptyList)))), results=self.result)
 
     def __call__(self):
@@ -2527,19 +2518,7 @@ class BuildDerivation(M.Edge):
             action_bindings = ActionBindings(action)()
             if M.IdentityCompare(action_bindings, M.EmptyList)() is M.false_value:
                 self.bindings = action_bindings
-            invariant_premise = M.EmptyList
-            remaining_premises = RulePremises(ActionRule(action)())()
-            while M.IdentityCompare(remaining_premises, M.EmptyList)() is M.false_value:
-                premise = M.Head(remaining_premises)()
-                if M.IsPair(premise)() is M.truth_value:
-                    if M.IdentityCompare(M.Head(premise)(), InvariantLabel)() is M.truth_value:
-                        invariant_premise = M.Head(M.Instantiate(premise, self.bindings)())()
-                remaining_premises = M.Tail(remaining_premises)()
             result = self._apply_theorem_rule_at_root(ActionRule(action)(), current, registry)
-            if debug_replay is M.truth_value:
-                if M.Compare(result, current)() is M.false_value:
-                    if M.IdentityCompare(invariant_premise, M.EmptyList)() is M.false_value:
-                        _debug("apply-action: used invariant premise " + _debug_term(invariant_premise, registry))
             self.bindings = previous_bindings
             if debug_replay is M.truth_value:
                 _debug("apply-action result=" + _debug_term(result, registry))
@@ -2914,22 +2893,12 @@ class Prove(M.Edge):
                 self.rules = rewrite_rules
             invariant = Imod.Invariant(phi, rules, registry, self.start, rewrite_rules)()
             if Imod.IsInvariant(invariant)() is M.truth_value:
-                _debug("invariant independently proven over theorem rule chain")
+                _debug("invariant proven")
                 formula = Imod.FormulaFromFindings(self.start, phi, registry, rewrite_rules)()
                 if M.IdentityCompare(formula, M.EmptyList)() is M.false_value:
                     _debug("derived equation: " + _debug_term(formula, registry))
                     if M.Compare(formula, self.goal)() is M.truth_value:
                         self._found_limit = formula
-            else:
-                _debug("invariant not independently proven over theorem rule chain")
-            start_facts = Imod.StateFacts(self.start)()
-            remaining_start_facts = start_facts
-            while M.IdentityCompare(remaining_start_facts, M.EmptyList)() is M.false_value:
-                start_fact = M.Head(remaining_start_facts)()
-                if M.IsPair(start_fact)() is M.truth_value:
-                    if M.IdentityCompare(M.Head(start_fact)(), InvariantLabel)() is M.truth_value:
-                        _debug("invariant fact supplied in start state: " + _debug_term(start_fact, registry))
-                remaining_start_facts = M.Tail(remaining_start_facts)()
             prune = Imod.ReachabilityPrune(self.start, self.goal, invariant, phi, registry)()
             if Imod.IsUnreachable(prune)() is M.truth_value:
                 self.result = M.Pair(prune, M.EmptyList)

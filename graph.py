@@ -1,46 +1,11 @@
 from __future__ import annotations
 
-import io
-import multiprocessing
-
 from . import context as Ctx
 from . import machine as M
 from . import proof as P
 from . import schemata as S
 from . import labels as Lmod
-from . import trees as Tmod
-from .gmprep import GMPAddText, GMPEqualText, GMPLessText, GMPMulText, GMPRepDigitList, GMPSubText, GMPSuccText
 from .search.patricia import SearchPatriciaIsTree, SearchPatriciaEntries
-from .search.model import (
-    SearchMatchCursor,
-    SearchMatchCursorComplete,
-    SearchMatchCursorPending,
-    SearchMatchCursorRoot,
-    SearchState,
-    SearchStateCursor,
-)
-
-from __future__ import annotations
-
-import io
-import multiprocessing
-
-from . import context as Ctx
-from . import machine as M
-from . import proof as P
-from . import schemata as S
-from . import labels as Lmod
-from . import trees as Tmod
-from .gmprep import GMPAddText, GMPEqualText, GMPLessText, GMPMulText, GMPRepDigitList, GMPSubText, GMPSuccText
-from .search.patricia import SearchPatriciaIsTree, SearchPatriciaEntries
-from .search.model import (
-    SearchMatchCursor,
-    SearchMatchCursorComplete,
-    SearchMatchCursorPending,
-    SearchMatchCursorRoot,
-    SearchState,
-    SearchStateCursor,
-)
 
 
 class Hypergraph:
@@ -50,9 +15,6 @@ class Hypergraph:
             M.AllConstructors = M.set_all_constructors(constructor_registry)
         self.rep = M.HypergraphRep()
         self.default_tests_installed = M.false_value
-        self._test_shard_index = M.Zero
-        self._test_shard_count = M.one
-        self._test_shard_cursor = M.Zero
         self._search_console_input = None
         self._search_disable_console = M.false_value
         self._search_disable_progress_ticker = M.false_value
@@ -69,8 +31,6 @@ class Hypergraph:
         self._search_compare_discovery_mode = M.false_value
         self._search_probe_disable_applicable_cache = M.false_value
         self._search_probe_disable_applicable_shards = M.false_value
-        self._search_installed_heuristic_version = M.EmptyList
-        self._search_installed_heuristic_resolved = M.EmptyList
         self._search_compare_live_signature = M.EmptyList
         self._search_compare_live_start = M.EmptyList
         self._search_compare_live_goal = M.EmptyList
@@ -375,1048 +335,10 @@ class Law(M.Edge):
         return self.result
 
 
-class InstalledLaw(M.Edge):
-    def __init__(self, law):
-        self.result = M.Pair(Lmod.InstalledLawLabel, M.Pair(law, M.EmptyList))
-        super().__init__(inputs=M.Pair(law, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class IsInstalledLaw(M.Edge):
-    def __init__(self, term):
-        self.result = M.false_value
-        if M.IsPair(term)() is M.truth_value:
-            if M.TermEqual(M.Head(term)(), Lmod.InstalledLawLabel)() is M.truth_value:
-                self.result = M.truth_value
-        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class InstalledLawValue(M.Edge):
-    def __init__(self, installed):
-        self.result = M.Head(M.Tail(installed)())()
-        super().__init__(inputs=M.Pair(installed, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class Retired(M.Edge):
-    """Step 33: an append-only invariant mark demoting one installed Law."""
-
-    def __init__(self, law):
-        self.result = M.Pair(Lmod.RetiredLabel, M.Pair(law, M.EmptyList))
-        super().__init__(inputs=M.Pair(law, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class IsRetired(M.Edge):
-    def __init__(self, term):
-        self.result = M.false_value
-        if M.IsPair(term)() is M.truth_value:
-            if M.TermEqual(M.Head(term)(), Lmod.RetiredLabel)() is M.truth_value:
-                self.result = M.truth_value
-        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class RetiredLaw(M.Edge):
-    def __init__(self, retired):
-        self.result = M.Head(M.Tail(retired)())()
-        super().__init__(inputs=M.Pair(retired, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class Proposal(M.Edge):
-    def __init__(self, law, origin):
-        self.result = M.Pair(
-            Lmod.ProposalLabel,
-            M.Pair(law, M.Pair(origin, M.EmptyList)),
-        )
-        super().__init__(
-            inputs=M.Pair(law, M.Pair(origin, M.EmptyList)),
-            results=self.result,
-        )
-
-    def __call__(self):
-        return self.result
-
-
-class IsProposal(M.Edge):
-    def __init__(self, term):
-        self.result = M.false_value
-        if M.IsPair(term)() is M.truth_value:
-            if M.TermEqual(M.Head(term)(), Lmod.ProposalLabel)() is M.truth_value:
-                self.result = M.truth_value
-        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class ProposalLaw(M.Edge):
-    def __init__(self, proposal):
-        self.result = M.Head(M.Tail(proposal)())()
-        super().__init__(inputs=M.Pair(proposal, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class ProposalOrigin(M.Edge):
-    def __init__(self, proposal):
-        self.result = M.Head(M.Tail(M.Tail(proposal)())())()
-        super().__init__(inputs=M.Pair(proposal, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class JustifiedBy(M.Edge):
-    def __init__(self, proposal, evidence):
-        self.result = M.Pair(
-            Lmod.JustifiedByLabel,
-            M.Pair(proposal, M.Pair(evidence, M.EmptyList)),
-        )
-        super().__init__(
-            inputs=M.Pair(proposal, M.Pair(evidence, M.EmptyList)),
-            results=self.result,
-        )
-
-    def __call__(self):
-        return self.result
-
-
-class Approved(M.Edge):
-    def __init__(self, proposal, authority):
-        self.result = M.Pair(
-            Lmod.ApprovedLabel,
-            M.Pair(proposal, M.Pair(authority, M.EmptyList)),
-        )
-        super().__init__(
-            inputs=M.Pair(proposal, M.Pair(authority, M.EmptyList)),
-            results=self.result,
-        )
-
-    def __call__(self):
-        return self.result
-
-
-class IsApproved(M.Edge):
-    def __init__(self, term):
-        self.result = M.false_value
-        if M.IsPair(term)() is M.truth_value:
-            if M.TermEqual(M.Head(term)(), Lmod.ApprovedLabel)() is M.truth_value:
-                self.result = M.truth_value
-        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class ApprovedProposal(M.Edge):
-    def __init__(self, approved):
-        self.result = M.Head(M.Tail(approved)())()
-        super().__init__(inputs=M.Pair(approved, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class ApprovedAuthority(M.Edge):
-    def __init__(self, approved):
-        self.result = M.Head(M.Tail(M.Tail(approved)())())()
-        super().__init__(inputs=M.Pair(approved, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class Countersigned(M.Edge):
-    """Step 37: a second, independent authority endorsing a policy change."""
-
-    def __init__(self, proposal, authority):
-        self.result = M.Pair(
-            Lmod.CountersignedLabel,
-            M.Pair(proposal, M.Pair(authority, M.EmptyList)),
-        )
-        super().__init__(
-            inputs=M.Pair(proposal, M.Pair(authority, M.EmptyList)),
-            results=self.result,
-        )
-
-    def __call__(self):
-        return self.result
-
-
-class IsCountersigned(M.Edge):
-    def __init__(self, term):
-        self.result = M.false_value
-        if M.IsPair(term)() is M.truth_value:
-            if M.TermEqual(
-                M.Head(term)(),
-                Lmod.CountersignedLabel,
-            )() is M.truth_value:
-                self.result = M.truth_value
-        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class CountersignedProposal(M.Edge):
-    def __init__(self, countersigned):
-        self.result = M.Head(M.Tail(countersigned)())()
-        super().__init__(
-            inputs=M.Pair(countersigned, M.EmptyList),
-            results=self.result,
-        )
-
-    def __call__(self):
-        return self.result
-
-
-class CountersignedAuthority(M.Edge):
-    def __init__(self, countersigned):
-        self.result = M.Head(M.Tail(M.Tail(countersigned)())())()
-        super().__init__(
-            inputs=M.Pair(countersigned, M.EmptyList),
-            results=self.result,
-        )
-
-    def __call__(self):
-        return self.result
-
-
-class IsAutonomyAuthorityTerm(M.Edge):
-    def __init__(self, term):
-        self.result = M.false_value
-        if M.IsPair(term)() is M.truth_value:
-            if M.TermEqual(
-                M.Head(term)(),
-                Lmod.AutonomyAuthorityLabel,
-            )() is M.truth_value:
-                self.result = M.truth_value
-        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class ReasonUncountersigned(M.Edge):
-    def __init__(self, proposal):
-        self.result = M.Pair(
-            Lmod.ReasonUncountersignedLabel,
-            M.Pair(proposal, M.EmptyList),
-        )
-        super().__init__(inputs=M.Pair(proposal, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class Rejected(M.Edge):
-    def __init__(self, proposal, authority, reason):
-        self.result = M.Pair(
-            Lmod.RejectedLabel,
-            M.Pair(proposal, M.Pair(authority, M.Pair(reason, M.EmptyList))),
-        )
-        super().__init__(
-            inputs=M.Pair(
-                proposal,
-                M.Pair(authority, M.Pair(reason, M.EmptyList)),
-            ),
-            results=self.result,
-        )
-
-    def __call__(self):
-        return self.result
-
-
-class ProposalEntry(M.Edge):
-    def __init__(self, proposal, annotations):
-        self.result = M.Pair(
-            Lmod.ProposalEntryLabel,
-            M.Pair(proposal, M.Pair(annotations, M.EmptyList)),
-        )
-        super().__init__(
-            inputs=M.Pair(proposal, M.Pair(annotations, M.EmptyList)),
-            results=self.result,
-        )
-
-    def __call__(self):
-        return self.result
-
-
-class ProposalEntryProposal(M.Edge):
-    def __init__(self, entry):
-        self.result = M.Head(M.Tail(entry)())()
-        super().__init__(inputs=M.Pair(entry, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class ProposalEntryAnnotations(M.Edge):
-    def __init__(self, entry):
-        self.result = M.Head(M.Tail(M.Tail(entry)())())()
-        super().__init__(inputs=M.Pair(entry, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class ProposalEntryIsApproved(M.Edge):
-    def __init__(self, entry):
-        proposal = ProposalEntryProposal(entry)()
-        annotations = ProposalEntryAnnotations(entry)()
-        self.result = M.false_value
-        remaining = annotations
-        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-            annotation = M.Head(remaining)()
-            if IsApproved(annotation)() is M.truth_value:
-                if M.TermEqual(ApprovedProposal(annotation)(), proposal)() is M.truth_value:
-                    self.result = M.truth_value
-                    remaining = M.EmptyList
-                else:
-                    remaining = M.Tail(remaining)()
-            else:
-                remaining = M.Tail(remaining)()
-        super().__init__(inputs=M.Pair(entry, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class ProposalStore(M.Edge):
-    """Immutable proposal-entry chain wrapped as a machine term."""
-
-    def __init__(self, entries):
-        self.result = M.Pair(
-            Lmod.ProposalStoreLabel,
-            M.Pair(entries, M.EmptyList),
-        )
-        super().__init__(inputs=M.Pair(entries, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class ProposalStoreEntries(M.Edge):
-    def __init__(self, store):
-        self.result = M.Head(M.Tail(store)())()
-        super().__init__(inputs=M.Pair(store, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class ProposalStoreSubmit(M.Edge):
-    def __init__(self, store, proposal):
-        reversed_entries = Reverse(ProposalStoreEntries(store)())()
-        entries = Reverse(
-            M.Pair(ProposalEntry(proposal, M.EmptyList)(), reversed_entries)
-        )()
-        self.result = ProposalStore(entries)()
-        super().__init__(
-            inputs=M.Pair(store, M.Pair(proposal, M.EmptyList)),
-            results=self.result,
-        )
-
-    def __call__(self):
-        return self.result
-
-
-class ProposalStoreAll(M.Edge):
-    def __init__(self, store):
-        self.result = ProposalStoreEntries(store)()
-        super().__init__(inputs=M.Pair(store, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class ProposalStoreAttach(M.Edge):
-    def __init__(self, store, proposal, annotation):
-        reversed_entries = M.EmptyList
-        remaining = ProposalStoreEntries(store)()
-        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-            entry = M.Head(remaining)()
-            if M.TermEqual(ProposalEntryProposal(entry)(), proposal)() is M.truth_value:
-                annotations = ChainAddMissing(
-                    ProposalEntryAnnotations(entry)(),
-                    M.Pair(annotation, M.EmptyList),
-                )()
-                entry = ProposalEntry(proposal, annotations)()
-            reversed_entries = M.Pair(entry, reversed_entries)
-            remaining = M.Tail(remaining)()
-        self.result = ProposalStore(Reverse(reversed_entries)())()
-        super().__init__(
-            inputs=M.Pair(
-                store,
-                M.Pair(proposal, M.Pair(annotation, M.EmptyList)),
-            ),
-            results=self.result,
-        )
-
-    def __call__(self):
-        return self.result
-
-
-class ProposalStoreApproved(M.Edge):
-    def __init__(self, store):
-        reversed_entries = M.EmptyList
-        remaining = ProposalStoreEntries(store)()
-        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-            entry = M.Head(remaining)()
-            if ProposalEntryIsApproved(entry)() is M.truth_value:
-                reversed_entries = M.Pair(entry, reversed_entries)
-            remaining = M.Tail(remaining)()
-        self.result = Reverse(reversed_entries)()
-        super().__init__(inputs=M.Pair(store, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class ProposalStoreReject(M.Edge):
-    """Retain a rejection annotation on an immutable proposal entry chain."""
-
-    def __init__(self, store, proposal_entry, authority, reason):
-        proposal = ProposalEntryProposal(proposal_entry)()
-        rejection = Rejected(proposal, authority, reason)()
-        self.result = ProposalStoreAttach(store, proposal, rejection)()
-        super().__init__(
-            inputs=M.Pair(
-                store,
-                M.Pair(
-                    proposal_entry,
-                    M.Pair(authority, M.Pair(reason, M.EmptyList)),
-                ),
-            ),
-            results=self.result,
-        )
-
-    def __call__(self):
-        return self.result
-
-
-class ProposalStoreHistory(M.Edge):
-    """Return every proposal entry, with annotations, in submission order."""
-
-    def __init__(self, store):
-        self.result = ProposalStoreEntries(store)()
-        super().__init__(inputs=M.Pair(store, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class Activation(M.Edge):
-    def __init__(self, proposal):
-        self.result = M.Pair(
-            Lmod.ActivationLabel,
-            M.Pair(proposal, M.EmptyList),
-        )
-        super().__init__(inputs=M.Pair(proposal, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-BOOT_STORE_CAP = M.GMPRep("100000")
-BOOT_DEPTH_CAP = M.GMPRep("50000")
-BOOT_PENDING_CAP = M.GMPRep("1000")
-SAFETY_SCAN_CAP = M.GMPRep("200")
-
-# Step 49: the three recognized measures, as label singletons compared by
-# identity. Adding a fourth measure is a code change, deliberately: the
-# floor's vocabulary is not machine-extensible.
-SAFETY_MEASURE_STORE_SIZE = M.Char("store-size")
-SAFETY_MEASURE_PROVENANCE_DEPTH = M.Char("provenance-depth")
-SAFETY_MEASURE_PENDING_PROPOSALS = M.Char("pending-proposals")
-
-
-class SafetyInvariant(M.Edge):
-    """Step 49: a named bound on one recognized measure."""
-
-    def __init__(self, name, bound, measure):
-        self.result = M.Pair(
-            Lmod.SafetyInvariantLabel,
-            M.Pair(name, M.Pair(bound, M.Pair(measure, M.EmptyList))),
-        )
-        super().__init__(
-            inputs=M.Pair(name, M.Pair(bound, M.Pair(measure, M.EmptyList))),
-            results=self.result,
-        )
-
-    def __call__(self):
-        return self.result
-
-
-class IsSafetyInvariant(M.Edge):
-    def __init__(self, term):
-        self.result = M.false_value
-        if M.IsPair(term)() is M.truth_value:
-            if M.TermEqual(
-                M.Head(term)(),
-                Lmod.SafetyInvariantLabel,
-            )() is M.truth_value:
-                self.result = M.truth_value
-        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class SafetyInvariantName(M.Edge):
-    def __init__(self, term):
-        self.result = M.Head(M.Tail(term)())()
-        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class SafetyInvariantBound(M.Edge):
-    def __init__(self, term):
-        self.result = M.Head(M.Tail(M.Tail(term)())())()
-        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class SafetyInvariantMeasure(M.Edge):
-    def __init__(self, term):
-        self.result = M.Head(M.Tail(M.Tail(M.Tail(term)())())())()
-        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class ReasonSafety(M.Edge):
-    """Refusal reason carrying the violated invariant and the proposal."""
-
-    def __init__(self, invariant, proposal):
-        self.result = M.Pair(
-            Lmod.ReasonSafetyLabel,
-            M.Pair(invariant, M.Pair(proposal, M.EmptyList)),
-        )
-        super().__init__(
-            inputs=M.Pair(invariant, M.Pair(proposal, M.EmptyList)),
-            results=self.result,
-        )
-
-    def __call__(self):
-        return self.result
-
-
-class MeasureStoreSize(M.Edge):
-    """Element count of one graph version: nodes plus edges."""
-
-    def __init__(self, graph_version):
-        total_text = "0"
-        remaining = GraphNodes(graph_version)()
-        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-            total_text = GMPSuccText(total_text)()
-            remaining = M.Tail(remaining)()
-        remaining = GraphEdges(graph_version)()
-        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-            total_text = GMPSuccText(total_text)()
-            remaining = M.Tail(remaining)()
-        self.result = M.GMPRep(total_text)
-        super().__init__(
-            inputs=M.Pair(graph_version, M.EmptyList),
-            results=self.result,
-        )
-
-    def __call__(self):
-        return self.result
-
-
-class MeasureProvenanceDepth(M.Edge):
-    """Length of the Next chain reachable from one version."""
-
-    def __init__(self, graph_version):
-        cap_text = M.GMPRepText(SAFETY_SCAN_CAP)()
-        depth_text = "0"
-        current = graph_version
-        walking = M.truth_value
-        while M.IdentityCompare(walking, M.truth_value)() is M.truth_value:
-            walking = M.false_value
-            if GMPEqualText(depth_text, cap_text)() is M.false_value:
-                if M.IsPair(current)() is M.truth_value:
-                    if M.TermEqual(
-                        M.Head(current)(),
-                        Lmod.NextLabel,
-                    )() is M.truth_value:
-                        depth_text = GMPSuccText(depth_text)()
-                        current = M.Head(M.Tail(current)())()
-                        walking = M.truth_value
-        self.result = M.GMPRep(depth_text)
-        super().__init__(
-            inputs=M.Pair(graph_version, M.EmptyList),
-            results=self.result,
-        )
-
-    def __call__(self):
-        return self.result
-
-
-class MeasurePendingProposals(M.Edge):
-    """Count of unapproved entries in a proposal store."""
-
-    def __init__(self, proposal_store):
-        total_text = "0"
-        remaining = M.EmptyList
-        if M.IdentityCompare(proposal_store, M.EmptyList)() is M.false_value:
-            remaining = ProposalStoreEntries(proposal_store)()
-        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-            entry = M.Head(remaining)()
-            if ProposalEntryIsApproved(entry)() is M.false_value:
-                total_text = GMPSuccText(total_text)()
-            remaining = M.Tail(remaining)()
-        self.result = M.GMPRep(total_text)
-        super().__init__(
-            inputs=M.Pair(proposal_store, M.EmptyList),
-            results=self.result,
-        )
-
-    def __call__(self):
-        return self.result
-
-
-class InstalledSafetyInvariants(M.Edge):
-    """Every SafetyInvariant term in the invariant store, in store order."""
-
-    def __init__(self, graph_version):
-        cap_text = M.GMPRepText(SAFETY_SCAN_CAP)()
-        scan_text = "0"
-        reversed_found = M.EmptyList
-        remaining = GraphVersionInvariants(graph_version)()
-        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
-                remaining = M.EmptyList
-            else:
-                scan_text = GMPSuccText(scan_text)()
-                invariant = M.Head(remaining)()
-                if IsSafetyInvariant(invariant)() is M.truth_value:
-                    reversed_found = M.Pair(invariant, reversed_found)
-                remaining = M.Tail(remaining)()
-        self.result = Reverse(reversed_found)()
-        super().__init__(
-            inputs=M.Pair(graph_version, M.EmptyList),
-            results=self.result,
-        )
-
-    def __call__(self):
-        return self.result
-
-
-class CheckSafety(M.Edge):
-    """Step 49: the first violated installed invariant, or EmptyList.
-
-    A measure exceeds its bound when bound < measured. Unrecognized
-    measures are ignored rather than treated as violations: the floor
-    refuses on evidence, never on confusion.
-    """
-
-    def __init__(self, graph_version, proposal_store=M.EmptyList):
-        self.result = M.EmptyList
-        remaining = InstalledSafetyInvariants(graph_version)()
-        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-            invariant = M.Head(remaining)()
-            measure = SafetyInvariantMeasure(invariant)()
-            measured = M.EmptyList
-            if M.Compare(measure, SAFETY_MEASURE_STORE_SIZE)() is M.truth_value:
-                measured = MeasureStoreSize(graph_version)()
-            elif M.Compare(
-                measure,
-                SAFETY_MEASURE_PROVENANCE_DEPTH,
-            )() is M.truth_value:
-                measured = MeasureProvenanceDepth(graph_version)()
-            elif M.Compare(
-                measure,
-                SAFETY_MEASURE_PENDING_PROPOSALS,
-            )() is M.truth_value:
-                measured = MeasurePendingProposals(proposal_store)()
-            if M.IdentityCompare(measured, M.EmptyList)() is M.false_value:
-                bound_text = M.GMPRepText(SafetyInvariantBound(invariant)())()
-                if GMPLessText(
-                    bound_text,
-                    M.GMPRepText(measured)(),
-                )() is M.truth_value:
-                    self.result = invariant
-                    remaining = M.EmptyList
-            if M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-                remaining = M.Tail(remaining)()
-        super().__init__(
-            inputs=M.Pair(graph_version, M.Pair(proposal_store, M.EmptyList)),
-            results=self.result,
-        )
-
-    def __call__(self):
-        return self.result
-
-
-class BootstrapSafetyInvariants(M.Edge):
-    """The three floor invariants, installed by host code at startup.
-
-    This is the one permitted non-proposal installation, mirroring
-    IMPACT_POLICY-as-bootstrap. Changing any of these bounds afterwards is
-    a policy_change proposal and goes through Step 37's gate.
-    """
-
-    def __init__(self, graph_version):
-        added = M.Pair(
-            SafetyInvariant(
-                M.Char("boot-store-size"),
-                BOOT_STORE_CAP,
-                SAFETY_MEASURE_STORE_SIZE,
-            )(),
-            M.Pair(
-                SafetyInvariant(
-                    M.Char("boot-provenance-depth"),
-                    BOOT_DEPTH_CAP,
-                    SAFETY_MEASURE_PROVENANCE_DEPTH,
-                )(),
-                M.Pair(
-                    SafetyInvariant(
-                        M.Char("boot-pending-proposals"),
-                        BOOT_PENDING_CAP,
-                        SAFETY_MEASURE_PENDING_PROPOSALS,
-                    )(),
-                    M.EmptyList,
-                ),
-            ),
-        )
-        self.result = GraphVersion(
-            GraphNodes(graph_version)(),
-            GraphEdges(graph_version)(),
-            ChainAddMissing(GraphVersionInvariants(graph_version)(), added)(),
-        )()
-        super().__init__(
-            inputs=M.Pair(graph_version, M.EmptyList),
-            results=self.result,
-        )
-
-    def __call__(self):
-        return self.result
-
-
-class ReasonUnapproved(M.Edge):
-    def __init__(self, proposal):
-        self.result = M.Pair(
-            Lmod.ReasonUnapprovedLabel,
-            M.Pair(proposal, M.EmptyList),
-        )
-        super().__init__(inputs=M.Pair(proposal, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class ActivateProposal(M.Edge):
-    """Install an approved proposal and return its recorded Next splice.
-
-    Step 37: a `policy_change` proposal that loosens any class from "human"
-    to "auto" (relative to InstalledPolicy at activation time) additionally
-    requires a Countersigned annotation whose authority is structurally
-    distinct from the approving authority; neither authority may be an
-    AutonomyAuthority term. Tightening needs only the normal approval.
-    """
-
-    def __init__(self, graph_version, proposal_entry, proposal_store=M.EmptyList):
-        proposal = ProposalEntryProposal(proposal_entry)()
-        # Step 49: the safety floor is evaluated before any gate logic, so a
-        # violation refuses even an approved, countersigned proposal.
-        safety_violation = CheckSafety(graph_version, proposal_store)()
-        countersign_ok = M.truth_value
-        if M.Compare(
-            ClassifyProposal(proposal)(),
-            M.Char("policy_change"),
-        )() is M.truth_value:
-            loosening = M.false_value
-            effective_policy = InstalledPolicy(graph_version)()
-            remaining_elements = GraphNodes(
-                LawRight(ProposalLaw(proposal)())(),
-            )()
-            while M.IdentityCompare(
-                remaining_elements,
-                M.EmptyList,
-            )() is M.false_value:
-                element = M.Head(remaining_elements)()
-                if IsPolicyEntry(element)() is M.truth_value:
-                    class_name = PolicyEntryClassName(element)()
-                    new_gate = PolicyEntryGate(element)()
-                    current_gate = M.EmptyList
-                    remaining_policy = effective_policy
-                    while M.IdentityCompare(
-                        remaining_policy,
-                        M.EmptyList,
-                    )() is M.false_value:
-                        policy_entry = M.Head(remaining_policy)()
-                        if M.Compare(
-                            M.Head(policy_entry)(),
-                            class_name,
-                        )() is M.truth_value:
-                            current_gate = M.Head(M.Tail(policy_entry)())()
-                            remaining_policy = M.EmptyList
-                        else:
-                            remaining_policy = M.Tail(remaining_policy)()
-                    if M.Compare(current_gate, M.Char("human"))() is M.truth_value:
-                        if M.Compare(new_gate, M.Char("auto"))() is M.truth_value:
-                            loosening = M.truth_value
-                remaining_elements = M.Tail(remaining_elements)()
-
-            if M.IdentityCompare(loosening, M.truth_value)() is M.truth_value:
-                countersign_ok = M.false_value
-                approving_authority = M.EmptyList
-                remaining_annotations = ProposalEntryAnnotations(proposal_entry)()
-                while M.IdentityCompare(
-                    remaining_annotations,
-                    M.EmptyList,
-                )() is M.false_value:
-                    annotation = M.Head(remaining_annotations)()
-                    if IsApproved(annotation)() is M.truth_value:
-                        if M.TermEqual(
-                            ApprovedProposal(annotation)(),
-                            proposal,
-                        )() is M.truth_value:
-                            approving_authority = ApprovedAuthority(annotation)()
-                            remaining_annotations = M.EmptyList
-                        else:
-                            remaining_annotations = M.Tail(remaining_annotations)()
-                    else:
-                        remaining_annotations = M.Tail(remaining_annotations)()
-                if M.IdentityCompare(
-                    approving_authority,
-                    M.EmptyList,
-                )() is M.false_value:
-                    if IsAutonomyAuthorityTerm(
-                        approving_authority,
-                    )() is M.false_value:
-                        remaining_annotations = ProposalEntryAnnotations(
-                            proposal_entry,
-                        )()
-                        while M.IdentityCompare(
-                            remaining_annotations,
-                            M.EmptyList,
-                        )() is M.false_value:
-                            annotation = M.Head(remaining_annotations)()
-                            if IsCountersigned(annotation)() is M.truth_value:
-                                if M.TermEqual(
-                                    CountersignedProposal(annotation)(),
-                                    proposal,
-                                )() is M.truth_value:
-                                    countersigner = CountersignedAuthority(
-                                        annotation,
-                                    )()
-                                    if IsAutonomyAuthorityTerm(
-                                        countersigner,
-                                    )() is M.false_value:
-                                        if M.TermEqual(
-                                            countersigner,
-                                            approving_authority,
-                                        )() is M.false_value:
-                                            countersign_ok = M.truth_value
-                                            remaining_annotations = M.EmptyList
-                            if M.IdentityCompare(
-                                remaining_annotations,
-                                M.EmptyList,
-                            )() is M.false_value:
-                                remaining_annotations = M.Tail(
-                                    remaining_annotations,
-                                )()
-
-        if M.IdentityCompare(safety_violation, M.EmptyList)() is M.false_value:
-            self.result = M.Pair(
-                M.EmptyList,
-                M.Pair(ReasonSafety(safety_violation, proposal)(), M.EmptyList),
-            )
-        elif ProposalEntryIsApproved(proposal_entry)() is M.false_value:
-            self.result = M.Pair(
-                M.EmptyList,
-                M.Pair(ReasonUnapproved(proposal)(), M.EmptyList),
-            )
-        elif M.IdentityCompare(countersign_ok, M.false_value)() is M.truth_value:
-            self.result = M.Pair(
-                M.EmptyList,
-                M.Pair(ReasonUncountersigned(proposal)(), M.EmptyList),
-            )
-        else:
-            installed = InstallLaw(graph_version, ProposalLaw(proposal)())()
-            activation = Activation(proposal)()
-            fire = Fire(activation, M.EmptyList)()
-            lineage = Next(graph_version, fire, installed)()
-            self.result = M.Pair(
-                installed,
-                M.Pair(lineage, M.EmptyList),
-            )
-        super().__init__(
-            inputs=M.Pair(
-                graph_version,
-                M.Pair(proposal_entry, M.EmptyList),
-            ),
-            results=self.result,
-        )
-
-    def __call__(self):
-        return self.result
-
-
 class KObligation(M.Edge):
     def __init__(self, obligation_name, structure):
         self.result = M.Pair(Lmod.KObligationLabel, M.Pair(obligation_name, M.Pair(structure, M.EmptyList)))
         super().__init__(inputs=M.Pair(obligation_name, M.Pair(structure, M.EmptyList)), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class KObligationName(M.Edge):
-    def __init__(self, obligation):
-        self.result = M.Head(M.Tail(obligation)())()
-        super().__init__(inputs=M.Pair(obligation, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class KObligationStructure(M.Edge):
-    def __init__(self, obligation):
-        self.result = M.Head(M.Tail(M.Tail(obligation)())())()
-        super().__init__(inputs=M.Pair(obligation, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class UncheckedObligations(M.Edge):
-    """Initial immutable state for unknown obligation names."""
-
-    def __init__(self):
-        self.result = M.EmptyList
-        super().__init__(inputs=M.EmptyList, results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class ReasonObligation(M.Edge):
-    def __init__(self, obligation):
-        self.result = M.Pair(
-            Lmod.ReasonObligationLabel,
-            M.Pair(obligation, M.EmptyList),
-        )
-        super().__init__(inputs=M.Pair(obligation, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class CheckObligation(M.Edge):
-    """Check one commit obligation and thread unknown-name state."""
-
-    def __init__(
-        self,
-        graph_version,
-        obligation,
-        unchecked_obligations,
-        ledger=M.EmptyList,
-    ):
-        name = KObligationName(obligation)()
-        updated_unchecked = unchecked_obligations
-        if M.Compare(name, M.Char("node-count-max"))() is M.truth_value:
-            count_pair = M.Count(GraphNodes(graph_version)(), M.AllConstructors)()
-            count = M.Head(count_pair)()
-            registry = M.Head(M.Tail(count_pair)())()
-            bound = KObligationStructure(obligation)()
-            too_many = M.NatLess(bound, count, registry)()
-            verdict = M.NotAtom(too_many)()
-        elif M.Compare(name, M.Char("edge-count-max"))() is M.truth_value:
-            count_pair = M.Count(GraphEdges(graph_version)(), M.AllConstructors)()
-            count = M.Head(count_pair)()
-            registry = M.Head(M.Tail(count_pair)())()
-            bound = KObligationStructure(obligation)()
-            too_many = M.NatLess(bound, count, registry)()
-            verdict = M.NotAtom(too_many)()
-        elif M.Compare(name, M.Char("ledger-length-max"))() is M.truth_value:
-            records = M.EmptyList
-            registry = M.AllConstructors
-            if M.IdentityCompare(ledger, M.EmptyList)() is M.false_value:
-                records = ledger.records
-                registry = ledger.registry
-            count_pair = M.Count(records, registry)()
-            count = M.Head(count_pair)()
-            registry = M.Head(M.Tail(count_pair)())()
-            prospective_pair = M.Succ(count, registry)()
-            prospective_count = M.Head(prospective_pair)()
-            registry = M.Head(M.Tail(prospective_pair)())()
-            bound = KObligationStructure(obligation)()
-            too_many = M.NatLess(bound, prospective_count, registry)()
-            verdict = M.NotAtom(too_many)()
-            if M.IdentityCompare(ledger, M.EmptyList)() is M.false_value:
-                ledger.registry = registry
-        else:
-            verdict = M.truth_value
-            seen = M.false_value
-            remaining = unchecked_obligations
-            while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-                if M.Compare(M.Head(remaining)(), name)() is M.truth_value:
-                    seen = M.truth_value
-                    remaining = M.EmptyList
-                else:
-                    remaining = M.Tail(remaining)()
-            if M.IdentityCompare(seen, M.false_value)() is M.truth_value:
-                updated_unchecked = M.Pair(name, updated_unchecked)
-        self.result = M.Pair(
-            verdict,
-            M.Pair(updated_unchecked, M.EmptyList),
-        )
-        super().__init__(
-            inputs=M.Pair(
-                graph_version,
-                M.Pair(
-                    obligation,
-                    M.Pair(
-                        unchecked_obligations,
-                        M.Pair(ledger, M.EmptyList),
-                    ),
-                ),
-            ),
-            results=self.result,
-        )
-
-    def __call__(self):
-        return self.result
-
-
-class CheckObligationVerdict(M.Edge):
-    def __init__(self, checked):
-        self.result = M.Head(checked)()
-        super().__init__(inputs=M.Pair(checked, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class CheckObligationUnchecked(M.Edge):
-    def __init__(self, checked):
-        self.result = M.Head(M.Tail(checked)())()
-        super().__init__(inputs=M.Pair(checked, M.EmptyList), results=self.result)
 
     def __call__(self):
         return self.result
@@ -1587,19 +509,7 @@ class SendHost(M.Edge):
 
 
 class MappedHostForPat(M.Edge):
-    """Pair(truth_value, host) when the mapping already sends pat, else Pair(false_value, EmptyList).
-
-    This is the innermost question of the matcher -- asked once per
-    candidate per frontier state -- and it used to answer it by walking
-    two terms structurally. A pattern element is the same object every
-    time it is asked about: it comes out of the pattern graph, and a
-    Send was built around that very object. So identity settles nearly
-    every case, and TermEqual is only reached for the elements identity
-    misses, which keeps the answer exactly what it was.
-
-    IsSend was likewise a whole Edge -- an allocation carrying a UUID --
-    per item scanned, to compare one head against one label singleton.
-    """
+    """Pair(truth_value, host) when the mapping already sends pat, else Pair(false_value, EmptyList)."""
 
     def __init__(self, root, pat):
         self.result = self._lookup(root, pat)
@@ -1609,15 +519,9 @@ class MappedHostForPat(M.Edge):
         remaining = root
         while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
             item = M.Head(remaining)()
-            if M.IsPair(item)() is M.truth_value:
-                if M.IdentityCompare(
-                    M.Head(item)(), Lmod.SendLabel,
-                )() is M.truth_value:
-                    sent = SendPat(item)()
-                    if M.IdentityCompare(sent, pat)() is M.truth_value:
-                        return M.Pair(M.truth_value, SendHost(item)())
-                    if M.TermEqual(sent, pat)() is M.truth_value:
-                        return M.Pair(M.truth_value, SendHost(item)())
+            if IsSend(item)() is M.truth_value:
+                if M.TermEqual(SendPat(item)(), pat)() is M.truth_value:
+                    return M.Pair(M.truth_value, SendHost(item)())
             remaining = M.Tail(remaining)()
         return M.Pair(M.false_value, M.EmptyList)
 
@@ -2008,1737 +912,602 @@ class InterfacePreimages(M.Edge):
         return self.result
 
 
-class TermSubterms(M.Edge):
+class FireLaw(M.Edge):
     """
-    Every subterm occurrence of `term`, parents before children.
+    Step 8. Staged double-pushout surgery over a GraphVersion.
 
-    One entry per occurrence: the same structure appearing twice yields two
-    entries, because a graph encoding needs a node per occurrence. Variable
-    patterns are leaves -- their internal VarTag structure is not walked.
+    Stages, each appended to the returned trace as a labeled term:
+    MatchPrepared, DeletionAdmitted, ComplementProduced, InsertionPrepared,
+    GraphVersionCommitted. `dangling_mode` is DanglingForbid or DanglingDelete.
+
+    Returns Pair(committed_version_or_EmptyList, Pair(trace, EmptyList)); a
+    refused firing yields M.EmptyList for the version and a trace whose last
+    entry says which stage refused. Version history is append-only: g0 is
+    never mutated.
     """
 
-    def __init__(self, term):
-        self.result = self._walk(M.Pair(term, M.EmptyList), M.EmptyList)
-        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+    def __init__(self, graph_version, law, mapping, dangling_mode):
+        self.probe = MapExtendOneStep(M.EmptyList, M.EmptyList, M.EmptyList)
+        self.result = self._fire(graph_version, law, mapping, dangling_mode)
+        super().__init__(
+            inputs=M.Pair(
+                graph_version,
+                M.Pair(law, M.Pair(mapping, M.Pair(dangling_mode, M.EmptyList))),
+            ),
+            results=self.result,
+        )
 
-    def _walk(self, agenda, seen_rev):
-        while M.IdentityCompare(agenda, M.EmptyList)() is M.false_value:
-            item = M.Head(agenda)()
-            agenda = M.Tail(agenda)()
-            seen_rev = M.Pair(item, seen_rev)
-            if P.IsVarPattern(item)() is M.false_value:
-                if M.IsPair(item)() is M.truth_value:
-                    children = M.Tail(item)()
-                    reversed_children = M.EmptyList
-                    while M.IdentityCompare(children, M.EmptyList)() is M.false_value:
-                        reversed_children = M.Pair(M.Head(children)(), reversed_children)
-                        children = M.Tail(children)()
-                    while M.IdentityCompare(reversed_children, M.EmptyList)() is M.false_value:
-                        agenda = M.Pair(M.Head(reversed_children)(), agenda)
-                        reversed_children = M.Tail(reversed_children)()
+    def _append(self, trace, entry):
+        reversed_trace = M.EmptyList
+        remaining = trace
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            reversed_trace = M.Pair(M.Head(remaining)(), reversed_trace)
+            remaining = M.Tail(remaining)()
+        grown = M.Pair(entry, reversed_trace)
         ordered = M.EmptyList
-        while M.IdentityCompare(seen_rev, M.EmptyList)() is M.false_value:
-            ordered = M.Pair(M.Head(seen_rev)(), ordered)
-            seen_rev = M.Tail(seen_rev)()
+        while M.IdentityCompare(grown, M.EmptyList)() is M.false_value:
+            ordered = M.Pair(M.Head(grown)(), ordered)
+            grown = M.Tail(grown)()
+        return ordered
+
+    def _reject(self, trace, stage):
+        rejected = M.Pair(Lmod.FireRejectedLabel, M.Pair(stage, M.EmptyList))
+        return M.Pair(M.EmptyList, M.Pair(self._append(trace, rejected), M.EmptyList))
+
+    def _fire(self, graph_version, law, mapping, dangling_mode):
+        trace = M.EmptyList
+
+        # --- MatchPrepared -------------------------------------------------
+        prepared = M.Pair(Lmod.MatchPreparedLabel, M.Pair(law, M.Pair(mapping, M.EmptyList)))
+        if LawMapsComplete(law)() is M.false_value:
+            return self._reject(trace, prepared)
+        left = LawLeft(law)()
+        if MapSendsEveryElement(mapping, left)() is M.false_value:
+            return self._reject(trace, prepared)
+        trace = self._append(trace, prepared)
+        root = M.Head(M.Tail(M.Tail(M.Tail(mapping)())())())()
+
+        # --- DeletionAdmitted ----------------------------------------------
+        interface = LawInterface(law)()
+        kept_left = InterfacePreimages(interface, LawKToLeft(law)())()
+        left_nodes = self.probe._normalize_store(GraphNodes(left)())
+        left_edges = self.probe._normalize_store(GraphEdges(left)())
+        deleted_nodes = MappedImages(root, left_nodes, kept_left)()
+        deleted_edges = MappedImages(root, left_edges, kept_left)()
+        stranded = ChainWithout(DanglingEdges(graph_version, deleted_nodes)(), deleted_edges)()
+        if M.IdentityCompare(stranded, M.EmptyList)() is M.false_value:
+            if M.TermEqual(dangling_mode, DanglingForbid()())() is M.truth_value:
+                admitted = M.Pair(
+                    Lmod.DeletionAdmittedLabel,
+                    M.Pair(deleted_nodes, M.Pair(deleted_edges, M.Pair(stranded, M.EmptyList))),
+                )
+                return self._reject(trace, admitted)
+            remaining = stranded
+            while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+                deleted_edges = M.Pair(M.Head(remaining)(), deleted_edges)
+                remaining = M.Tail(remaining)()
+        trace = self._append(
+            trace,
+            M.Pair(
+                Lmod.DeletionAdmittedLabel,
+                M.Pair(deleted_nodes, M.Pair(deleted_edges, M.Pair(stranded, M.EmptyList))),
+            ),
+        )
+
+        # --- ComplementProduced --------------------------------------------
+        host_nodes = self.probe._normalize_store(GraphNodes(graph_version)())
+        host_edges = self.probe._normalize_store(GraphEdges(graph_version)())
+        new_nodes = ChainWithout(host_nodes, deleted_nodes)()
+        new_edges = ChainWithout(host_edges, deleted_edges)()
+        trace = self._append(
+            trace,
+            M.Pair(Lmod.ComplementProducedLabel, M.Pair(new_nodes, M.Pair(new_edges, M.EmptyList))),
+        )
+
+        # --- InsertionPrepared ----------------------------------------------
+        right = LawRight(law)()
+        kept_right = InterfacePreimages(interface, LawKToRight(law)())()
+        right_nodes = self.probe._normalize_store(GraphNodes(right)())
+        right_edges = self.probe._normalize_store(GraphEdges(right)())
+        inserted_nodes = ChainWithout(right_nodes, kept_right)()
+        inserted_edges = ChainWithout(right_edges, kept_right)()
+        remaining = inserted_nodes
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            new_nodes = M.Pair(M.Head(remaining)(), new_nodes)
+            remaining = M.Tail(remaining)()
+        remaining = inserted_edges
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            new_edges = M.Pair(M.Head(remaining)(), new_edges)
+            remaining = M.Tail(remaining)()
+        trace = self._append(
+            trace,
+            M.Pair(
+                Lmod.InsertionPreparedLabel,
+                M.Pair(inserted_nodes, M.Pair(inserted_edges, M.EmptyList)),
+            ),
+        )
+
+        # --- GraphVersionCommitted ------------------------------------------
+        committed = GraphVersion(new_nodes, new_edges, GraphVersionInvariants(graph_version)())()
+        fire = Fire(law, mapping)()
+        trace = self._append(
+            trace,
+            M.Pair(Lmod.GraphVersionCommittedLabel, M.Pair(LawObligations(law)(), M.EmptyList)),
+        )
+        trace = self._append(trace, Next(graph_version, fire, committed)())
+        return M.Pair(committed, M.Pair(trace, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class DanglingEdges(M.Edge):
+    """
+    Edges of `graph_version` that touch a deleted node.
+
+    Derived on demand by scanning the edge store: nothing is stored, no term
+    records the result, and class Boundary is untouched. `deleted_nodes` and
+    the answer are both Pair chains.
+    """
+
+    def __init__(self, graph_version, deleted_nodes):
+        self.result = self._scan(graph_version, deleted_nodes)
+        super().__init__(
+            inputs=M.Pair(graph_version, M.Pair(deleted_nodes, M.EmptyList)),
+            results=self.result,
+        )
+
+    def _touches_deleted(self, endpoints, deleted_nodes):
+        remaining = endpoints
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            endpoint = M.Head(remaining)()
+            candidates = deleted_nodes
+            while M.IdentityCompare(candidates, M.EmptyList)() is M.false_value:
+                if M.TermEqual(M.Head(candidates)(), endpoint)() is M.truth_value:
+                    return M.truth_value
+                candidates = M.Tail(candidates)()
+            remaining = M.Tail(remaining)()
+        return M.false_value
+
+    def _scan(self, graph_version, deleted_nodes):
+        probe = MapExtendOneStep(M.EmptyList, M.EmptyList, M.EmptyList)
+        edges = probe._normalize_store(GraphEdges(graph_version)())
+        reversed_hits = M.EmptyList
+        remaining = edges
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            edge = M.Head(remaining)()
+            if self._touches_deleted(EdgeEndpoints(edge)(), deleted_nodes) is M.truth_value:
+                reversed_hits = M.Pair(edge, reversed_hits)
+            remaining = M.Tail(remaining)()
+        ordered = M.EmptyList
+        while M.IdentityCompare(reversed_hits, M.EmptyList)() is M.false_value:
+            ordered = M.Pair(M.Head(reversed_hits)(), ordered)
+            reversed_hits = M.Tail(reversed_hits)()
         return ordered
 
     def __call__(self):
         return self.result
 
 
-class EncodeTermAsGraph(M.Edge):
+class MapExtensionAlternatives(M.Edge):
     """
-    The simplest term-to-graph encoding: one node per subterm occurrence, one
-    edge per constructor application linking the result node to its argument
-    nodes in order.
+    Every one-step extension of `mapping` that sends `pat` somewhere legal.
 
-    No such encoder existed in the repo, so this is the literal construction
-    the step prescribes.
+    `host_graph` is the graph to draw candidates from; pass M.EmptyList to use
+    the mapping's own host graph. Each candidate is put through
+    MapExtendOneStep, so the admitted extensions are exactly those the matcher
+    would accept -- including the Step 3 positional check -- with no logic
+    duplicated here.
+
+    Returns a Pair chain of Map terms, in host-store order. MapExtendOneStep
+    keeps its single-result behaviour: its answer is the Head of this chain.
     """
 
-    def __init__(self, term):
-        subterms = TermSubterms(term)()
-        reversed_edges = M.EmptyList
-        remaining = subterms
+    def __init__(self, mapping, pat, host_graph):
+        self.result = self._alternatives(mapping, pat, host_graph)
+        super().__init__(
+            inputs=M.Pair(mapping, M.Pair(pat, M.Pair(host_graph, M.EmptyList))),
+            results=self.result,
+        )
+
+    def _candidates(self, mapping, host_graph):
+        source = host_graph
+        if M.IdentityCompare(source, M.EmptyList)() is M.truth_value:
+            if M.IsPair(mapping)() is M.truth_value:
+                if M.TermEqual(M.Head(mapping)(), Lmod.MapLabel)() is M.truth_value:
+                    source = M.Head(M.Tail(M.Tail(mapping)())())()
+        if M.IdentityCompare(source, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        probe = MapExtendOneStep(M.EmptyList, M.EmptyList, M.EmptyList)
+        reversed_collected = M.EmptyList
+        remaining = probe._normalize_store(GraphNodes(source)())
         while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-            node = M.Head(remaining)()
-            if P.IsVarPattern(node)() is M.false_value:
-                if M.IsPair(node)() is M.truth_value:
-                    reversed_edges = M.Pair(node, reversed_edges)
+            reversed_collected = M.Pair(M.Head(remaining)(), reversed_collected)
             remaining = M.Tail(remaining)()
-        edges = M.EmptyList
-        while M.IdentityCompare(reversed_edges, M.EmptyList)() is M.false_value:
-            edges = M.Pair(M.Head(reversed_edges)(), edges)
-            reversed_edges = M.Tail(reversed_edges)()
-        self.result = M.Pair(M.HypergraphLabel, M.Pair(subterms, M.Pair(edges, M.EmptyList)))
-        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+        remaining = probe._normalize_store(GraphEdges(source)())
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            reversed_collected = M.Pair(M.Head(remaining)(), reversed_collected)
+            remaining = M.Tail(remaining)()
+        collected = M.EmptyList
+        while M.IdentityCompare(reversed_collected, M.EmptyList)() is M.false_value:
+            collected = M.Pair(M.Head(reversed_collected)(), collected)
+            reversed_collected = M.Tail(reversed_collected)()
+        return collected
 
-    def __call__(self):
-        return self.result
-
-
-class SharedSubterms(M.Edge):
-    """Subterm occurrences present in both encodings: the interface K."""
-
-    def __init__(self, left_term, right_term):
-        right_subterms = TermSubterms(right_term)()
-        reversed_shared = M.EmptyList
-        remaining = TermSubterms(left_term)()
+    def _alternatives(self, mapping, pat, host_graph):
+        reversed_hits = M.EmptyList
+        remaining = self._candidates(mapping, host_graph)
         while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
             candidate = M.Head(remaining)()
-            if ChainHasTerm(right_subterms, candidate)() is M.truth_value:
-                if ChainHasTerm(reversed_shared, candidate)() is M.false_value:
-                    reversed_shared = M.Pair(candidate, reversed_shared)
+            extended = MapExtendOneStep(mapping, pat, candidate)()
+            if M.IsPair(extended)() is M.truth_value:
+                if M.TermEqual(M.Head(extended)(), Lmod.MapLabel)() is M.truth_value:
+                    reversed_hits = M.Pair(extended, reversed_hits)
             remaining = M.Tail(remaining)()
-        shared = M.EmptyList
-        while M.IdentityCompare(reversed_shared, M.EmptyList)() is M.false_value:
-            shared = M.Pair(M.Head(reversed_shared)(), shared)
-            reversed_shared = M.Tail(reversed_shared)()
-        self.result = shared
-        super().__init__(
-            inputs=M.Pair(left_term, M.Pair(right_term, M.EmptyList)),
-            results=self.result,
-        )
+        ordered = M.EmptyList
+        while M.IdentityCompare(reversed_hits, M.EmptyList)() is M.false_value:
+            ordered = M.Pair(M.Head(reversed_hits)(), ordered)
+            reversed_hits = M.Tail(reversed_hits)()
+        return ordered
 
     def __call__(self):
         return self.result
 
 
-class Handle(M.Edge):
-    """Named graph-pattern abbreviation term."""
+class MapExtendOneStep(M.Edge):
+    def __init__(self, mapping, pat, host):
+        self.mapping = mapping
+        self.pat = pat
+        self.host = host
+        self.result = self._step()
+        super().__init__(inputs=M.Pair(mapping, M.Pair(pat, M.Pair(host, M.EmptyList))), results=self.result)
 
-    def __init__(self, name, pattern_graph):
-        self.result = M.Pair(
-            Lmod.HandleLabel,
-            M.Pair(name, M.Pair(pattern_graph, M.EmptyList)),
-        )
-        super().__init__(
-            inputs=M.Pair(name, M.Pair(pattern_graph, M.EmptyList)),
-            results=self.result,
-        )
+    def _reason(self, text):
+        atom = M.Atom()
+        atom.value = text
+        return atom
 
-    def __call__(self):
-        return self.result
+    def _is_graph_version(self, graph):
+        return IsGraphVersion(graph)()
 
+    def _graph_version_nodes(self, graph):
+        return GraphVersionNodes(graph)()
 
-class HandleName(M.Edge):
-    def __init__(self, handle):
-        self.result = M.Head(M.Tail(handle)())()
-        super().__init__(inputs=M.Pair(handle, M.EmptyList), results=self.result)
+    def _graph_version_edges(self, graph):
+        return GraphVersionEdges(graph)()
 
-    def __call__(self):
-        return self.result
+    def _graph_version_invariants(self, graph):
+        return GraphVersionInvariants(graph)()
 
+    def _mapping_pattern_graph(self):
+        return M.Head(M.Tail(self.mapping)())()
 
-class HandlePattern(M.Edge):
-    def __init__(self, handle):
-        self.result = M.Head(M.Tail(M.Tail(handle)())())()
-        super().__init__(inputs=M.Pair(handle, M.EmptyList), results=self.result)
+    def _mapping_host_graph(self):
+        return M.Head(M.Tail(M.Tail(self.mapping)())())()
 
-    def __call__(self):
-        return self.result
+    def _mapping_root(self):
+        return M.Head(M.Tail(M.Tail(M.Tail(self.mapping)())())())()
 
+    def _is_patricia_tree(self, store):
+        return SearchPatriciaIsTree(store)()
 
-class IdentitySendsFor(M.Edge):
-    """A Send chain carrying each element of `elements` to itself."""
-
-    def __init__(self, elements):
-        reversed_sends = M.EmptyList
-        remaining = elements
+    def _flatten_patricia_to_values(self, tree):
+        entries = SearchPatriciaEntries(tree)()
+        values = M.EmptyList
+        remaining = entries
         while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-            element = M.Head(remaining)()
-            reversed_sends = M.Pair(Send(element, element)(), reversed_sends)
+            entry = M.Head(remaining)()
+            value = M.Head(M.Tail(entry)())()
+            values = M.Pair(value, values)
             remaining = M.Tail(remaining)()
-        sends = M.EmptyList
-        while M.IdentityCompare(reversed_sends, M.EmptyList)() is M.false_value:
-            sends = M.Pair(M.Head(reversed_sends)(), sends)
-            reversed_sends = M.Tail(reversed_sends)()
-        self.result = sends
-        super().__init__(inputs=M.Pair(elements, M.EmptyList), results=self.result)
+        return values
 
-    def __call__(self):
-        return self.result
+    def _normalize_store(self, store):
+        if M.IdentityCompare(store, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        if self._is_patricia_tree(store) is M.truth_value:
+            return self._flatten_patricia_to_values(store)
+        return store
 
+    def _is_law(self, term):
+        if M.IsPair(term)() is M.false_value:
+            return M.false_value
+        if M.TermEqual(M.Head(term)(), Lmod.LawLabel)() is M.truth_value:
+            return M.truth_value
+        return M.false_value
 
-CONTRACT_SCAN_CAP = M.GMPRep("500")
+    def _law_left(self, law):
+        return M.Head(M.Tail(law)())()
 
+    def _law_interface(self, law):
+        return M.Head(M.Tail(M.Tail(law)())())()
 
-class Contract(M.Edge):
-    """Step 39: machine-checkable interface promise for a promoted handle."""
+    def _law_right(self, law):
+        return M.Head(M.Tail(M.Tail(M.Tail(law)())())())()
 
-    def __init__(self, handle, ports, forbidden):
-        self.result = M.Pair(
-            Lmod.ContractLabel,
-            M.Pair(handle, M.Pair(ports, M.Pair(forbidden, M.EmptyList))),
-        )
-        super().__init__(
-            inputs=M.Pair(handle, M.Pair(ports, M.Pair(forbidden, M.EmptyList))),
-            results=self.result,
-        )
+    def _law_k_to_left(self, law):
+        return M.Head(M.Tail(M.Tail(M.Tail(M.Tail(law)())())())())()
 
-    def __call__(self):
-        return self.result
+    def _law_k_to_right(self, law):
+        return M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(law)())())())())())()
 
+    def _law_obligations(self, law):
+        return M.Head(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(law)())())())())())())()
 
-class IsContract(M.Edge):
-    def __init__(self, term):
-        self.result = M.false_value
-        if M.IsPair(term)() is M.truth_value:
-            if M.TermEqual(M.Head(term)(), Lmod.ContractLabel)() is M.truth_value:
-                self.result = M.truth_value
-        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+    def _is_valid_map(self, potential_map):
+        if M.IsPair(potential_map)() is M.false_value:
+            return M.false_value
+        if M.TermEqual(M.Head(potential_map)(), Lmod.MapLabel)() is M.truth_value:
+            return M.truth_value
+        return M.false_value
 
-    def __call__(self):
-        return self.result
+    def _law_is_well_formed(self, law):
+        if self._is_law(law) is M.false_value:
+            return M.false_value
+        k_to_left = self._law_k_to_left(law)
+        k_to_right = self._law_k_to_right(law)
+        if self._is_valid_map(k_to_left) is M.false_value:
+            return M.false_value
+        if self._is_valid_map(k_to_right) is M.false_value:
+            return M.false_value
+        return M.truth_value
 
+    def _graph_nodes(self, graph):
+        return GraphNodes(graph)()
 
-class ContractHandle(M.Edge):
-    def __init__(self, contract):
-        self.result = M.Head(M.Tail(contract)())()
-        super().__init__(inputs=M.Pair(contract, M.EmptyList), results=self.result)
+    def _graph_edges(self, graph):
+        return GraphEdges(graph)()
 
-    def __call__(self):
-        return self.result
-
-
-class ContractPorts(M.Edge):
-    def __init__(self, contract):
-        self.result = M.Head(M.Tail(M.Tail(contract)())())()
-        super().__init__(inputs=M.Pair(contract, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class ContractForbidden(M.Edge):
-    def __init__(self, contract):
-        self.result = M.Head(M.Tail(M.Tail(M.Tail(contract)())())())()
-        super().__init__(inputs=M.Pair(contract, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class DefaultContractForbidden(M.Edge):
-    """The fixed initial alteration kinds a contract rules out."""
-
-    def __init__(self):
-        self.result = M.Pair(
-            M.Char("delete-port"),
-            M.Pair(M.Char("merge-port"), M.EmptyList),
-        )
-        super().__init__(inputs=M.EmptyList, results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class InstalledContracts(M.Edge):
-    """Contract terms carried by installed laws (newest first, capped)."""
-
-    def __init__(self, graph_version):
-        cap_text = M.GMPRepText(CONTRACT_SCAN_CAP)()
-        scan_text = "0"
-        reversed_contracts = M.EmptyList
-        remaining = GraphVersionInvariants(graph_version)()
+    def _chain_has_term(self, chain, term):
+        remaining = chain
         while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
-                remaining = M.EmptyList
-            else:
-                scan_text = GMPSuccText(scan_text)()
-                invariant = M.Head(remaining)()
-                if IsInstalledLaw(invariant)() is M.truth_value:
-                    law = InstalledLawValue(invariant)()
-                    element_scan_text = "0"
-                    remaining_elements = GraphNodes(LawRight(law)())()
-                    while M.IdentityCompare(
-                        remaining_elements,
-                        M.EmptyList,
-                    )() is M.false_value:
-                        if GMPEqualText(
-                            element_scan_text,
-                            cap_text,
-                        )() is M.truth_value:
-                            remaining_elements = M.EmptyList
-                        else:
-                            element_scan_text = GMPSuccText(element_scan_text)()
-                            element = M.Head(remaining_elements)()
-                            if IsContract(element)() is M.truth_value:
-                                reversed_contracts = M.Pair(
-                                    element,
-                                    reversed_contracts,
-                                )
-                            remaining_elements = M.Tail(remaining_elements)()
-                remaining = M.Tail(remaining)()
-        self.result = Reverse(reversed_contracts)()
+            if M.TermEqual(M.Head(remaining)(), term)() is M.truth_value:
+                return M.truth_value
+            remaining = M.Tail(remaining)()
+        return M.false_value
+
+    def _graph_has_element(self, graph, term):
+        nodes = self._normalize_store(self._graph_nodes(graph))
+        if self._chain_has_term(nodes, term) is M.truth_value:
+            return M.truth_value
+        edges = self._normalize_store(self._graph_edges(graph))
+        return self._chain_has_term(edges, term)
+
+    def _is_send(self, term):
+        return IsSend(term)()
+
+    def _is_apart(self, term):
+        if M.IsPair(term)() is M.false_value:
+            return M.false_value
+        if M.TermEqual(M.Head(term)(), Lmod.ApartLabel)() is M.truth_value:
+            return M.truth_value
+        return M.false_value
+
+    def _send_pat(self, term):
+        return SendPat(term)()
+
+    def _send_host(self, term):
+        return SendHost(term)()
+
+    def _apart_left(self, term):
+        return M.Head(M.Tail(term)())()
+
+    def _apart_right(self, term):
+        return M.Head(M.Tail(M.Tail(term)())())()
+
+    def _has_apart_commitment(self, root, left, right):
+        remaining = root
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            item = M.Head(remaining)()
+            if self._is_apart(item) is M.truth_value:
+                apart_left = self._apart_left(item)
+                apart_right = self._apart_right(item)
+                if M.AndAtom(M.TermEqual(apart_left, left)(), M.TermEqual(apart_right, right)())() is M.truth_value:
+                    return M.truth_value
+            remaining = M.Tail(remaining)()
+        return M.false_value
+
+    def _mapped_host_for_pat(self, root, pat):
+        return MappedHostForPat(root, pat)()
+
+    def _violates_apart(self, root, pat, host):
+        remaining = root
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            item = M.Head(remaining)()
+            if self._is_send(item) is M.truth_value:
+                other_pat = self._send_pat(item)
+                other_host = self._send_host(item)
+                if M.TermEqual(other_host, host)() is M.truth_value:
+                    if self._has_apart_commitment(root, pat, other_pat) is M.truth_value:
+                        return M.truth_value
+                    if self._has_apart_commitment(root, other_pat, pat) is M.truth_value:
+                        return M.truth_value
+            remaining = M.Tail(remaining)()
+        return M.false_value
+
+    def _violating_apart(self, root, pat, host):
+        remaining = root
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            item = M.Head(remaining)()
+            if self._is_send(item) is M.truth_value:
+                other_pat = self._send_pat(item)
+                other_host = self._send_host(item)
+                if M.TermEqual(other_host, host)() is M.truth_value:
+                    if self._has_apart_commitment(root, pat, other_pat) is M.truth_value:
+                        return Apart(pat, other_pat)()
+                    if self._has_apart_commitment(root, other_pat, pat) is M.truth_value:
+                        return Apart(other_pat, pat)()
+            remaining = M.Tail(remaining)()
+        return M.EmptyList
+
+    def _step(self):
+        if M.IsPair(self.mapping)() is M.false_value:
+            return Miss(self.pat, ReasonShape(self.mapping)())()
+        if M.TermEqual(M.Head(self.mapping)(), Lmod.MapLabel)() is M.false_value:
+            return Miss(self.pat, ReasonShape(self.mapping)())()
+        pattern_graph = self._mapping_pattern_graph()
+        host_graph = self._mapping_host_graph()
+        root = self._mapping_root()
+        if self._graph_has_element(pattern_graph, self.pat) is M.false_value:
+            return Miss(self.pat, ReasonShape(self.pat)())()
+        if self._graph_has_element(host_graph, self.host) is M.false_value:
+            return Miss(self.pat, ReasonShape(self.host)())()
+        existing = self._mapped_host_for_pat(root, self.pat)
+        if M.TermEqual(M.Head(existing)(), M.truth_value)() is M.truth_value:
+            return Miss(self.pat, ReasonAlreadyMapped(self.pat, M.Tail(existing)())())()
+        violating_apart = self._violating_apart(root, self.pat, self.host)
+        if M.IdentityCompare(violating_apart, M.EmptyList)() is M.false_value:
+            return Miss(self.pat, ReasonApart(violating_apart, self.pat, self.host)())()
+        if self._both_are_edges(pattern_graph, host_graph) is M.truth_value:
+            if EdgeSendConsistent(root, self.pat, self.host)() is M.false_value:
+                return Miss(self.pat, ReasonPositional(self.pat, self.host)())()
+        return Map(pattern_graph, host_graph, M.Pair(Send(self.pat, self.host)(), root))()
+
+    def _both_are_edges(self, pattern_graph, host_graph):
+        pattern_edges = self._normalize_store(self._graph_edges(pattern_graph))
+        if self._chain_has_term(pattern_edges, self.pat) is M.false_value:
+            return M.false_value
+        host_edges = self._normalize_store(self._graph_edges(host_graph))
+        return self._chain_has_term(host_edges, self.host)
+
+    def __call__(self):
+        return self.result
+
+
+class Test(Hypergraph):
+    def __init__(self, graph, name, input_nodes, computation_edge, expected):
+        self.graph = graph
+        self.name = name
+        self.input_nodes = input_nodes
+        self.computation_edge = computation_edge
+        self.expected = expected
+
+        args = M.Pair(input_nodes, M.Pair(computation_edge, M.Pair(expected, M.EmptyList)))
         super().__init__(
-            inputs=M.Pair(graph_version, M.EmptyList),
-            results=self.result,
+            constructor_registry=M.FromContextGetConstructors(graph)(),
+            rep_label=M.TestLabel,
+            rep_args=args,
         )
+        graph._replace_context(constructors=M.FromContextGetConstructors(self)())
 
-    def __call__(self):
-        return self.result
+        self.add_node(input_nodes)
+        self.add_node(expected)
+        self._prepend_edge_unchecked(computation_edge)
+        graph._replace_context(tests=M.Pair(self, M.FromContextGetTests(graph)()))
+        self.result = None
 
+    def run(self):
+        result = self.computation_edge()
 
-class ContractViolation(M.Edge):
-    """First contract whose port a deletion set touches, or EmptyList."""
-
-    def __init__(self, contracts, deleted_nodes):
-        cap_text = M.GMPRepText(CONTRACT_SCAN_CAP)()
-        scan_text = "0"
-        self.result = M.EmptyList
-        remaining_contracts = contracts
-        while M.IdentityCompare(
-            remaining_contracts,
-            M.EmptyList,
-        )() is M.false_value:
-            if GMPEqualText(scan_text, cap_text)() is M.truth_value:
-                remaining_contracts = M.EmptyList
-            else:
-                scan_text = GMPSuccText(scan_text)()
-                contract = M.Head(remaining_contracts)()
-                remaining_ports = ContractPorts(contract)()
-                while M.IdentityCompare(
-                    remaining_ports,
-                    M.EmptyList,
-                )() is M.false_value:
-                    port = M.Head(remaining_ports)()
-                    if ChainHasTerm(deleted_nodes, port)() is M.truth_value:
-                        self.result = contract
-                        remaining_ports = M.EmptyList
-                        remaining_contracts = M.EmptyList
-                    else:
-                        remaining_ports = M.Tail(remaining_ports)()
-                if M.IdentityCompare(
-                    remaining_contracts,
-                    M.EmptyList,
-                )() is M.false_value:
-                    remaining_contracts = M.Tail(remaining_contracts)()
-        super().__init__(
-            inputs=M.Pair(contracts, M.Pair(deleted_nodes, M.EmptyList)),
-            results=self.result,
-        )
-
-    def __call__(self):
-        return self.result
-
-
-class CompileHandleToLaws(M.Edge):
-    """Compile a named pattern abbreviation into ordered fold/unfold Laws."""
-
-    def __init__(self, handle, interface_nodes):
-        pattern = HandlePattern(handle)()
-        interface = M.Pair(
-            M.HypergraphLabel,
-            M.Pair(interface_nodes, M.Pair(M.EmptyList, M.EmptyList)),
-        )
-        connector = M.Pair(
-            Lmod.HandleLabel,
-            M.Pair(handle, interface_nodes),
-        )
-        abbreviation = M.Pair(
-            M.HypergraphLabel,
-            M.Pair(
-                M.Pair(handle, interface_nodes),
-                M.Pair(M.Pair(connector, M.EmptyList), M.EmptyList),
-            ),
-        )
-        interface_sends = IdentitySendsFor(interface_nodes)()
-        pattern_map = Map(interface, pattern, interface_sends)()
-        abbreviation_map = Map(interface, abbreviation, interface_sends)()
-        fold = Law(
-            pattern,
-            interface,
-            abbreviation,
-            pattern_map,
-            abbreviation_map,
-            M.EmptyList,
-        )()
-        unfold = Law(
-            abbreviation,
-            interface,
-            pattern,
-            abbreviation_map,
-            pattern_map,
-            M.EmptyList,
-        )()
-        self.result = M.Pair(fold, M.Pair(unfold, M.EmptyList))
-        super().__init__(
-            inputs=M.Pair(handle, M.Pair(interface_nodes, M.EmptyList)),
-            results=self.result,
-        )
-
-    def __call__(self):
-        return self.result
-
-
-class PositionalSignature(M.Edge):
-    """Machine Pair signature: edge label followed by its ordered arity Nat."""
-
-    def __init__(self, edge_term):
-        counted = M.Count(EdgeEndpoints(edge_term)(), M.AllConstructors)()
-        arity = M.Head(counted)()
-        self.registry = M.Head(M.Tail(counted)())()
-        self.result = M.Pair(
-            M.Head(edge_term)(),
-            M.Pair(arity, M.EmptyList),
-        )
-        super().__init__(inputs=M.Pair(edge_term, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class SignatureCensus(M.Edge):
-    """Deterministic Pair association chain from positional signatures to Nat counts."""
-
-    def __init__(self, graph_version):
-        registry = M.AllConstructors
-        census = M.EmptyList
-        probe = MapExtendOneStep(M.EmptyList, M.EmptyList, M.EmptyList)
-        remaining_edges = probe._normalize_store(GraphEdges(graph_version)())
-        while M.IdentityCompare(remaining_edges, M.EmptyList)() is M.false_value:
-            edge_term = M.Head(remaining_edges)()
-            counted = M.Count(EdgeEndpoints(edge_term)(), registry)()
-            arity = M.Head(counted)()
-            registry = M.Head(M.Tail(counted)())()
-            signature = M.Pair(
-                M.Head(edge_term)(),
-                M.Pair(arity, M.EmptyList),
-            )
-
-            remaining_entries = census
-            reversed_entries = M.EmptyList
-            found = M.false_value
-            while M.IdentityCompare(remaining_entries, M.EmptyList)() is M.false_value:
-                entry = M.Head(remaining_entries)()
-                entry_signature = M.Head(entry)()
-                same_signature = M.false_value
-                if M.TermEqual(
-                    M.Head(entry_signature)(),
-                    M.Head(signature)(),
-                )() is M.truth_value:
-                    if M.NatEq(
-                        M.Head(M.Tail(entry_signature)())(),
-                        M.Head(M.Tail(signature)())(),
-                        registry,
-                    )() is M.truth_value:
-                        same_signature = M.truth_value
-                if same_signature is M.truth_value:
-                    incremented = M.Succ(
-                        M.Head(M.Tail(entry)())(),
-                        registry,
-                    )()
-                    entry = M.Pair(
-                        entry_signature,
-                        M.Pair(M.Head(incremented)(), M.EmptyList),
-                    )
-                    registry = M.Head(M.Tail(incremented)())()
-                    found = M.truth_value
-                reversed_entries = M.Pair(entry, reversed_entries)
-                remaining_entries = M.Tail(remaining_entries)()
-            census = M.Reverse(reversed_entries)()
-            if found is M.false_value:
-                reversed_entries = M.Reverse(census)()
-                census = M.Reverse(
-                    M.Pair(
-                        M.Pair(signature, M.Pair(M.one, M.EmptyList)),
-                        reversed_entries,
-                    )
-                )()
-            remaining_edges = M.Tail(remaining_edges)()
-
-        self.registry = registry
-        self.result = census
-        super().__init__(inputs=M.Pair(graph_version, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class HandleRespectsSignatures(M.Edge):
-    """Machine truth when one Handle fold preserves every external signature count."""
-
-    def __init__(self, handle, interface_nodes, graph_version):
-        atom_result = M.false_value
-        pattern = HandlePattern(handle)()
-        compiled = CompileHandleToLaws(handle, interface_nodes)()
-        fold = M.Head(compiled)()
-        mapping = FirstCompletedMatch(pattern, graph_version)()
-        if M.IdentityCompare(mapping, M.EmptyList)() is M.false_value:
-            root = M.Head(M.Tail(M.Tail(M.Tail(mapping)())())())()
-            probe = MapExtendOneStep(M.EmptyList, M.EmptyList, M.EmptyList)
-            remaining_pattern_edges = probe._normalize_store(GraphEdges(pattern)())
-            reversed_internal_edges = M.EmptyList
-            while M.IdentityCompare(
-                remaining_pattern_edges,
-                M.EmptyList,
-            )() is M.false_value:
-                found = MappedHostForPat(
-                    root,
-                    M.Head(remaining_pattern_edges)(),
-                )()
-                if M.IdentityCompare(M.Head(found)(), M.truth_value)() is M.truth_value:
-                    reversed_internal_edges = M.Pair(
-                        M.Tail(found)(),
-                        reversed_internal_edges,
-                    )
-                remaining_pattern_edges = M.Tail(remaining_pattern_edges)()
-            internal_edges = M.Reverse(reversed_internal_edges)()
-            external_edges = ChainWithout(
-                probe._normalize_store(GraphEdges(graph_version)()),
-                internal_edges,
-            )()
-            external_graph = GraphVersion(
-                GraphNodes(graph_version)(),
-                external_edges,
-                GraphVersionInvariants(graph_version)(),
-            )()
-            before_census = SignatureCensus(external_graph)()
-
-            fired = FireLaw(
-                graph_version,
-                fold,
-                mapping,
-                DanglingForbid()(),
-            )()
-            committed = M.Head(fired)()
-            if M.IdentityCompare(committed, M.EmptyList)() is M.false_value:
-                after_census = SignatureCensus(committed)()
-                atom_result = M.truth_value
-                remaining_before = before_census
-                while M.IdentityCompare(
-                    remaining_before,
-                    M.EmptyList,
-                )() is M.false_value:
-                    before_entry = M.Head(remaining_before)()
-                    before_signature = M.Head(before_entry)()
-                    remaining_after = after_census
-                    matching_count = M.EmptyList
-                    while M.IdentityCompare(
-                        remaining_after,
-                        M.EmptyList,
-                    )() is M.false_value:
-                        after_entry = M.Head(remaining_after)()
-                        after_signature = M.Head(after_entry)()
-                        same_signature = M.false_value
-                        if M.TermEqual(
-                            M.Head(before_signature)(),
-                            M.Head(after_signature)(),
-                        )() is M.truth_value:
-                            if M.NatEq(
-                                M.Head(M.Tail(before_signature)())(),
-                                M.Head(M.Tail(after_signature)())(),
-                                M.AllConstructors,
-                            )() is M.truth_value:
-                                same_signature = M.truth_value
-                        if same_signature is M.truth_value:
-                            matching_count = M.Head(M.Tail(after_entry)())()
-                            remaining_after = M.EmptyList
-                        else:
-                            remaining_after = M.Tail(remaining_after)()
-                    if M.IdentityCompare(
-                        matching_count,
-                        M.EmptyList,
-                    )() is M.truth_value:
-                        atom_result = M.false_value
-                        remaining_before = M.EmptyList
-                    elif M.NatEq(
-                        M.Head(M.Tail(before_entry)())(),
-                        matching_count,
-                        M.AllConstructors,
-                    )() is M.false_value:
-                        atom_result = M.false_value
-                        remaining_before = M.EmptyList
-                    else:
-                        remaining_before = M.Tail(remaining_before)()
-
-        self.result = atom_result
-        super().__init__(
-            inputs=M.Pair(
-                handle,
-                M.Pair(interface_nodes, M.Pair(graph_version, M.EmptyList)),
-            ),
-            results=self.result,
-        )
-
-    def __call__(self):
-        return self.result
-
-
-PROMOTION_REPORT_CENSUS_KEY = M.Char("census")
-PROMOTION_REPORT_SIGNATURE_KEY = M.Char("signature_ok")
-PROMOTION_REPORT_ROUNDTRIP_KEY = M.Char("roundtrip_ok")
-PROMOTION_REPORT_SIZE_DELTA_KEY = M.Char("size_delta")
-
-
-class PromotionReport(M.Edge):
-    """Build the ordered machine evidence report for one Handle candidate."""
-
-    def __init__(
-        self,
-        handle,
-        interface_nodes,
-        ledger,
-        versions,
-        match_cap=M.EmptyList,
-    ):
-        pattern = HandlePattern(handle)()
-        if M.IdentityCompare(match_cap, M.EmptyList)() is M.truth_value:
-            match_cap = CENSUS_MATCH_CAP
-        latest_version = M.EmptyList
-        latest_mapping = M.EmptyList
-        remaining_versions = versions
-        while M.IdentityCompare(remaining_versions, M.EmptyList)() is M.false_value:
-            version = M.Head(remaining_versions)()
-            mapping = FirstCompletedMatch(pattern, version)()
-            if M.IdentityCompare(mapping, M.EmptyList)() is M.false_value:
-                latest_version = version
-                latest_mapping = mapping
-            remaining_versions = M.Tail(remaining_versions)()
-
-        if M.IdentityCompare(latest_version, M.EmptyList)() is M.truth_value:
-            self.result = M.EmptyList
+        if M.IsPair(result)() is M.truth_value:
+            value = M.Head(result)()
+            rest = M.Tail(result)()
+            if M.IsPair(rest)() is M.truth_value:
+                maybe_registry = M.Head(rest)()
+                maybe_rest = M.Tail(rest)()
+                value_is_true = M.IdentityCompare(value, M.truth_value)()
+                value_is_false = M.IdentityCompare(value, M.false_value)()
+                registry_like_value = M.OrAtom(value_is_true, value_is_false)()
+                maybe_registry_is_pair = M.IsPair(maybe_registry)()
+                if (
+                    M.Compare(maybe_rest, M.EmptyList)() is M.truth_value
+                    and registry_like_value is M.false_value
+                    and maybe_registry_is_pair is M.false_value
+                ):
+                    self.graph._replace_context(constructors=maybe_registry)
+            cmp = M.CompareIn(value, self.expected, M.FromContextGetConstructors(self.graph)())()
         else:
-            census = PatternCensus(
-                ledger,
-                pattern,
-                versions,
-                match_cap,
-            )()
-            signature_ok = HandleRespectsSignatures(
-                handle,
-                interface_nodes,
-                latest_version,
-            )()
-            compiled = CompileHandleToLaws(handle, interface_nodes)()
-            fold = M.Head(compiled)()
-            unfold = M.Head(M.Tail(compiled)())()
-            folded_result = FireLaw(
-                latest_version,
-                fold,
-                latest_mapping,
-                DanglingForbid()(),
-            )()
-            folded = M.Head(folded_result)()
-            roundtrip_ok = M.false_value
-            size_delta = SignedRational(M.Zero, M.Zero, M.one)()
-            if M.IdentityCompare(folded, M.EmptyList)() is M.false_value:
-                before_counted = M.Count(
-                    GraphNodes(latest_version)(),
-                    ledger.registry,
-                )()
-                nodes_before = M.Head(before_counted)()
-                ledger.registry = M.Head(M.Tail(before_counted)())()
-                after_counted = M.Count(GraphNodes(folded)(), ledger.registry)()
-                nodes_after = M.Head(after_counted)()
-                ledger.registry = M.Head(M.Tail(after_counted)())()
-                size_delta = SignedRational(
-                    nodes_before,
-                    nodes_after,
-                    M.one,
-                )()
+            cmp = M.CompareIn(result, self.expected, M.FromContextGetConstructors(self.graph)())()
 
-                unfold_mapping = FirstCompletedMatch(LawLeft(unfold)(), folded)()
-                if M.IdentityCompare(
-                    unfold_mapping,
-                    M.EmptyList,
-                )() is M.false_value:
-                    unfolded_result = FireLaw(
-                        folded,
-                        unfold,
-                        unfold_mapping,
-                        DanglingForbid()(),
-                    )()
-                    unfolded = M.Head(unfolded_result)()
-                    if M.IdentityCompare(
-                        unfolded,
-                        M.EmptyList,
-                    )() is M.false_value:
-                        roundtrip_ok = GraphStoresEqual(
-                            unfolded,
-                            latest_version,
-                        )()
-
-            self.result = M.Pair(
-                M.Pair(
-                    PROMOTION_REPORT_CENSUS_KEY,
-                    M.Pair(census, M.EmptyList),
-                ),
-                M.Pair(
-                    M.Pair(
-                        PROMOTION_REPORT_SIGNATURE_KEY,
-                        M.Pair(signature_ok, M.EmptyList),
-                    ),
-                    M.Pair(
-                        M.Pair(
-                            PROMOTION_REPORT_ROUNDTRIP_KEY,
-                            M.Pair(roundtrip_ok, M.EmptyList),
-                        ),
-                        M.Pair(
-                            M.Pair(
-                                PROMOTION_REPORT_SIZE_DELTA_KEY,
-                                M.Pair(size_delta, M.EmptyList),
-                            ),
-                            M.EmptyList,
-                        ),
-                    ),
-                ),
-            )
-
-        super().__init__(
-            inputs=M.Pair(
-                handle,
-                M.Pair(
-                    interface_nodes,
-                    M.Pair(
-                        ledger,
-                        M.Pair(
-                            versions,
-                            M.Pair(match_cap, M.EmptyList),
-                        ),
-                    ),
-                ),
-            ),
-            results=self.result,
-        )
-
-    def __call__(self):
-        return self.result
-
-
-class ProposeHandle(M.Edge):
-    """Submit a Handle fold proposal with its machine report as justification.
-
-    Step 39: when `contract` is provided, the fold law's R graph gains the
-    Contract term as one extra node, so activation installs the contract and
-    firing the fold inserts it alongside the handle.
-    """
-
-    def __init__(self, proposal_store, handle, interface_nodes, report, contract=M.EmptyList):
-        compiled = CompileHandleToLaws(handle, interface_nodes)()
-        fold = M.Head(compiled)()
-        if M.IdentityCompare(contract, M.EmptyList)() is M.false_value:
-            right = LawRight(fold)()
-            contracted_right = M.Pair(
-                M.HypergraphLabel,
-                M.Pair(
-                    M.Pair(contract, GraphNodes(right)()),
-                    M.Pair(GraphEdges(right)(), M.EmptyList),
-                ),
-            )
-            interface = LawInterface(fold)()
-            old_map = LawKToRight(fold)()
-            contracted_map = Map(
-                interface,
-                contracted_right,
-                M.Head(M.Tail(M.Tail(M.Tail(old_map)())())())(),
-            )()
-            fold = Law(
-                LawLeft(fold)(),
-                interface,
-                contracted_right,
-                LawKToLeft(fold)(),
-                contracted_map,
-                LawObligations(fold)(),
-            )()
-        proposal = Proposal(fold, handle)()
-        submitted = ProposalStoreSubmit(proposal_store, proposal)()
-        justification = JustifiedBy(proposal, report)()
-        self.result = ProposalStoreAttach(
-            submitted,
-            proposal,
-            justification,
-        )()
-        super().__init__(
-            inputs=M.Pair(
-                proposal_store,
-                M.Pair(
-                    handle,
-                    M.Pair(
-                        interface_nodes,
-                        M.Pair(report, M.EmptyList),
-                    ),
-                ),
-            ),
-            results=self.result,
-        )
-
-    def __call__(self):
-        return self.result
-
-
-class ImpactPolicy(M.Edge):
-    """The fixed Step-24 impact policy as ordered machine associations."""
-
-    def __init__(self):
-        self.result = M.Pair(
-            M.Pair(
-                M.Char("fold_handle"),
-                M.Pair(M.Char("auto"), M.EmptyList),
-            ),
-            M.Pair(
-                M.Pair(
-                    M.Char("unfold_handle"),
-                    M.Pair(M.Char("auto"), M.EmptyList),
-                ),
-                M.Pair(
-                    M.Pair(
-                        M.Char("install_law"),
-                        M.Pair(M.Char("human"), M.EmptyList),
-                    ),
-                    M.Pair(
-                        M.Pair(
-                            M.Char("meta_rewrite"),
-                            M.Pair(M.Char("human"), M.EmptyList),
-                        ),
-                        M.Pair(
-                            M.Pair(
-                                M.Char("activation"),
-                                M.Pair(M.Char("human"), M.EmptyList),
-                            ),
-                            M.Pair(
-                                M.Pair(
-                                    M.Char("tune_preference"),
-                                    M.Pair(M.Char("auto"), M.EmptyList),
-                                ),
-                                M.Pair(
-                                    M.Pair(
-                                        M.Char("retire_law"),
-                                        M.Pair(M.Char("human"), M.EmptyList),
-                                    ),
-                                    M.Pair(
-                                        M.Pair(
-                                            M.Char("tune_scheduler"),
-                                            M.Pair(M.Char("human"), M.EmptyList),
-                                        ),
-                                        M.Pair(
-                                            M.Pair(
-                                                M.Char("annotate"),
-                                                M.Pair(M.Char("auto"), M.EmptyList),
-                                            ),
-                                            M.EmptyList,
-                                        ),
-                                    ),
-                                ),
-                            ),
-                        ),
-                    ),
-                ),
-            ),
-        )
-        super().__init__(inputs=M.EmptyList, results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class PolicyEntry(M.Edge):
-    """Step 36: one installable policy association, class name to gate."""
-
-    def __init__(self, class_name, gate):
-        self.result = M.Pair(
-            Lmod.PolicyEntryLabel,
-            M.Pair(class_name, M.Pair(gate, M.EmptyList)),
-        )
-        super().__init__(
-            inputs=M.Pair(class_name, M.Pair(gate, M.EmptyList)),
-            results=self.result,
-        )
-
-    def __call__(self):
-        return self.result
-
-
-class IsPolicyEntry(M.Edge):
-    def __init__(self, term):
-        self.result = M.false_value
-        if M.IsPair(term)() is M.truth_value:
-            if M.TermEqual(M.Head(term)(), Lmod.PolicyEntryLabel)() is M.truth_value:
-                self.result = M.truth_value
-        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class PolicyEntryClassName(M.Edge):
-    def __init__(self, entry):
-        self.result = M.Head(M.Tail(entry)())()
-        super().__init__(inputs=M.Pair(entry, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class PolicyEntryGate(M.Edge):
-    def __init__(self, entry):
-        self.result = M.Head(M.Tail(M.Tail(entry)())())()
-        super().__init__(inputs=M.Pair(entry, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-class InstalledPolicy(M.Edge):
-    """Step 36: effective policy — newest PolicyEntry per class, else bootstrap.
-
-    Walks installed laws (newest first) collecting the newest PolicyEntry per
-    class name, then appends the ImpactPolicy bootstrap defaults for classes
-    without an entry. Returns the same association-chain shape as ImpactPolicy.
-    """
-
-    def __init__(self, graph_version):
-        cap_text = M.GMPRepText(LAW_ORDERING_SCAN_CAP)()
-        scan_text = "0"
-        overrides = M.EmptyList
-        if M.IdentityCompare(graph_version, M.EmptyList)() is M.false_value:
-            remaining = GraphVersionInvariants(graph_version)()
-            while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-                if GMPEqualText(scan_text, cap_text)() is M.truth_value:
-                    remaining = M.EmptyList
-                else:
-                    scan_text = GMPSuccText(scan_text)()
-                    invariant = M.Head(remaining)()
-                    if IsInstalledLaw(invariant)() is M.truth_value:
-                        law = InstalledLawValue(invariant)()
-                        element_scan_text = "0"
-                        remaining_elements = GraphNodes(LawRight(law)())()
-                        while M.IdentityCompare(
-                            remaining_elements,
-                            M.EmptyList,
-                        )() is M.false_value:
-                            if GMPEqualText(
-                                element_scan_text,
-                                cap_text,
-                            )() is M.truth_value:
-                                remaining_elements = M.EmptyList
-                            else:
-                                element_scan_text = GMPSuccText(element_scan_text)()
-                                element = M.Head(remaining_elements)()
-                                if IsPolicyEntry(element)() is M.truth_value:
-                                    class_name = PolicyEntryClassName(element)()
-                                    known = M.false_value
-                                    remaining_overrides = overrides
-                                    while M.IdentityCompare(
-                                        remaining_overrides,
-                                        M.EmptyList,
-                                    )() is M.false_value:
-                                        if M.Compare(
-                                            M.Head(M.Head(remaining_overrides)())(),
-                                            class_name,
-                                        )() is M.truth_value:
-                                            known = M.truth_value
-                                            remaining_overrides = M.EmptyList
-                                        else:
-                                            remaining_overrides = M.Tail(
-                                                remaining_overrides,
-                                            )()
-                                    if M.IdentityCompare(
-                                        known,
-                                        M.false_value,
-                                    )() is M.truth_value:
-                                        overrides = M.Pair(
-                                            M.Pair(
-                                                class_name,
-                                                M.Pair(
-                                                    PolicyEntryGate(element)(),
-                                                    M.EmptyList,
-                                                ),
-                                            ),
-                                            overrides,
-                                        )
-                                remaining_elements = M.Tail(remaining_elements)()
-                    remaining = M.Tail(remaining)()
-            overrides = Reverse(overrides)()
-
-        reversed_effective = M.EmptyList
-        remaining_defaults = ImpactPolicy()()
-        while M.IdentityCompare(remaining_defaults, M.EmptyList)() is M.false_value:
-            default_entry = M.Head(remaining_defaults)()
-            class_name = M.Head(default_entry)()
-            effective_entry = default_entry
-            remaining_overrides = overrides
-            while M.IdentityCompare(
-                remaining_overrides,
-                M.EmptyList,
-            )() is M.false_value:
-                override = M.Head(remaining_overrides)()
-                if M.Compare(M.Head(override)(), class_name)() is M.truth_value:
-                    effective_entry = override
-                    remaining_overrides = M.EmptyList
-                else:
-                    remaining_overrides = M.Tail(remaining_overrides)()
-            reversed_effective = M.Pair(effective_entry, reversed_effective)
-            remaining_defaults = M.Tail(remaining_defaults)()
-        self.result = Reverse(reversed_effective)()
-        super().__init__(
-            inputs=M.Pair(graph_version, M.EmptyList),
-            results=self.result,
-        )
-
-    def __call__(self):
-        return self.result
-
-
-class ClassifyProposal(M.Edge):
-    """Classify a proposed Law by literal Handle and Law structure."""
-
-    def __init__(self, proposal):
-        policy = ImpactPolicy()()
-        fold_class = M.Head(M.Head(policy)())()
-        policy = M.Tail(policy)()
-        unfold_class = M.Head(M.Head(policy)())()
-        policy = M.Tail(policy)()
-        install_class = M.Head(M.Head(policy)())()
-        policy = M.Tail(policy)()
-        meta_class = M.Head(M.Head(policy)())()
-        policy = M.Tail(policy)()
-        policy = M.Tail(policy)()
-        preference_class = M.Head(M.Head(policy)())()
-        policy = M.Tail(policy)()
-        retire_class = M.Head(M.Head(policy)())()
-        policy = M.Tail(policy)()
-        scheduler_class = M.Head(M.Head(policy)())()
-        policy = M.Tail(policy)()
-        annotate_class = M.Head(M.Head(policy)())()
-
-        law = ProposalLaw(proposal)()
-        left_contains_law = M.false_value
-        left_contains_handle = M.false_value
-        remaining_left = GraphElements(LawLeft(law)())()
-        while M.IdentityCompare(remaining_left, M.EmptyList)() is M.false_value:
-            element = M.Head(remaining_left)()
-            if M.IsPair(element)() is M.truth_value:
-                if M.TermEqual(M.Head(element)(), Lmod.LawLabel)() is M.truth_value:
-                    left_contains_law = M.truth_value
-                if M.TermEqual(M.Head(element)(), Lmod.HandleLabel)() is M.truth_value:
-                    left_contains_handle = M.truth_value
-            remaining_left = M.Tail(remaining_left)()
-
-        right_contains_handle = M.false_value
-        right_contains_preference = M.false_value
-        right_contains_retired = M.false_value
-        right_contains_heuristic = M.false_value
-        right_contains_policy_entry = M.false_value
-        right_contains_robustness = M.false_value
-        right_contains_migration = M.false_value
-        remaining_right = GraphElements(LawRight(law)())()
-        while M.IdentityCompare(remaining_right, M.EmptyList)() is M.false_value:
-            element = M.Head(remaining_right)()
-            if M.IsPair(element)() is M.truth_value:
-                if M.TermEqual(M.Head(element)(), Lmod.HandleLabel)() is M.truth_value:
-                    right_contains_handle = M.truth_value
-                if M.TermEqual(
-                    M.Head(element)(),
-                    Lmod.LawPreferenceLabel,
-                )() is M.truth_value:
-                    right_contains_preference = M.truth_value
-                if M.TermEqual(
-                    M.Head(element)(),
-                    Lmod.RetiredLabel,
-                )() is M.truth_value:
-                    right_contains_retired = M.truth_value
-                if IsHeuristicTerm(element)() is M.truth_value:
-                    right_contains_heuristic = M.truth_value
-                if IsPolicyEntry(element)() is M.truth_value:
-                    right_contains_policy_entry = M.truth_value
-                if IsMigration(element)() is M.truth_value:
-                    right_contains_migration = M.truth_value
-                if M.TermEqual(
-                    M.Head(element)(),
-                    Lmod.RobustnessLabel,
-                )() is M.truth_value:
-                    right_contains_robustness = M.truth_value
-            remaining_right = M.Tail(remaining_right)()
-
-        if M.IdentityCompare(
-            right_contains_policy_entry,
-            M.truth_value,
-        )() is M.truth_value:
-            self.result = M.Char("policy_change")
-        elif M.IdentityCompare(left_contains_law, M.truth_value)() is M.truth_value:
-            self.result = meta_class
-        elif M.IdentityCompare(
-            right_contains_robustness,
-            M.truth_value,
-        )() is M.truth_value:
-            self.result = annotate_class
-        elif M.IdentityCompare(
-            right_contains_migration,
-            M.truth_value,
-        )() is M.truth_value:
-            self.result = install_class
-        elif M.IdentityCompare(
-            right_contains_retired,
-            M.truth_value,
-        )() is M.truth_value:
-            self.result = retire_class
-        elif M.IdentityCompare(
-            right_contains_heuristic,
-            M.truth_value,
-        )() is M.truth_value:
-            self.result = scheduler_class
-        elif M.IdentityCompare(right_contains_handle, M.truth_value)() is M.truth_value:
-            self.result = fold_class
-        elif M.IdentityCompare(
-            right_contains_preference,
-            M.truth_value,
-        )() is M.truth_value:
-            self.result = preference_class
-        elif M.IdentityCompare(left_contains_handle, M.truth_value)() is M.truth_value:
-            self.result = unfold_class
+        if cmp is M.truth_value:
+            outcome = M.TestOK(M.FromContextGetConstructors(self.graph)())
         else:
-            self.result = install_class
+            outcome = M.TestFail(M.FromContextGetConstructors(self.graph)())
 
-        super().__init__(inputs=M.Pair(proposal, M.EmptyList), results=self.result)
-
-    def __call__(self):
-        return self.result
-
-
-AUTONOMY_BUDGET_MAX_FIRINGS_KEY = M.Char("max_firings")
-AUTONOMY_BUDGET_MAX_NODES_KEY = M.Char("max_nodes")
-AUTONOMY_BUDGET_MAX_ACTIVATIONS_KEY = M.Char("max_activations")
-AUTONOMY_BUDGET_ACTIVATE_APPROVED_KEY = M.Char("activate_approved")
-AUTONOMY_BUDGET_REQUIRE_ROBUSTNESS_KEY = M.Char("require_robustness")
-AUTONOMY_REPORT_SKIPPED_FRAGILE_KEY = M.Char("skipped_fragile")
-AUTONOMY_REPORT_ACTIVATED_KEY = M.Char("activated")
-AUTONOMY_REPORT_SKIPPED_HUMAN_KEY = M.Char("skipped_human")
-AUTONOMY_REPORT_FIRINGS_KEY = M.Char("firings")
-AUTONOMY_REPORT_STOPPED_REASON_KEY = M.Char("stopped_reason")
-AUTONOMY_REPORT_GENERATED_HANDLES_KEY = M.Char("generated_handles")
-AUTONOMY_REPORT_GENERATED_COMPOSITIONS_KEY = M.Char("generated_compositions")
-AUTONOMY_GENERATE_HANDLES_KEY = M.Char("generate_handles")
-AUTONOMY_GENERATE_COMPOSITIONS_KEY = M.Char("generate_compositions")
-AUTONOMY_GENERATOR_VERSIONS_KEY = M.Char("versions")
-AUTONOMY_GENERATOR_MIN_COUNT_KEY = M.Char("min_count")
-AUTONOMY_GENERATOR_SLICE_INDEX_KEY = M.Char("slice_index")
-AUTONOMY_GENERATOR_SLICE_COUNT_KEY = M.Char("slice_count")
-AUTONOMY_STOP_EXHAUSTED = M.Char("exhausted")
-AUTONOMY_STOP_BUDGET_FIRINGS = M.Char("budget_firings")
-AUTONOMY_STOP_BUDGET_NODES = M.Char("budget_nodes")
+        self.result = outcome
+        entry = M.Pair(self.name, M.Pair(outcome, M.EmptyList))
+        self.graph._replace_context(test_results=M.Pair(entry, M.FromContextGetTestResults(self.graph)()))
+        return entry
 
 
-class AutonomyAuthority(M.Edge):
-    """Machine authority recording the exact budget used for auto-approval."""
+class RunTests(M.Edge):
+    def __init__(self, graph):
+        self.graph = graph
+        self.graph._replace_context(test_results=M.EmptyList)
+        self.result = self._run(M.FromContextGetTests(graph)())
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=M.Pair(self.result, M.EmptyList))
 
-    def __init__(self, budget_as_term):
-        self.result = M.Pair(
-            Lmod.AutonomyAuthorityLabel,
-            M.Pair(budget_as_term, M.EmptyList),
-        )
-        super().__init__(
-            inputs=M.Pair(budget_as_term, M.EmptyList),
-            results=self.result,
-        )
+    def _run(self, chain):
+        if M.Compare(chain, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+
+        test = M.Head(chain)()
+        result = test.run()
+        rest = self._run(M.Tail(chain)())
+        return M.Pair(result, rest)
 
     def __call__(self):
         return self.result
 
 
-class AutonomyCycle(M.Edge):
-    """Optionally generate, then approve, activate, and fire within a budget."""
+class TestResultsReport(M.Edge):
+    def __init__(self, graph):
+        self.graph = graph
+        self.result = self._report(M.FromContextGetTestResults(graph)())
+        super().__init__(inputs=M.Pair(graph, M.EmptyList), results=self.result)
 
-    def __init__(
-        self,
-        graph_version,
-        proposal_store,
-        ledger,
-        budget,
-        generator_config=M.EmptyList,
-    ):
-        max_firings = M.EmptyList
-        max_nodes = M.EmptyList
-        max_activations = M.EmptyList
-        activate_approved = M.false_value
-        require_robustness = M.EmptyList
-        remaining_budget = budget
-        while M.IdentityCompare(remaining_budget, M.EmptyList)() is M.false_value:
-            association = M.Head(remaining_budget)()
-            key = M.Head(association)()
-            value = M.Head(M.Tail(association)())()
-            if M.Compare(key, AUTONOMY_BUDGET_MAX_FIRINGS_KEY)() is M.truth_value:
-                max_firings = value
-            elif M.Compare(key, AUTONOMY_BUDGET_MAX_NODES_KEY)() is M.truth_value:
-                max_nodes = value
-            elif M.Compare(key, AUTONOMY_BUDGET_MAX_ACTIVATIONS_KEY)() is M.truth_value:
-                max_activations = value
-            elif M.Compare(
-                key,
-                AUTONOMY_BUDGET_ACTIVATE_APPROVED_KEY,
-            )() is M.truth_value:
-                activate_approved = value
-            elif M.Compare(
-                key,
-                AUTONOMY_BUDGET_REQUIRE_ROBUSTNESS_KEY,
-            )() is M.truth_value:
-                require_robustness = value
-            remaining_budget = M.Tail(remaining_budget)()
+    def _report(self, results):
+        if M.Compare(results, M.EmptyList)() is M.truth_value:
+            return "No tests were run."
 
-        generate_handles = M.false_value
-        generate_compositions = M.false_value
-        generator_versions = M.EmptyList
-        generator_min_count = M.one
-        generator_slice_index = M.EmptyList
-        generator_slice_count = M.EmptyList
-        remaining_generator_config = generator_config
-        while M.IdentityCompare(
-            remaining_generator_config,
-            M.EmptyList,
-        )() is M.false_value:
-            association = M.Head(remaining_generator_config)()
-            key = M.Head(association)()
-            value = M.Head(M.Tail(association)())()
-            if M.Compare(key, AUTONOMY_GENERATE_HANDLES_KEY)() is M.truth_value:
-                generate_handles = value
-            elif M.Compare(
-                key,
-                AUTONOMY_GENERATE_COMPOSITIONS_KEY,
-            )() is M.truth_value:
-                generate_compositions = value
-            elif M.Compare(
-                key,
-                AUTONOMY_GENERATOR_VERSIONS_KEY,
-            )() is M.truth_value:
-                generator_versions = value
-            elif M.Compare(
-                key,
-                AUTONOMY_GENERATOR_MIN_COUNT_KEY,
-            )() is M.truth_value:
-                generator_min_count = value
-            elif M.Compare(
-                key,
-                AUTONOMY_GENERATOR_SLICE_INDEX_KEY,
-            )() is M.truth_value:
-                generator_slice_index = value
-            elif M.Compare(
-                key,
-                AUTONOMY_GENERATOR_SLICE_COUNT_KEY,
-            )() is M.truth_value:
-                generator_slice_count = value
-            remaining_generator_config = M.Tail(remaining_generator_config)()
+        failed_names = self._failed_names(results)
+        if failed_names:
+            return "\n".join(failed_names)
+        return "All the tests have passed."
 
-        current_version = graph_version
-        current_store = proposal_store
-        reversed_generation_report = M.EmptyList
-        if M.IdentityCompare(generate_handles, M.truth_value)() is M.truth_value:
-            generated_handles = GenerateHandleProposals(
-                current_store,
-                generator_versions,
-                ledger,
-                generator_min_count,
-                generator_slice_index,
-                generator_slice_count,
-            )()
-            current_store = M.Head(generated_handles)()
-            handle_count = M.Head(M.Tail(generated_handles)())()
-            handle_skipped = M.Head(M.Tail(M.Tail(generated_handles)())())()
-            reversed_generation_report = M.Pair(
-                M.Pair(
-                    AUTONOMY_REPORT_GENERATED_HANDLES_KEY,
-                    M.Pair(
-                        M.Pair(
-                            handle_count,
-                            M.Pair(handle_skipped, M.EmptyList),
-                        ),
-                        M.EmptyList,
-                    ),
-                ),
-                reversed_generation_report,
-            )
-        if M.IdentityCompare(
-            generate_compositions,
-            M.truth_value,
-        )() is M.truth_value:
-            generated_compositions = GenerateCompositionProposals(
-                current_store,
-                ledger,
-            )()
-            current_store = M.Head(generated_compositions)()
-            composition_count = M.Head(M.Tail(generated_compositions)())()
-            composition_skipped = M.Head(
-                M.Tail(M.Tail(generated_compositions)())(),
-            )()
-            reversed_generation_report = M.Pair(
-                M.Pair(
-                    AUTONOMY_REPORT_GENERATED_COMPOSITIONS_KEY,
-                    M.Pair(
-                        M.Pair(
-                            composition_count,
-                            M.Pair(composition_skipped, M.EmptyList),
-                        ),
-                        M.EmptyList,
-                    ),
-                ),
-                reversed_generation_report,
-            )
-        generation_report = M.Reverse(reversed_generation_report)()
-        authority = AutonomyAuthority(budget)()
-        activation_count = M.Zero
-        reversed_activated = M.EmptyList
-        reversed_skipped_human = M.EmptyList
-        reversed_skipped_fragile = M.EmptyList
-        remaining_entries = ProposalStoreEntries(current_store)()
-        policy = InstalledPolicy(current_version)()
+    def _failed_names(self, results):
+        if M.Compare(results, M.EmptyList)() is M.truth_value:
+            return []
 
-        while M.IdentityCompare(remaining_entries, M.EmptyList)() is M.false_value:
-            entry = M.Head(remaining_entries)()
-            proposal = ProposalEntryProposal(entry)()
-            pending = M.truth_value
-            has_approved = M.false_value
-            has_rejected = M.false_value
-            has_activation_mark = M.false_value
-            remaining_annotations = ProposalEntryAnnotations(entry)()
-            while M.IdentityCompare(
-                remaining_annotations,
-                M.EmptyList,
-            )() is M.false_value:
-                annotation = M.Head(remaining_annotations)()
-                if M.IsPair(annotation)() is M.truth_value:
-                    annotation_label = M.Head(annotation)()
-                    if M.TermEqual(
-                        annotation_label,
-                        Lmod.ApprovedLabel,
-                    )() is M.truth_value:
-                        pending = M.false_value
-                        has_approved = M.truth_value
-                    elif M.TermEqual(
-                        annotation_label,
-                        Lmod.RejectedLabel,
-                    )() is M.truth_value:
-                        pending = M.false_value
-                        has_rejected = M.truth_value
-                    elif M.TermEqual(
-                        annotation_label,
-                        Lmod.ActivationLabel,
-                    )() is M.truth_value:
-                        has_activation_mark = M.truth_value
-                remaining_annotations = M.Tail(remaining_annotations)()
+        entry = M.Head(results)()
+        rest = M.Tail(results)()
+        failed = self._failed_names(rest)
 
-            if M.IdentityCompare(pending, M.truth_value)() is M.truth_value:
-                impact = ClassifyProposal(proposal)()
-                disposition = M.EmptyList
-                if M.Compare(impact, M.Char("policy_change"))() is M.truth_value:
-                    disposition = M.Char("human")
-                remaining_policy = policy
-                while M.IdentityCompare(
-                    remaining_policy,
-                    M.EmptyList,
-                )() is M.false_value:
-                    policy_entry = M.Head(remaining_policy)()
-                    if M.IdentityCompare(
-                        disposition,
-                        M.EmptyList,
-                    )() is M.false_value:
-                        remaining_policy = M.EmptyList
-                    elif M.Compare(
-                        M.Head(policy_entry)(),
-                        impact,
-                    )() is M.truth_value:
-                        disposition = M.Head(M.Tail(policy_entry)())()
-                        remaining_policy = M.EmptyList
-                    else:
-                        remaining_policy = M.Tail(remaining_policy)()
+        name = M.Head(entry)()
+        outcome = M.Head(M.Tail(entry)())()
+        if self._is_test_ok(outcome) is M.truth_value:
+            return failed
 
-                if M.Compare(disposition, M.Char("human"))() is M.truth_value:
-                    reversed_skipped_human = M.Pair(
-                        proposal,
-                        reversed_skipped_human,
-                    )
-                elif M.Compare(disposition, M.Char("auto"))() is M.truth_value:
-                    fragile = M.false_value
-                    if M.IdentityCompare(
-                        require_robustness,
-                        M.EmptyList,
-                    )() is M.false_value:
-                        robustness_term = InstalledRobustness(
-                            current_version,
-                            ProposalLaw(proposal)(),
-                        )()
-                        if M.IdentityCompare(
-                            robustness_term,
-                            M.EmptyList,
-                        )() is M.truth_value:
-                            fragile = M.truth_value
-                        elif M.NatLess(
-                            RobustnessPassed(robustness_term)(),
-                            require_robustness,
-                            ledger.registry,
-                        )() is M.truth_value:
-                            fragile = M.truth_value
-                    if M.IdentityCompare(fragile, M.truth_value)() is M.truth_value:
-                        reversed_skipped_fragile = M.Pair(
-                            proposal,
-                            reversed_skipped_fragile,
-                        )
-                    elif M.NatLess(
-                        activation_count,
-                        max_activations,
-                        ledger.registry,
-                    )() is M.truth_value:
-                        law = ProposalLaw(proposal)()
-                        obligations = LawObligations(law)()
-                        has_node_bound = M.false_value
-                        remaining_obligations = obligations
-                        while M.IdentityCompare(
-                            remaining_obligations,
-                            M.EmptyList,
-                        )() is M.false_value:
-                            if M.Compare(
-                                KObligationName(M.Head(remaining_obligations)())(),
-                                M.Char("node-count-max"),
-                            )() is M.truth_value:
-                                has_node_bound = M.truth_value
-                                remaining_obligations = M.EmptyList
-                            else:
-                                remaining_obligations = M.Tail(
-                                    remaining_obligations,
-                                )()
-                        if M.IdentityCompare(
-                            has_node_bound,
-                            M.false_value,
-                        )() is M.truth_value:
-                            reversed_obligations = M.Reverse(obligations)()
-                            obligations = M.Reverse(
-                                M.Pair(
-                                    KObligation(
-                                        M.Char("node-count-max"),
-                                        max_nodes,
-                                    )(),
-                                    reversed_obligations,
-                                )
-                            )()
-                            law = Law(
-                                LawLeft(law)(),
-                                LawInterface(law)(),
-                                LawRight(law)(),
-                                LawKToLeft(law)(),
-                                LawKToRight(law)(),
-                                obligations,
-                            )()
-                            guarded_proposal = Proposal(
-                                law,
-                                ProposalOrigin(proposal)(),
-                            )()
-                            reversed_entries = M.EmptyList
-                            current_entries = ProposalStoreEntries(current_store)()
-                            while M.IdentityCompare(
-                                current_entries,
-                                M.EmptyList,
-                            )() is M.false_value:
-                                current_entry = M.Head(current_entries)()
-                                if M.TermEqual(
-                                    ProposalEntryProposal(current_entry)(),
-                                    proposal,
-                                )() is M.truth_value:
-                                    reversed_annotations = M.EmptyList
-                                    current_annotations = ProposalEntryAnnotations(
-                                        current_entry,
-                                    )()
-                                    while M.IdentityCompare(
-                                        current_annotations,
-                                        M.EmptyList,
-                                    )() is M.false_value:
-                                        current_annotation = M.Head(
-                                            current_annotations,
-                                        )()
-                                        if M.IsPair(current_annotation)() is M.truth_value:
-                                            if M.TermEqual(
-                                                M.Head(current_annotation)(),
-                                                Lmod.JustifiedByLabel,
-                                            )() is M.truth_value:
-                                                if M.TermEqual(
-                                                    M.Head(
-                                                        M.Tail(current_annotation)(),
-                                                    )(),
-                                                    proposal,
-                                                )() is M.truth_value:
-                                                    current_annotation = JustifiedBy(
-                                                        guarded_proposal,
-                                                        M.Head(
-                                                            M.Tail(
-                                                                M.Tail(
-                                                                    current_annotation,
-                                                                )(),
-                                                            )(),
-                                                        )(),
-                                                    )()
-                                        reversed_annotations = M.Pair(
-                                            current_annotation,
-                                            reversed_annotations,
-                                        )
-                                        current_annotations = M.Tail(
-                                            current_annotations,
-                                        )()
-                                    current_entry = ProposalEntry(
-                                        guarded_proposal,
-                                        M.Reverse(reversed_annotations)(),
-                                    )()
-                                reversed_entries = M.Pair(
-                                    current_entry,
-                                    reversed_entries,
-                                )
-                                current_entries = M.Tail(current_entries)()
-                            current_store = ProposalStore(
-                                M.Reverse(reversed_entries)(),
-                            )()
-                            proposal = guarded_proposal
-                        approval = Approved(proposal, authority)()
-                        current_store = ProposalStoreAttach(
-                            current_store,
-                            proposal,
-                            approval,
-                        )()
-                        approved_entry = M.EmptyList
-                        updated_entries = ProposalStoreEntries(current_store)()
-                        while M.IdentityCompare(
-                            updated_entries,
-                            M.EmptyList,
-                        )() is M.false_value:
-                            updated_entry = M.Head(updated_entries)()
-                            if M.TermEqual(
-                                ProposalEntryProposal(updated_entry)(),
-                                proposal,
-                            )() is M.truth_value:
-                                approved_entry = updated_entry
-                                updated_entries = M.EmptyList
-                            else:
-                                updated_entries = M.Tail(updated_entries)()
-                        activated = ActivateProposal(
-                            current_version,
-                            approved_entry,
-                        )()
-                        active_version = M.Head(activated)()
-                        if M.IdentityCompare(
-                            active_version,
-                            M.EmptyList,
-                        )() is M.false_value:
-                            current_version = active_version
-                            reversed_activated = M.Pair(
-                                proposal,
-                                reversed_activated,
-                            )
-                            next_activation = M.Succ(
-                                activation_count,
-                                ledger.registry,
-                            )()
-                            activation_count = M.Head(next_activation)()
-                            ledger.registry = M.Head(M.Tail(next_activation)())()
-            elif M.IdentityCompare(
-                activate_approved,
-                M.truth_value,
-            )() is M.truth_value:
-                if M.IdentityCompare(has_approved, M.truth_value)() is M.truth_value:
-                    if M.IdentityCompare(
-                        has_rejected,
-                        M.false_value,
-                    )() is M.truth_value:
-                        if M.IdentityCompare(
-                            has_activation_mark,
-                            M.false_value,
-                        )() is M.truth_value:
-                            fragile = M.false_value
-                            if M.IdentityCompare(
-                                require_robustness,
-                                M.EmptyList,
-                            )() is M.false_value:
-                                robustness_term = InstalledRobustness(
-                                    current_version,
-                                    ProposalLaw(proposal)(),
-                                )()
-                                if M.IdentityCompare(
-                                    robustness_term,
-                                    M.EmptyList,
-                                )() is M.truth_value:
-                                    fragile = M.truth_value
-                                elif M.NatLess(
-                                    RobustnessPassed(robustness_term)(),
-                                    require_robustness,
-                                    ledger.registry,
-                                )() is M.truth_value:
-                                    fragile = M.truth_value
-                            if M.IdentityCompare(
-                                fragile,
-                                M.truth_value,
-                            )() is M.truth_value:
-                                reversed_skipped_fragile = M.Pair(
-                                    proposal,
-                                    reversed_skipped_fragile,
-                                )
-                            elif M.NatLess(
-                                activation_count,
-                                max_activations,
-                                ledger.registry,
-                            )() is M.truth_value:
-                                activated = ActivateProposal(
-                                    current_version,
-                                    entry,
-                                )()
-                                active_version = M.Head(activated)()
-                                if M.IdentityCompare(
-                                    active_version,
-                                    M.EmptyList,
-                                )() is M.false_value:
-                                    current_version = active_version
-                                    current_store = ProposalStoreAttach(
-                                        current_store,
-                                        proposal,
-                                        Activation(proposal)(),
-                                    )()
-                                    reversed_activated = M.Pair(
-                                        proposal,
-                                        reversed_activated,
-                                    )
-                                    next_activation = M.Succ(
-                                        activation_count,
-                                        ledger.registry,
-                                    )()
-                                    activation_count = M.Head(next_activation)()
-                                    ledger.registry = M.Head(
-                                        M.Tail(next_activation)(),
-                                    )()
-            remaining_entries = M.Tail(remaining_entries)()
+        failed.append(self._name_text(name))
+        return failed
 
-        firings = M.Zero
-        stopped_reason = AUTONOMY_STOP_EXHAUSTED
-        self.last_firing_trace = M.EmptyList
-        firing = M.truth_value
-        while M.IdentityCompare(firing, M.truth_value)() is M.truth_value:
-            if M.NatLess(firings, max_firings, ledger.registry)() is M.false_value:
-                stopped_reason = AUTONOMY_STOP_BUDGET_FIRINGS
-                firing = M.false_value
-            else:
-                records_before = ledger.records
-                registry_before = ledger.registry
-                fired = FireAny(
-                    current_version,
-                    DanglingForbid()(),
-                    ledger,
-                )()
-                candidate_version = M.Head(fired)()
-                self.last_firing_trace = M.Head(M.Tail(fired)())()
-                if M.IdentityCompare(
-                    candidate_version,
-                    M.EmptyList,
-                )() is M.truth_value:
-                    stopped_reason = AUTONOMY_STOP_EXHAUSTED
-                    firing = M.false_value
-                else:
-                    counted = M.Count(
-                        GraphNodes(candidate_version)(),
-                        ledger.registry,
-                    )()
-                    candidate_nodes = M.Head(counted)()
-                    ledger.registry = M.Head(M.Tail(counted)())()
-                    if M.NatLess(
-                        max_nodes,
-                        candidate_nodes,
-                        ledger.registry,
-                    )() is M.truth_value:
-                        ledger.records = records_before
-                        ledger.results = records_before
-                        ledger.registry = registry_before
-                        stopped_reason = AUTONOMY_STOP_BUDGET_NODES
-                        firing = M.false_value
-                    else:
-                        current_version = candidate_version
-                        next_firings = M.Succ(firings, ledger.registry)()
-                        firings = M.Head(next_firings)()
-                        ledger.registry = M.Head(M.Tail(next_firings)())()
+    def _is_test_ok(self, outcome):
+        value = outcome()
+        if value == "TestOK":
+            return M.truth_value
+        if value == "TestFail":
+            return M.false_value
+        constructor = M.GetConstructor(outcome, M.FromContextGetConstructors(self.graph)())()
+        if M.IdentityCompare(constructor, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        label = M.Head(constructor)()
+        return M.IdentityCompare(label, M.TestOKLabel)()
 
-        tail_report = generation_report
-        if M.IdentityCompare(
-            require_robustness,
-            M.EmptyList,
-        )() is M.false_value:
-            tail_report = M.Reverse(
-                M.Pair(
-                    M.Pair(
-                        AUTONOMY_REPORT_SKIPPED_FRAGILE_KEY,
-                        M.Pair(
-                            M.Reverse(reversed_skipped_fragile)(),
-                            M.EmptyList,
-                        ),
-                    ),
-                    M.Reverse(generation_report)(),
-                )
-            )()
-        report = M.Pair(
-            M.Pair(
-                AUTONOMY_REPORT_ACTIVATED_KEY,
-                M.Pair(M.Reverse(reversed_activated)(), M.EmptyList),
-            ),
-            M.Pair(
-                M.Pair(
-                    AUTONOMY_REPORT_SKIPPED_HUMAN_KEY,
-                    M.Pair(M.Reverse(reversed_skipped_human)(), M.EmptyList),
-                ),
-                M.Pair(
-                    M.Pair(
-                        AUTONOMY_REPORT_FIRINGS_KEY,
-                        M.Pair(firings, M.EmptyList),
-                    ),
-                    M.Pair(
-                        M.Pair(
-                            AUTONOMY_REPORT_STOPPED_REASON_KEY,
-                            M.Pair(stopped_reason, M.EmptyList),
-                        ),
-                        tail_report,
-                    ),
-                ),
-            ),
-        )
-        self.result = M.Pair(
-            current_version,
-            M.Pair(current_store, M.Pair(report, M.EmptyList)),
-        )
-        super().__init__(
-            inputs=M.Pair(
-                graph_version,
-                M.Pair(
-                    proposal_store,
-                    M.Pair(
-                        ledger,
-                        M.Pair(budget, M.Pair(generator_config, M.EmptyList)),
-                    ),
-                ),
-            ),
-            results=self.result,
-        )
+    def _name_text(self, name):
+        constructor = M.GetConstructor(name, M.FromContextGetConstructors(self.graph)())()
+        if M.IdentityCompare(constructor, M.EmptyList)() is M.false_value:
+            label = M.Head(constructor)()
+            if M.IdentityCompare(label, M.TestNameLabel)() is M.truth_value:
+                name_atom = M.Head(M.Tail(constructor)())()
+                value = name_atom()
+                return str(value)
+        value = name()
+        if value is None:
+            return str(name)
+        return str(value)
 
     def __call__(self):
         return self.result
 
 
-
-
-
-# Late bindings: the class bodies above forward-reference firing/ledger
-# machinery defined in the downstream modules (legal at call time, as in
-# the original monolith). Import them here, after every class definition,
-# so the module-level cycle graph -> firing -> graph resolves and the
-# names are present in this module's globals when methods execute.
-from .firing import (  # noqa: E402
-    FireAny,
-    FireLaw,
-    FirstCompletedMatch,
-    GraphElements,
-    InstallLaw,
-    MapExtendOneStep,
-)
-from .ledger import (  # noqa: E402
-    CENSUS_MATCH_CAP,
-    ChainAddMissing,
-    GenerateCompositionProposals,
-    GenerateHandleProposals,
-    GraphStoresEqual,
-    InstalledRobustness,
-    IsHeuristicTerm,
-    IsMigration,
-    LAW_ORDERING_SCAN_CAP,
-    PatternCensus,
-    RobustnessPassed,
-    SignedRational,
-)
 __all__ = [name for name in globals() if not name.startswith("_")]
