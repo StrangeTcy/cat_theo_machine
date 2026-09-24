@@ -59,6 +59,12 @@ are hashed and the cached payload is ignored; this domain uses none.
 
 `prettyprinting.PrettyTerm` is never used: it renders display text and must
 not enter a content digest (inspection §3b).
+
+Comparison discipline: terms are compared with `machine.Compare`, emptiness of
+`EmptyList` with `machine.IdentityCompare` (as `machine.py` and `proof.py` do),
+and predicate results by identity to `machine.truth_value` / `false_value`.
+Python identity is never used on a term, and an index or count never occupies a
+term slot — a search that reports a position carries it inside a term.
 """
 
 from __future__ import annotations
@@ -167,9 +173,9 @@ class VarIndex(M.Edge):
 
     def __init__(self, bindings, variable):
         self.variable = variable
-        found = self._find(bindings, 0)
+        found = self._find(bindings)
         if IsEmptyTerm(found)() is M.false_value:
-            self.result = M.Pair(found, M.Pair(bindings, M.EmptyList))
+            self.result = M.Pair(M.Head(found)(), M.Pair(bindings, M.EmptyList))
         else:
             index = ChainLength(bindings)()
             self.result = M.Pair(
@@ -180,12 +186,15 @@ class VarIndex(M.Edge):
             results=self.result,
         )
 
-    def _find(self, bindings, position):
+    def _find(self, bindings):
+        # A hit is carried as Pair(index, EmptyList), a miss as EmptyList, so
+        # the emptiness question is asked of a term and the index never enters
+        # an identity test.
         if M.IdentityCompare(bindings, M.EmptyList)() is M.truth_value:
             return M.EmptyList
         if M.IdentityCompare(M.Head(M.Head(bindings)())(), self.variable)() is M.truth_value:
-            return M.Tail(M.Head(bindings)())()
-        return self._find(M.Tail(bindings)(), position + 1)
+            return M.Pair(M.Tail(M.Head(bindings)())(), M.EmptyList)
+        return self._find(M.Tail(bindings)())
 
     def __call__(self):
         return self.result

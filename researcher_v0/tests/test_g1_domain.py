@@ -37,7 +37,7 @@ from ... import proof as P
 from ... import invariance as I
 from .. import ruleset_digest as RD
 from .. import token_domain as D
-from ..chains import ChainAppend, ChainLength
+from ..chains import ChainAppend, ChainLength, IsEmptyTerm
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PACKAGE = os.path.dirname(HERE)
@@ -249,55 +249,48 @@ class MoveOfRuleAt(M.Edge):
         return self.result
 
 
-class RuleMovesCount(
-    M.Edge
-):
-    """Does the rule take count `before` to count `after`, consistently?
+class RuleMovesCount(M.Edge):
+    """The rule applies at count `before` and lands on count `after`.
 
-    A `None` expectation means the move must be a MISS with reason `no_match`.
+    Also requires the successor state to be self-consistent. The expectation
+    is a count, and a count is never asked an emptiness question: a move that
+    is expected to be inapplicable is asserted by `RuleMissesAt` instead.
     """
 
     def __init__(self, specs, display, before, after):
         record = MoveOfRuleAt(specs, display, before)()
-        self.result = self._expect(record, after)
-
-    def _expect(self, record, after):
-        if after is None:
-            if D.IsAppliedOutcome(record)() is M.truth_value:
-                return M.false_value
-            if (
-                M.Compare(D.OutcomeStatus(record)(), D.MissTag()())()
-                is M.false_value
-            ):
-                return M.false_value
-            if (
-                M.Compare(D.OutcomeReason(record)(), D.NoMatchTag()())()
-                is M.false_value
-            ):
-                return M.false_value
-            if IsEmpty(D.OutcomeAfter(record)())() is M.false_value:
-                return M.false_value
-            return M.truth_value
         if D.IsAppliedOutcome(record)() is M.false_value:
-            return M.false_value
-        state_after = D.OutcomeAfter(record)()
-        if D.CountOfState(state_after)() != after:
-            return M.false_value
-        if D.StateIsConsistent(state_after)() is M.false_value:
-            return M.false_value
-        return M.truth_value
+            self.result = M.false_value
+        elif D.CountOfState(D.OutcomeAfter(record)())() != after:
+            self.result = M.false_value
+        elif D.StateIsConsistent(D.OutcomeAfter(record)())() is M.false_value:
+            self.result = M.false_value
+        else:
+            self.result = M.truth_value
 
     def __call__(self):
         return self.result
 
 
-class IsEmpty(M.Edge):
-    def __init__(self, term):
-        if term is M.EmptyList:
-            self.result = M.truth_value
-        else:
+class RuleMissesAt(M.Edge):
+    """The rule is inapplicable at count `before`: a MISS, not a crash.
+
+    Requires the status to be MISS, the reason to be `no_match`, and the
+    successor slot to be empty. It asserts nothing about reachability.
+    """
+
+    def __init__(self, specs, display, before):
+        record = MoveOfRuleAt(specs, display, before)()
+        if D.IsAppliedOutcome(record)() is M.truth_value:
             self.result = M.false_value
-        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+        elif M.Compare(D.OutcomeStatus(record)(), D.MissTag()())() is M.false_value:
+            self.result = M.false_value
+        elif M.Compare(D.OutcomeReason(record)(), D.NoMatchTag()())() is M.false_value:
+            self.result = M.false_value
+        elif IsEmptyTerm(D.OutcomeAfter(record)())() is M.false_value:
+            self.result = M.false_value
+        else:
+            self.result = M.truth_value
 
     def __call__(self):
         return self.result
@@ -346,9 +339,9 @@ class Remove2IllegalIsInapplicable(M.Edge):
     def __init__(self):
         specs = D.REvenSpecs()()
         self.result = M.truth_value
-        if RuleMovesCount(specs, "Remove2", 0, None)() is M.false_value:
+        if RuleMissesAt(specs, "Remove2", 0)() is M.false_value:
             self.result = M.false_value
-        if RuleMovesCount(specs, "Remove2", 1, None)() is M.false_value:
+        if RuleMissesAt(specs, "Remove2", 1)() is M.false_value:
             self.result = M.false_value
         record = MoveOfRuleAt(specs, "Remove2", 0)()
         if D.IsAppliedOutcome(record)() is M.false_value:
@@ -429,13 +422,13 @@ class Add1Perturbation(M.Edge):
         self.result = M.truth_value
         if RuleMovesCount(specs, "Add1Even", 0, 1)() is M.false_value:
             self.result = M.false_value
-        if RuleMovesCount(specs, "Add1Even", 1, None)() is M.false_value:
+        if RuleMissesAt(specs, "Add1Even", 1)() is M.false_value:
             self.result = M.false_value
         if RuleMovesCount(specs, "Add1Even", 2, 3)() is M.false_value:
             self.result = M.false_value
         if RuleMovesCount(specs, "Add1Odd", 1, 2)() is M.false_value:
             self.result = M.false_value
-        if RuleMovesCount(specs, "Add1Odd", 0, None)() is M.false_value:
+        if RuleMissesAt(specs, "Add1Odd", 0)() is M.false_value:
             self.result = M.false_value
         if RuleMovesCount(specs, "Add1Odd", 3, 4)() is M.false_value:
             self.result = M.false_value
@@ -880,9 +873,9 @@ class Add1RulesRefuteParityObserver(M.Edge):
         if I.IsInvariantRefuted(result)() is M.false_value:
             return M.false_value
         readings = ParityReadings(rule_term)()
-        if IsEmpty(M.Head(readings)())() is M.truth_value:
+        if IsEmptyTerm(M.Head(readings)())() is M.truth_value:
             return M.false_value
-        if IsEmpty(M.Head(M.Tail(readings)())())() is M.truth_value:
+        if IsEmptyTerm(M.Head(M.Tail(readings)())())() is M.truth_value:
             return M.false_value
         return M.truth_value
 

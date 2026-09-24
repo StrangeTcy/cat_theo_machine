@@ -13,7 +13,6 @@ from __future__ import annotations
 import sys
 
 from ... import machine as M
-from ..chains import IsEmptyTerm
 from .test_g1_domain import G1Tests
 
 

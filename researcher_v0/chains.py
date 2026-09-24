@@ -185,18 +185,22 @@ class ChainSortText(M.Edge):
 
 
 class IsEmptyTerm(M.Edge):
-    """Is this term `EmptyList` itself?
+    """Is this term empty? Asked the way the substrate asks it.
 
-    `IdentityCompare` walks atom identity (`core.py:202` reads `.id`), so it is
-    for atoms only: an index or count carried as a Python int must be tested
-    for emptiness here instead.
+    The test is `machine.IdentityCompare(term, M.EmptyList)`, the same
+    predicate `machine.py` and `proof.py` use at every emptiness site. Python
+    identity (`term is M.EmptyList`) is not used anywhere in this package: it
+    is a statement about one interpreter's object graph rather than about the
+    term, it bypasses the identity the substrate assigns, and it silently
+    accepts a non-atom such as an index.
+
+    The argument must therefore be a term. Index and count arithmetic keeps
+    its position inside a `Pair`, so an emptiness question is never asked of
+    an int.
     """
 
     def __init__(self, term):
-        if term is M.EmptyList:
-            self.result = M.truth_value
-        else:
-            self.result = M.false_value
+        self.result = M.IdentityCompare(term, M.EmptyList)()
         super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
 
     def __call__(self):

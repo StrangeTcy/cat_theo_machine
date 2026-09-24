@@ -52,6 +52,37 @@ operation is an `Edge` class with a `result`; every call site reads
 only non-substrate imports are `hashlib` (used by the rest of the repository
 in `programme_c/*`) and `os.path` (test file reading).
 
+### Comparison discipline (corrected before this commit was accepted)
+
+```text
+terms            compared with machine.Compare, and for emptiness/identity of
+                 EmptyList with machine.IdentityCompare — the same predicate
+                 machine.py and proof.py use at every emptiness site.
+predicate results compared by identity to machine.truth_value / false_value,
+                 which is the substrate's own convention for the singletons
+                 its predicates return.
+Python identity  NOT used on terms. `term is M.EmptyList` and
+                 `X is not M.EmptyList` appeared in a first draft and are
+                 removed: they state a fact about one interpreter's object
+                 graph rather than about the term, they bypass the identity
+                 the substrate assigns, and they silently accept a non-atom
+                 such as an index.
+indices/counts   never occupy a term slot. Where a search reports "found at
+                 position i", the position rides inside a term
+                 (`Pair(position, EmptyList)`) or the search is split into a
+                 hits-only and a misses-only test, so an emptiness question
+                 never receives an int. `ruleset_digest.VarIndex`,
+                 `token_domain.FirstPremiseWithoutMatch`,
+                 `token_domain.RuleMovesCount` / `RuleMissesAt` were
+                 restructured for exactly this.
+payload tests    `atom() is None` and `payload == payload` are payload-level
+                 facts (the fingerprint's refusal of payload-less atoms and
+                 the text sort order), not term identity.
+```
+
+The ruleset digests are unchanged by that correction, since the encoding
+reads `Head` of the wrapped index rather than the wrapper.
+
 ## 3. The domain
 
 ```text

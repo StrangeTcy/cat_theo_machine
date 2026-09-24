@@ -913,7 +913,7 @@ class ApplyRule(M.Edge):
             index = M.EmptyList
         else:
             reason = NoMatchTag()()
-            index = unmatched
+            index = M.Head(unmatched)()
         return OutcomeRecord(
             MissTag()(),
             RuleDisplay(spec)(),
@@ -1043,10 +1043,12 @@ class HeadAt(M.Edge):
 
 
 class FirstPremiseWithoutMatch(M.Edge):
-    """Position of the first premise that matches no single fact, else EmptyList.
+    """The first premise that matches no single fact, as a term.
 
-    A rule reported as MISS with a position here failed on *matching*; a MISS
-    with no position failed on *binding consistency* (a repeated variable that
+    `Pair(position, EmptyList)` when one is found, `EmptyList` otherwise: the
+    position rides inside a term, so no emptiness test ever receives an int.
+    A rule reported as MISS with a result here failed on *matching*; a MISS
+    with `EmptyList` failed on *binding consistency* (a repeated variable that
     could not be bound to one value).
     """
 
@@ -1061,7 +1063,7 @@ class FirstPremiseWithoutMatch(M.Edge):
             return M.EmptyList
         if self._matches_any(facts, M.Head(premises)()) is M.truth_value:
             return self._scan(M.Tail(premises)(), facts, position + 1)
-        return position
+        return M.Pair(position, M.EmptyList)
 
     def _matches_any(self, facts, premise):
         if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
