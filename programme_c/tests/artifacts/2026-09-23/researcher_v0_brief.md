@@ -520,3 +520,38 @@ prune events:
 live activation: none
 ready for next: yes/no
 ```
+
+---
+
+# Amendment A1 (2026-09-24, per external review)
+
+## A1.1 — CHECKED_UNREACHABLE requires a replayed proof
+
+Bounded search exhaustion in an unbounded token world MUST NOT produce
+`CHECKED_UNREACHABLE`. Exhaustion produces `OPEN_RESIDUAL` (search space
+remains, budget remains) or `BUDGET_EXHAUSTED` (budget spent).
+
+`CHECKED_UNREACHABLE` is produced only by a replayed proof certificate, e.g.:
+
+- an invariant proved for EVERY rule in the exact ruleset version, plus
+- start and goal evaluating to different values under that invariant.
+
+A changed rule invalidates the certificate before it may prune anything
+(see G5 scope check; mismatch returns `ScopeMismatch`, never a prune).
+
+This amends G3 (outcome recording) and acceptance tests 6–8: any
+unreachability claim must cite its certificate id, and the certificate must
+replay under the task's exact ruleset version.
+
+## A1.2 — Ruleset version identifies rule content, not display names
+
+The ruleset version is a digest of rule CONTENT (rule bodies / semantics).
+Consequences:
+
+- renaming a display label preserves the task's canonical id AND preserves
+  certificate scope (same version);
+- adding `Add1` (or removing/changing any rule) changes the version, so old
+  certificates scope-mismatch new tasks.
+
+This amends G2 (canonicalization) and G5 (scope check): canonical task id is
+stable under display renaming; certificate scope is keyed by content version.
