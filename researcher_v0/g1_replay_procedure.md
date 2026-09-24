@@ -66,9 +66,13 @@ expected checker version         -- the version string of the replay code
    `OPEN_RESIDUAL`, `BUDGET_EXHAUSTED`, `EXECUTION_FAILURE` or `UNSUPPORTED`
    respectively — never `CHECKED_UNREACHABLE`.
 
-## Named acceptance item handed to the G2 checker (folded under A2.1)
+## Named acceptance item deferred to the checker gates G3/G4 (folded under A2.1)
 
-Named test, to be written in G2 and not in G1:
+Scope note: this belongs to the *checker*, exercised in G3/G4, not to G2.
+G2 is task generation only. G2 records this item under "Deferred to checker"
+and writes no checker code; G1 records it and implements nothing.
+
+Named test, to be written at the checker gates and not in G1 or G2:
 
 ```text
 a missing observer reading must not compare equal to false_value, and must not
@@ -94,9 +98,10 @@ Required behaviour:
 - no certificate is minted, and no prune event is recorded, on any path where
   a reading was missing.
 
-Test shape for G2: build a state that does not carry the observed fact,
-compute the reading, and require the checker to report NOT CHECKED together
-with the absence of a certificate record and the absence of a prune event.
+Test shape for the checker gates (G3/G4): build a state that does not carry
+the observed fact, compute the reading, and require the checker to report NOT
+CHECKED together with the absence of a certificate record and the absence of a
+prune event.
 
 ## Absolute rules
 
@@ -125,12 +130,13 @@ did not : prove any invariant, mint any certificate, run any search, emit any
 A preserved reading is a property of rule content. It is not a research
 result, and G1 does not report it as one.
 
-## Handed to G2
+## Handed forward
 
 The named acceptance item in the section above (a missing reading must not
 compare equal to `false_value` and must not be treated as a value) is folded
-under A2.1 and is a G2 checker requirement. G1 records it; G1 does not
-implement it.
+under A2.1 and is a requirement of the **checker gates G3/G4**. G1 records it
+and implements nothing. G2 records it under "Deferred to checker", writes no
+checker code, and must not start the checker early.
 
 Branch note for the operator: this document's G1 verdict is recorded against
 commit `83e6003`, and the branch carries two documentation-only commits after
