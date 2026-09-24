@@ -41,7 +41,7 @@ expected checker version         -- the version string of the replay code
    every one. Never accept an archived `Invariant` tag as evidence, and never
    stop at the first success.
 3. **Check that the recomputed result names the requested observer and the
-   exact ruleset.** Recompute the fingerprint of the ruleset actually walked
+   exact ruleset.** Recompute the fingerprint of the ruleset that was walked
    and compare it to step 1's digest; compare the observer term in the
    recomputed result to the requested `phi` with `Compare`. A mismatch is
    `UNSUPPORTED`, not a result.
