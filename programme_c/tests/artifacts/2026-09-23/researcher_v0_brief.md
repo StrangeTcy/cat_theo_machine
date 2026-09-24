@@ -555,3 +555,70 @@ Consequences:
 
 This amends G2 (canonicalization) and G5 (scope check): canonical task id is
 stable under display renaming; certificate scope is keyed by content version.
+
+---
+
+# Amendment A2 (2026-09-24, per G0 review — BLOCKING for G1)
+
+G0 (`305b017`) is approved. G1 is held until this amendment is committed.
+
+## A2.1 — Label checks are not replay (operational replay procedure)
+
+Verified against `invariance.py` at G0 base `df8b1bc`:
+
+- `IsInvariant` (`:1235`) and `IsUnreachable` (`:1263`) check only the outer
+  term label.
+- `ReachabilityPrune` (`:1276`) trusts `IsInvariant`, checks `PhiHolds(start)`
+  only, and compares readings. It never checks `PhiHolds(goal)`.
+- `PhiReading` (`:58`) returns `EmptyList` on no match — so a missing goal
+  reading compares unequal to a present start reading and would mint an
+  `Unreachable` certificate from a miss.
+
+Therefore the experiment checker MUST implement replay as recomputation, and
+G1 MUST specify it operationally (not "replay the certificate" prose):
+
+1. Recompute preservation: run `Preserves(rule, phi, registry)` per rule over
+   the task's EXACT rule content. Never accept an archived `Invariant` tag
+   as evidence.
+2. Verify the recomputed result names the requested observer `phi` and the
+   exact ruleset (fingerprint match per A1.2/A2.2).
+3. Require `PhiHolds(start, phi)` AND `PhiHolds(goal, phi)` both truth, with
+   non-missing readings, before comparing values. A missing reading on
+   either side → not `CHECKED_UNREACHABLE`.
+4. Bind the certificate record to (observer, start, goal, ruleset digest,
+   checker version).
+5. Malformed evidence, timeout, crash, or unsupported replay →
+   `OPEN_RESIDUAL` / `BUDGET_EXHAUSTED` / `EXECUTION_FAILURE` /
+   `UNSUPPORTED` — never `CHECKED_UNREACHABLE`.
+
+This tightens G3, G5, §3a of `researcher_v0/inspection.md`, and acceptance
+tests 5–8: every unreachability claim cites a certificate whose replay log
+shows steps 1–4 re-executed.
+
+## A2.2 — Fingerprint: preserve semantic constants, exclude display-only names
+
+A1.2 and inspection §3b are corrected: "alpha-normalize free-atom identities"
+is too broad. Atoms carry identity plus a value slot (`core.py:6`); semantic
+constants — rule/premise/pattern content that affects matching, readings, or
+legality — MUST be preserved in the digest. Only DISPLAY-ONLY names (atom
+payloads the G1 domain declares cosmetic and provably never matched by any
+rule premise, pattern, or observer) are excluded.
+
+G1 MUST declare the exact semantic/display partition for the token domain and
+ship tests showing:
+
+- rule order and display-only renaming preserve the digest;
+- changing `Add2` to `Add1`, changing a legality precondition, or changing a
+  semantic constant changes the digest.
+
+Order-independence (sorted per-rule digests) and the `PrettyTerm` warning
+(inspection §3b) stand.
+
+## A2.3 — Baseline interpretation
+
+Zero `CHECKED_UNREACHABLE` results with mining off is the EXPECTED outcome
+(no invariant certificates available to prove anything unreachable) — not a
+hard-coded requirement. Any baseline unreachability claim that does occur
+still needs a valid replayed certificate per A2.1. The morning report MUST
+state this reading so the zero is not misread as a bug or an unfair
+comparison. (Tightens G7 and the report structure.)
