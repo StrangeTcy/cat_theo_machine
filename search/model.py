@@ -2021,6 +2021,141 @@ class SearchRewriteCursor(M.Edge):
         return self.result
 
 
+class SearchMatchCursor(M.Edge):
+    """
+    A match in progress: a partial mapping of `pattern_graph` into
+    `host_version`, plus the pattern elements still to be sent.
+
+    Additive. Nothing constructs one unless a caller asks for a match
+    subproblem, so engine behaviour is unchanged when no match state exists.
+    """
+
+    def __init__(self, mapping_root, pattern_graph, host_version, pending):
+        self.result = M.Pair(
+            SearchMatchCursorLabel,
+            M.Pair(
+                mapping_root,
+                M.Pair(pattern_graph, M.Pair(host_version, M.Pair(pending, M.EmptyList))),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                mapping_root,
+                M.Pair(pattern_graph, M.Pair(host_version, M.Pair(pending, M.EmptyList))),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class SearchMatchCursorRoot(M.Edge):
+    def __init__(self, cursor):
+        self.result = SearchArgAt(cursor, M.Zero)()
+        super().__init__(inputs=M.Pair(cursor, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SearchMatchCursorPattern(M.Edge):
+    def __init__(self, cursor):
+        self.result = SearchArgAt(cursor, M.one)()
+        super().__init__(inputs=M.Pair(cursor, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SearchMatchCursorHost(M.Edge):
+    def __init__(self, cursor):
+        self.result = SearchArgAt(cursor, M.two)()
+        super().__init__(inputs=M.Pair(cursor, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SearchMatchCursorPending(M.Edge):
+    def __init__(self, cursor):
+        self.result = SearchArgAt(cursor, M.three)()
+        super().__init__(inputs=M.Pair(cursor, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SearchMatchCursorComplete(M.Edge):
+    """A match state is a goal for its subproblem when nothing is pending."""
+
+    def __init__(self, cursor):
+        self.result = M.IdentityCompare(SearchMatchCursorPending(cursor)(), M.EmptyList)()
+        super().__init__(inputs=M.Pair(cursor, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SearchMatchAlternativesCursor(M.Edge):
+    """Untried sibling extensions of a match step, awaiting expansion."""
+
+    def __init__(self, alternatives, pattern_graph, host_version, pending):
+        self.result = M.Pair(
+            SearchMatchAlternativesCursorLabel,
+            M.Pair(
+                alternatives,
+                M.Pair(pattern_graph, M.Pair(host_version, M.Pair(pending, M.EmptyList))),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                alternatives,
+                M.Pair(pattern_graph, M.Pair(host_version, M.Pair(pending, M.EmptyList))),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class SearchMatchAlternativesCursorAlternatives(M.Edge):
+    def __init__(self, cursor):
+        self.result = SearchArgAt(cursor, M.Zero)()
+        super().__init__(inputs=M.Pair(cursor, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SearchMatchAlternativesCursorPattern(M.Edge):
+    def __init__(self, cursor):
+        self.result = SearchArgAt(cursor, M.one)()
+        super().__init__(inputs=M.Pair(cursor, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SearchMatchAlternativesCursorHost(M.Edge):
+    def __init__(self, cursor):
+        self.result = SearchArgAt(cursor, M.two)()
+        super().__init__(inputs=M.Pair(cursor, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class SearchMatchAlternativesCursorPending(M.Edge):
+    def __init__(self, cursor):
+        self.result = SearchArgAt(cursor, M.three)()
+        super().__init__(inputs=M.Pair(cursor, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class SearchRewriteCursorRule(M.Edge):
     def __init__(self, cursor):
         self.result = SearchArgAt(cursor, M.Zero)()

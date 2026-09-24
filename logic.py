@@ -14,11 +14,24 @@ class FalseAtom(Atom):
 
 
 class NandAtom(Edge):
+    """The boolean primitive every other connective is built from.
+
+    These four edges each allocated a Thingy for a result that __call__
+    immediately overwrote, plus a Pair chain of inputs that nothing ever
+    read -- the same defect as IdentityCompare, and costlier here because
+    the connectives call each other: OrAtom is two NotAtoms and a
+    NandAtom, so one boolean cost 131us and seven allocations.
+
+    Results are now assigned directly and inputs left empty. Every call
+    site in the codebase is Atom(...)(); none binds an edge or reads
+    .result before calling it.
+    """
+
     def __init__(self, a, b):
         self.a = a
         self.b = b
-        self.result = Thingy()
-        super().__init__(inputs=Pair(a, Pair(b, EmptyList)), results=self.result)
+        self.result = false_value
+        super().__init__(inputs=EmptyList, results=self.result)
 
     def __call__(self):
         if self.a is truth_value and self.b is truth_value:
@@ -32,8 +45,8 @@ class AndAtom(Edge):
     def __init__(self, a, b):
         self.a = a
         self.b = b
-        self.result = Thingy()
-        super().__init__(inputs=Pair(a, Pair(b, EmptyList)), results=self.result)
+        self.result = false_value
+        super().__init__(inputs=EmptyList, results=self.result)
 
     def __call__(self):
         temp = NandAtom(self.a, self.b)()
@@ -44,8 +57,8 @@ class AndAtom(Edge):
 class NotAtom(Edge):
     def __init__(self, a):
         self.a = a
-        self.result = Thingy()
-        super().__init__(inputs=Pair(a, EmptyList), results=self.result)
+        self.result = false_value
+        super().__init__(inputs=EmptyList, results=self.result)
 
     def __call__(self):
         self.result = NandAtom(self.a, self.a)()
@@ -56,8 +69,8 @@ class OrAtom(Edge):
     def __init__(self, a, b):
         self.a = a
         self.b = b
-        self.result = Thingy()
-        super().__init__(inputs=Pair(a, Pair(b, EmptyList)), results=self.result)
+        self.result = false_value
+        super().__init__(inputs=EmptyList, results=self.result)
 
     def __call__(self):
         na = NotAtom(self.a)()

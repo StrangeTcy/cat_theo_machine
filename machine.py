@@ -62,6 +62,28 @@ from .labels import (
     IsCauchyLabel,
     IsRealLabel,
     KnowledgeLabel,
+    LessonLabel,
+    EntryLabel,
+    GroundedExampleLabel,
+    SourceLabel,
+    SurfaceLabel,
+    MathematicsLabel,
+    HistoryLabel,
+    ProblemLabel,
+    HintLabel,
+    UsesStrategyLabel,
+    DerivationFragmentLabel,
+    GoalLabel,
+    ClaimsLabel,
+    SupportsLabel,
+    HistoricalContradictsLabel,
+    OccursOnLabel,
+    BeforeLabel,
+    CausesLabel,
+    ParticipatesInLabel,
+    OccursAtLabel,
+    ClaimStoreLabel,
+    CorrespondenceLawLabel,
     LimitLabel,
     MachineContextLabel,
     ContextConstructorsLabel,
@@ -105,6 +127,9 @@ from .labels import (
     TreePatriciaStopTokenLabel,
     TreePatriciaLeafLabel,
     TreePatriciaBranchLabel,
+    SignatureLabel,
+    DefinitionGenusLabel,
+    DefinitionCountedLabel,
     TreePatriciaChoiceLabel,
     SearchRewriteCursorLabel,
     SearchRewritePathFrameLabel,
@@ -208,7 +233,15 @@ class MergeBindings(Edge):
         found_flag = Head(found)()
         found_val = Tail(found)()
         if Compare(found_flag, truth_value)() is truth_value:
+            # The matcher itself equates constructor-less atoms structurally
+            # (Compare: Char('four') matches Char('four')), so a repeated
+            # variable must accept two bindings the matcher would have
+            # accepted individually. TermEqual is identity on atoms and
+            # rejected every repeated-variable pattern over words, since
+            # each occurrence in a chain is a fresh Char.
             if TermEqual(found_val, val)() is truth_value:
+                return self._merge(base, Tail(extra)())
+            if Compare(found_val, val)() is truth_value:
                 return self._merge(base, Tail(extra)())
             return Pair(false_value, EmptyList)
         new_base = Pair(b, base)
@@ -370,6 +403,17 @@ class Instantiate(Edge):
 
 
 class IsPair(Edge):
+    """Is this term a Pair?
+
+    The second hottest primitive after IdentityCompare, and it used to
+    allocate a two-Pair `inputs` chain -- three atoms, three identities
+    -- to answer a question about one pointer, and nothing ever read
+    that chain. IdentityCompare had the same surgery for the same
+    reason: the result is assigned directly, `inputs` is left empty, and
+    no caller is affected, because every call site is IsPair(x)() and a
+    transient predicate is never reachable from a persistence root.
+    """
+
     def __init__(self, x):
         try:
             Head(x)()
@@ -378,7 +422,7 @@ class IsPair(Edge):
         except Exception:
             atom_result = false_value
         self.result = atom_result
-        super().__init__(inputs=Pair(x, EmptyList), results=self.result)
+        super().__init__(inputs=EmptyList, results=self.result)
 
     def __call__(self):
         return self.result

@@ -1,0 +1,90 @@
+format: hyge-training-records
+version: 1
+
+# Engel E2 -- blackboard parity invariant.
+#
+# One training record: the structural skeleton a curator extracts from the
+# prose, without requiring the machine to parse the English. The meaning
+# structure is the initial Knowledge; the strategy hint is the Invariance
+# method term whose single argument doubles as the phi pattern; the
+# obligation skeleton is the planner decomposition; the test instance is
+# the concrete n=3 run from the problem statement.
+
+records:
+  - id: engel_e2_blackboard_parity
+    problem_statement:
+      text: >-
+        Suppose the positive integer n is odd. First Al writes the numbers
+        1, 2, ..., 2n on the blackboard. Then he picks any two numbers a, b,
+        erases them, and writes |a - b|. Prove that an odd number will remain
+        at the end.
+    meaning_structure:
+      start:
+        call:
+          head: {sym: KnowledgeLabel}
+          args:
+            - list:
+                - call: {head: {sym: InitialBoardLabel}, args: [{char: n}]}
+                - call: {head: {sym: ParityLabel}, args: [{char: n}, {sym: OddLabel}]}
+                - call: {head: {sym: TerminalLabel}, args: [{char: final}]}
+                - call:
+                    head: {sym: InvariantLabel}
+                    args:
+                      - {sym: BlackboardProblemLabel}
+                      - call: {head: {sym: ParityLabel}, args: [{sym: BoardSumObservableLabel}]}
+    strategy_hint:
+      rules_pack: engel-blackboard
+      method:
+        call:
+          head: {sym: InvarianceLabel}
+          args:
+            - call: {head: {sym: ParityLabel}, args: [{sym: BoardSumObservableLabel}, {var: p}]}
+    obligation_skeleton:
+      - id: initial
+        text: Parity(BoardSum(InitialBoard(n)), Odd)
+        goal:
+          call:
+            head: {sym: KnowledgeLabel}
+            args:
+              - list:
+                  - call:
+                      head: {sym: ParityLabel}
+                      args:
+                        - call:
+                            head: {sym: ExprMulLabel}
+                            args:
+                              - {char: n}
+                              - call:
+                                  head: {sym: ExprAddLabel}
+                                  args:
+                                    - call: {head: {sym: ExprMulLabel}, args: [{sym: two}, {char: n}]}
+                                    - {sym: one}
+                        - {sym: OddLabel}
+      - id: preserves
+        text: Preserves(EraseAndReplace, Parity(BoardSum, Odd))
+      - id: invariant
+        text: Invariant(BlackboardProblem, Parity(BoardSum, Odd))
+        goal:
+          call:
+            head: {sym: KnowledgeLabel}
+            args:
+              - list:
+                  - call:
+                      head: {sym: InvariantLabel}
+                      args:
+                        - {sym: BlackboardProblemLabel}
+                        - call: {head: {sym: ParityLabel}, args: [{sym: BoardSumObservableLabel}]}
+      - id: conclusion
+        text: Parity(FinalNumber, Odd)
+        goal:
+          call:
+            head: {sym: KnowledgeLabel}
+            args:
+              - list:
+                  - call: {head: {sym: ParityLabel}, args: [{sym: FinalNumberLabel}, {sym: OddLabel}]}
+    test_instances:
+      - id: n3
+        description: "n=3, board 1..6, sum 21"
+        moves: "(5,3)->2, (6,2)->4, (4,1)->3, (4,2)->2, (3,2)->1"
+        final_number: "1"
+        expected_parity: Odd

@@ -1,0 +1,13 @@
+training example: double two <-> mul ( two , two )
+training example: double three <-> mul ( two , three )
+training example: triple two <-> mul ( three , two )
+training example: triple three <-> mul ( three , three )
+training example: triple zero <-> mul ( three , zero )
+training example: triple one <-> mul ( three , one )
+training example: triple six <-> mul ( three , six )
+training example: triple eight <-> mul (three, eight)
+training example: triple nine <-> mul (three, nine)
+training example: triple four <-> mul (three, four)
+training example: triple five <-> mul (three, five)
+yes
+yes
