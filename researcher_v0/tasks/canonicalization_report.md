@@ -38,7 +38,7 @@ live activation: none
 | `researcher_v0/task_generation.py` | task records and rows, the generation lattice, canonicalization, exact-duplicate dropping, the JSONL writer |
 | `researcher_v0/tasks/tasks.jsonl` | the generated task set: 42 rows, zero outcomes |
 | `researcher_v0/tasks/canonicalization_report.md` | this report |
-| `researcher_v0/tests/test_g2_tasks.py` | 15 tests as `Edge` classes |
+| `researcher_v0/tests/test_g2_tasks.py` | 16 tests as `Edge` classes |
 | `researcher_v0/tests/run_g2_tests.py` | runner: generation, then tests, exit 0 / 1 |
 | `researcher_v0/CONSTRAINTS.md` | the operator's standing constraints, recorded verbatim (carried from the G1 branch's `c0b3ebd` so the registry lives inside this package) |
 
@@ -185,7 +185,7 @@ keep their unrenamed digests — renaming changes no binding.
 
 ```text
 command:  cd /home/user && python3 -m cat_theo_machine.researcher_v0.tests.run_g2_tests
-result:   passed: 15  failed: 0   (exit 0)
+result:   passed: 16  failed: 0   (exit 0)
 
 regression:  cd /home/user && python3 -m cat_theo_machine.researcher_v0.tests.run_g1_tests
              passed: 23  failed: 0   (exit 0)
@@ -201,13 +201,14 @@ regression:  cd /home/user && python3 -m cat_theo_machine.researcher_v0.tests.ru
 | 6 | canonical: exact duplicates dropped and recorded | each drop duplicates a survivor in content and display; delivered rows pairwise non-exact |
 | 7 | canonical: goal perturbation changes id, keeps digest | goal is not rule content |
 | 8 | canonical: rule-content perturbation changes id and digest | remove-a-rule and add-Add1 rows diverge both ways |
-| 9 | canonical: scope break changes ruleset digest | old and new digests differ on every scope row |
-| 10 | binding: G1 ruleset digests bound | R_even / R_plus rows carry G1 report §4 values |
-| 11 | binding: version is content, never display name | bindings are 64 hex of content; display text is never a binding or an id |
-| 12 | discipline: ids and counts outside semantic terms | shells ride as `Pair(value, EmptyList)`; fact/rule/observer atoms are declared or text; no task id in canonical content |
-| 13 | scope break: pending certificate references only | `old_certificate` is `pending:…`; nothing is minted |
-| 14 | inertness: no checker or outcome vocabulary | the generation module holds none of the guarded tokens |
-| 15 | generation: rerun reproduces tasks.jsonl | deterministic byte-for-byte |
+| 9 | canonical: precondition change changes digest and task id | end-to-end (G2 review follow-up): with start and goal fixed and two one-rule rulesets differing only in one rule premise (same display, same replacement), both the ruleset digest and the task canonical id differ — `TaskRecord` and `CanonicalIdOfRecord`, corpus untouched |
+| 10 | canonical: scope break changes ruleset digest | old and new digests differ on every scope row |
+| 11 | binding: G1 ruleset digests bound | R_even / R_plus rows carry G1 report §4 values |
+| 12 | binding: version is content, never display name | bindings are 64 hex of content; display text is never a binding or an id |
+| 13 | discipline: ids and counts outside semantic terms | shells ride as `Pair(value, EmptyList)`; fact/rule/observer atoms are declared or text; no task id in canonical content |
+| 14 | scope break: pending certificate references only | `old_certificate` is `pending:…`; nothing is minted |
+| 15 | inertness: no checker or outcome vocabulary | the generation module holds none of the guarded tokens |
+| 16 | generation: rerun reproduces tasks.jsonl | deterministic byte-for-byte |
 
 ## 7. Deferred to checker and standing acceptance items
 
@@ -237,11 +238,18 @@ PENDING-REF (standing; binds G3 and G5)
   2. Resolution is recorded as an explicit event (task_id, pending_ref,
      certificate_id); an unresolved pending is never an error, never a
      refutation, and never CHECKED_*.
+  3. Resolution is typed (G2 follow-up review): the resolved certificate's
+     kind, observer, old ruleset digest and checker version must each match
+     the slot's. A reachable-path certificate — including one minted for a
+     parent such as T0001 (0 -> 2) or T0004 (1 -> 3) — never resolves a slot
+     intended for a proved parity-invariant certificate. Consequently in G3
+     baseline all three canonical scope-break tasks (T0043 = T0044, T0045,
+     T0046) remain UNSUPPORTED even if a parent has a path certificate.
 ```
 
 A `pending:*` reference never satisfies a replay. This closes the gap the
 placeholder scheme opens: an unresolved reference is "not yet supported"
-and never evidence.
+and never evidence; a wrongly-typed certificate is no better.
 
 ## 8. Prior-gate modifications (G2 review bookkeeping)
 
@@ -255,10 +263,10 @@ word). The two flagged items, named with before/after and license:
 | item | files | before → after | license / regression evidence |
 |---|---|---|---|
 | encoder fix (flagged in the review as "the G1 encoder") | `task_generation.py` (G2-owned) and `tests/test_g2_tasks.py` (G2-owned) | the canonical encoder first offered the `Knowledge`-wrapped state term to `ruleset_digest.TermText`, which refuses it (`UnsupportedTermContent`: a value-less atom outside the declared singleton list); the encoder now offers the state fact chain (`FactsOfState`) — the same content the later checker reads — and the discipline test checks state-fact, rule and observer atoms | G1's encoder module `ruleset_digest.py` is **unmodified** in `97a746f`: the review flag named the module that raised the refusal, not a file that changed. G1 suite 23/23 green after the change; the G1 digest values are test-pinned and verbatim-unchanged (`R_even 15f5467c…`, `R_plus 533cb46b…`) |
-| replay-procedure wording fix | `g1_replay_procedure.md` (G1-owned) — the one prior-gate file modified | `g1_replay_procedure.md:44`: "the ruleset ⟨deny-listed adverb, elided here so the verification grep stays clean⟩ walked" → "the ruleset it walked" | non-semantic prose fix; licensed by the standing constraints' verification command (deny-list strings appear only in `CONSTRAINTS.md`) and G1's own wording-fix precedent (`fe1e480`). No code path changed; G1 23/23 and G2 15/15 green after |
+| replay-procedure wording fix | `g1_replay_procedure.md` (G1-owned) — the one prior-gate file modified | one-word wording fix on `g1_replay_procedure.md:44` (a stray adverb removed from "the ruleset ⟨adverb⟩ walked"); the removed word is elided here so the verification grep stays clean — the exact before/after is the commit diff of `g1_replay_procedure.md` at `97a746f`, cited rather than reproduced | non-semantic prose fix; licensed by the standing constraints' verification command (deny-list strings appear only in `CONSTRAINTS.md`) and G1's own wording-fix precedent (`fe1e480`). No code path changed; G1 23/23 and G2 16/16 green after |
 
-Both edits are hereby named for the archive: an auditor reads this table
-instead of reconstructing the change from session prose.
+Both edits are hereby named for the archive: an auditor reads this table and
+the cited commit diff instead of reconstructing the change from session prose.
 
 ## 9. Integrity
 
@@ -300,6 +308,16 @@ A generated task is a question. Nothing here is an answer.
 
 ## 11. Next bounded item
 
-G3 runs the delivered canonical set under BASELINE and MINING with the
-operational replay of `g1_replay_procedure.md` — including
-`MissingPhiReadingIsNotChecked` — gating every unreachability claim.
+G3 runs the delivered canonical set under **BASELINE only** — the staged G3
+authorization, recorded here as an explicit override of the brief's G3
+wording (which paired BASELINE and MINING), so a fresh agent has no choice to
+make: MINING remains for G4/G5, on the same canonical ids and the same
+budgets. Every run applies the operational replay of
+`g1_replay_procedure.md`, including `MissingPhiReadingIsNotChecked` (§7) and
+the typed PENDING-REF rule (§7): in baseline, all three canonical scope-break
+tasks stay `UNSUPPORTED`, even if a parent has a path certificate.
+
+Review closure (recorded so the distinction survives): the task set is
+suitable for later parity-invariant pruning — R_even rows include
+parity-mismatched queries (T0003 is 0 → 3, T0005 is 2 → 5). That establishes
+the suitability of the questions, not a proved invariant or a successful run.

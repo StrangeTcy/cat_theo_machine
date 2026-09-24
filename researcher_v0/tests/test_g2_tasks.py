@@ -40,6 +40,7 @@ from __future__ import annotations
 import os
 
 from ... import machine as M
+from ... import proof as P
 from .. import ruleset_digest as RD
 from .. import token_domain as D
 from .. import task_generation as G
@@ -616,6 +617,59 @@ class RerunReproducesFile(M.Edge):
         return self.result
 
 
+class PreconditionChangeChangesId(M.Edge):
+    """A rule-premise change moves both the ruleset digest and the task id.
+
+    End-to-end precondition sensitivity (G2 review follow-up): start and goal
+    are held fixed, and two one-rule rulesets differ only in one rule premise
+    — the carried parity precondition — with the display name and the rule
+    replacement identical. Both the ruleset digest and the task canonical id
+    must differ. G1 tests premise sensitivity of a rule digest; this asserts
+    the same change is visible in the task's canonical identity through
+    `TaskRecord` and `CanonicalIdOfRecord`. The generated corpus is untouched.
+    """
+
+    def __init__(self):
+        k = D.RuleVar("k")()
+        even = D.ParityFact(D.EvenTag()())()
+        odd = D.ParityFact(D.OddTag()())()
+        replacement = M.Pair(
+            D.TokensFact(D.PeanoSucc(k)())(), M.Pair(even, M.EmptyList)
+        )
+        premises_even = M.Pair(D.TokensFact(k)(), M.Pair(even, M.EmptyList))
+        premises_odd = M.Pair(D.TokensFact(k)(), M.Pair(odd, M.EmptyList))
+        specs_even = M.Pair(
+            D.RuleSpec(M.Char("p"), P.MultiRule(premises_even, replacement))(),
+            M.EmptyList,
+        )
+        specs_odd = M.Pair(
+            D.RuleSpec(M.Char("p"), P.MultiRule(premises_odd, replacement))(),
+            M.EmptyList,
+        )
+        start = D.StateOfCount(0)()
+        goal = D.StateOfCount(2)()
+        record_even = G.TaskRecord(
+            G.ReachabilityKind()(), start, goal, specs_even, M.EmptyList, M.EmptyList
+        )()
+        record_odd = G.TaskRecord(
+            G.ReachabilityKind()(), start, goal, specs_odd, M.EmptyList, M.EmptyList
+        )()
+        digest_even = D.RulesetVersionOfSpecs(specs_even)()
+        digest_odd = D.RulesetVersionOfSpecs(specs_odd)()
+        id_even = G.CanonicalIdOfRecord(record_even)()()
+        id_odd = G.CanonicalIdOfRecord(record_odd)()()
+        if digest_even() == digest_odd():
+            self.result = M.false_value
+        elif id_even == id_odd:
+            self.result = M.false_value
+        else:
+            self.result = M.truth_value
+        super().__init__(inputs=M.EmptyList, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class G2Tests(M.Edge):
     """The G2 test chain: `Pair(name, test class)` in run order."""
 
@@ -629,6 +683,7 @@ class G2Tests(M.Edge):
         built = ChainAppend(built, M.Pair(M.Char("canonical: exact duplicates dropped and recorded"), ExactDuplicatesDropped))()
         built = ChainAppend(built, M.Pair(M.Char("canonical: goal perturbation changes id, keeps digest"), GoalPerturbationChangesId))()
         built = ChainAppend(built, M.Pair(M.Char("canonical: rule-content perturbation changes id and digest"), RulePerturbationChangesIdAndDigest))()
+        built = ChainAppend(built, M.Pair(M.Char("canonical: precondition change changes digest and task id"), PreconditionChangeChangesId))()
         built = ChainAppend(built, M.Pair(M.Char("canonical: scope break changes ruleset digest"), ScopeBreakChangesDigest))()
         built = ChainAppend(built, M.Pair(M.Char("binding: G1 ruleset digests bound"), G1DigestsBound))()
         built = ChainAppend(built, M.Pair(M.Char("binding: version is content, never display name"), VersionIsContentNotDisplay))()
