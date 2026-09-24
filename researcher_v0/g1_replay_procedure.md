@@ -66,6 +66,38 @@ expected checker version         -- the version string of the replay code
    `OPEN_RESIDUAL`, `BUDGET_EXHAUSTED`, `EXECUTION_FAILURE` or `UNSUPPORTED`
    respectively — never `CHECKED_UNREACHABLE`.
 
+## Named acceptance item handed to the G2 checker (folded under A2.1)
+
+Named test, to be written in G2 and not in G1:
+
+```text
+a missing observer reading must not compare equal to false_value, and must not
+be treated as a value at all
+```
+
+Why it is named separately from step 4 above. `PhiReading` (`invariance.py:58`)
+returns `EmptyList` when the observer matches no fact. `EmptyList` is a term,
+not a verdict, and the substrate's predicates also answer with terms — so a
+checker that compares readings without first asking "is a reading present"
+can turn an absence into a comparison outcome. That is the same class of
+defect the domain layer removed when a non-term reached a term slot, one level
+up: at the certificate layer a non-verdict reaches a verdict position.
+
+Required behaviour:
+
+- a missing reading on either side is classified NOT CHECKED and ends the
+  replay as `UNSUPPORTED` (the observer does not read this state) or
+  `OPEN_RESIDUAL` — never as a comparison result;
+- `Compare(EmptyList, false_value)` answering false is not a licence to
+  conclude a difference: absence of a reading is not evidence of a different
+  value, and it is not evidence of a false predicate either;
+- no certificate is minted, and no prune event is recorded, on any path where
+  a reading was missing.
+
+Test shape for G2: build a state that does not carry the observed fact,
+compute the reading, and require the checker to report NOT CHECKED together
+with the absence of a certificate record and the absence of a prune event.
+
 ## Absolute rules
 
 ```text
@@ -92,3 +124,16 @@ did not : prove any invariant, mint any certificate, run any search, emit any
 
 A preserved reading is a property of rule content. It is not a research
 result, and G1 does not report it as one.
+
+## Handed to G2
+
+The named acceptance item in the section above (a missing reading must not
+compare equal to `false_value` and must not be treated as a value) is folded
+under A2.1 and is a G2 checker requirement. G1 records it; G1 does not
+implement it.
+
+Branch note for the operator: this document's G1 verdict is recorded against
+commit `83e6003`, and the branch carries two documentation-only commits after
+it (`fe1e480`, a wording fix in this file; `c0b3ebd`, which adds
+`researcher_v0/CONSTRAINTS.md`). Neither touches executable code, the domain,
+the fingerprint or the digests.
