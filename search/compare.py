@@ -19,6 +19,7 @@ from .. import context as Ctxmod
 from .. import schemata as Smod
 from .. import gmprep as Gmpmod
 from .. import trees as Tmod
+from .. import wire as Wmod
 from .. import logic as Logicmod
 from ..heuristics import *
 from ..labels import *
@@ -38,6 +39,11 @@ from .compare_packets import _ComparisonPacketMixin
 from .compare_executors import _ComparisonExecutorMixin
 from .engine import _SearchStepKernel
 from .model import *
+
+# A live daemon fans out at the same time as a foreground comparison, so the
+# comparison layer takes a share of the one host budget instead of claiming
+# every core for itself.
+COMPARISON_BUDGET_CLAIMANTS = 2
 from .patricia import *
 from .ui import _SearchComparisonPromptGuard, _SearchConsoleInput, _SearchStopConsole
 
@@ -49,6 +55,34 @@ from .ui import _SearchComparisonPromptGuard, _SearchConsoleInput, _SearchStopCo
 
 
 class CompareSearchModes(_ComparisonConsoleMixin, _ComparisonNatMixin, _ComparisonTreeMixin, _ComparisonStateMixin, _ComparisonAttemptMixin, _ComparisonRuleMatchMixin, _ComparisonSemanticMixin, _ComparisonSubprocessMixin, _ComparisonPacketMixin, _ComparisonExecutorMixin, M.Edge):
+    def _worker_result_matches_entry(self, mode, expected_packet_token, decoded):
+        if M.IdentityCompare(self._decoded_mode(decoded), mode)() is M.false_value:
+            return M.false_value
+        if M.Compare(expected_packet_token, M.EmptyList)() is M.truth_value:
+            return M.truth_value
+        return M.TermEqual(
+            self._decoded_packet_token(decoded), expected_packet_token,
+        )()
+
+    def _worker_failure_matches_entry(self, payload, mode, expected_packet_token):
+        if M.IsPair(payload)() is M.false_value:
+            return M.false_value
+        if M.IdentityCompare(M.Head(payload)(), SearchFailureLabel)() is M.false_value:
+            return M.false_value
+        context = M.Tail(payload)()
+        if M.IdentityCompare(context, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        marker_mode = M.Head(context)()
+        if M.IdentityCompare(marker_mode, mode)() is M.false_value:
+            return M.false_value
+        marker_tail = M.Tail(context)()
+        if M.IdentityCompare(expected_packet_token, M.EmptyList)() is M.truth_value:
+            return M.truth_value
+        if M.IdentityCompare(marker_tail, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        marker_token = M.Head(marker_tail)()
+        return M.TermEqual(marker_token, expected_packet_token)()
+
     def __init__(self, graph, start, goal, rules, heuristic, registry):
         t0 = time.time()
         self.graph = graph
@@ -66,7 +100,7 @@ class CompareSearchModes(_ComparisonConsoleMixin, _ComparisonNatMixin, _Comparis
         self._comparison_root_wave_idle_executors = M.EmptyList
         self._comparison_machine_parallelism = M.four
         try:
-            host_parallelism = multiprocessing.cpu_count()
+            host_parallelism = Wmod.share_process_budget(COMPARISON_BUDGET_CLAIMANTS)
             if host_parallelism <= 1:
                 self._comparison_machine_parallelism = M.one
             elif host_parallelism == 2:
@@ -438,14 +472,25 @@ class CompareSearchModes(_ComparisonConsoleMixin, _ComparisonNatMixin, _Comparis
                     slot_text = self._nat_text(self._worker_entry_slot(entry))
                     pid_text = str(self._worker_entry_process(entry).pid)
                     expected_packet_token = self._worker_entry_packet_token(entry)
-                    decoded = self._decode_parallel_worker_payload(payload, mode, expected_packet_token)
+                    execution_failure = self._worker_failure_matches_entry(
+                        payload, mode, expected_packet_token,
+                    )
+                    if execution_failure is M.truth_value:
+                        decoded = self._decode_parallel_worker_payload(None, mode, expected_packet_token)
+                    else:
+                        decoded = self._decode_parallel_worker_payload(payload, mode, expected_packet_token)
+                    returned_mode = self._decoded_mode(decoded)
                     returned_packet_token = self._decoded_packet_token(decoded)
-                    if payload is not None and M.Compare(expected_packet_token, M.EmptyList)() is M.false_value:
-                        if M.TermEqual(returned_packet_token, expected_packet_token)() is M.false_value:
+                    if payload is not None:
+                        if self._worker_result_matches_entry(
+                            mode, expected_packet_token, decoded,
+                        ) is M.false_value:
                             _debug(
-                                "search-compare: ignoring stale "
+                                "search-compare: ignoring mismatched "
                                 + SearchModeText(mode)()
-                                + " packet result token="
+                                + " packet result mode="
+                                + SearchModeText(returned_mode)()
+                                + " token="
                                 + _debug_term(returned_packet_token, self.registry)
                                 + " expected="
                                 + _debug_term(expected_packet_token, self.registry)

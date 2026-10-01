@@ -9,6 +9,10 @@ from .labels import (
     AreaFormulaAvailableLabel,
     AreaLabel,
     ArithmeticProgressionLabel,
+    AbsDiffLabel,
+    BlackboardProblemLabel,
+    BoardSumLabel,
+    BoardSumObservableLabel,
     CosineLabel,
     CommonDifferenceLabel,
     CommonDifferenceGivenLabel,
@@ -20,6 +24,7 @@ from .labels import (
     ExprFracLabel,
     ExprIntLabel,
     ExprLtLabel,
+    ExprLeLabel,
     ExprMulLabel,
     ExprNegLabel,
     ExprPowLabel,
@@ -30,19 +35,28 @@ from .labels import (
     GeometryFactLabel,
     HeronFormulaAvailableLabel,
     EdgesLabel,
+    EvenLabel,
+    FinalNumberLabel,
+    InitialBoardLabel,
+    InvariantLabel,
     IsCauchyLabel,
+    IsEvenLabel,
     IsRealLabel,
     KnowledgeLabel,
     LengthLabel,
     LimitLabel,
     MachineContextLabel,
+    MinLabel,
     MiddleTermAverageLabel,
+    MoveErasesLabel,
     NeedLabel,
     NewtonErrorIdentityLabel,
     NewtonErrorShrinksLabel,
     NewtonPositiveLabel,
     NewtonStepTermLabel,
+    OddLabel,
     ParameterLabel,
+    ParityLabel,
     PhysicalConstraintsKnownLabel,
     PositiveLabel,
     PolygonLabel,
@@ -69,6 +83,7 @@ from .labels import (
     TaoProblem11BetaValueLabel,
     TaoProblem11GammaValueLabel,
     DistinctLabel,
+    TerminalLabel,
     VertexOfLabel,
     SegmentLabel,
     AngleLabel,
@@ -106,6 +121,29 @@ from .labels import (
     EvaluateProblemLabel,
     VerticesLabel,
     WholeLabel,
+    WordLabel,
+    IsALabel,
+    PartOfLabel,
+    WornByLabel,
+    LocatedAtLabel,
+    EvidenceForLabel,
+    SupportedLabel,
+    RoleOfLabel,
+    CanAccessLabel,
+    ResponsibleForLabel,
+    OpportunityLabel,
+    ModifierOfLabel,
+    UndefinedConceptLabel,
+    UngroundedModifierLabel,
+    NoUsageExampleLabel,
+    NoParentLabel,
+    DanglingReferenceLabel,
+    MissingRenderLawLabel,
+    OnlyLabel,
+    NoLabel,
+    RankedGapsLabel,
+    AskedQuestionLabel,
+    AcknowledgedLabel,
 )
 from .logic import false_value, truth_value
 from .math.peano import NatEq, NatRepOf
@@ -131,6 +169,10 @@ class AtomName(Edge):
     def _name(self, a):
         if C.Compare(a, Zero)() is truth_value:
             return "Zero"
+        if IdentityCompare(a, truth_value)() is truth_value:
+            return "Truth"
+        if IdentityCompare(a, false_value)() is truth_value:
+            return "False"
         if IdentityCompare(a, GeometryFactLabel)() is truth_value:
             return "GeometryFact"
         if IdentityCompare(a, TaoProblem11TriangleLabel)() is truth_value:
@@ -143,7 +185,16 @@ class AtomName(Edge):
         c = C.GetConstructor(a)()
         if C.Compare(c, EmptyList)() is truth_value:
             val = a()
-            return val if val is not None else "<?>"
+            if val is not None:
+                return val
+            # A pack constructor label carries no value of its own;
+            # its name is the word the labels module gave it.
+            from . import labels as _labels_module
+
+            for _name_text, _name_value in vars(_labels_module).items():
+                if _name_value is a and _name_text.endswith("Label"):
+                    return _name_text[:-5]
+            return "<?>"
         label = Head(c)()
         args = Tail(c)()
         if IdentityCompare(label, SuccLabel)() is truth_value:
@@ -429,6 +480,34 @@ class PrettyTerm(Edge):
         return None
 
     def _generic_unary_constructor_name(self, label):
+        if IdentityCompare(label, AbsDiffLabel)() is truth_value:
+            return "AbsDiff"
+        if IdentityCompare(label, BlackboardProblemLabel)() is truth_value:
+            return "BlackboardProblem"
+        if IdentityCompare(label, BoardSumLabel)() is truth_value:
+            return "BoardSum"
+        if IdentityCompare(label, BoardSumObservableLabel)() is truth_value:
+            return "BoardSumObservable"
+        if IdentityCompare(label, EvenLabel)() is truth_value:
+            return "Even"
+        if IdentityCompare(label, FinalNumberLabel)() is truth_value:
+            return "FinalNumber"
+        if IdentityCompare(label, InitialBoardLabel)() is truth_value:
+            return "InitialBoard"
+        if IdentityCompare(label, InvariantLabel)() is truth_value:
+            return "Invariant"
+        if IdentityCompare(label, IsEvenLabel)() is truth_value:
+            return "IsEven"
+        if IdentityCompare(label, MinLabel)() is truth_value:
+            return "Min"
+        if IdentityCompare(label, MoveErasesLabel)() is truth_value:
+            return "MoveErases"
+        if IdentityCompare(label, OddLabel)() is truth_value:
+            return "Odd"
+        if IdentityCompare(label, ParityLabel)() is truth_value:
+            return "Parity"
+        if IdentityCompare(label, TerminalLabel)() is truth_value:
+            return "Terminal"
         if IdentityCompare(label, ArithmeticProgressionLabel)() is truth_value:
             return "ArithmeticProgression"
         if IdentityCompare(label, SymmetricProgressionNotationLabel)() is truth_value:
@@ -792,6 +871,8 @@ class PrettyTerm(Edge):
             return "(" + self._show(Head(tail)()) + " = " + self._show(Head(Tail(tail)())()) + ")"
         if IdentityCompare(head, ExprLtLabel)() is truth_value:
             return "(" + self._show(Head(tail)()) + " < " + self._show(Head(Tail(tail)())()) + ")"
+        if IdentityCompare(head, ExprLeLabel)() is truth_value:
+            return "(" + self._show(Head(tail)()) + " <= " + self._show(Head(Tail(tail)())()) + ")"
         if IdentityCompare(head, ExprIntLabel)() is truth_value:
             return self._show(Head(tail)())
         if IdentityCompare(head, FractionLabel)() is truth_value:
@@ -818,6 +899,52 @@ class PrettyTerm(Edge):
             problem = Head(tail)()
             tag = Head(Tail(tail)())()
             return self._geometry_fact_text(problem, tag)
+        if IdentityCompare(head, WordLabel)() is truth_value:
+            return "Word(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, IsALabel)() is truth_value:
+            return "IsA(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, PartOfLabel)() is truth_value:
+            return "PartOf(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, WornByLabel)() is truth_value:
+            return "WornBy(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, LocatedAtLabel)() is truth_value:
+            return "LocatedAt(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, EvidenceForLabel)() is truth_value:
+            return "EvidenceFor(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, SupportedLabel)() is truth_value:
+            return "Supported(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, RoleOfLabel)() is truth_value:
+            return "RoleOf(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, CanAccessLabel)() is truth_value:
+            return "CanAccess(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, ResponsibleForLabel)() is truth_value:
+            return "ResponsibleFor(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, OpportunityLabel)() is truth_value:
+            return "Opportunity(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, ModifierOfLabel)() is truth_value:
+            return "ModifierOf(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, UndefinedConceptLabel)() is truth_value:
+            return "UndefinedConcept(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, UngroundedModifierLabel)() is truth_value:
+            return "UngroundedModifier(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, NoUsageExampleLabel)() is truth_value:
+            return "NoUsageExample(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, NoParentLabel)() is truth_value:
+            return "NoParent(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, DanglingReferenceLabel)() is truth_value:
+            return "DanglingReference(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, MissingRenderLawLabel)() is truth_value:
+            return "MissingRenderLaw(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, OnlyLabel)() is truth_value:
+            return "Only(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, NoLabel)() is truth_value:
+            return "No(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, RankedGapsLabel)() is truth_value:
+            return "RankedGaps(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, AskedQuestionLabel)() is truth_value:
+            return "AskedQuestion(" + self._show_args(tail) + ")"
+        if IdentityCompare(head, AcknowledgedLabel)() is truth_value:
+            return "Acknowledged(" + self._show_args(tail) + ")"
         if IdentityCompare(head, MachineContextLabel)() is truth_value:
             return "Context(...)"
         return None
@@ -889,6 +1016,10 @@ class PrettyTerm(Edge):
             return ctor
         if M.IsPair(x)() is truth_value:
             return "[" + self._list_like(x) + "]"
+        if IdentityCompare(x, truth_value)() is truth_value:
+            return "Truth"
+        if IdentityCompare(x, false_value)() is truth_value:
+            return "False"
         if IdentityCompare(x, TaoProblem11TriangleLabel)() is truth_value:
             return "Tao Problem 1.1 triangle"
         if IdentityCompare(x, TaoProblem11VertexULabel)() is truth_value:
@@ -931,6 +1062,13 @@ class PrettyTerm(Edge):
         val = x()
         if val is not None:
             return str(val)
+        # A pack constructor label carries no value of its own; its
+        # name is the word the labels module gave it.
+        from . import labels as _labels_module
+
+        for _name_text, _name_value in vars(_labels_module).items():
+            if _name_value is x and _name_text.endswith("Label"):
+                return _name_text[:-5]
         return "<?>"
 
     def __call__(self):
@@ -986,6 +1124,7 @@ def sync_from_namespace(namespace):
         "ExprFracLabel",
         "ExprIntLabel",
         "ExprLtLabel",
+        "ExprLeLabel",
         "ExprMulLabel",
         "ExprNegLabel",
         "ExprPowLabel",

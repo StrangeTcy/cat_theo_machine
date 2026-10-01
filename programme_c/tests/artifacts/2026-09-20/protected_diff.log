@@ -1,0 +1,14 @@
+# Protected diff vs peeled base 137446435362 (tag a520948 peeled)
+# Files: core.py, search/compare_executors.py, search/compare_subprocess.py
+# Generated 2026-09-20, branch arena/01a0bbdd-cat-theo-machine, HEAD 0c97eb8 + rent-8B WIP
+# Command: git diff 137446435362 -- core.py search/compare_executors.py search/compare_subprocess.py
+
+(diff empty — zero line)
+# Verification:
+#   git diff --stat 137446435362 -- core.py search/compare_executors.py search/compare_subprocess.py
+#   => (empty, no changes)
+# Protected files unchanged from peeled base, as required for Programme C.
+
+--- git diff --stat ---
+
+--- git diff (full) ---

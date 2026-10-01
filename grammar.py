@@ -1,0 +1,75 @@
+from __future__ import annotations
+
+from . import labels as Lmod
+from . import machine as M
+
+
+class IsGraphVersion(M.Edge):
+    def __init__(self, term):
+        verdict = M.false_value
+        if M.IsPair(term)() is M.truth_value:
+            if M.TermEqual(M.Head(term)(), Lmod.GraphVersionLabel)() is M.truth_value:
+                verdict = M.truth_value
+        self.result = verdict
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class IsSend(M.Edge):
+    def __init__(self, term):
+        verdict = M.false_value
+        if M.IsPair(term)() is M.truth_value:
+            if M.TermEqual(M.Head(term)(), Lmod.SendLabel)() is M.truth_value:
+                verdict = M.truth_value
+        self.result = verdict
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class IsLaw(M.Edge):
+    def __init__(self, term):
+        verdict = M.false_value
+        if M.IsPair(term)() is M.truth_value:
+            if M.TermEqual(M.Head(term)(), Lmod.LawLabel)() is M.truth_value:
+                verdict = M.truth_value
+        self.result = verdict
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class EdgeEndpoints(M.Edge):
+    def __init__(self, edge_term):
+        result = M.EmptyList
+        if M.IsPair(edge_term)() is M.truth_value:
+            result = M.Tail(edge_term)()
+        self.result = result
+        super().__init__(inputs=M.Pair(edge_term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class EdgeArity(M.Edge):
+    def __init__(self, edge_term):
+        count_pair = M.Count(EdgeEndpoints(edge_term)(), M.AllConstructors)()
+        self.registry = M.Head(M.Tail(count_pair)())()
+        self.result = M.Head(count_pair)()
+        super().__init__(inputs=M.Pair(edge_term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+__all__ = (
+    "EdgeArity",
+    "EdgeEndpoints",
+    "IsGraphVersion",
+    "IsLaw",
+    "IsSend",
+)

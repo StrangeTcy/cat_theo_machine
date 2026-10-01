@@ -36,11 +36,13 @@ class Search(M.Edge):
         self.registry = registry
         self.rules = ordered_rules
         self.heuristic = heuristic
+        self.original_goal = goal
         self.start = HeuristicCanonicalize(start, heuristic, registry)()
         self.goal = HeuristicCanonicalize(goal, heuristic, registry)()
         self.search_aborted = M.false_value
         self.search_outcome_on_abort = SearchFailureLabel
         self._active_search_job = None
+        self._stall_frontier = M.EmptyList
         self._premise_bindings_cache = M.EmptyList
         self._console_input = self.graph._search_console_input
         if self._console_input is None:
@@ -67,10 +69,18 @@ class Search(M.Edge):
                     if M.IdentityCompare(SearchJobStatus(job)(), SearchPausedLabel)() is M.truth_value:
                         self.graph.store_search_job(job)
                         break
+                    if M.IdentityCompare(
+                        SearchJobFrontier(job)(), M.EmptyList,
+                    )() is M.false_value:
+                        self._stall_frontier = SearchJobFrontier(job)()
                     burst_pair = SearchBurst(self.graph, job, self._burst_budget(), self.registry, self._stop_listener, self)()
                     job = M.Head(burst_pair)()
                     self.registry = M.Head(M.Tail(burst_pair)())()
                     self.graph._replace_context(constructors=self.registry)
+                    if M.IdentityCompare(
+                        SearchJobFrontier(job)(), M.EmptyList,
+                    )() is M.false_value:
+                        self._stall_frontier = SearchJobFrontier(job)()
                     job = self._maybe_abort_slow_dfs(job)
                     if M.IdentityCompare(SearchJobStatus(job)(), SearchPausedLabel)() is M.truth_value:
                         self.graph.store_search_job(job)
@@ -105,6 +115,19 @@ class Search(M.Edge):
 
             outcome = SearchJobStatus(job)()
             self._active_search_job = job
+            stall = M.EmptyList
+            if M.IdentityCompare(outcome, SearchFailureLabel)() is M.truth_value:
+                from .. import graph as Gmod
+
+                stall = Gmod.StallRecord(
+                    self.original_goal,
+                    Gmod.StallFrontierPrefix(self._stall_frontier)(),
+                    M.EmptyList,
+                    SearchJobExpanded(job)(),
+                    self.start,
+                    self.rules,
+                    self.heuristic,
+                )()
             self._final_status_text = self._completion_status_text(outcome)
             if M.IdentityCompare(outcome, SearchPausedLabel)() is M.false_value:
                 self.graph.remove_search_job(self.start, self.goal, self.heuristic)
@@ -123,7 +146,10 @@ class Search(M.Edge):
             search_cost = M.Head(cost_pair)()
             self.registry = M.Head(M.Tail(cost_pair)())()
             self.graph._replace_context(constructors=self.registry)
-            self.result = M.Pair(plan, M.Pair(search_cost, M.EmptyList))
+            self.result = M.Pair(
+                plan,
+                M.Pair(search_cost, M.Pair(stall, M.EmptyList)),
+            )
             _debug(self.mode_text + ": " + self._final_status_text)
             super().__init__(inputs=M.Pair(graph, M.Pair(start, M.Pair(goal, M.Pair(ordered_rules, M.Pair(heuristic, M.Pair(registry, M.EmptyList)))))), results=self.result)
         finally:
@@ -1644,6 +1670,99 @@ class SearchBFS(Search):
             return M.false_value
         return M.IdentityCompare(M.Head(cursor)(), SearchRewriteCursorLabel)()
 
+    def _cursor_is_match(self, cursor):
+        if M.IsPair(cursor)() is M.false_value:
+            return M.false_value
+        return M.IdentityCompare(M.Head(cursor)(), SearchMatchCursorLabel)()
+
+    def _cursor_is_match_alternatives(self, cursor):
+        if M.IsPair(cursor)() is M.false_value:
+            return M.false_value
+        return M.IdentityCompare(M.Head(cursor)(), SearchMatchAlternativesCursorLabel)()
+
+    def _advance_match_cursor(self, state, cursor, goal):
+        """
+        Expand a match-in-progress state.
+
+        Yields one child per legal one-step extension of the partial mapping,
+        drawn from graph.MapExtensionAlternatives so the admitted set is
+        exactly what the matcher accepts. A cursor with nothing pending is a
+        completed match and is a goal for the match subproblem.
+        """
+        from .. import graph as Gmod
+
+        if SearchMatchCursorComplete(cursor)() is M.truth_value:
+            self._stage_debug("match complete")
+            return self._advance_result(
+                self._reverse(self._state_plan(state), M.EmptyList),
+                M.EmptyList,
+                M.EmptyList,
+                M.Zero,
+            )
+        if self._checkpoint_state_cursor(state, cursor) is M.truth_value:
+            return self._advance_result(M.EmptyList, M.EmptyList, M.EmptyList, M.Zero)
+
+        pending = SearchMatchCursorPending(cursor)()
+        pattern = SearchMatchCursorPattern(cursor)()
+        host = SearchMatchCursorHost(cursor)()
+        root = SearchMatchCursorRoot(cursor)()
+        pat = M.Head(pending)()
+        rest = M.Tail(pending)()
+
+        mapping = Gmod.Map(pattern, host, root)()
+        alternatives = Gmod.MapExtensionAlternatives(mapping, pat, host)()
+        if M.IdentityCompare(alternatives, M.EmptyList)() is M.truth_value:
+            self._stage_debug("match dead end")
+            return self._advance_result(M.EmptyList, M.EmptyList, M.EmptyList, M.Zero)
+
+        # One child for the first alternative; the untried siblings ride in the
+        # continuation's pending slot so every alternative is eventually
+        # expanded without any being dropped.
+        chosen_root = M.Head(M.Tail(M.Tail(M.Tail(M.Head(alternatives)())())())())()
+        child = self._make_state(
+            self._state_current(state),
+            self._state_plan(state),
+            self._state_seen(state),
+            self._state_steps_remaining(state),
+            SearchMatchCursor(chosen_root, pattern, host, rest)(),
+        )
+        continuation = M.EmptyList
+        siblings = M.Tail(alternatives)()
+        if M.IdentityCompare(siblings, M.EmptyList)() is M.false_value:
+            continuation = self._state_with_cursor(
+                state,
+                SearchMatchAlternativesCursor(siblings, pattern, host, rest)(),
+            )
+        self._stage_debug("advanced via match extension")
+        return self._advance_result(M.EmptyList, child, continuation, M.one)
+
+    def _advance_match_alternatives_cursor(self, state, cursor, goal):
+        """Drain the untried siblings of a match extension, one child each."""
+        alternatives = SearchMatchAlternativesCursorAlternatives(cursor)()
+        if M.IdentityCompare(alternatives, M.EmptyList)() is M.truth_value:
+            return self._advance_result(M.EmptyList, M.EmptyList, M.EmptyList, M.Zero)
+        if self._checkpoint_state_cursor(state, cursor) is M.truth_value:
+            return self._advance_result(M.EmptyList, M.EmptyList, M.EmptyList, M.Zero)
+        pattern = SearchMatchAlternativesCursorPattern(cursor)()
+        host = SearchMatchAlternativesCursorHost(cursor)()
+        pending = SearchMatchAlternativesCursorPending(cursor)()
+        chosen_root = M.Head(M.Tail(M.Tail(M.Tail(M.Head(alternatives)())())())())()
+        child = self._make_state(
+            self._state_current(state),
+            self._state_plan(state),
+            self._state_seen(state),
+            self._state_steps_remaining(state),
+            SearchMatchCursor(chosen_root, pattern, host, pending)(),
+        )
+        continuation = M.EmptyList
+        siblings = M.Tail(alternatives)()
+        if M.IdentityCompare(siblings, M.EmptyList)() is M.false_value:
+            continuation = self._state_with_cursor(
+                state,
+                SearchMatchAlternativesCursor(siblings, pattern, host, pending)(),
+            )
+        return self._advance_result(M.EmptyList, child, continuation, M.one)
+
     def _checkpoint_state_cursor(self, state, cursor):
         self._maybe_prompt_to_continue()
         if self.search_aborted is M.truth_value:
@@ -2059,6 +2178,10 @@ class SearchBFS(Search):
             return self._advance_rewrite_cursor(self._state_with_cursor(state, rewrite_cursor), rewrite_cursor, goal)
         if self._cursor_is_rewrite(cursor) is M.truth_value:
             return self._advance_rewrite_cursor(state, cursor, goal)
+        if self._cursor_is_match(cursor) is M.truth_value:
+            return self._advance_match_cursor(state, cursor, goal)
+        if self._cursor_is_match_alternatives(cursor) is M.truth_value:
+            return self._advance_match_alternatives_cursor(state, cursor, goal)
         return self._advance_result(M.EmptyList, M.EmptyList, M.EmptyList, M.Zero)
 
     def _cached_solution(self, current, goal, plan_rev, steps_remaining):

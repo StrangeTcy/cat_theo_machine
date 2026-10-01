@@ -1,0 +1,12 @@
+ABSENT ON THIS TIP
+
+Target class LearnedMemoryCheckpointTest: not present under any name in
+testsuite.py, persistence.py, training.py, or knowledge.py.
+
+Target swallow `except Exception: self.result = M.false_value` inside that
+class: not present.
+
+109-predecessor _register_test repro: not present as a named fixture.
+
+No traceback was produced. The diagnostic swap was not applied because the
+locus does not exist. Nothing was reverted because nothing was changed.

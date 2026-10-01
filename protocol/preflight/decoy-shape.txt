@@ -1,0 +1,5 @@
+MOVED
+
+Decoy shape-match is recorded in protocol/F.md.
+
+It gates F-op sessions only. It does not gate S/E/G/F-tools engineering.

@@ -19,6 +19,7 @@ from .labels import (
     DerivationLabel,
     GoalHeadOrderLabel,
     KnowledgeLabel,
+    InvariantLabel,
     PreferEarlierPremiseLabel,
     PreferFewerVariablesLabel,
     PreferGreaterSpecificityLabel,
@@ -664,21 +665,32 @@ class InstantiateFactList(M.Edge):
 
 
 class JoinPremises(M.Edge):
-    def __init__(self, premises, facts, bindings):
+    def __init__(self, premises, facts, bindings, index=M.EmptyList, registry=M.EmptyList):
         self.facts = facts
+        self.index = index
+        self.registry = registry
         self.result = self._join(premises, bindings)
-        super().__init__(inputs=M.Pair(premises, M.Pair(facts, M.Pair(bindings, M.EmptyList))), results=self.result)
+        super().__init__(inputs=M.Pair(premises, M.Pair(facts, M.Pair(bindings,
+                       M.Pair(index, M.Pair(registry, M.EmptyList))))), results=self.result)
+
+    def _candidates(self, premise):
+        if M.IdentityCompare(self.index, M.EmptyList)() is M.truth_value:
+            return self.facts
+        if IsVarPattern(premise)() is M.truth_value:
+            return self.facts
+        return K.KnowledgeHeadIndexBucket(self.index, premise, self.registry)()
 
     def _join(self, premises, bindings):
         if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
             return M.Pair(bindings, M.EmptyList)
         premise = M.Head(premises)()
         rest = M.Tail(premises)()
+        specialized = M.Head(M.Instantiate(premise, bindings)())()
         acc = M.EmptyList
-        remaining = self.facts
+        remaining = self._candidates(specialized)
         while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
             fact = M.Head(remaining)()
-            match = M.Match(premise, fact)()
+            match = M.Match(specialized, fact)()
             if M.IdentityCompare(M.Head(match)(), M.truth_value)() is M.truth_value:
                 merged = M.MergeBindings(bindings, M.Tail(match)())()
                 if M.IdentityCompare(M.Head(merged)(), M.truth_value)() is M.truth_value:
@@ -1813,17 +1825,25 @@ class OrderRules(M.Edge):
 
 class Step(M.Edge):
     def __init__(self, current, action, next_term, registry):
+        # Change B of the snapshot-cost plan: Step no longer registers in
+        # the constructor tree. Measured over the e2 proof, the TreeLookup
+        # dedup never hit once (10 calls -> 10 entries) while the insert
+        # paid TreePatriciaPath tokenization on the largest keys in the
+        # system (205-700 tokens each). The readers -- StepCurrent /
+        # StepAction / StepNext via GetConstructor -- resolve through the
+        # node attribute set here, never through the tree.
+        #
+        # LOAD-BEARING CONSEQUENCE: .constructor is not serialized, and
+        # the registry entry was its only persistent record. Proof
+        # runtimes always cold-boot from packs (the invariant behind the
+        # sqrt fix, commit 73efb13), so nothing reads step structure
+        # after a reload today. Whoever implements snapshot proof-replay
+        # must either restore Step registration here or serialize
+        # .constructor in the snapshot codec.
         args = M.Pair(current, M.Pair(action, M.Pair(next_term, M.EmptyList)))
-        key = M.Pair(StepLabel, args)
-        existing = M.TreeLookup(registry, key, registry)()
-        if M.IdentityCompare(existing, M.EmptyList)() is M.truth_value:
-            node = M.Atom()
-            constructed = M.ConstructedBy(node, StepLabel, args, registry)()
-            new_registry = M.Head(M.Tail(constructed)())()
-        else:
-            node = existing
-            new_registry = registry
-        self.result = M.Pair(node, M.Pair(new_registry, M.EmptyList))
+        node = M.Atom()
+        node.constructor = M.Pair(StepLabel, args)
+        self.result = M.Pair(node, M.Pair(registry, M.EmptyList))
         super().__init__(inputs=M.Pair(current, M.Pair(action, M.Pair(next_term, M.Pair(registry, M.EmptyList)))), results=self.result)
 
     def __call__(self):
@@ -2393,7 +2413,7 @@ class BuildDerivation(M.Edge):
         if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
             return M.false_value
         fact = M.Head(facts)()
-        if M.TermEqual(fact, target)() is M.truth_value:
+        if M.Compare(fact, target)() is M.truth_value:
             return M.truth_value
         return self._knowledge_has_fact(M.Tail(facts)(), target)
 
@@ -2518,7 +2538,19 @@ class BuildDerivation(M.Edge):
             action_bindings = ActionBindings(action)()
             if M.IdentityCompare(action_bindings, M.EmptyList)() is M.false_value:
                 self.bindings = action_bindings
+            invariant_premise = M.EmptyList
+            remaining_premises = RulePremises(ActionRule(action)())()
+            while M.IdentityCompare(remaining_premises, M.EmptyList)() is M.false_value:
+                premise = M.Head(remaining_premises)()
+                if M.IsPair(premise)() is M.truth_value:
+                    if M.IdentityCompare(M.Head(premise)(), InvariantLabel)() is M.truth_value:
+                        invariant_premise = M.Head(M.Instantiate(premise, self.bindings)())()
+                remaining_premises = M.Tail(remaining_premises)()
             result = self._apply_theorem_rule_at_root(ActionRule(action)(), current, registry)
+            if debug_replay is M.truth_value:
+                if M.Compare(result, current)() is M.false_value:
+                    if M.IdentityCompare(invariant_premise, M.EmptyList)() is M.false_value:
+                        _debug("apply-action: used invariant premise " + _debug_term(invariant_premise, registry))
             self.bindings = previous_bindings
             if debug_replay is M.truth_value:
                 _debug("apply-action result=" + _debug_term(result, registry))
@@ -2604,14 +2636,14 @@ class ExplainDerivation(M.Edge):
         if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
             return M.false_value
         fact = M.Head(facts)()
-        if M.TermEqual(fact, target)() is M.truth_value:
+        if M.Compare(fact, target)() is M.truth_value:
             return M.truth_value
         return self._knowledge_has_fact(M.Tail(facts)(), target)
 
     def _goal_reached(self, current):
         if IsKnowledge(current)() is M.truth_value:
             return self._knowledge_has_fact(KnowledgeFacts(current)(), self.goal)
-        return M.TermEqual(current, self.goal)()
+        return M.Compare(current, self.goal)()
 
     def __call__(self):
         return self.result
@@ -2893,12 +2925,22 @@ class Prove(M.Edge):
                 self.rules = rewrite_rules
             invariant = Imod.Invariant(phi, rules, registry, self.start, rewrite_rules)()
             if Imod.IsInvariant(invariant)() is M.truth_value:
-                _debug("invariant proven")
+                _debug("invariant independently proven over theorem rule chain")
                 formula = Imod.FormulaFromFindings(self.start, phi, registry, rewrite_rules)()
                 if M.IdentityCompare(formula, M.EmptyList)() is M.false_value:
                     _debug("derived equation: " + _debug_term(formula, registry))
                     if M.Compare(formula, self.goal)() is M.truth_value:
                         self._found_limit = formula
+            else:
+                _debug("invariant not independently proven over theorem rule chain")
+            start_facts = Imod.StateFacts(self.start)()
+            remaining_start_facts = start_facts
+            while M.IdentityCompare(remaining_start_facts, M.EmptyList)() is M.false_value:
+                start_fact = M.Head(remaining_start_facts)()
+                if M.IsPair(start_fact)() is M.truth_value:
+                    if M.IdentityCompare(M.Head(start_fact)(), InvariantLabel)() is M.truth_value:
+                        _debug("invariant fact supplied in start state: " + _debug_term(start_fact, registry))
+                remaining_start_facts = M.Tail(remaining_start_facts)()
             prune = Imod.ReachabilityPrune(self.start, self.goal, invariant, phi, registry)()
             if Imod.IsUnreachable(prune)() is M.truth_value:
                 self.result = M.Pair(prune, M.EmptyList)
@@ -2918,7 +2960,7 @@ class Prove(M.Edge):
         if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
             return M.false_value
         fact = M.Head(facts)()
-        if M.TermEqual(fact, target)() is M.truth_value:
+        if M.Compare(fact, target)() is M.truth_value:
             return M.truth_value
         return self._knowledge_has_fact(M.Tail(facts)(), target)
 
@@ -3611,6 +3653,35 @@ class Prove(M.Edge):
                     derivation = M.Head(deriv_pair)()
                     new_registry = M.Head(M.Tail(deriv_pair)())()
                     return self._store_success(derivation, new_registry, zero_search_cost, self.heuristic)
+
+        schema_hit = self.graph.lookup_derivation_schema(
+            self.start,
+            self.goal,
+        )
+        if M.Compare(schema_hit, M.EmptyList)() is M.false_value:
+            plan = M.Head(schema_hit)()
+            bindings = M.Head(M.Tail(schema_hit)())()
+            derivation_pair = BuildDerivation(
+                self.start,
+                plan,
+                M.FromContextGetConstructors(self.graph)(),
+                bindings,
+            )()
+            derivation = M.Head(derivation_pair)()
+            new_registry = M.Head(M.Tail(derivation_pair)())()
+            if M.Compare(derivation, M.EmptyList)() is M.false_value:
+                if self._derivation_reaches_goal(
+                    derivation, new_registry,
+                ) is M.truth_value:
+                    zero_search_pair = self._zero_search_cost(new_registry)
+                    zero_search_cost = M.Head(zero_search_pair)()
+                    zero_registry = M.Head(M.Tail(zero_search_pair)())()
+                    return self._store_success(
+                        derivation,
+                        zero_registry,
+                        zero_search_cost,
+                        self.heuristic,
+                    )
 
         start_has_var = ContainsVar(self.start)()
         goal_has_var = ContainsVar(self.goal)()
