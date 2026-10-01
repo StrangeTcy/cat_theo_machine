@@ -1,0 +1,12 @@
+HOST: documented minimal reproducer, separate save/load processes
+HOST: save exit status = 0
+PRESAVE_SEMANTIC_READERS_PASS
+SAVE_PASS
+HOST: load exit status = 1 (expected on inspected base)
+COLD_ENTRY 0 IS_DERIVATION False START_EQUAL False
+COLD_ENTRY 1 IS_DERIVATION False START_EQUAL False
+Traceback (most recent call last):
+  File "/home/user/.cache/ctm-spec/reproduce-from-doc.py", line 60, in <module>
+    assert seen != 0 and failed == 0, ('cold semantic-reader failures', failed)
+                         ^^^^^^^^^^^
+AssertionError: ('cold semantic-reader failures', 2)

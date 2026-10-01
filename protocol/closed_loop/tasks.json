@@ -1,0 +1,1080 @@
+{
+  "spec_id": "CTM-ODR-5",
+  "schema_version": 1,
+  "date_utc": "2026-10-01",
+  "status": "COORDINATION_SPEC_NOT_IMPLEMENTATION",
+  "spec_path": "CTM-ODR-5.md",
+  "repository": "StrangeTcy/cat_theo_machine",
+  "branch": "arena/01a0f75a-cat-theo-machine",
+  "inspected_base_sha": "428ecdc146e38de3481222bed7bddeb3c08e1b2d",
+  "inspected_tree_sha": "7f3bb80396080a154b99f73ae995745282895b5d",
+  "baseline_receipt": "verification/closed_loop/baseline.json",
+  "claim_profile": "DUAL_PROFILE",
+  "novelty": "UNASSESSED",
+  "claim_fields": {
+    "integration_demonstration": "Supplied candidate lifecycle, checked use, fresh-process replay and controls; not discovery.",
+    "auto_schema_induction": "Machine training-trace induction, verified input isolation/seal order, same candidate generalized to holdout and dual-replayed.",
+    "bounded_search_gain": "At least three paired baseline misses versus treatment successes under identical sealed scheduler budgets, restored by ablation.",
+    "full_target": "All experimental fields PASS plus complete regression gate and no red-team blocker."
+  },
+  "timebox_hours_ceiling_including_preflight": 16,
+  "deadline_rule": "Freeze approved UTC deadline at launch; use the earlier of deadline and launch + 16 hours.",
+  "gate_deadline_hours": 3,
+  "verification_reserve_hours": 2,
+  "current_diagnostic_gate": "FOUNDATION_REQUIRED_PENDING_APPROVED_ENVIRONMENT_REPROBE",
+  "default_dispatch_now": [
+    "CL0",
+    "F1",
+    "F2"
+  ],
+  "draft_only_during_preflight": [
+    "CL1",
+    "CLT",
+    "CL9"
+  ],
+  "future_cli": [
+    "python -m cat_theo_machine.closed_loop.harness preflight --plan <tasks.json> --artifact-dir <outside-git-path>",
+    "python -m cat_theo_machine.closed_loop.harness run --experiment <sealed-manifest> --profile DUAL_PROFILE --autonomous --artifact-dir <outside-git-path>",
+    "python -m cat_theo_machine.closed_loop.harness verify --manifest <completed-artifact-manifest>"
+  ],
+  "cli_status": "TO_BE_IMPLEMENTED_BY_CL7",
+  "foundation_outcomes": [
+    "GO",
+    "FOUNDATION_ONLY",
+    "STOP_ENVIRONMENT",
+    "STOP_NO_CORPUS",
+    "STOP_NOT_FEASIBLE"
+  ],
+  "dependency_rules": {
+    "normal": "Required task supplies READY, or an explicitly accepted typed failure where a separate weaker profile permits it; never silently skip a required proof/checker.",
+    "foundation_optional": "F1/F2 not needed only with a probe-backed NOT_NEEDED receipt.",
+    "start_vs_acceptance": "Real-input dependencies do not block stub-based implementation; acceptance is evaluated on an assembled candidate, avoiding false implementation cycles.",
+    "foundation_report": "After CL0R selects FOUNDATION_ONLY, REL may emit the foundation report without experimental-task completion; all experimental verdicts BLOCKED.",
+    "induction_failure": "Both attempts must yield a seal/failure report for evaluation; one whole passing candidate may satisfy induction; all attempts remain visible.",
+    "ready_semantics": "READY means owned patch and stub/unit evidence are merge-ready. Listed real-input cross-checks run on the wired integration candidate; a mutual cross-check is not a task-launch dependency. Final PASS requires real evidence, not stubs.",
+    "contract_seal_bootstrap": "During CL1 the evidence role performs the small seed/split/capability freeze using native fixture construction and host artifact I/O; this does not wait for the complete CL7 harness.",
+    "full_target_induction": "CL10 integration readiness does not require induction PASS; REL must report both induction attempts and cannot grant full_target PASS without actual induction acceptance."
+  },
+  "constraints": {
+    "forbidden_paths": [
+      "core.py",
+      "packs/**",
+      "snapshots/**"
+    ],
+    "integrator_only_existing_semantic_paths": [
+      "constructors.py",
+      "labels.py",
+      "context.py",
+      "graph.py",
+      "machine.py",
+      "runtime.py",
+      "proof.py",
+      "schemata.py",
+      "search/**",
+      "persistence.py",
+      "main.py",
+      "testsuite.py"
+    ],
+    "shared_changes_require": "minimal symbol/line-specific proposal, consumer, persistence need and failing acceptance probe",
+    "git_writer": "integrator only on fixed session branch; isolated worker source copies contain no .git",
+    "runtime_representation": "machine-native terms; no Python containers/booleans as Machine state or solver",
+    "forbidden_new_runtime_operations": [
+      "isinstance",
+      "hasattr",
+      "type",
+      "__class__",
+      "__new__",
+      "monkeypatch",
+      "helper functions",
+      "module-global data or caches",
+      "LLM or network solver"
+    ],
+    "artifacts": "generated data/snapshots/large logs outside Git; small durable receipts and reproduction commands only",
+    "checkpoint_rule": "candidate and trusted primitive rules stay separate; never remove a primitive axiom and then reuse its macro as if trusted",
+    "approved_environment": "release probes use operator-approved target interpreter; Linux diagnostic evidence is not target release evidence",
+    "private_inputs": "Never commit holdout/seed/reserve values; only evaluator-owned storage outside Git. Public protocol fixture paths contain commitments and generation metadata."
+  },
+  "budget_v1": {
+    "training_search_dispatch_steps": 256,
+    "evaluation_search_dispatch_steps": 1,
+    "expanded_primitive_proof_steps": 16,
+    "expansion_matching_substitution_attempts": 256,
+    "task_term_nodes": 4096,
+    "facts_per_task": 12,
+    "emitted_candidates_per_mechanism": 1,
+    "task_wall_seconds": 120,
+    "induction_process_wall_seconds": 300,
+    "metric_qualification": "Scheduler dispatch budget, not total compute or wall-clock speedup; bound and report primitive replay/matching work too."
+  },
+  "corpus": {
+    "selection_rule": "First executable family satisfying the sealed structural contract, before candidate evaluation. Family 2 is a declared synthetic fallback, not new mathematical evidence.",
+    "families": [
+      {
+        "id": "ORDER_SIGN_TWO_STEP",
+        "rule_origin": "EXISTING_PACK",
+        "source": "packs/order-sign.pack.yaml",
+        "primitive_ids": [
+          "positive_implies_nonnegative",
+          "nonnegative_argument_yields_real_sqrt"
+        ],
+        "shape": "Positive(t) -> NonNegative(t) -> IsReal(Sqrt(t))"
+      },
+      {
+        "id": "DECLARED_RELATIONAL_CALCULUS",
+        "rule_origin": "FIXTURE_AXIOMS",
+        "primitive_shapes": [
+          "R(x,y) & R(y,z) -> T(x,z)",
+          "T(x,z) -> S(x,z)"
+        ],
+        "mechanism_relabel_conformance_cases_min": 3,
+        "scored_corpus_rule_set": "One frozen primitive set; conformance relabelings regenerate candidates from their own traces and use separate trusted-rule digests."
+      }
+    ],
+    "training_successful_traces_min": 6,
+    "distinct_assignments_min": 3,
+    "shared_fragment_trusted_steps_min": 2,
+    "holdout_positives_min": 5,
+    "near_misses_min": 5,
+    "candidate_used_holdout_proofs_min": 3,
+    "gain_paired_cases_min": 3,
+    "positive_robustness": [
+      "reordered facts",
+      "duplicate facts",
+      "unrelated distractors"
+    ],
+    "negative_application_controls": [
+      "missing premise/start shape",
+      "inconsistent repeated role/join",
+      "wrong conclusion/goal",
+      "unbound role",
+      "malformed action"
+    ],
+    "integration_development_split": "Separate from induction holdout; fixture candidate inaccessible to generators.",
+    "reserve_splits": 2,
+    "corpus_provenance": "MACHINE_GENERATED_SYNTHETIC",
+    "trusted_rules_identical_in_all_legs": "REQUIRED",
+    "formal_semantics": {
+      "ORDER_SIGN_TWO_STEP": "Whole-term unary rewriting in a free constructor algebra, using only the sealed two primitives; positivity is an assumption, not a host numerical predicate.",
+      "DECLARED_RELATIONAL_CALCULUS": "Finite sets of positive ground facts; consistent conjunctive premise substitution, add conclusion; atomic fact-query goal; no consumptive knowledge-board mode.",
+      "normalization": "No implicit arithmetic or unrecorded normalization; native-path disagreement blocks or prospectively re-scopes before feature dispatch.",
+      "role_mapping": "Explicit schema-role to rule-local-variable mappings per action; equal variable-name text across rules is insufficient."
+    }
+  },
+  "acceptance_inventory": [
+    {
+      "id": "B01",
+      "assertion": "Approved environment and exact SHA/tree; active import and named scratch-source exception ledger.",
+      "implementation_status": "TO_BE_IMPLEMENTED_BY_CLT_AND_OWNERS"
+    },
+    {
+      "id": "B02",
+      "assertion": "Complete existing test inventory and semantic verdicts; deliberately failed case makes the adapter nonzero.",
+      "implementation_status": "TO_BE_IMPLEMENTED_BY_CLT_AND_OWNERS"
+    },
+    {
+      "id": "B03",
+      "assertion": "Character, loaded variable, shared-child and declared-label snapshot round trips.",
+      "implementation_status": "TO_BE_IMPLEMENTED_BY_CLT_AND_OWNERS"
+    },
+    {
+      "id": "B04",
+      "assertion": "Pre-save semantic derivation readers and fresh-process constructor/replay preservation; dynamic roots are not namespace-name aliases.",
+      "implementation_status": "TO_BE_IMPLEMENTED_BY_CLT_AND_OWNERS"
+    },
+    {
+      "id": "B05",
+      "assertion": "Bounded pilot entry point with no old worker/comparison evidence inherited.",
+      "implementation_status": "TO_BE_IMPLEMENTED_BY_CLT_AND_OWNERS"
+    },
+    {
+      "id": "B06",
+      "assertion": "Repeatable approved baseline; unresolved timeout/exception/coverage blocks release.",
+      "implementation_status": "TO_BE_IMPLEMENTED_BY_CLT_AND_OWNERS"
+    },
+    {
+      "id": "C01",
+      "assertion": "Exact versioned machine record shapes and malformed version/kind/arity rejection.",
+      "implementation_status": "TO_BE_IMPLEMENTED_BY_CLT_AND_OWNERS"
+    },
+    {
+      "id": "C02",
+      "assertion": "Repeated-role identity/consistency and all conclusion roles bound.",
+      "implementation_status": "TO_BE_IMPLEMENTED_BY_CLT_AND_OWNERS"
+    },
+    {
+      "id": "C03",
+      "assertion": "Frozen family, primitive rules, candidate absence, split and budget digests.",
+      "implementation_status": "TO_BE_IMPLEMENTED_BY_CLT_AND_OWNERS"
+    },
+    {
+      "id": "I01",
+      "assertion": "Six Machine-generated traces, at least three assignments, a two-step fragment, a generalized bound role and provenance.",
+      "implementation_status": "TO_BE_IMPLEMENTED_BY_CLT_AND_OWNERS"
+    },
+    {
+      "id": "I02",
+      "assertion": "Generator denied fixture-candidate/holdout/reserve/peer-output access; both seals precede evaluator exposure.",
+      "implementation_status": "TO_BE_IMPLEMENTED_BY_CLT_AND_OWNERS"
+    },
+    {
+      "id": "I03",
+      "assertion": "Five unseen positives dual-checked; same candidate used in at least three; no exact training-proof reuse.",
+      "implementation_status": "TO_BE_IMPLEMENTED_BY_CLT_AND_OWNERS"
+    },
+    {
+      "id": "I04",
+      "assertion": "Near misses reject; generic renaming/structural variants; every emitted or failed attempt reported.",
+      "implementation_status": "TO_BE_IMPLEMENTED_BY_CLT_AND_OWNERS"
+    },
+    {
+      "id": "V01",
+      "assertion": "Valid expanded proof accepted by both independent checkers; continuity and final goal checked.",
+      "implementation_status": "TO_BE_IMPLEMENTED_BY_CLT_AND_OWNERS"
+    },
+    {
+      "id": "V02",
+      "assertion": "Premise, conclusion, rule, repeated-role binding, intermediate-state and foreign-goal mutations rejected.",
+      "implementation_status": "TO_BE_IMPLEMENTED_BY_CLT_AND_OWNERS"
+    },
+    {
+      "id": "V03",
+      "assertion": "Foreign primitive rule rejected even inside a plausible action or supplied registry.",
+      "implementation_status": "TO_BE_IMPLEMENTED_BY_CLT_AND_OWNERS"
+    },
+    {
+      "id": "V04",
+      "assertion": "Malformed, unbound, unknown, cyclic and over-limit proof fails closed.",
+      "implementation_status": "TO_BE_IMPLEMENTED_BY_CLT_AND_OWNERS"
+    },
+    {
+      "id": "V05",
+      "assertion": "No checker calls search, proof replay/builders or induction; disagreement blocks release.",
+      "implementation_status": "TO_BE_IMPLEMENTED_BY_CLT_AND_OWNERS"
+    },
+    {
+      "id": "X01",
+      "assertion": "Corrupted expansion rejected by both checkers.",
+      "implementation_status": "TO_BE_IMPLEMENTED_BY_CLT_AND_OWNERS"
+    },
+    {
+      "id": "X02",
+      "assertion": "Dispatch, expanded-step, substitution/matching and wall ceilings enforced; costs reported separately.",
+      "implementation_status": "TO_BE_IMPLEMENTED_BY_CLT_AND_OWNERS"
+    },
+    {
+      "id": "A01",
+      "assertion": "Valid candidate checked and admitted only for the session after evidence exists.",
+      "implementation_status": "TO_BE_IMPLEMENTED_BY_CLT_AND_OWNERS"
+    },
+    {
+      "id": "A02",
+      "assertion": "Absent/rejected admission or wrong candidate digest, experiment, scope or SHA cannot activate.",
+      "implementation_status": "TO_BE_IMPLEMENTED_BY_CLT_AND_OWNERS"
+    },
+    {
+      "id": "A03",
+      "assertion": "No durable promotion or trusted store/pack changes.",
+      "implementation_status": "TO_BE_IMPLEMENTED_BY_CLT_AND_OWNERS"
+    },
+    {
+      "id": "R01",
+      "assertion": "Concrete residual plus dependency request survives checkpoint.",
+      "implementation_status": "TO_BE_IMPLEMENTED_BY_CLT_AND_OWNERS"
+    },
+    {
+      "id": "R02",
+      "assertion": "Parse, binding, no-rule, budget, checker and safety failures classified distinctly.",
+      "implementation_status": "TO_BE_IMPLEMENTED_BY_CLT_AND_OWNERS"
+    },
+    {
+      "id": "R03",
+      "assertion": "Reordered facts/duplicates/distractors preserve valid class; missing information changes failure appropriately.",
+      "implementation_status": "TO_BE_IMPLEMENTED_BY_CLT_AND_OWNERS"
+    },
+    {
+      "id": "P01",
+      "assertion": "Actual state cold-loaded in a fresh process and both checkers re-run with equivalent normalized verdicts.",
+      "implementation_status": "TO_BE_IMPLEMENTED_BY_CLT_AND_OWNERS"
+    },
+    {
+      "id": "P02",
+      "assertion": "Scope, aliasing and semantic constructors preserved; stale experiment/SHA fails closed; no fallback registration.",
+      "implementation_status": "TO_BE_IMPLEMENTED_BY_CLT_AND_OWNERS"
+    },
+    {
+      "id": "P03",
+      "assertion": "Interrupted checkpoint write preserves previous checkpoint or reports explicit recovery failure.",
+      "implementation_status": "TO_BE_IMPLEMENTED_BY_CLT_AND_OWNERS"
+    },
+    {
+      "id": "H01",
+      "assertion": "One command grades requested conjunction and completeness/hashes; missing/corrupt receipt makes it nonzero.",
+      "implementation_status": "TO_BE_IMPLEMENTED_BY_CLT_AND_OWNERS"
+    },
+    {
+      "id": "H02",
+      "assertion": "Three clean repetitions yield equal normalized verdict vectors.",
+      "implementation_status": "TO_BE_IMPLEMENTED_BY_CLT_AND_OWNERS"
+    },
+    {
+      "id": "H03",
+      "assertion": "Ablation clears candidate-derived state; same primitives/budget; three paired misses recur for the gain claim.",
+      "implementation_status": "TO_BE_IMPLEMENTED_BY_CLT_AND_OWNERS"
+    },
+    {
+      "id": "H04",
+      "assertion": "Source/fixture/scope mismatch, leakage, unverified isolation or post-seal refinement blocks the appropriate claim.",
+      "implementation_status": "TO_BE_IMPLEMENTED_BY_CLT_AND_OWNERS"
+    },
+    {
+      "id": "S01",
+      "assertion": "Stubbed complete success and every terminal failure edge.",
+      "implementation_status": "TO_BE_IMPLEMENTED_BY_CLT_AND_OWNERS"
+    },
+    {
+      "id": "S02",
+      "assertion": "Duplicate delivery idempotent; stale delivery rejected; prompt attempt/refusal never continues.",
+      "implementation_status": "TO_BE_IMPLEMENTED_BY_CLT_AND_OWNERS"
+    },
+    {
+      "id": "S03",
+      "assertion": "Typed failure and dependency request persisted without human candidate selection.",
+      "implementation_status": "TO_BE_IMPLEMENTED_BY_CLT_AND_OWNERS"
+    },
+    {
+      "id": "N01",
+      "assertion": "No core edit, forbidden touched-path construct, fixture branch, pack answer, normal-search regression or fallback repair.",
+      "implementation_status": "TO_BE_IMPLEMENTED_BY_CLT_AND_OWNERS"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "CL0",
+      "title": "Initial preflight",
+      "owner_role": "integrator",
+      "requires_to_start": [],
+      "needs_real_inputs_for_acceptance": [],
+      "owned_paths": [
+        "protocol/closed_loop/runs/initial/**"
+      ],
+      "acceptance_ids": [
+        "B01",
+        "B02",
+        "B03",
+        "B04",
+        "B05",
+        "B06"
+      ],
+      "condition": "ALL",
+      "estimate": "60 minutes",
+      "objective": "Probe the exact checkout and approved environment; classify blockers rather than presume an existing teaching loop.",
+      "deliverables": [
+        "base-addressed patch or NOT_NEEDED/typed-failure receipt",
+        "executable test commands and semantic verdicts",
+        "small implementation note and failure modes",
+        "content-addressed evidence"
+      ],
+      "status": "NOT_DISPATCHED"
+    },
+    {
+      "id": "F1",
+      "title": "Persistence foundation",
+      "owner_role": "persistence engineer",
+      "requires_to_start": [
+        "CL0"
+      ],
+      "needs_real_inputs_for_acceptance": [],
+      "owned_paths": [
+        "validation/closed_loop/foundation/persistence/**"
+      ],
+      "acceptance_ids": [
+        "B03",
+        "B04",
+        "N01"
+      ],
+      "condition": "IF_COLD_RESTORE_FAILS",
+      "estimate": "up to gate at T+3h",
+      "objective": "Localize mutable root aliasing; submit a minimal persistence.py proposal and a failing-then-passing semantic cold-replay regression.",
+      "deliverables": [
+        "base-addressed patch or NOT_NEEDED/typed-failure receipt",
+        "executable test commands and semantic verdicts",
+        "small implementation note and failure modes",
+        "content-addressed evidence"
+      ],
+      "status": "NOT_DISPATCHED"
+    },
+    {
+      "id": "F2",
+      "title": "Baseline foundation",
+      "owner_role": "evidence engineer",
+      "requires_to_start": [
+        "CL0"
+      ],
+      "needs_real_inputs_for_acceptance": [],
+      "owned_paths": [
+        "validation/closed_loop/foundation/baseline/**"
+      ],
+      "acceptance_ids": [
+        "B01",
+        "B02",
+        "B05",
+        "B06"
+      ],
+      "condition": "IF_BASELINE_INCOMPLETE",
+      "estimate": "up to gate at T+3h",
+      "objective": "Complete and honestly grade the original suite, including eager registration work; do not silently reduce test coverage.",
+      "deliverables": [
+        "base-addressed patch or NOT_NEEDED/typed-failure receipt",
+        "executable test commands and semantic verdicts",
+        "small implementation note and failure modes",
+        "content-addressed evidence"
+      ],
+      "status": "NOT_DISPATCHED"
+    },
+    {
+      "id": "CL0R",
+      "title": "Prospective re-gate",
+      "owner_role": "integrator",
+      "requires_to_start": [
+        "CL0",
+        "F1",
+        "F2"
+      ],
+      "needs_real_inputs_for_acceptance": [],
+      "owned_paths": [
+        "protocol/closed_loop/runs/gate/**"
+      ],
+      "acceptance_ids": [
+        "B01",
+        "B02",
+        "B03",
+        "B04",
+        "B05",
+        "B06"
+      ],
+      "condition": "ALL",
+      "estimate": "by T+3h",
+      "objective": "Record GO, FOUNDATION_ONLY or STOP using probe-backed receipts; not-needed foundation nodes require evidence.",
+      "deliverables": [
+        "base-addressed patch or NOT_NEEDED/typed-failure receipt",
+        "executable test commands and semantic verdicts",
+        "small implementation note and failure modes",
+        "content-addressed evidence"
+      ],
+      "status": "NOT_DISPATCHED"
+    },
+    {
+      "id": "CL1",
+      "title": "Contracts, split and budget",
+      "owner_role": "contract steward",
+      "requires_to_start": [
+        "CL0R"
+      ],
+      "needs_real_inputs_for_acceptance": [],
+      "owned_paths": [
+        "closed_loop/__init__.py",
+        "closed_loop/terms.py",
+        "closed_loop/fixtures.py",
+        "protocol/closed_loop/contracts/**",
+        "protocol/closed_loop/fixtures/**"
+      ],
+      "acceptance_ids": [
+        "C01",
+        "C02",
+        "C03"
+      ],
+      "condition": "IF_GO",
+      "estimate": "60–90 minutes",
+      "objective": "Freeze native terms and fixture construction, primitive trust table, public commitments, private evaluator-owned splits/budgets, inaccessible fixture candidate and fail-closed stubs.",
+      "deliverables": [
+        "base-addressed patch or NOT_NEEDED/typed-failure receipt",
+        "executable test commands and semantic verdicts",
+        "small implementation note and failure modes",
+        "content-addressed evidence"
+      ],
+      "status": "NOT_DISPATCHED"
+    },
+    {
+      "id": "CLT",
+      "title": "Harness-first acceptance vectors",
+      "owner_role": "test steward",
+      "requires_to_start": [
+        "CL0R"
+      ],
+      "needs_real_inputs_for_acceptance": [
+        "CL1"
+      ],
+      "owned_paths": [
+        "validation/closed_loop/acceptance/**"
+      ],
+      "acceptance_ids": [
+        "C01",
+        "C02",
+        "C03",
+        "H01"
+      ],
+      "condition": "IF_GO",
+      "estimate": "60–90 minutes",
+      "objective": "Write fixed acceptance vectors before implementer dispatch; prove feature probes fail or block on the unimplemented baseline.",
+      "deliverables": [
+        "base-addressed patch or NOT_NEEDED/typed-failure receipt",
+        "executable test commands and semantic verdicts",
+        "small implementation note and failure modes",
+        "content-addressed evidence"
+      ],
+      "status": "NOT_DISPATCHED"
+    },
+    {
+      "id": "CONTRACT",
+      "title": "Contract-ready barrier",
+      "owner_role": "integrator",
+      "requires_to_start": [
+        "CL1",
+        "CLT"
+      ],
+      "needs_real_inputs_for_acceptance": [],
+      "owned_paths": [],
+      "acceptance_ids": [
+        "C01",
+        "C02",
+        "C03"
+      ],
+      "condition": "IF_GO",
+      "estimate": "zero implementation work",
+      "objective": "Verify signatures, vectors, ownership and split/budget freezes; this virtual node unlocks workers.",
+      "deliverables": [
+        "base-addressed patch or NOT_NEEDED/typed-failure receipt",
+        "executable test commands and semantic verdicts",
+        "small implementation note and failure modes",
+        "content-addressed evidence"
+      ],
+      "status": "NOT_DISPATCHED"
+    },
+    {
+      "id": "CL2A",
+      "title": "Trace anti-unification",
+      "owner_role": "induction worker A",
+      "requires_to_start": [
+        "CONTRACT"
+      ],
+      "needs_real_inputs_for_acceptance": [],
+      "owned_paths": [
+        "closed_loop/induction_a.py",
+        "validation/closed_loop/unit/induction_a/**"
+      ],
+      "acceptance_ids": [
+        "I01",
+        "I02",
+        "I03",
+        "I04"
+      ],
+      "condition": "IF_GO",
+      "estimate": "3–4 engineering hours",
+      "objective": "Induce one role-generalized native macro from Machine training traces, independently of B and fixture candidate.",
+      "deliverables": [
+        "base-addressed patch or NOT_NEEDED/typed-failure receipt",
+        "executable test commands and semantic verdicts",
+        "small implementation note and failure modes",
+        "content-addressed evidence"
+      ],
+      "status": "NOT_DISPATCHED",
+      "isolation_group": "CL2A",
+      "must_not_read_peer_implementation_or_first_report": "CL2B"
+    },
+    {
+      "id": "CL2B",
+      "title": "Trace-template enumeration",
+      "owner_role": "induction worker B",
+      "requires_to_start": [
+        "CONTRACT"
+      ],
+      "needs_real_inputs_for_acceptance": [],
+      "owned_paths": [
+        "closed_loop/induction_b.py",
+        "validation/closed_loop/unit/induction_b/**"
+      ],
+      "acceptance_ids": [
+        "I01",
+        "I02",
+        "I03",
+        "I04"
+      ],
+      "condition": "IF_GO",
+      "estimate": "3–4 engineering hours",
+      "objective": "Use an independent bounded template mechanism, training-only deterministic ranking and one evaluator-owned seal.",
+      "deliverables": [
+        "base-addressed patch or NOT_NEEDED/typed-failure receipt",
+        "executable test commands and semantic verdicts",
+        "small implementation note and failure modes",
+        "content-addressed evidence"
+      ],
+      "status": "NOT_DISPATCHED",
+      "isolation_group": "CL2B",
+      "must_not_read_peer_implementation_or_first_report": "CL2A"
+    },
+    {
+      "id": "CL3A",
+      "title": "Independent checker A",
+      "owner_role": "checker worker A",
+      "requires_to_start": [
+        "CONTRACT"
+      ],
+      "needs_real_inputs_for_acceptance": [],
+      "owned_paths": [
+        "closed_loop/checker_a.py",
+        "validation/closed_loop/unit/checker_a/**"
+      ],
+      "acceptance_ids": [
+        "V01",
+        "V02",
+        "V03",
+        "V04",
+        "V05"
+      ],
+      "condition": "IF_GO",
+      "estimate": "2–4 engineering hours",
+      "objective": "Implement proof-step checking without search, replay/builders, inducer or shared checker semantic helpers.",
+      "deliverables": [
+        "base-addressed patch or NOT_NEEDED/typed-failure receipt",
+        "executable test commands and semantic verdicts",
+        "small implementation note and failure modes",
+        "content-addressed evidence"
+      ],
+      "status": "NOT_DISPATCHED",
+      "isolation_group": "CL3A",
+      "must_not_read_peer_implementation_or_first_report": "CL3B"
+    },
+    {
+      "id": "CL3B",
+      "title": "Blind independent checker B",
+      "owner_role": "checker worker B",
+      "requires_to_start": [
+        "CONTRACT"
+      ],
+      "needs_real_inputs_for_acceptance": [],
+      "owned_paths": [
+        "closed_loop/checker_b.py",
+        "validation/closed_loop/unit/checker_b/**"
+      ],
+      "acceptance_ids": [
+        "V01",
+        "V02",
+        "V03",
+        "V04",
+        "V05"
+      ],
+      "condition": "IF_GO",
+      "estimate": "2–4 engineering hours",
+      "objective": "Implement and report independently before seeing A code/results; both checkers are conjunctive.",
+      "deliverables": [
+        "base-addressed patch or NOT_NEEDED/typed-failure receipt",
+        "executable test commands and semantic verdicts",
+        "small implementation note and failure modes",
+        "content-addressed evidence"
+      ],
+      "status": "NOT_DISPATCHED",
+      "isolation_group": "CL3B",
+      "must_not_read_peer_implementation_or_first_report": "CL3A"
+    },
+    {
+      "id": "CL4",
+      "title": "Macro expansion and application",
+      "owner_role": "application engineer",
+      "requires_to_start": [
+        "CONTRACT"
+      ],
+      "needs_real_inputs_for_acceptance": [
+        "CL3A",
+        "CL3B",
+        "CL5"
+      ],
+      "owned_paths": [
+        "closed_loop/application.py",
+        "validation/closed_loop/unit/application/**"
+      ],
+      "acceptance_ids": [
+        "V01",
+        "V02",
+        "V03",
+        "V04",
+        "V05",
+        "X01",
+        "X02"
+      ],
+      "condition": "IF_GO",
+      "estimate": "2–4 engineering hours",
+      "objective": "Keep expansion out of induction code; apply only admitted session macros; produce primitive proof steps and account for internal replay work.",
+      "deliverables": [
+        "base-addressed patch or NOT_NEEDED/typed-failure receipt",
+        "executable test commands and semantic verdicts",
+        "small implementation note and failure modes",
+        "content-addressed evidence"
+      ],
+      "status": "NOT_DISPATCHED"
+    },
+    {
+      "id": "CL5",
+      "title": "Ingress, admission and residuals",
+      "owner_role": "trust-loop engineer",
+      "requires_to_start": [
+        "CONTRACT"
+      ],
+      "needs_real_inputs_for_acceptance": [
+        "CL3A",
+        "CL3B",
+        "CL4"
+      ],
+      "owned_paths": [
+        "closed_loop/admission.py",
+        "closed_loop/residual.py",
+        "validation/closed_loop/unit/admission/**",
+        "validation/closed_loop/unit/residual/**"
+      ],
+      "acceptance_ids": [
+        "A01",
+        "A02",
+        "A03",
+        "R01",
+        "R02",
+        "R03"
+      ],
+      "condition": "IF_GO",
+      "estimate": "2–4 engineering hours",
+      "objective": "Validate/bind canonical candidates and session admission; emit concrete classified residuals and search-guidance requests without adding axioms.",
+      "deliverables": [
+        "base-addressed patch or NOT_NEEDED/typed-failure receipt",
+        "executable test commands and semantic verdicts",
+        "small implementation note and failure modes",
+        "content-addressed evidence"
+      ],
+      "status": "NOT_DISPATCHED"
+    },
+    {
+      "id": "CL6",
+      "title": "Experiment persistence",
+      "owner_role": "persistence engineer",
+      "requires_to_start": [
+        "CONTRACT"
+      ],
+      "needs_real_inputs_for_acceptance": [
+        "CL3A",
+        "CL3B",
+        "CL4",
+        "CL5",
+        "CL8"
+      ],
+      "owned_paths": [
+        "closed_loop/checkpoint.py",
+        "validation/closed_loop/unit/checkpoint/**"
+      ],
+      "acceptance_ids": [
+        "P01",
+        "P02",
+        "P03"
+      ],
+      "condition": "IF_GO",
+      "estimate": "2–3 engineering hours",
+      "objective": "Persist actual extra roots and graph, terminate, fresh-load, restore untrusted scope and dual-check without constructor fallback.",
+      "deliverables": [
+        "base-addressed patch or NOT_NEEDED/typed-failure receipt",
+        "executable test commands and semantic verdicts",
+        "small implementation note and failure modes",
+        "content-addressed evidence"
+      ],
+      "status": "NOT_DISPATCHED"
+    },
+    {
+      "id": "CL7",
+      "title": "Evaluator, sealer and grader",
+      "owner_role": "evidence engineer",
+      "requires_to_start": [
+        "CONTRACT"
+      ],
+      "needs_real_inputs_for_acceptance": [
+        "CL3A",
+        "CL3B",
+        "CL4",
+        "CL5",
+        "CL6",
+        "CL8"
+      ],
+      "owned_paths": [
+        "closed_loop/harness.py",
+        "protocol/closed_loop/receipt-schema.json",
+        "validation/closed_loop/unit/harness/**"
+      ],
+      "acceptance_ids": [
+        "H01",
+        "H02",
+        "H03",
+        "H04"
+      ],
+      "condition": "IF_GO",
+      "estimate": "3–4 engineering hours",
+      "objective": "Enforce input capabilities and seal ordering; execute both provenance profiles with clean processes and separate conjunctive grader fields.",
+      "deliverables": [
+        "base-addressed patch or NOT_NEEDED/typed-failure receipt",
+        "executable test commands and semantic verdicts",
+        "small implementation note and failure modes",
+        "content-addressed evidence"
+      ],
+      "status": "NOT_DISPATCHED"
+    },
+    {
+      "id": "CL8",
+      "title": "Bounded coordinator",
+      "owner_role": "coordinator engineer",
+      "requires_to_start": [
+        "CONTRACT"
+      ],
+      "needs_real_inputs_for_acceptance": [
+        "CL3A",
+        "CL3B",
+        "CL4",
+        "CL5",
+        "CL6",
+        "CL7"
+      ],
+      "owned_paths": [
+        "closed_loop/coordinator.py",
+        "validation/closed_loop/unit/coordinator/**"
+      ],
+      "acceptance_ids": [
+        "S01",
+        "S02",
+        "S03"
+      ],
+      "condition": "IF_GO",
+      "estimate": "2–3 engineering hours",
+      "objective": "Work against stubs first; implement explicit states, failure terminals, idempotency, no-intervention/refusal guards and persisted next request.",
+      "deliverables": [
+        "base-addressed patch or NOT_NEEDED/typed-failure receipt",
+        "executable test commands and semantic verdicts",
+        "small implementation note and failure modes",
+        "content-addressed evidence"
+      ],
+      "status": "NOT_DISPATCHED"
+    },
+    {
+      "id": "CL9",
+      "title": "Continuous red-team design",
+      "owner_role": "independent red team",
+      "requires_to_start": [
+        "CONTRACT"
+      ],
+      "needs_real_inputs_for_acceptance": [],
+      "owned_paths": [
+        "validation/closed_loop/red_team/design/**",
+        "protocol/closed_loop/runs/audit-design/**"
+      ],
+      "acceptance_ids": [
+        "N01",
+        "H04",
+        "V02",
+        "V03",
+        "V04",
+        "V05",
+        "A02",
+        "P02",
+        "S02"
+      ],
+      "condition": "IF_GO",
+      "estimate": "continuous, parallel",
+      "objective": "Attack source leakage, trust violations, stale state, false grading, prompt fallbacks and corrupt expansion; publish fixed attacks.",
+      "deliverables": [
+        "base-addressed patch or NOT_NEEDED/typed-failure receipt",
+        "executable test commands and semantic verdicts",
+        "small implementation note and failure modes",
+        "content-addressed evidence"
+      ],
+      "status": "NOT_DISPATCHED"
+    },
+    {
+      "id": "CL10",
+      "title": "Integration candidate",
+      "owner_role": "integrator",
+      "requires_to_start": [
+        "CONTRACT",
+        "CL3A",
+        "CL3B",
+        "CL4",
+        "CL5",
+        "CL6",
+        "CL7",
+        "CL8"
+      ],
+      "needs_real_inputs_for_acceptance": [
+        "CL9"
+      ],
+      "owned_paths": [
+        "protocol/closed_loop/runs/candidate/**"
+      ],
+      "acceptance_ids": [
+        "B01",
+        "B02",
+        "B03",
+        "B04",
+        "B05",
+        "B06",
+        "C01",
+        "C02",
+        "C03",
+        "V01",
+        "V02",
+        "V03",
+        "V04",
+        "V05",
+        "X01",
+        "X02",
+        "A01",
+        "A02",
+        "A03",
+        "R01",
+        "R02",
+        "R03",
+        "P01",
+        "P02",
+        "P03",
+        "H01",
+        "H02",
+        "H03",
+        "H04",
+        "S01",
+        "S02",
+        "S03",
+        "N01"
+      ],
+      "condition": "IF_GO",
+      "estimate": "1.5–2 engineering hours",
+      "objective": "Apply exact owned patches and consolidated shared proposals; focused gates per seam and a full-suite gate per assembled candidate. Induction may arrive later and is required for the full target, not integration readiness.",
+      "deliverables": [
+        "base-addressed patch or NOT_NEEDED/typed-failure receipt",
+        "executable test commands and semantic verdicts",
+        "small implementation note and failure modes",
+        "content-addressed evidence"
+      ],
+      "status": "NOT_DISPATCHED"
+    },
+    {
+      "id": "CL9F",
+      "title": "Final frozen-build audit",
+      "owner_role": "independent red team",
+      "requires_to_start": [
+        "CL10",
+        "CL9"
+      ],
+      "needs_real_inputs_for_acceptance": [],
+      "owned_paths": [
+        "validation/closed_loop/red_team/release/**",
+        "protocol/closed_loop/runs/audit-release/**"
+      ],
+      "acceptance_ids": [
+        "N01",
+        "H01",
+        "H02",
+        "H03",
+        "H04",
+        "V02",
+        "V03",
+        "V04",
+        "V05",
+        "A02",
+        "P02",
+        "S02"
+      ],
+      "condition": "IF_GO",
+      "estimate": "1–2 verification hours",
+      "objective": "Audit the exact candidate with fixed attacks, clean processes/storage, independent checker execution and receipt completeness.",
+      "deliverables": [
+        "base-addressed patch or NOT_NEEDED/typed-failure receipt",
+        "executable test commands and semantic verdicts",
+        "small implementation note and failure modes",
+        "content-addressed evidence"
+      ],
+      "status": "NOT_DISPATCHED"
+    },
+    {
+      "id": "REL",
+      "title": "Final measurement and report",
+      "owner_role": "integrator",
+      "requires_to_start": [
+        "CL10",
+        "CL9F",
+        "CL2A",
+        "CL2B"
+      ],
+      "needs_real_inputs_for_acceptance": [],
+      "owned_paths": [
+        "protocol/closed_loop/runs/release/**"
+      ],
+      "acceptance_ids": [
+        "B01",
+        "B02",
+        "B03",
+        "B04",
+        "B05",
+        "B06",
+        "C01",
+        "C02",
+        "C03",
+        "I01",
+        "I02",
+        "I03",
+        "I04",
+        "V01",
+        "V02",
+        "V03",
+        "V04",
+        "V05",
+        "X01",
+        "X02",
+        "A01",
+        "A02",
+        "A03",
+        "R01",
+        "R02",
+        "R03",
+        "P01",
+        "P02",
+        "P03",
+        "H01",
+        "H02",
+        "H03",
+        "H04",
+        "S01",
+        "S02",
+        "S03",
+        "N01"
+      ],
+      "condition": "IF_GO_OR_FOUNDATION_REPORT",
+      "estimate": "last 2 hours reserved",
+      "objective": "Freeze final source SHA, grade all attempts and both profiles, run three repeats/full regression and archive a one-page honest milestone verdict.",
+      "deliverables": [
+        "base-addressed patch or NOT_NEEDED/typed-failure receipt",
+        "executable test commands and semantic verdicts",
+        "small implementation note and failure modes",
+        "content-addressed evidence"
+      ],
+      "status": "NOT_DISPATCHED"
+    }
+  ],
+  "report_envelope_fields": [
+    "TASK",
+    "ATTEMPT",
+    "STATUS",
+    "BASE_SHA",
+    "CONTRACT_DIGEST",
+    "PATCH_SHA256",
+    "SOURCE_TREE_DIGEST",
+    "FILES_TOUCHED",
+    "SHARED_CHANGE_REQUESTS",
+    "TEST_COMMANDS",
+    "EXIT_STATUSES",
+    "SEMANTIC_VERDICTS",
+    "ARTIFACT_DIGESTS",
+    "KNOWN_FAILURES",
+    "FAILURE_MODES",
+    "REAL_INPUTS_STILL_NEEDED"
+  ],
+  "publication_policy": "No automatic commit/push is claimed by this spec. When authorized, INT publishes accepted source/receipts on the fixed session branch only."
+}

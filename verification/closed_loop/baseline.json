@@ -1,0 +1,189 @@
+{
+  "schema_version": 1,
+  "spec_id": "CTM-ODR-5",
+  "record_kind": "EXPLORATORY_BASELINE_NOT_RELEASE",
+  "date_utc": "2026-10-01",
+  "receipt_created_utc": "2026-10-01T13:04:07.830611+00:00",
+  "repository": "StrangeTcy/cat_theo_machine",
+  "branch": "arena/01a0f75a-cat-theo-machine",
+  "base_sha": "428ecdc146e38de3481222bed7bddeb3c08e1b2d",
+  "base_tree_sha": "7f3bb80396080a154b99f73ae995745282895b5d",
+  "source_changed_during_probes": "NO",
+  "environment": {
+    "os": "Linux",
+    "python": "3.11.2",
+    "gmpy2": "2.3.0",
+    "PyYAML": "6.0.3",
+    "installation": "isolated ephemeral venv outside checkout",
+    "approved_target_release_environment": "NOT_VERIFIED",
+    "repository_environment": "Windows/Conda/Python 3.12.13 in environment.yml"
+  },
+  "checks": [
+    {
+      "id": "SOURCE_PARSE",
+      "exit_status": 0,
+      "semantic_verdict": "KNOWN_SCRATCH_FAILURE",
+      "source_files": 74,
+      "parse_successes": 73,
+      "failures": [
+        {
+          "path": "audit_pack_check.py",
+          "error": "unterminated string literal (detected at line 2) (audit_pack_check.py, line 2)"
+        }
+      ],
+      "artifact": "verification/closed_loop/evidence/source-parse.txt"
+    },
+    {
+      "id": "FOCUSED_NATIVE_PROBES",
+      "exit_status": 0,
+      "semantic_verdict": "PASS",
+      "passing_cases": [
+        "MergeBindingsAcceptsStructurallyEqualValuesTest",
+        "SnapshotPreservesMachineEdgeStructureTest",
+        "SnapshotPreservesConstructorLabelsAndCharsTest",
+        "SnapshotPreservesRuleEdgeInputsTest",
+        "BuildDerivationReplaysStructurallyEqualRepeatedBindingsTest"
+      ],
+      "count": 5,
+      "wall_kill_seconds": 120,
+      "artifact": "verification/closed_loop/evidence/focused.txt"
+    },
+    {
+      "id": "BOUNDED_SEARCH_SEAM",
+      "exit_status": 0,
+      "semantic_verdict": "PASS",
+      "entry_point": "cat_theo_machine.search.SearchBurst",
+      "family": "Positive(t) -> NonNegative(t) -> IsReal(Sqrt(t))",
+      "primitive_rules": "hand-constructed diagnostic copies of the two existing order-sign rules",
+      "trusted_plan_generated_by": "native bounded search, not an externally supplied plan",
+      "search_dispatch_steps_cap": 9,
+      "proof_endpoint_observed": "PASS with existing BuildDerivation/TermEqual",
+      "independent_checker_verification": "NOT_IMPLEMENTED_NOT_CLAIMED",
+      "wall_kill_seconds": 120,
+      "artifact": "verification/closed_loop/evidence/bounded-search.txt"
+    },
+    {
+      "id": "PRESAVE_SEMANTIC_DERIVATION",
+      "exit_status": 0,
+      "semantic_verdict": "PASS",
+      "semantic_readers": [
+        "IsDerivation",
+        "DerivationStart",
+        "DerivationEnd"
+      ],
+      "snapshot_save": "PASS",
+      "wall_kill_seconds": 90,
+      "artifact": "verification/closed_loop/evidence/cold-save.txt"
+    },
+    {
+      "id": "FRESH_PROCESS_SEMANTIC_READERS",
+      "exit_status": 0,
+      "semantic_verdict": "FAIL",
+      "boot_from_snapshot": "RETURNED",
+      "loaded_derivation_entries": 2,
+      "entries_with_missing_constructors": 2,
+      "observed_start_shapes": [
+        "NonNegative(t)",
+        "Positive(t)"
+      ],
+      "IsDerivation": "FALSE",
+      "GetConstructor": "EMPTY",
+      "DerivationStart": "EMPTY",
+      "DerivationEnd": "EMPTY",
+      "diagnostic_note": "This observational program prints flags and exits zero; it is not a passing acceptance test. A separately run assertion-based loader exited one.",
+      "wall_kill_seconds": 90,
+      "artifact": "verification/closed_loop/evidence/cold-load.txt"
+    },
+    {
+      "id": "FULL_SUITE",
+      "command": "python -u -m cat_theo_machine.main test from repository parent",
+      "exit_status": 124,
+      "semantic_verdict": "INCOMPLETE_RESOURCE_BOUND",
+      "wall_kill_seconds": 180,
+      "last_phase_observed": "All twelve default packs reported loading; no test summary or terminal verdict appeared. Exact stalled subphase not localized.",
+      "test_inventory_complete": "UNKNOWN",
+      "test_failure_set": "UNKNOWN",
+      "artifact": "verification/closed_loop/evidence/full-suite.txt"
+    },
+    {
+      "id": "ORDINARY_SCALAR_PROVE",
+      "semantic_verdict": "NOT_TERMINAL_WITHIN_DIAGNOSTIC_BOUNDS",
+      "observed": "Five search-worker modes launched; whole-operation diagnostics hit 60/180/90-second bounds.",
+      "note": "No diagnosis of logical unsolvability, confirmed deadlock, or target-environment performance is asserted. Generated probe snapshots retained outside checkout and processes stopped."
+    },
+    {
+      "id": "DOCUMENTED_MINIMAL_REPRODUCER",
+      "semantic_verdict": "EXPECTED_BASELINE_FAILURE_CONFIRMED",
+      "save_exit_status": 0,
+      "cold_load_exit_status": 1,
+      "pre_save_readers": "PASS",
+      "cold_semantic_reader_failures": 2,
+      "artifact": "verification/closed_loop/evidence/reproducer.txt",
+      "reproducer_source": "Python block 2 in verification/closed_loop/BASELINE_2026-10-01.md",
+      "reproducer_script_sha256": "130945d67b6890f44a9f6f5e21826a5475a699ffe7679de1a5edcd18d66e386b",
+      "wall_kill_seconds_per_leg": 90
+    }
+  ],
+  "persistence_localization": {
+    "observed_constructor_registry_record": {
+      "id": 1,
+      "name": "AllConstructors"
+    },
+    "snapshot_format": {
+      "format": "hyge-proof-kernel",
+      "version": 3,
+      "protocol_version": 3
+    },
+    "sample_snapshot_sha256": "10dc3ef8530f5a4c4080b8307f875106d487b8ef12541bfad2cb74cba54d9334",
+    "sample_snapshot_objects": 4603,
+    "sample_snapshot_storage": "scratch outside Git; regeneration instructions supplied, binary snapshot not part of deliverable",
+    "hypothesis": "_record_for treats mutable AllConstructors root as any namespace-name alias; investigate fixed singleton allowlist versus state serialization. Minimal repair still needs localization and target-environment validation."
+  },
+  "capability_presence": {
+    "manual_schema_store_lookup": "SOURCE_PRESENT",
+    "automatic_induction": "NOT_FOUND_IN_ACTIVE_PATHS",
+    "session.py": "ABSENT",
+    "wire.py": "ABSENT",
+    "closed_loop_teaching_admission": "NOT_IMPLEMENTED",
+    "hyge.py": "SEPARATE_STRING_TERM_PROTOTYPE",
+    "september_12_integration_record": "NOT_FOUND_IN_THIS_BASE"
+  },
+  "planning_gate": "FOUNDATION_REQUIRED_PENDING_APPROVED_ENVIRONMENT_REPROBE",
+  "recommended_first_packages": [
+    "CL0",
+    "F1",
+    "F2"
+  ],
+  "release_verdict": "NOT_RUN",
+  "full_baseline_failure_set": "UNKNOWN",
+  "source_sha256": {
+    "core.py": "ca8de662bd7c4b1146d2c4ca90859039875855eba6bc388686b8eb7fef92c0f2",
+    "persistence.py": "538d10eb08a6933c153ccb36110c283368248eeec3e4820052568b88ada55c43",
+    "proof.py": "5cb8a7daf87b54b36812f9950ed0e4abac7b4ba84a58916913258f2046ede257",
+    "schemata.py": "066b77b30c2a53c4cf131a59f8e97f93eab59dfe1504d78268a7caf98981aca5",
+    "search/engine.py": "8936a43378275933186bee4ad1af1d9b30d3f701535f07b0ab4bdcb440c95140",
+    "search/compare_subprocess.py": "2f3668fe2645521f54d8c7d7ba866f900db5577bede5dae2667ed04b6ba4f019",
+    "runtime.py": "5ce21f9c8d378553f1e0f9ef321ca578b5b9e2b0f67da3ca4cdb30c5c3d1c41e",
+    "testsuite.py": "4496fe16f7c0ce17def0eb855039285e81038dcaaae78ee2e2d9bb4ee89202fb",
+    "hyge.py": "143e40b6aa435302a4c9a846057c37b765ad1af9fef0559656eef76b41ba13f1",
+    "session.txt": "0ace5dd1ec22662c69aea9dc11984fa52f8cad6ed83ae18b3e2e594ca0573ba6",
+    "packs/order-sign.pack.yaml": "46407191a8e5c54c65d85165ec9b094cee6da6454cfed2d1b4853c214913d7c3",
+    "10August2026 -- updated plan by sol.md": "3c288ba119adb99d493d1655de27b5bc72ea58cae44c421b0afdf2057a0a2fa3"
+  },
+  "evidence_sha256": {
+    "verification/closed_loop/evidence/bounded-search.txt": "5d935267f15cf7807f788299bd00e8fa72bd977e6fb91b0d216cf767f60d37e6",
+    "verification/closed_loop/evidence/cold-load.txt": "5042dc159f4ee32301a049c1c301261f89b9296671157c276050449976e1815a",
+    "verification/closed_loop/evidence/cold-save.txt": "ed6e28130d73e524c4e2154e02184076cb0f645ea117e267ed8d58c7b4d3256e",
+    "verification/closed_loop/evidence/focused.txt": "9be6354652c49a65a31f7b56971f0c0a3f44aed8d30be2a8fd2abec72f4bf352",
+    "verification/closed_loop/evidence/full-suite.txt": "2bb994baa11833f06b7264c8c24ed725f2a5980249eba54f1e230d64548e7a17",
+    "verification/closed_loop/evidence/source-parse.txt": "62d004766a9fb2f1aa980c544204531a25219192206a5b8359980b664501f776",
+    "verification/closed_loop/evidence/reproducer.txt": "b3f7948254dc29d99be5572e46c26c2bc5bdd3342204c3b2c9d90b66ff06d701"
+  },
+  "limitations": [
+    "Linux Python 3.11 diagnostics do not replace approved Windows/Conda release verification.",
+    "Five focused probes do not characterize the whole suite or safe cold replay.",
+    "No induction/admission/harness implementation or actual agent fan-out occurred.",
+    "Known source parse failure is a tracked Windows scratch utility, not classified as a new regression.",
+    "Existing source and tracked snapshots were not edited; transient worker output removed from checkout and preserved in scratch."
+  ]
+}
