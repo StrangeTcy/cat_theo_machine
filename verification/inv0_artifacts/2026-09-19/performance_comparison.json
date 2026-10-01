@@ -1,0 +1,58 @@
+{
+  "date": "2026-09-19",
+  "interpreter": "/usr/bin/python3",
+  "python_version": "3.11.2 (main, Apr  8 2026, 01:58:00) [GCC 12.2.0]",
+  "base_sha": "428ecdc146e38de3481222bed7bddeb3c08e1b2d",
+  "requested_reference_sha": "742c806505338525527219a4a94dde9b47df86e0",
+  "training_state_count": 5,
+  "attempt_count": 15,
+  "checked_trace_count": 11,
+  "rejected_match_count": 4,
+  "candidate_count": 2,
+  "retained_counterexamples_even": 1,
+  "retained_counterexamples_including_extension": 2,
+  "schema_checker_structural_nodes": 73,
+  "transition_checker_nodes_per_full_corpus_replay": 391,
+  "training_success_checker_passes": 2,
+  "training_success_checker_nodes": 782,
+  "mining_observer_evaluations": 44,
+  "mining_transition_replays": 22,
+  "mining_transition_checker_nodes": 782,
+  "remining_observer_evaluations": 24,
+  "reused_counterexamples": 1,
+  "certificate_bytes": 5730,
+  "holdouts": [
+    {
+      "start_length": 0,
+      "goal_length": 5,
+      "baseline_status": "inv0/BudgetExhausted",
+      "baseline_expansions": 64,
+      "assisted_status": "inv0/CheckedUnreachable",
+      "assisted_expansions": 0
+    },
+    {
+      "start_length": 2,
+      "goal_length": 7,
+      "baseline_status": "inv0/BudgetExhausted",
+      "baseline_expansions": 64,
+      "assisted_status": "inv0/CheckedUnreachable",
+      "assisted_expansions": 0
+    },
+    {
+      "start_length": 4,
+      "goal_length": 9,
+      "baseline_status": "inv0/BudgetExhausted",
+      "baseline_expansions": 64,
+      "assisted_status": "inv0/CheckedUnreachable",
+      "assisted_expansions": 0
+    }
+  ],
+  "reachable_control_expansions": 2,
+  "reachable_control_path_steps": 2,
+  "extension_control_expansions": 2,
+  "extension_control_path_steps": 1,
+  "metric_definition": "One expansion pops a non-goal state and tries every rule; checker units count visited input/output/rule structural nodes. Not CPU instructions or timings.",
+  "overhead_caveat": "Canonical hashing, allocations, matching internals, and FIFO/seen scans are not included in node work units. Certificate replay includes schema checking and retained witness replay; storage bytes reported separately.",
+  "serialized_term_artifact_bytes_excluding_performance_json": 75709,
+  "certificate_replay_checker_nodes": 94
+}

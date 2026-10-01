@@ -1,0 +1,39 @@
+test_add_one_breaks_parity (__main__.INV0Tests.test_add_one_breaks_parity) ... ok
+test_alpha_renaming_does_not_change_candidate (__main__.INV0Tests.test_alpha_renaming_does_not_change_candidate) ... ok
+test_candidate_is_inert (__main__.INV0Tests.test_candidate_is_inert) ... ok
+test_certificate_forgery_rejected_after_rehash (__main__.INV0Tests.test_certificate_forgery_rejected_after_rehash) ... ok
+test_checked_transition_round_trip (__main__.INV0Tests.test_checked_transition_round_trip) ... ok
+test_checker_crash_and_actual_timeout_are_unresolved (__main__.INV0Tests.test_checker_crash_and_actual_timeout_are_unresolved) ... ok
+test_equal_parity_returns_unknown_not_reachable (__main__.INV0Tests.test_equal_parity_returns_unknown_not_reachable) ... ok
+test_failure_and_open_outcomes_not_refutations (__main__.INV0Tests.test_failure_and_open_outcomes_not_refutations) ... ok
+test_invalid_domain_and_malformed_codec (__main__.INV0Tests.test_invalid_domain_and_malformed_codec) ... ok
+test_length_candidate_has_checked_counterexample (__main__.INV0Tests.test_length_candidate_has_checked_counterexample) ... ok
+test_malformed_evidence_shapes_fail_closed (__main__.INV0Tests.test_malformed_evidence_shapes_fail_closed) ... ok
+test_no_live_knowledge_mutation (__main__.INV0Tests.test_no_live_knowledge_mutation) ... ok
+test_odd_goal_checked_unreachable (__main__.INV0Tests.test_odd_goal_checked_unreachable) ... ok
+test_odd_goal_reachable_under_r_plus (__main__.INV0Tests.test_odd_goal_reachable_under_r_plus) ... ok
+test_old_certificate_rejected_for_r_plus (__main__.INV0Tests.test_old_certificate_rejected_for_r_plus) ... ok
+test_parity_candidate_emerges_from_observer_grammar (__main__.INV0Tests.test_parity_candidate_emerges_from_observer_grammar) ... ok
+test_parity_certificate_covers_add_pair (__main__.INV0Tests.test_parity_certificate_covers_add_pair) ... ok
+test_parity_certificate_covers_remove_pair (__main__.INV0Tests.test_parity_certificate_covers_remove_pair) ... ok
+test_parity_certificate_covers_swap_pair (__main__.INV0Tests.test_parity_certificate_covers_swap_pair) ... ok
+test_performance_work_counters (__main__.INV0Tests.test_performance_work_counters) ... ok
+test_position_counting_and_arbitrary_opaque_tokens (__main__.INV0Tests.test_position_counting_and_arbitrary_opaque_tokens) ... ok
+test_reachable_even_goal_not_pruned (__main__.INV0Tests.test_reachable_even_goal_not_pruned) ... ok
+test_retained_counterexample_reused (__main__.INV0Tests.test_retained_counterexample_reused) ... ok
+test_retained_evidence_is_rechecked_after_reload (__main__.INV0Tests.test_retained_evidence_is_rechecked_after_reload) ... ok
+test_rule_round_trip_preserves_binding_identity (__main__.INV0Tests.test_rule_round_trip_preserves_binding_identity) ... ok
+test_structural_rule_change_invalidates_without_renaming (__main__.INV0Tests.test_structural_rule_change_invalidates_without_renaming) ... ok
+test_tampered_after_state_rejected (__main__.INV0Tests.test_tampered_after_state_rejected) ... ok
+test_tampered_rule_rejected (__main__.INV0Tests.test_tampered_rule_rejected) ... ok
+test_tampered_rule_set_rejected (__main__.INV0Tests.test_tampered_rule_set_rejected) ... ok
+test_tampered_substitution_rejected (__main__.INV0Tests.test_tampered_substitution_rejected) ... ok
+test_tampering_cannot_be_hidden_by_rehashing_transition (__main__.INV0Tests.test_tampering_cannot_be_hidden_by_rehashing_transition) ... ok
+test_timeout_is_not_counterexample (__main__.INV0Tests.test_timeout_is_not_counterexample) ... ok
+test_trace_agreement_alone_is_not_certificate (__main__.INV0Tests.test_trace_agreement_alone_is_not_certificate) ... ok
+test_unsupported_rule_shape_does_not_pass (__main__.INV0Tests.test_unsupported_rule_shape_does_not_pass) ... ok
+
+----------------------------------------------------------------------
+Ran 34 tests in 32.242s
+
+OK

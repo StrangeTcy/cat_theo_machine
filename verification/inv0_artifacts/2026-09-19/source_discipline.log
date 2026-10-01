@@ -1,0 +1,22 @@
+INV-0 source discipline audit — 2026-09-19
+Inspection-only commit:
+01b8bcb docs: record INV-0 inspection gate before implementation
+ verification/inspection_inv0.md | 124 ++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 124 insertions(+)
+
+Forbidden calls scan, scope=invariant_experiment.py and validation/test_inv0_invariant_discovery.py:
+patterns=ActivateProposal|admit_next|activate_front|\.apply\(|\.eval\(|make_fresh_runtime|story|Experiment.?4
+
+Rule display-name occurrences, scope=invariant_experiment.py:
+320:    rules = chain(entry('q7' if rename else 'AddPair', add),
+321:                  entry('q8' if rename else 'RemovePair', remove),
+322:                  entry('q9' if rename else 'SwapPair', swap))
+324:        rules = append(rules, chain(entry('q10' if rename else 'AddOne',
+
+Explicit value-slot assignments, scope=new implementation (no matches expected):
+
+Protected file diffs against BASE_SHA (empty expected):
+
+Original source hashes (baseline then current):
+ca8de662bd7c4b1146d2c4ca90859039875855eba6bc388686b8eb7fef92c0f2  -
+ca8de662bd7c4b1146d2c4ca90859039875855eba6bc388686b8eb7fef92c0f2  core.py
