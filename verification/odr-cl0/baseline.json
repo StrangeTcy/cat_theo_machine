@@ -26,7 +26,9 @@
       "status": "FAIL_AFTER_STALE_ID_TRIAGE",
       "initial_failure": "KeyError: tao_angle_alpha_from_sides",
       "triage": "test-only mapping updated to current generic angle and expansion rule IDs",
-      "remaining_failure": "SearchDFS FAILURE; expanded=1; generated=1; 15 obligations remain missing"
+      "remaining_failure": "SearchDFS FAILURE; expanded=1; generated=1; 15 obligations remain missing",
+      "root_cause": "invalid shared-start construction; see searchdfs-root-cause.md",
+      "quarantine": "verification/odr-cl0/searchdfs-expected-failure.json"
     },
     {
       "command": "python -m compileall -q -f .",

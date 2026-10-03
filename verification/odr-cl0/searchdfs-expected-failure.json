@@ -1,0 +1,17 @@
+{
+  "fixture": "test_actual_searchdfs.py",
+  "status": "QUARANTINED_EXPECTED_FAILURE",
+  "root_cause": "shared-start construction uses only tao_problem_1_1_triangle while asserting fifteen independent example goals",
+  "introduced_in_available_history": "428ecdc146e38de3481222bed7bddeb3c08e1b2d",
+  "expected_observation": {
+    "search_status": "FAILURE",
+    "expanded": 1,
+    "generated": 1,
+    "frontier_peak": 1,
+    "found_depth": 0,
+    "missing_obligations": 15
+  },
+  "invariant_pruning_involved": false,
+  "release_effect": "does not qualify as the autonomous-loop baseline",
+  "repair_required": true
+}

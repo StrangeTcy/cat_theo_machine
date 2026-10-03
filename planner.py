@@ -6,6 +6,51 @@ from . import proof as P
 from . import search as S
 
 
+# Charter-v2 planner policy. These names are the only methods eligible for
+# G/I curriculum and held-out claims. Bijection and DoubleCount remain
+# constructible for backward compatibility, but are explicitly blocked from
+# v2 planner admission until a future charter changes this policy.
+V2_METHODS = (
+    "Invariance",
+    "Extremal",
+    "Pigeonhole",
+    "Divide",
+    "Symmetry",
+)
+LEGACY_BLOCKED_METHODS = (
+    "Bijection",
+    "DoubleCount",
+)
+
+
+def IsLegacyBlockedPlannerMethod(method):
+    if M.IsPair(method)() is M.false_value:
+        return M.false_value
+    head = M.Head(method)()
+    if M.IdentityCompare(head, L.BijectionLabel)() is M.truth_value:
+        return M.truth_value
+    if M.IdentityCompare(head, L.DoubleCountLabel)() is M.truth_value:
+        return M.truth_value
+    return M.false_value
+
+
+def IsV2PlannerMethod(method):
+    if M.IsPair(method)() is M.false_value:
+        return M.false_value
+    head = M.Head(method)()
+    if M.IdentityCompare(head, L.ExtremalLabel)() is M.truth_value:
+        return M.truth_value
+    if M.IdentityCompare(head, L.PigeonholeLabel)() is M.truth_value:
+        return M.truth_value
+    if M.IdentityCompare(head, L.DivideLabel)() is M.truth_value:
+        return M.truth_value
+    if M.IdentityCompare(head, L.SymmetryLabel)() is M.truth_value:
+        return M.truth_value
+    # Invariance has no active label/payload on this cut; its registry entry
+    # is a declared G-eng obligation, not an implicit acceptance.
+    return M.false_value
+
+
 class PlannerProblem(M.Edge):
     """
     A planning problem.
@@ -1136,6 +1181,11 @@ class PlannerStep(M.Edge):
                             remaining_methods = M.EmptyList
                         while M.IdentityCompare(remaining_methods, M.EmptyList)() is M.false_value:
                             method = M.Head(remaining_methods)()
+                            if IsLegacyBlockedPlannerMethod(method)() is M.truth_value:
+                                # Legacy methods remain parseable but cannot
+                                # create v2 curriculum obligations or claims.
+                                remaining_methods = M.Tail(remaining_methods)()
+                                continue
                             method_head = M.Head(method)()
                             method_goals = M.EmptyList
                             if M.IdentityCompare(method_head, L.PigeonholeLabel)() is M.truth_value:
@@ -1469,6 +1519,10 @@ class PlannerRun(M.Edge):
 
 
 __all__ = (
+    "V2_METHODS",
+    "LEGACY_BLOCKED_METHODS",
+    "IsLegacyBlockedPlannerMethod",
+    "IsV2PlannerMethod",
     "PlannerProblem",
     "PigeonholeObligations",
     "PigeonholeConclusion",

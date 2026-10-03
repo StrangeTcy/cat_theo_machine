@@ -52,7 +52,7 @@ Acceptance for FR2 is not merely “the test gets past pack loading.” It requi
 1. a reproducible, checked repair of the SearchDFS/fixture contract; or
 2. an explicit re-pinned baseline fixture whose expected failure is documented and independently replayable.
 
-Do not add target-specific proof rules or change the expected result only to turn the test green.
+Do not add target-specific proof rules or change the expected result only to turn the test green. The root cause and pinned quarantine are recorded in `verification/odr-cl0/searchdfs-root-cause.md` and `searchdfs-expected-failure.json`; this is a triage completion, not a green baseline.
 
 ## FR3 — G method-vocabulary decision
 

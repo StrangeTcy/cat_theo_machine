@@ -8,10 +8,10 @@
   "preliminary_route": "G4_invariant_mining",
   "route_finalized": false,
   "blocking_items": [
-    "operator environment is not provisioned with the dependencies declared by environment.yml",
+    "operator environment is not provisioned by default; requirements-cl0.txt probe is reproducible but the full Conda environment is not pinned here",
     "SearchDFS baseline runs after stale rule-ID triage but fails with expanded=1 and 15 missing obligations",
     "current cut does not yet contain researcher_v0",
-    "current planner method vocabulary drifts from CHARTER-v2",
+    "v2 method policy is enforced, but the current cut still lacks the Invariance planner payload",
     "current cut does not contain the S2 RelationSchema/RelationContract surface"
   ],
   "permitted_next_work": [
