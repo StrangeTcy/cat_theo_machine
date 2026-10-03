@@ -1,0 +1,39 @@
+{
+  "date": "2026-10-03",
+  "cut": "f5078d5c200aa8a397a4bda165596495fdbf3450",
+  "routes": {
+    "G4_invariant_mining": {
+      "current_cut_active_substrate": true,
+      "symbols": [
+        "Preserves",
+        "Invariant",
+        "InvariantCandidate",
+        "ReachabilityPrune",
+        "SearchWithInvariant"
+      ],
+      "current_cut_status": "PROMISING_BUT_BLOCKED_BY_FOUNDATION_BASELINE",
+      "remote_researcher_v0": {
+        "branch": "origin/arena/01a0eca3-cat-theo-machine",
+        "tests": {
+          "G1": "23 passed",
+          "G2": "16 passed",
+          "G3": "17 passed",
+          "G4": "16 passed",
+          "G5": "17 passed",
+          "G6": "17 passed"
+        },
+        "status": "REFERENCE_PROTOTYPE_VALIDATED"
+      }
+    },
+    "S2_relation_schema_mining": {
+      "relation_schema_symbol": false,
+      "relation_contract_symbol": false,
+      "fire_any_symbol": false,
+      "current_cut_status": "BLOCKED",
+      "reason": "current schemata.py contains derivation schemas, not the contracted RelationSchema/S2 surface"
+    }
+  },
+  "preliminary_selection": "G4",
+  "selection_is_final": false,
+  "selection_blocker": "repair environment and SearchDFS geometry-pack baseline first"
+}

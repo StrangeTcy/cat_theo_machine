@@ -1,0 +1,47 @@
+{
+  "date": "2026-10-03",
+  "cut": {
+    "branch": "arena/01a0fe4e-cat-theo-machine",
+    "commit": "f5078d5c200aa8a397a4bda165596495fdbf3450",
+    "tree": "ea16afed7a05e66c4da326b499b572b8b55465b0"
+  },
+  "default_environment": {
+    "python": "3.11.2",
+    "gmpy2": "missing",
+    "pyyaml": "missing",
+    "testsuite_command": "python -m cat_theo_machine.testsuite",
+    "status": "blocked_before_runtime_boot",
+    "error": "ModuleNotFoundError: No module named 'gmpy2'"
+  },
+  "disposable_probe_environment": {
+    "location": "/tmp/ctm-venv",
+    "python": "3.11.2",
+    "gmpy2": "2.3.1",
+    "pyyaml": "installed",
+    "status": "probe_only"
+  },
+  "probes": [
+    {
+      "command": "python -m cat_theo_machine.testsuite",
+      "environment": "disposable_probe_environment",
+      "exit": 0,
+      "status": "PASS"
+    },
+    {
+      "command": "python -m cat_theo_machine.test_actual_searchdfs",
+      "environment": "disposable_probe_environment",
+      "exit": 1,
+      "status": "FAIL",
+      "failure": "KeyError: tao_angle_alpha_from_sides while selecting a geometry-pack rule"
+    },
+    {
+      "command": "python -m compileall -q -f .",
+      "environment": "default_environment",
+      "exit": 1,
+      "status": "FAIL",
+      "failure": "audit_pack_check.py has an unterminated raw string literal at line 2"
+    }
+  ],
+  "baseline_verdict": "FOUNDATION_BLOCKED",
+  "release_claim_allowed": false
+}

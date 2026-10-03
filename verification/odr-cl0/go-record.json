@@ -1,0 +1,30 @@
+{
+  "record_type": "ODR_CL0_GO_RECORD",
+  "date": "2026-10-03",
+  "cut": "f5078d5c200aa8a397a4bda165596495fdbf3450",
+  "decision": "RE-SCOPE",
+  "profile": "FOUNDATION_ONLY",
+  "autonomous_candidate": "BLOCKED",
+  "preliminary_route": "G4_invariant_mining",
+  "route_finalized": false,
+  "blocking_items": [
+    "operator environment is not provisioned with the dependencies declared by environment.yml",
+    "SearchDFS geometry-pack baseline fails on missing rule tao_angle_alpha_from_sides",
+    "current cut does not yet contain researcher_v0",
+    "current planner method vocabulary drifts from CHARTER-v2",
+    "current cut does not contain the S2 RelationSchema/RelationContract surface"
+  ],
+  "permitted_next_work": [
+    "repair or pin the operator environment",
+    "repair or explicitly re-pin the geometry-pack fixture contract",
+    "resolve G method drift",
+    "lift researcher_v0 contracts and artifacts without duplicating its machinery",
+    "rerun CL0 before dispatching candidate induction"
+  ],
+  "forbidden_next_work": [
+    "claim autonomous induction",
+    "promote a candidate into trusted memory",
+    "merge remote prototypes without INT review",
+    "use the failed SearchDFS baseline as release evidence"
+  ]
+}
