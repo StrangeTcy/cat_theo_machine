@@ -9,7 +9,7 @@
   "route_finalized": false,
   "blocking_items": [
     "operator environment is not provisioned with the dependencies declared by environment.yml",
-    "SearchDFS geometry-pack baseline fails on missing rule tao_angle_alpha_from_sides",
+    "SearchDFS baseline runs after stale rule-ID triage but fails with expanded=1 and 15 missing obligations",
     "current cut does not yet contain researcher_v0",
     "current planner method vocabulary drifts from CHARTER-v2",
     "current cut does not contain the S2 RelationSchema/RelationContract surface"

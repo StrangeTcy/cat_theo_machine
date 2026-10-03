@@ -11,7 +11,7 @@
 | Current S2 relation-contract surface exists | symbol probe | Refuted | S2 blocked on current cut |
 | Default environment can run baseline | `python -m cat_theo_machine.testsuite` | Refuted: missing gmpy2 | Environment bootstrap required |
 | Core tests pass in dependency-complete probe environment | `python -m cat_theo_machine.testsuite` | Verified, exit 0 | Focused core baseline is available |
-| Live SearchDFS baseline is green | `python -m cat_theo_machine.test_actual_searchdfs` | Refuted: missing geometry rule key | Repair/re-pin fixture before GO |
+| Live SearchDFS baseline is green | `python -m cat_theo_machine.test_actual_searchdfs` | Refuted: after stale-ID triage it runs but fails with expanded=1 and 15 missing obligations | Repair/re-pin fixture/search contract before GO |
 | Researcher-v0 is only a prose idea | remote tree and executable G1–G6 runners | Refuted: implementation and tests exist | Reuse/adapter work, not greenfield rewrite |
 | Researcher-v0 G1–G6 tests pass | `run_g1_tests` through `run_g6_tests` on remote archive | Verified: 23/16/17/16/17/17 | Prototype is a viable G4 reference |
 | Current cut already contains researcher-v0 | `git ls-tree HEAD researcher_v0` | Refuted | Prototype must be imported or adapted |

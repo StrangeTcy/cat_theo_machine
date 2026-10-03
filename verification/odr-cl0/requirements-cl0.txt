@@ -1,0 +1,5 @@
+# CL0 operator probe dependencies.
+# The repository environment.yml remains the source of the full Conda environment.
+# Tested in this session with Python 3.11.2; the repository manifest requests 3.12.13.
+gmpy2==2.3.0
+PyYAML==6.0.3

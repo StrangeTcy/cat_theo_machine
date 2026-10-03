@@ -120,11 +120,11 @@ if __name__ == "__main__":
             M.Pair(
                 pack.rule_map["tao_side_gamma_from_area_perimeter"],
                 M.Pair(
-                    pack.rule_map["tao_angle_alpha_from_sides"],
+                    pack.rule_map["tao_angle_from_sides"],
                     M.Pair(
-                        pack.rule_map["tao_angle_beta_from_sides"],
+                        pack.rule_map["tao_angle_from_sides"],
                         M.Pair(
-                            pack.rule_map["tao_angle_gamma_from_sides"],
+                            pack.rule_map["tao_angle_from_sides"],
                             M.Pair(
                                 pack.rule_map["tao_verify_perimeter"],
                                 M.Pair(
@@ -138,11 +138,11 @@ if __name__ == "__main__":
                                                 M.Pair(
                                                     pack.rule_map["tao_verify_strict_triangle_inequality"],
                                                     M.Pair(
-                                                        pack.rule_map["tao_verify_cosine_alpha"],
+                                                        pack.rule_map["tao_expand_alpha_angle_value"],
                                                         M.Pair(
-                                                            pack.rule_map["tao_verify_cosine_beta"],
+                                                            pack.rule_map["tao_expand_beta_angle_value"],
                                                             M.Pair(
-                                                                pack.rule_map["tao_verify_cosine_gamma"],
+                                                                pack.rule_map["tao_expand_gamma_angle_value"],
                                                                 M.EmptyList,
                                                             ),
                                                         ),

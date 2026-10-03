@@ -41,7 +41,7 @@ Symmetry
 
 **Impact:** G/I measurement cannot claim charter compliance yet. The current file also does not expose an `Invariance` planner method class matching the v2 vocabulary.
 
-**Disposition:** G-eng must either add the v2 `Invariance` payload and retire/exclude the two forbidden methods, or document an explicit compatibility boundary before curriculum measurement.
+**Decision:** Keep `Bijection` and `DoubleCount` as legacy planner constructors for backward compatibility, but reclassify them as non-v2/blocked methods. They are excluded from G/I curriculum and held-out claims. The v2 registry must expose only the five charter methods. The current cut also lacks the v2 `Invariance` planner payload, which is a separate G-eng task.
 
 ## D4 — S2 surface is not active on current cut
 
@@ -61,8 +61,10 @@ Symmetry
 
 ## D6 — SearchDFS baseline fixture drift
 
-**Observed:** After booting all packs in a dependency-complete disposable environment, `test_actual_searchdfs.py` fails while selecting `tao_angle_alpha_from_sides` from the geometry pack.
+**Observed:** The initial failure was a stale test/pack rule-ID mismatch. The current geometry pack exposes `tao_angle_from_sides` and `tao_expand_{alpha,beta,gamma}_angle_value`, while the test requested six removed IDs. The test-only mapping was corrected for triage.
 
-**Impact:** The full live search baseline is not green on the current cut.
+**Remaining result:** SearchDFS now boots and runs, but returns `FAILURE` with `expanded=1`, `generated=1`, and all 15 obligations missing.
 
-**Disposition:** Do not claim GO for the autonomous closed loop. Repair or re-pin the fixture/pack contract before CL2 candidate work is admitted.
+**Impact:** The full live search baseline is still not green; the remaining issue is semantic/search or fixture behavior, not pack ingress.
+
+**Disposition:** Do not claim GO for the autonomous closed loop. Repair or explicitly re-pin the fixture/search contract. Do not weaken the expected result merely to make the test green.
