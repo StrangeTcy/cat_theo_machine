@@ -6,7 +6,15 @@
 
 ## FR1 — reproducible operator environment
 
-Use `verification/odr-cl0/requirements-cl0.txt` for the minimal Python probe dependencies and record the interpreter version. The supported repository environment remains `environment.yml`; the requirements file is not a replacement for the full Conda environment.
+Use `verification/odr-cl0/requirements-cl0.txt` for the minimal Python probe dependencies and record the interpreter version. The supported repository environment remains `environment.yml`; it already declares `gmpy2` and `pyyaml`, so the original default-environment failure was a provisioning gap rather than a missing declaration.
+
+POSIX reproduction sequence:
+
+```text
+python -m venv /tmp/ctm-cl0
+/tmp/ctm-cl0/bin/python -m pip install -r verification/odr-cl0/requirements-cl0.txt
+PYTHONPATH=.. /tmp/ctm-cl0/bin/python -m cat_theo_machine.testsuite
+```
 
 Acceptance:
 
