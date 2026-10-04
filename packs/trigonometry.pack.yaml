@@ -155,6 +155,16 @@ rules:
           args:
             - {var: triangle}
       - call:
+          head: {sym: AngleOfLabel}
+          args:
+            - {var: angle}
+            - {var: triangle}
+      - call:
+          head: {sym: OppositeLabel}
+          args:
+            - {var: opposite_side}
+            - {var: angle}
+      - call:
           head: {sym: SideOfLabel}
           args:
             - {var: opposite_side}
@@ -185,20 +195,10 @@ rules:
             - {var: adjacent_side_two}
             - {var: adjacent_length_two}
       - call:
-          head: {sym: AngleOfLabel}
-          args:
-            - {var: angle}
-            - {var: triangle}
-      - call:
           head: {sym: AngleMeasureLabel}
           args:
             - {var: angle}
             - {var: angle_value}
-      - call:
-          head: {sym: OppositeLabel}
-          args:
-            - {var: opposite_side}
-            - {var: angle}
       - call:
           head: {sym: DistinctLabel}
           args:

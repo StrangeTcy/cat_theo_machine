@@ -266,6 +266,21 @@ class MergeBindingsAcceptsStructurallyEqualValuesTest(M.Edge):
         return self.result
 
 
+class InstantiatePreservesUnboundVariableIdentityTest(M.Edge):
+    def __init__(self):
+        empty = M.EmptyList
+        var_name = M.Thingy()
+        var_x = M.Pair(M.VarTag, M.Pair(var_name, empty))
+        template = M.Pair(M.four, M.Pair(var_x, empty))
+        instantiated = M.Head(M.Instantiate(template, empty)())()
+        output_var = M.Head(M.Tail(instantiated)())()
+        self.result = M.IdentityCompare(var_x, output_var)()
+        super().__init__(inputs=M.EmptyList, results=M.Pair(self.result, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
 class BuildDerivationReplaysStructurallyEqualRepeatedBindingsTest(M.Edge):
     def __init__(self, graph):
         empty = M.EmptyList
@@ -6564,6 +6579,13 @@ def install_default_tests(graph):
         "merge_bindings_accepts_structurally_equal_values_test",
         empty,
         MergeBindingsAcceptsStructurallyEqualValuesTest(),
+        M.truth_value,
+    )
+    _register_test(
+        graph,
+        "instantiate_preserves_unbound_variable_identity_test",
+        empty,
+        InstantiatePreservesUnboundVariableIdentityTest(),
         M.truth_value,
     )
     _register_test(

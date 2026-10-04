@@ -1,6 +1,6 @@
 {
   "blocked_examples": 3,
-  "fixture": "geometry examples, independent starts/goals with per-example manifests",
+  "fixture": "geometry examples, independent starts/goals with per-example manifests; matcher and cosine-premise-order repair probe",
   "manifests": {
     "tao_angle_alpha": {
       "reason": "start lacks Triangle and Distinct premises required by tao_angle_from_sides",
@@ -365,31 +365,96 @@
       "status": "SUCCESS"
     },
     {
-      "elapsed_seconds": 60.043,
+      "elapsed_seconds": 55.523,
       "example": "tao_cosine_alpha_identity",
+      "exit_code": 0,
       "index": 13,
-      "status": "TIMEOUT",
-      "stderr_tail": "",
-      "stdout_tail": "Reading pack order-sign...\n\rReading pack order-sign, done in 0.10s\nReading pack sqrt-real...\n\rReading pack sqrt-real, done in 0.14s\nReading pack algebra-distribute...\n\rReading pack algebra-distribute, done in 0.87s\nReading pack sequence-order...\n\rReading pack sequence-order, done in 0.57s\nReading pack real-closure...\n\rReading pack real-closure, done in 0.20s\nReading pack arithmetic...\n\rReading pack arithmetic, done in 0.74s\nReading pack geometry-ontology...\n\rReading pack geometry-ontology, done in 1.14s\nReading pack trigonometry...\n\rReading pack trigonometry, done in 0.26s\nReading pack geometry...\n\rReading pack geometry, done in 5.04s\nReading pack engel-coins...\n\rReading pack engel-coins, done in 0.54s\nReading pack engel-means...\n\rReading pack engel-means, done in 0.00s\nReading pack engel-blackboard...\n\rReading pack engel-blackboard, done in 1.92s\n",
-      "timeout_seconds": 60
+      "outcome_class": "SearchSuccessLabel",
+      "rules": [
+        [
+          "geometry",
+          "tao_side_alpha_from_area_perimeter"
+        ],
+        [
+          "geometry",
+          "tao_side_beta_from_area_perimeter"
+        ],
+        [
+          "geometry",
+          "tao_side_gamma_from_area_perimeter"
+        ],
+        [
+          "geometry",
+          "tao_angle_from_sides"
+        ],
+        [
+          "trigonometry",
+          "triangle_yields_generic_cosine_relation"
+        ]
+      ],
+      "status": "SUCCESS"
     },
     {
-      "elapsed_seconds": 60.041,
+      "elapsed_seconds": 21.35,
       "example": "tao_cosine_beta_identity",
+      "exit_code": 0,
       "index": 14,
-      "status": "TIMEOUT",
-      "stderr_tail": "",
-      "stdout_tail": "Reading pack order-sign...\n\rReading pack order-sign, done in 0.11s\nReading pack sqrt-real...\n\rReading pack sqrt-real, done in 0.16s\nReading pack algebra-distribute...\n\rReading pack algebra-distribute, done in 0.90s\nReading pack sequence-order...\n\rReading pack sequence-order, done in 0.51s\nReading pack real-closure...\n\rReading pack real-closure, done in 0.18s\nReading pack arithmetic...\n\rReading pack arithmetic, done in 0.72s\nReading pack geometry-ontology...\n\rReading pack geometry-ontology, done in 1.07s\nReading pack trigonometry...\n\rReading pack trigonometry, done in 0.25s\nReading pack geometry...\n\rReading pack geometry, done in 5.16s\nReading pack engel-coins...\n\rReading pack engel-coins, done in 0.55s\nReading pack engel-means...\n\rReading pack engel-means, done in 0.00s\nReading pack engel-blackboard...\n\rReading pack engel-blackboard, done in 1.85s\n",
-      "timeout_seconds": 60
+      "outcome_class": "SearchFailureLabel",
+      "reason": "generic cosine route lacks the reverse Distinct facts supplied by geometry-ontology symmetry for this example",
+      "rules": [
+        [
+          "geometry",
+          "tao_side_alpha_from_area_perimeter"
+        ],
+        [
+          "geometry",
+          "tao_side_beta_from_area_perimeter"
+        ],
+        [
+          "geometry",
+          "tao_side_gamma_from_area_perimeter"
+        ],
+        [
+          "geometry",
+          "tao_angle_from_sides"
+        ],
+        [
+          "trigonometry",
+          "triangle_yields_generic_cosine_relation"
+        ]
+      ],
+      "status": "FAILURE"
     },
     {
-      "elapsed_seconds": 60.007,
+      "elapsed_seconds": 20.347,
       "example": "tao_cosine_gamma_identity",
+      "exit_code": 0,
       "index": 15,
-      "status": "TIMEOUT",
-      "stderr_tail": "",
-      "stdout_tail": "Reading pack order-sign...\n\rReading pack order-sign, done in 0.11s\nReading pack sqrt-real...\n\rReading pack sqrt-real, done in 0.16s\nReading pack algebra-distribute...\n\rReading pack algebra-distribute, done in 0.95s\nReading pack sequence-order...\n\rReading pack sequence-order, done in 0.52s\nReading pack real-closure...\n\rReading pack real-closure, done in 0.20s\nReading pack arithmetic...\n\rReading pack arithmetic, done in 0.77s\nReading pack geometry-ontology...\n\rReading pack geometry-ontology, done in 1.25s\nReading pack trigonometry...\n\rReading pack trigonometry, done in 0.26s\nReading pack geometry...\n\rReading pack geometry, done in 5.38s\nReading pack engel-coins...\n\rReading pack engel-coins, done in 0.60s\nReading pack engel-means...\n\rReading pack engel-means, done in 0.00s\nReading pack engel-blackboard...\n\rReading pack engel-blackboard, done in 2.18s\n",
-      "timeout_seconds": 60
+      "outcome_class": "SearchFailureLabel",
+      "reason": "generic cosine route lacks the reverse Distinct facts supplied by geometry-ontology symmetry for this example",
+      "rules": [
+        [
+          "geometry",
+          "tao_side_alpha_from_area_perimeter"
+        ],
+        [
+          "geometry",
+          "tao_side_beta_from_area_perimeter"
+        ],
+        [
+          "geometry",
+          "tao_side_gamma_from_area_perimeter"
+        ],
+        [
+          "geometry",
+          "tao_angle_from_sides"
+        ],
+        [
+          "trigonometry",
+          "triangle_yields_generic_cosine_relation"
+        ]
+      ],
+      "status": "FAILURE"
     }
   ],
   "runnable_all_success": false,

@@ -1,8 +1,8 @@
 {
-  "date": "2026-10-04",
+  "date": "2026-10-05",
   "cut": {
     "branch": "arena/01a0fe4e-cat-theo-machine",
-    "commit": "26555ed",
+    "commit": "d856552",
     "tree_before_foundation_repair": "ea16afed7a05e66c4da326b499b572b8b55465b0"
   },
   "operator_probe": {
@@ -41,13 +41,13 @@
   "independent_fixture_probe": {
     "runner": "verification/odr-cl0/searchdfs_independent.py",
     "timeout_seconds_per_example": 60,
-    "successes": 9,
+    "successes": 10,
     "blocked": 3,
-    "failures": 0,
-    "timeouts": 3,
+    "failures": 2,
+    "timeouts": 0,
     "runnable_all_success": false,
-    "diagnosis": "Search matcher rebuilt unresolved variables; a local preservation experiment removes duplicate bindings, but the unaccepted experiment still leaves cosine DFS over the bound and exposes independent-rule permutation cost",
-    "status": "PARTIALLY_REPAIRED_COSINE_DFS_TIMEOUTS_AND_ANGLE_BLOCKS"
+    "diagnosis": "Preserve unresolved matcher variables and order generic cosine premises by selectivity; alpha terminates, beta/gamma fail on missing reverse Distinct orientations",
+    "status": "PARTIALLY_REPAIRED_COSINE_ALPHA_BETA_GAMMA_PREMISE_BLOCKS"
   },
   "baseline_verdict": "FOUNDATION_BLOCKED",
   "release_claim_allowed": false

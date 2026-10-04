@@ -317,12 +317,29 @@ class Instantiate(Edge):
         self.result = Pair(self._inst(template, bindings), EmptyList)
         super().__init__(inputs=Pair(template, Pair(bindings, EmptyList)), results=self.result)
 
+    def _is_var_pattern(self, value):
+        if IsPair(value)() is false_value:
+            return false_value
+        head = Head(value)()
+        tail = Tail(value)()
+        if IdentityCompare(head, VarTag)() is false_value:
+            return false_value
+        if IsPair(tail)() is false_value:
+            return false_value
+        if IdentityCompare(Tail(tail)(), EmptyList)() is false_value:
+            return false_value
+        return truth_value
+
     def _inst(self, t, bindings):
         lookup = FindBinding(bindings, t)()
         flag = Head(lookup)()
         val = Tail(lookup)()
         if IdentityCompare(flag, truth_value)() is truth_value:
             return val
+        # Preserve unresolved variable identity during partial instantiation.
+        # Rebuilding it creates a fresh variable and breaks cross-premise joins.
+        if self._is_var_pattern(t) is truth_value:
+            return t
         if IsPair(t)() is truth_value:
             new_h = self._inst(Head(t)(), bindings)
             new_t = self._inst(Tail(t)(), bindings)
