@@ -1175,6 +1175,50 @@ class TaoProblem11PerimeterValueLabel(ConstructorLabel):
     pass
 
 
+class StepVerifiedLabel(ConstructorLabel):
+    pass
+
+
+class DerivationVerifiedLabel(ConstructorLabel):
+    pass
+
+
+class UnknownRuleLabel(ConstructorLabel):
+    pass
+
+
+class ConclusionMutationLabel(ConstructorLabel):
+    pass
+
+
+class PremiseMismatchLabel(ConstructorLabel):
+    pass
+
+
+class InvalidPremiseRefLabel(ConstructorLabel):
+    pass
+
+
+class GoalMismatchLabel(ConstructorLabel):
+    pass
+
+
+class CandidateScopeMismatchLabel(ConstructorLabel):
+    pass
+
+
+class ProofReceiptLabel(ConstructorLabel):
+    pass
+
+
+class StepDiscontinuityLabel(ConstructorLabel):
+    pass
+
+
+class CheckPolicyLabel(ConstructorLabel):
+    pass
+
+
 TreeLabel = TreeLabel()
 ZeroLabel = ZeroLabel()
 SuccLabel = SuccLabel()
@@ -1270,6 +1314,17 @@ InvariantRefutedLabel = InvariantRefutedLabel()
 PerimeterLabel = PerimeterLabel()
 ArccosLabel = ArccosLabel()
 TaoProblem11PerimeterValueLabel = TaoProblem11PerimeterValueLabel()
+StepVerifiedLabel = StepVerifiedLabel()
+DerivationVerifiedLabel = DerivationVerifiedLabel()
+UnknownRuleLabel = UnknownRuleLabel()
+ConclusionMutationLabel = ConclusionMutationLabel()
+PremiseMismatchLabel = PremiseMismatchLabel()
+InvalidPremiseRefLabel = InvalidPremiseRefLabel()
+GoalMismatchLabel = GoalMismatchLabel()
+CandidateScopeMismatchLabel = CandidateScopeMismatchLabel()
+ProofReceiptLabel = ProofReceiptLabel()
+CheckPolicyLabel = CheckPolicyLabel()
+StepDiscontinuityLabel = StepDiscontinuityLabel()
 LimitLabel = LimitLabel()
 IsCauchyLabel = IsCauchyLabel()
 RealNumLabel = RealNumLabel()
@@ -1763,6 +1818,17 @@ def sync_from_namespace(namespace):
         "PerimeterLabel",
         "ArccosLabel",
         "TaoProblem11PerimeterValueLabel",
+        "StepVerifiedLabel",
+        "DerivationVerifiedLabel",
+        "UnknownRuleLabel",
+        "ConclusionMutationLabel",
+        "PremiseMismatchLabel",
+        "InvalidPremiseRefLabel",
+        "GoalMismatchLabel",
+        "CandidateScopeMismatchLabel",
+        "ProofReceiptLabel",
+        "CheckPolicyLabel",
+        "StepDiscontinuityLabel",
     ):
         if name in namespace:
             globals()[name] = namespace[name]
