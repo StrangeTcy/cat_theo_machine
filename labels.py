@@ -1163,6 +1163,10 @@ class InvariantRefutedLabel(ConstructorLabel):
     pass
 
 
+class InvariantCertificateLabel(ConstructorLabel):
+    pass
+
+
 class PerimeterLabel(ConstructorLabel):
     pass
 
@@ -1335,6 +1339,7 @@ InvariantLabel = InvariantLabel()
 UnreachableLabel = UnreachableLabel()
 InvariantCandidateLabel = InvariantCandidateLabel()
 InvariantRefutedLabel = InvariantRefutedLabel()
+InvariantCertificateLabel = InvariantCertificateLabel()
 PerimeterLabel = PerimeterLabel()
 ArccosLabel = ArccosLabel()
 TaoProblem11PerimeterValueLabel = TaoProblem11PerimeterValueLabel()
@@ -1745,6 +1750,7 @@ def sync_from_namespace(namespace):
         "UnreachableLabel",
         "InvariantCandidateLabel",
         "InvariantRefutedLabel",
+        "InvariantCertificateLabel",
         "PerimeterLabel",
         "ArccosLabel",
         "TaoProblem11PerimeterValueLabel",
