@@ -15,6 +15,7 @@
 | Researcher-v0 is only a prose idea | remote tree and executable G1–G6 runners | Refuted: implementation and tests exist | Reuse/adapter work, not greenfield rewrite |
 | Researcher-v0 G1–G6 tests pass | `run_g1_tests` through `run_g6_tests` on remote archive | Verified: 23/16/17/16/17/17 | Prototype is a viable G4 reference |
 | Selected-rule matcher diagnostics explain SearchDFS root | direct `JoinPremises` probe against `tao_problem_1_1_triangle` start | Verified: only side-alpha rule has bindings | Fixture uses the wrong shared start; no invariant-pruning diagnosis |
+| Independent per-example SearchDFS probe passes all cases | `searchdfs_independent.py` | Refuted: 5 successes, 2 failures, 8 timeouts | Mixed geometry collection remains quarantined; declare per-goal rule manifests |
 | G legacy-method policy is enforced | `verification/odr-cl0/test_method_registry.py` | Verified: registry pass | Bijection/DoubleCount remain constructible but blocked |
 | Current cut already contains researcher-v0 | `git ls-tree HEAD researcher_v0` | Refuted | Prototype must be imported or adapted |
 

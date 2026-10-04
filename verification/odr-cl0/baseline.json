@@ -38,6 +38,15 @@
       "failure": "audit_pack_check.py has an unterminated raw string literal at line 2"
     }
   ],
+  "independent_fixture_probe": {
+    "runner": "verification/odr-cl0/searchdfs_independent.py",
+    "timeout_seconds_per_example": 45,
+    "successes": 5,
+    "failures": 2,
+    "timeouts": 8,
+    "all_success": false,
+    "status": "QUARANTINED_MIXED_RULE_MANIFEST"
+  },
   "baseline_verdict": "FOUNDATION_BLOCKED",
   "release_claim_allowed": false
 }
