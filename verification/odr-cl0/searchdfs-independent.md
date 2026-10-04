@@ -1,68 +1,83 @@
 # CL1c independent SearchDFS probe
 
-**Status:** completed as diagnostic; geometry fixture remains quarantined  
-**Runner:** `verification/odr-cl0/searchdfs_independent.py`  
-**Results:** `verification/odr-cl0/searchdfs-independent-results.json`  
-**Per-example timeout:** 45 seconds, including pack boot
+**Status:** per-example manifests introduced; geometry baseline still blocked
+**Runner:** `verification/odr-cl0/searchdfs_independent.py`
+**Results:** `verification/odr-cl0/searchdfs-independent-results.json`
+**Per-example timeout:** 60 seconds, including pack boot
 
 ## Purpose
 
-The original aggregate test used the first example's one-fact start for all fifteen goals. This probe gives each example its own start and goal in an isolated child process.
+The original aggregate test used one example's start and one mixed rule list for fifteen goals. This runner gives each example its own start, goal, and explicit rule manifest. Examples that have no sound current manifest are reported as `BLOCKED` instead of receiving synthetic premises.
 
-The probe deliberately uses the current test's fifteen-rule manifest so that the results expose both fixture and rule-manifest problems. It is not yet a claim that all fifteen examples share one valid rule set.
-
-## Results
+## Current manifest results
 
 ```text
-SUCCESS:
+SUCCESS: 9
     tao_problem_1_1_triangle
     tao_side_beta
     tao_side_gamma
+    tao_perimeter_identity
     tao_area_identity
-    tao_strict_triangle_inequality
-
-FAILURE:
+    tao_positive_alpha_side
     tao_positive_beta_side
     tao_positive_gamma_side
+    tao_strict_triangle_inequality
 
-TIMEOUT at 45 seconds:
+BLOCKED: 3
     tao_angle_alpha
     tao_angle_beta
     tao_angle_gamma
-    tao_perimeter_identity
-    tao_positive_alpha_side
+
+TIMEOUT: 3
     tao_cosine_alpha_identity
     tao_cosine_beta_identity
     tao_cosine_gamma_identity
 ```
 
-Summary:
+The nine successful runs use small, explicit manifests. Examples:
 
 ```text
-5 SUCCESS
-2 FAILURE
-8 TIMEOUT
-0 all-success
+side goals:
+    one corresponding side rule
+
+perimeter:
+    three side rules → tao_verify_perimeter
+
+positive side:
+    tao_perimeter_third_positive → corresponding positive-side rule
+
+strict inequality:
+    tao_verify_strict_triangle_inequality
 ```
 
-## Additional fixture findings
+## Remaining manifest problems
 
-The per-example starts are genuinely different, but the single fifteen-rule manifest is still not a valid per-goal manifest:
+### Angle examples
 
-- the angle starts contain angle/opposite/side facts, while the generic `tao_angle_from_sides` rule also requires `Triangle`, lengths, and `Distinct` premises;
-- the positive-beta and positive-gamma starts contain `Perimeter` and `Positive(p)`, while the selected positive rules require derived `PerimeterThird` and `APSideOffset` facts; the definition rules are absent from the selected manifest;
-- the cosine goals are `CosineRuleRelates` goals, while the selected `tao_expand_*_angle_value` rules produce expanded arccos expressions, not the cosine-relation goal directly;
-- broad rule search causes several cases to time out before producing a useful receipt.
+The three angle starts lack `Triangle` and `Distinct` premises required by the only available generic `tao_angle_from_sides` route. They are therefore explicitly blocked rather than repaired by adding facts that were not in the example.
 
-The first five successes show that independent starts are the correct fixture shape for simple cases. The failures and timeouts show that the next repair must produce an explicit rule manifest per example or replace this mixed geometry collection with a smaller, coherent benchmark family.
+### Cosine examples
+
+The cosine starts contain the required geometric facts, and the manifest is:
+
+```text
+three side rules
+→ tao_angle_from_sides
+→ trigonometry.triangle_yields_generic_cosine_relation
+```
+
+The manifest is semantically aligned with the `CosineRuleRelates` goal, but all three runs exceed the 60-second per-example wall clock bound. This is now a bounded search/performance or unification problem, not a shared-start problem.
 
 ## Decision
 
 ```text
-aggregate fixture: QUARANTINED
-independent harness: diagnostic evidence only
-SearchDFS baseline: still not release-ready
-invariant-pruning diagnosis: not implicated; the probe calls SearchDFS directly
+aggregate fixture: quarantined
+per-example manifests: partially repaired
+runnable manifest successes: 9/12
+blocked examples: 3, with explicit missing-premise reasons
+timeouts: 3, with explicit manifests and receipts
+invariant pruning involved: no
+SearchDFS baseline: not release-ready
 ```
 
-No G4 candidate induction may use this mixed fifteen-goal fixture until its per-goal rule manifests and time budgets are made explicit.
+The next repair is to isolate the cosine manifest’s matcher/search behavior and either reduce it to a terminating checked rule path or record a separate performance blocker. The angle examples require either corrected source fixtures or a new explicitly sourced premise contract; no synthetic facts should be added silently.

@@ -62,7 +62,7 @@ Acceptance for FR2 is not merely “the test gets past pack loading.” It requi
 
 Do not add target-specific proof rules or change the expected result only to turn the test green. The root cause and pinned quarantine are recorded in `verification/odr-cl0/searchdfs-root-cause.md` and `searchdfs-expected-failure.json`; this is a triage completion, not a green baseline.
 
-CL1c then ran fifteen isolated child-process probes with each example's own start and goal. The result was 5 successes, 2 failures, and 8 timeouts under the old shared rule manifest. The detailed result is in `searchdfs-independent-results.json`; the mixed geometry collection remains quarantined until per-goal rule manifests are declared.
+CL1c then ran isolated child-process probes with each example's own start, goal, and explicit rule manifest. The repaired manifests produce 9 successes, 3 explicit missing-premise blocks for the angle examples, and 3 cosine-search timeouts. The detailed result is in `searchdfs-independent-results.json`; the collection remains blocked until the cosine route terminates and the angle fixture contract is corrected or explicitly replaced.
 
 ## FR3 — G method-vocabulary decision
 

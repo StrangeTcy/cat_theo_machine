@@ -1,8 +1,8 @@
 {
-  "date": "2026-10-03",
+  "date": "2026-10-04",
   "cut": {
     "branch": "arena/01a0fe4e-cat-theo-machine",
-    "commit": "4a24c4e",
+    "commit": "26555ed",
     "tree_before_foundation_repair": "ea16afed7a05e66c4da326b499b572b8b55465b0"
   },
   "operator_probe": {
@@ -40,12 +40,13 @@
   ],
   "independent_fixture_probe": {
     "runner": "verification/odr-cl0/searchdfs_independent.py",
-    "timeout_seconds_per_example": 45,
-    "successes": 5,
-    "failures": 2,
-    "timeouts": 8,
-    "all_success": false,
-    "status": "QUARANTINED_MIXED_RULE_MANIFEST"
+    "timeout_seconds_per_example": 60,
+    "successes": 9,
+    "blocked": 3,
+    "failures": 0,
+    "timeouts": 3,
+    "runnable_all_success": false,
+    "status": "PARTIALLY_REPAIRED_COSINE_TIMEOUTS_AND_ANGLE_BLOCKS"
   },
   "baseline_verdict": "FOUNDATION_BLOCKED",
   "release_claim_allowed": false

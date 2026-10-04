@@ -1,8 +1,9 @@
-"""Run the geometry SearchDFS examples independently.
+"""Run geometry SearchDFS examples with explicit per-example manifests.
 
-This replaces the invalid aggregate fixture for diagnosis. Each child process
-gets one example's own start and goal, so a failure cannot be caused by sharing
-the first example's one-fact start across fifteen goals.
+The original aggregate fixture used one example's start and one mixed rule list
+for fifteen goals. This runner gives each example its own start, goal, and rule
+manifest. Examples with no sound manifest on the current pack are reported as
+BLOCKED instead of being padded with synthetic premises.
 """
 
 from __future__ import annotations
@@ -33,23 +34,103 @@ EXAMPLES = (
     "tao_cosine_gamma_identity",
 )
 
-RULE_IDS = (
-    "tao_side_alpha_from_area_perimeter",
-    "tao_side_beta_from_area_perimeter",
-    "tao_side_gamma_from_area_perimeter",
-    "tao_angle_from_sides",
-    "tao_angle_from_sides",
-    "tao_angle_from_sides",
-    "tao_verify_perimeter",
-    "tao_verify_area",
-    "tao_verify_positive_alpha_side",
-    "tao_verify_positive_beta_side",
-    "tao_verify_positive_gamma_side",
-    "tao_verify_strict_triangle_inequality",
-    "tao_expand_alpha_angle_value",
-    "tao_expand_beta_angle_value",
-    "tao_expand_gamma_angle_value",
-)
+# Each rule reference is (pack name, rule id). A BLOCKED entry is deliberate:
+# its current example start lacks a premise required by every available rule
+# that could produce the goal, so the runner must not fabricate that premise.
+RULE_MANIFESTS = {
+    "tao_problem_1_1_triangle": {
+        "status": "RUN",
+        "rules": (("geometry", "tao_side_alpha_from_area_perimeter"),),
+    },
+    "tao_side_beta": {
+        "status": "RUN",
+        "rules": (("geometry", "tao_side_beta_from_area_perimeter"),),
+    },
+    "tao_side_gamma": {
+        "status": "RUN",
+        "rules": (("geometry", "tao_side_gamma_from_area_perimeter"),),
+    },
+    "tao_angle_alpha": {
+        "status": "BLOCKED",
+        "reason": "start lacks Triangle and Distinct premises required by tao_angle_from_sides",
+    },
+    "tao_angle_beta": {
+        "status": "BLOCKED",
+        "reason": "start lacks Triangle and Distinct premises required by tao_angle_from_sides",
+    },
+    "tao_angle_gamma": {
+        "status": "BLOCKED",
+        "reason": "start lacks Triangle and Distinct premises required by tao_angle_from_sides",
+    },
+    "tao_perimeter_identity": {
+        "status": "RUN",
+        "rules": (
+            ("geometry", "tao_side_alpha_from_area_perimeter"),
+            ("geometry", "tao_side_beta_from_area_perimeter"),
+            ("geometry", "tao_side_gamma_from_area_perimeter"),
+            ("geometry", "tao_verify_perimeter"),
+        ),
+    },
+    "tao_area_identity": {
+        "status": "RUN",
+        "rules": (("geometry", "tao_verify_area"),),
+    },
+    "tao_positive_alpha_side": {
+        "status": "RUN",
+        "rules": (
+            ("geometry", "tao_perimeter_third_positive"),
+            ("geometry", "tao_verify_positive_alpha_side"),
+        ),
+    },
+    "tao_positive_beta_side": {
+        "status": "RUN",
+        "rules": (
+            ("geometry", "tao_perimeter_third_positive"),
+            ("geometry", "tao_verify_positive_beta_side"),
+        ),
+    },
+    "tao_positive_gamma_side": {
+        "status": "RUN",
+        "rules": (
+            ("geometry", "tao_perimeter_third_positive"),
+            ("geometry", "tao_verify_positive_gamma_side"),
+        ),
+    },
+    "tao_strict_triangle_inequality": {
+        "status": "RUN",
+        "rules": (("geometry", "tao_verify_strict_triangle_inequality"),),
+    },
+    "tao_cosine_alpha_identity": {
+        "status": "RUN",
+        "rules": (
+            ("geometry", "tao_side_alpha_from_area_perimeter"),
+            ("geometry", "tao_side_beta_from_area_perimeter"),
+            ("geometry", "tao_side_gamma_from_area_perimeter"),
+            ("geometry", "tao_angle_from_sides"),
+            ("trigonometry", "triangle_yields_generic_cosine_relation"),
+        ),
+    },
+    "tao_cosine_beta_identity": {
+        "status": "RUN",
+        "rules": (
+            ("geometry", "tao_side_alpha_from_area_perimeter"),
+            ("geometry", "tao_side_beta_from_area_perimeter"),
+            ("geometry", "tao_side_gamma_from_area_perimeter"),
+            ("geometry", "tao_angle_from_sides"),
+            ("trigonometry", "triangle_yields_generic_cosine_relation"),
+        ),
+    },
+    "tao_cosine_gamma_identity": {
+        "status": "RUN",
+        "rules": (
+            ("geometry", "tao_side_alpha_from_area_perimeter"),
+            ("geometry", "tao_side_beta_from_area_perimeter"),
+            ("geometry", "tao_side_gamma_from_area_perimeter"),
+            ("geometry", "tao_angle_from_sides"),
+            ("trigonometry", "triangle_yields_generic_cosine_relation"),
+        ),
+    },
+}
 
 
 def run_one(index: int) -> None:
@@ -59,16 +140,34 @@ def run_one(index: int) -> None:
     from cat_theo_machine import proof as P
     from cat_theo_machine import search as S
 
+    example = EXAMPLES[index]
+    manifest = RULE_MANIFESTS[example]
+    if manifest["status"] == "BLOCKED":
+        print(
+            "RESULT "
+            + json.dumps(
+                {
+                    "index": index + 1,
+                    "example": example,
+                    "status": "BLOCKED",
+                    "reason": manifest["reason"],
+                },
+                sort_keys=True,
+            ),
+            flush=True,
+        )
+        return
+
     P.SetDebugTrace(M.false_value)()
     runtime, packs = boot_from_packs(PACK_PATHS, _runtime_namespace())
     registry = M.FromContextGetConstructors(runtime.graph)()
-    pack = packs.by_name("geometry")
-    start, goal_raw = pack.examples[EXAMPLES[index]]
+    geometry = packs.by_name("geometry")
+    start, goal_raw = geometry.examples[example]
     goal = P.NormalizeKnowledge(goal_raw, registry)()
 
     rules = M.EmptyList
-    for rule_id in reversed(RULE_IDS):
-        rules = M.Pair(pack.rule_map[rule_id], rules)
+    for pack_name, rule_id in reversed(manifest["rules"]):
+        rules = M.Pair(packs.by_name(pack_name).rule_map[rule_id], rules)
 
     runtime.graph._search_disable_console = M.truth_value
     runtime.graph._search_disable_progress_ticker = M.truth_value
@@ -102,10 +201,11 @@ def run_one(index: int) -> None:
         + json.dumps(
             {
                 "index": index + 1,
-                "example": EXAMPLES[index],
+                "example": example,
                 "status": status,
                 "outcome_class": type(outcome).__name__,
                 "elapsed_seconds": elapsed,
+                "rules": manifest["rules"],
             },
             sort_keys=True,
         ),
@@ -130,6 +230,17 @@ def run_all(timeout_seconds: int) -> int:
 
     for index, example in enumerate(EXAMPLES):
         started = time.time()
+        manifest = RULE_MANIFESTS[example]
+        if manifest["status"] == "BLOCKED":
+            row = {
+                "index": index + 1,
+                "example": example,
+                "status": "BLOCKED",
+                "reason": manifest["reason"],
+            }
+            rows.append(row)
+            print(json.dumps(row, sort_keys=True), flush=True)
+            continue
         try:
             completed = subprocess.run(
                 [sys.executable, __file__, "--index", str(index)],
@@ -144,47 +255,45 @@ def run_all(timeout_seconds: int) -> int:
                 None,
             )
             if result_line is None:
-                rows.append(
-                    {
-                        "index": index + 1,
-                        "example": example,
-                        "status": "ERROR",
-                        "elapsed_seconds": round(time.time() - started, 3),
-                        "exit_code": completed.returncode,
-                        "stdout_tail": _tail_text(completed.stdout),
-                        "stderr_tail": _tail_text(completed.stderr),
-                    }
-                )
+                row = {
+                    "index": index + 1,
+                    "example": example,
+                    "status": "ERROR",
+                    "elapsed_seconds": round(time.time() - started, 3),
+                    "exit_code": completed.returncode,
+                    "stdout_tail": _tail_text(completed.stdout),
+                    "stderr_tail": _tail_text(completed.stderr),
+                }
             else:
                 row = json.loads(result_line[len("RESULT ") :])
                 row["exit_code"] = completed.returncode
-                rows.append(row)
         except subprocess.TimeoutExpired as error:
-            rows.append(
-                {
-                    "index": index + 1,
-                    "example": example,
-                    "status": "TIMEOUT",
-                    "timeout_seconds": timeout_seconds,
-                    "elapsed_seconds": round(time.time() - started, 3),
-                    "stdout_tail": _tail_text(error.stdout),
-                    "stderr_tail": _tail_text(error.stderr),
-                }
-            )
-        print(json.dumps(rows[-1], sort_keys=True), flush=True)
+            row = {
+                "index": index + 1,
+                "example": example,
+                "status": "TIMEOUT",
+                "timeout_seconds": timeout_seconds,
+                "elapsed_seconds": round(time.time() - started, 3),
+                "stdout_tail": _tail_text(error.stdout),
+                "stderr_tail": _tail_text(error.stderr),
+            }
+        rows.append(row)
+        print(json.dumps(row, sort_keys=True), flush=True)
 
+    runnable = [row for row in rows if row["status"] != "BLOCKED"]
     output = {
-        "fixture": "geometry examples, independent starts/goals",
-        "rule_ids": RULE_IDS,
+        "fixture": "geometry examples, independent starts/goals with per-example manifests",
+        "manifests": RULE_MANIFESTS,
         "timeout_seconds_per_example": timeout_seconds,
         "results": rows,
-        "all_success": all(row["status"] == "SUCCESS" for row in rows),
+        "runnable_all_success": all(row["status"] == "SUCCESS" for row in runnable),
+        "blocked_examples": sum(row["status"] == "BLOCKED" for row in rows),
     }
     output_path = os.path.join(root, "verification", "odr-cl0", "searchdfs-independent-results.json")
     with open(output_path, "w", encoding="utf-8") as handle:
         json.dump(output, handle, indent=2, sort_keys=True)
         handle.write("\n")
-    return 0 if output["all_success"] else 1
+    return 0 if output["runnable_all_success"] else 1
 
 
 def main() -> int:
