@@ -68,6 +68,24 @@ three side rules
 
 The manifest is semantically aligned with the `CosineRuleRelates` goal, but all three runs exceed the 60-second per-example wall clock bound. This is now a bounded search/performance or unification problem, not a shared-start problem.
 
+## Cosine timeout isolation
+
+A staged alpha-cosine probe isolated the first blocking operation:
+
+```text
+three side rules                         bounded SearchFailure
+angle rule only                          bounded SearchFailure
+trigonometry rule only                   bounded SearchFailure
+three side rules + tao_angle_from_sides  enters generic premise join and does not return
+full five-rule manifest                  still exceeds the wall-clock bound
+```
+
+A direct `proof.JoinPremises` probe over the same twelve source/derived facts returns one valid angle binding in about 1.7 seconds. The Search-specific matcher was materially different: its partial `M.Instantiate` call rebuilt unresolved variable pairs, creating fresh variable identities. The next premise therefore failed to recognize an already-bound variable and accumulated duplicate bindings. The trace showed repeated `opposite_side` bindings and branch growth across the `SideOf`, `Length`, and `Distinct` premises.
+
+A local experiment that makes `machine.Instantiate` preserve unresolved variable nodes removes the duplicate-binding defect: the prepared Search matcher then returns one binding in about 12.5 seconds. Enabling that experiment globally did not make the fixture green; a targeted full-manifest run still exceeded 120 seconds, and a broader probe also exposed permutation cost in previously successful multi-rule examples. The experiment is therefore not accepted as a baseline repair yet. The remaining issue is a sound matcher/search optimization that preserves the existing SearchDFS contract while avoiding redundant independent-rule permutations.
+
+This is a code-path diagnosis, not a silent fixture repair. No synthetic premises, invariant pruning, or G4 machinery were added, and the experimental core patch is not part of the baseline.
+
 ## Decision
 
 ```text
@@ -80,4 +98,4 @@ invariant pruning involved: no
 SearchDFS baseline: not release-ready
 ```
 
-The next repair is to isolate the cosine manifest’s matcher/search behavior and either reduce it to a terminating checked rule path or record a separate performance blocker. The angle examples require either corrected source fixtures or a new explicitly sourced premise contract; no synthetic facts should be added silently.
+The next repair is to make the remaining side-rule permutation search terminate through a checked SearchDFS path or record it as a separate performance blocker. The angle examples require either corrected source fixtures or a new explicitly sourced premise contract; no synthetic facts should be added silently.

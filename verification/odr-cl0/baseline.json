@@ -46,7 +46,8 @@
     "failures": 0,
     "timeouts": 3,
     "runnable_all_success": false,
-    "status": "PARTIALLY_REPAIRED_COSINE_TIMEOUTS_AND_ANGLE_BLOCKS"
+    "diagnosis": "Search matcher rebuilt unresolved variables; a local preservation experiment removes duplicate bindings, but the unaccepted experiment still leaves cosine DFS over the bound and exposes independent-rule permutation cost",
+    "status": "PARTIALLY_REPAIRED_COSINE_DFS_TIMEOUTS_AND_ANGLE_BLOCKS"
   },
   "baseline_verdict": "FOUNDATION_BLOCKED",
   "release_claim_allowed": false
