@@ -1219,6 +1219,30 @@ class CheckPolicyLabel(ConstructorLabel):
     pass
 
 
+class CandidateMacroLabel(ConstructorLabel):
+    pass
+
+
+class CandidateMatchFailureLabel(ConstructorLabel):
+    pass
+
+
+class CandidateExpandedLabel(ConstructorLabel):
+    pass
+
+
+class CandidateEvaluatedLabel(ConstructorLabel):
+    pass
+
+
+class AblationVerifiedLabel(ConstructorLabel):
+    pass
+
+
+class HoldoutSuiteResultLabel(ConstructorLabel):
+    pass
+
+
 TreeLabel = TreeLabel()
 ZeroLabel = ZeroLabel()
 SuccLabel = SuccLabel()
@@ -1325,6 +1349,12 @@ CandidateScopeMismatchLabel = CandidateScopeMismatchLabel()
 ProofReceiptLabel = ProofReceiptLabel()
 CheckPolicyLabel = CheckPolicyLabel()
 StepDiscontinuityLabel = StepDiscontinuityLabel()
+CandidateMacroLabel = CandidateMacroLabel()
+CandidateMatchFailureLabel = CandidateMatchFailureLabel()
+CandidateExpandedLabel = CandidateExpandedLabel()
+CandidateEvaluatedLabel = CandidateEvaluatedLabel()
+AblationVerifiedLabel = AblationVerifiedLabel()
+HoldoutSuiteResultLabel = HoldoutSuiteResultLabel()
 LimitLabel = LimitLabel()
 IsCauchyLabel = IsCauchyLabel()
 RealNumLabel = RealNumLabel()
@@ -1829,6 +1859,12 @@ def sync_from_namespace(namespace):
         "ProofReceiptLabel",
         "CheckPolicyLabel",
         "StepDiscontinuityLabel",
+        "CandidateMacroLabel",
+        "CandidateMatchFailureLabel",
+        "CandidateExpandedLabel",
+        "CandidateEvaluatedLabel",
+        "AblationVerifiedLabel",
+        "HoldoutSuiteResultLabel",
     ):
         if name in namespace:
             globals()[name] = namespace[name]
