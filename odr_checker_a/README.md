@@ -51,10 +51,39 @@ terms it cannot represent. It must not place a candidate-generated macro in the
 trusted snapshot. Keeping the adapter outside this package lets CL1 change wire
 record names without coupling checker semantics to proof production.
 
+## Cold-process wire boundary
+
+Checker A also defines three strict, versioned JSON inputs:
+
+```text
+ctm.odr.checker-a.task-policy.v1
+ctm.odr.checker-a.trusted-rules.v1
+ctm.odr.checker-a.proof-receipt.v1
+```
+
+Unknown, missing, or duplicate fields are rejected. Decoding enforces limits on
+file bytes, strings, term depth/node count, rules, premises, steps, and admitted
+candidates. Concrete task/proof terms cannot contain variables.
+
+Run a check in a fresh process:
+
+```bash
+python -m odr_checker_a.cli \
+  --policy task-policy.json \
+  --rules trusted-rules.json \
+  --proof proof-receipt.json \
+  --output-dir artifacts
+```
+
+The CLI writes a canonical, content-addressed
+`sha256-….checker-receipt.json`. Exit status is `0` for an accepted proof, `1`
+for a well-formed rejected proof, and `2` for malformed input or artifact I/O
+failure. It does not load CTM runtime or proof-producing modules.
+
 ## Run tests
 
 From the repository root:
 
 ```bash
-python -m unittest -v odr_checker_a.test_checker
+python -m unittest -v odr_checker_a.test_checker odr_checker_a.test_wire
 ```
