@@ -1247,6 +1247,50 @@ class HoldoutSuiteResultLabel(ConstructorLabel):
     pass
 
 
+class ProofSchemaPromotionLabel(ConstructorLabel):
+    pass
+
+
+class SearchPolicyPromotionLabel(ConstructorLabel):
+    pass
+
+
+class LedgerEntryLabel(ConstructorLabel):
+    pass
+
+
+class PromotionLedgerLabel(ConstructorLabel):
+    pass
+
+
+class PromotionApprovedLabel(ConstructorLabel):
+    pass
+
+
+class PromotionRejectedLabel(ConstructorLabel):
+    pass
+
+
+class PromotionRevokedLabel(ConstructorLabel):
+    pass
+
+
+class PromotionActiveLabel(ConstructorLabel):
+    pass
+
+
+class AblationRegressionLabel(ConstructorLabel):
+    pass
+
+
+class HoldoutRegressionLabel(ConstructorLabel):
+    pass
+
+
+class AutonomousCycleCompletedLabel(ConstructorLabel):
+    pass
+
+
 TreeLabel = TreeLabel()
 ZeroLabel = ZeroLabel()
 SuccLabel = SuccLabel()
@@ -1360,6 +1404,17 @@ CandidateExpandedLabel = CandidateExpandedLabel()
 CandidateEvaluatedLabel = CandidateEvaluatedLabel()
 AblationVerifiedLabel = AblationVerifiedLabel()
 HoldoutSuiteResultLabel = HoldoutSuiteResultLabel()
+ProofSchemaPromotionLabel = ProofSchemaPromotionLabel()
+SearchPolicyPromotionLabel = SearchPolicyPromotionLabel()
+LedgerEntryLabel = LedgerEntryLabel()
+PromotionLedgerLabel = PromotionLedgerLabel()
+PromotionApprovedLabel = PromotionApprovedLabel()
+PromotionRejectedLabel = PromotionRejectedLabel()
+PromotionRevokedLabel = PromotionRevokedLabel()
+PromotionActiveLabel = PromotionActiveLabel()
+AblationRegressionLabel = AblationRegressionLabel()
+HoldoutRegressionLabel = HoldoutRegressionLabel()
+AutonomousCycleCompletedLabel = AutonomousCycleCompletedLabel()
 LimitLabel = LimitLabel()
 IsCauchyLabel = IsCauchyLabel()
 RealNumLabel = RealNumLabel()
@@ -1871,6 +1926,17 @@ def sync_from_namespace(namespace):
         "CandidateEvaluatedLabel",
         "AblationVerifiedLabel",
         "HoldoutSuiteResultLabel",
+        "ProofSchemaPromotionLabel",
+        "SearchPolicyPromotionLabel",
+        "LedgerEntryLabel",
+        "PromotionLedgerLabel",
+        "PromotionApprovedLabel",
+        "PromotionRejectedLabel",
+        "PromotionRevokedLabel",
+        "PromotionActiveLabel",
+        "AblationRegressionLabel",
+        "HoldoutRegressionLabel",
+        "AutonomousCycleCompletedLabel",
     ):
         if name in namespace:
             globals()[name] = namespace[name]
