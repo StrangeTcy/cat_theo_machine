@@ -1267,36 +1267,6 @@ def run_live_mode(debug: bool = False):
     else:
         runtime, packs = boot_from_packs(PACK_PATHS, runtime_namespace)
 
-    pid = os.getpid()
-    print(f"live mode: waiting for daemon process {pid} to open its proof worker service; autonomy restores independently.")
-    print(f"[machine] daemon: process {pid} started; proof service is opening while autonomy restores shared state")
-    print(f"[machine] daemon proof coordinator {pid+1}: worker service ready with 5 worker(s)")
-    print("you> live mode: the foreground process owns the terminal and runs each requested proof.")
-    print("live mode: a separate daemon process cycles autonomous graph work; its output appears as [machine] lines.")
-    print("live mode: foreground proof lookup uses 5 worker(s); daemon autonomy uses 5.")
-    if snapshot_path:
-        print(f"[machine] daemon: autonomy restored shared state at {snapshot_path} with 5 worker(s)")
-    else:
-        print("[machine] daemon: autonomy initialized fresh shared state with 5 worker(s)")
-
-    print("you> HYGE talk mode. Speak arithmetic; an empty line or 'goodbye' ends it.")
-    print("Known forms: 'the sum of A and B', 'A plus B', 'the product of A and B',")
-    print("'A times B', mul ( A , B ), add ( A , B ), or a number word (zero..nine).")
-    print("Parentheses group subexpressions: 'two times (two plus two)'.")
-    print("Teach me: 'training example: double two <-> mul ( two , two )'.")
-    print("Teach facts: 'fact: Human(alice)'.")
-    print("Ground words: 'word: mud means wet dirt' or 'word: shoes are wearable objects'.")
-    print("Teach deductions: 'rule: Human(x), Adult(x) -> Sage(x)'.")
-    print("Ask taught rules: 'query: Sage(alice)'.")
-    print("Ask for proofs naturally: 'prove that x^4 + y^4 >= x^3*y + x*y^3'.")
-    print("Formal query syntax also works: 'query: Sage(alice)' or 'query: gcd(1071,462)'.")
-    print("Narrate naturally: 'tell me a story about Alice and the wolf', 'how is Alice connected to wolf?', or 'compare the stories'.")
-    print("After a failed search: 'suggest lemmas'; old abduction: 'suggest premises'.")
-    print("Inspect invented results: 'show lemmas'.")
-    print("Tasks: 'run self-diagnostics', 'solve the tao triangle problem',")
-    print("'solve engel e1', 'solve engel e2', 'solve the coin problem',")
-    print("'prove square roots are real'.")
-
     word_to_num = {
         "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4,
         "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
