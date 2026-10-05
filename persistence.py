@@ -7,7 +7,15 @@ import pickle
 import sys
 import tempfile
 import time
-import gmpy2
+try:
+    import gmpy2
+except ImportError:
+    class _GMPY2Fallback:
+        def mpz(self, val):
+            if val == "":
+                return 0
+            return int(val)
+    gmpy2 = _GMPY2Fallback()
 
 from . import machine as M
 from . import context as Ctxmod

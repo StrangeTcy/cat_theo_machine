@@ -1291,6 +1291,60 @@ class AutonomousCycleCompletedLabel(ConstructorLabel):
     pass
 
 
+class GraphTaskRecordLabel(ConstructorLabel):
+    pass
+
+
+class TaskSuccessLabel(ConstructorLabel):
+    pass
+
+
+class TaskFailureLabel(ConstructorLabel):
+    pass
+
+
+class TaskQueryLabel(ConstructorLabel):
+    pass
+
+
+class TaskBindingsLabel(ConstructorLabel):
+    pass
+
+
+class Rung1RetrievalLabel(ConstructorLabel):
+    pass
+
+
+class Rung2JoinLabel(ConstructorLabel):
+    pass
+
+
+class Rung3ConstraintLabel(ConstructorLabel):
+    pass
+
+
+class Rung4DerivationLabel(ConstructorLabel):
+    pass
+
+
+class Rung5AliasLabel(ConstructorLabel):
+    pass
+
+
+class Rung6NegativeLabel(ConstructorLabel):
+    pass
+
+
+class Rung7PlannerLabel(ConstructorLabel):
+    pass
+
+
+class CurriculumSuiteResultLabel(ConstructorLabel):
+    pass
+
+
+class RobustnessPassedLabel(ConstructorLabel):
+    pass
 TreeLabel = TreeLabel()
 ZeroLabel = ZeroLabel()
 SuccLabel = SuccLabel()
@@ -1415,6 +1469,20 @@ PromotionActiveLabel = PromotionActiveLabel()
 AblationRegressionLabel = AblationRegressionLabel()
 HoldoutRegressionLabel = HoldoutRegressionLabel()
 AutonomousCycleCompletedLabel = AutonomousCycleCompletedLabel()
+GraphTaskRecordLabel = GraphTaskRecordLabel()
+TaskSuccessLabel = TaskSuccessLabel()
+TaskFailureLabel = TaskFailureLabel()
+TaskQueryLabel = TaskQueryLabel()
+TaskBindingsLabel = TaskBindingsLabel()
+Rung1RetrievalLabel = Rung1RetrievalLabel()
+Rung2JoinLabel = Rung2JoinLabel()
+Rung3ConstraintLabel = Rung3ConstraintLabel()
+Rung4DerivationLabel = Rung4DerivationLabel()
+Rung5AliasLabel = Rung5AliasLabel()
+Rung6NegativeLabel = Rung6NegativeLabel()
+Rung7PlannerLabel = Rung7PlannerLabel()
+CurriculumSuiteResultLabel = CurriculumSuiteResultLabel()
+RobustnessPassedLabel = RobustnessPassedLabel()
 LimitLabel = LimitLabel()
 IsCauchyLabel = IsCauchyLabel()
 RealNumLabel = RealNumLabel()
@@ -1937,6 +2005,20 @@ def sync_from_namespace(namespace):
         "AblationRegressionLabel",
         "HoldoutRegressionLabel",
         "AutonomousCycleCompletedLabel",
+        "GraphTaskRecordLabel",
+        "TaskSuccessLabel",
+        "TaskFailureLabel",
+        "TaskQueryLabel",
+        "TaskBindingsLabel",
+        "Rung1RetrievalLabel",
+        "Rung2JoinLabel",
+        "Rung3ConstraintLabel",
+        "Rung4DerivationLabel",
+        "Rung5AliasLabel",
+        "Rung6NegativeLabel",
+        "Rung7PlannerLabel",
+        "CurriculumSuiteResultLabel",
+        "RobustnessPassedLabel",
     ):
         if name in namespace:
             globals()[name] = namespace[name]
