@@ -15,7 +15,7 @@
 | Researcher-v0 is only a prose idea | remote tree and executable G1–G6 runners | Refuted: implementation and tests exist | Reuse/adapter work, not greenfield rewrite |
 | Researcher-v0 G1–G6 tests pass | `run_g1_tests` through `run_g6_tests` on remote archive | Verified: 23/16/17/16/17/17 | Prototype is a viable G4 reference |
 | Selected-rule matcher diagnostics explain SearchDFS root | direct `JoinPremises` probe against `tao_problem_1_1_triangle` start | Verified: only side-alpha rule has bindings | Fixture uses the wrong shared start; no invariant-pruning diagnosis |
-| Independent per-example SearchDFS probe passes all cases | `searchdfs_independent.py` | Refuted: 10 successes, 3 angle blocks, 2 terminating cosine failures | Matcher identity and premise-order repairs make alpha terminate; beta/gamma need an explicit terminating symmetry route; correct/replace angle fixtures |
+| Independent per-example SearchDFS probe passes all runnable cases | `searchdfs_independent.py` | Verified: 12 runnable successes, 3 angle blocks, no failures or timeouts | Goal-directed matcher now uses the explicitly manifested `distinct_is_symmetric` route; angle fixtures remain explicitly blocked |
 | G legacy-method policy is enforced | `verification/odr-cl0/test_method_registry.py` | Verified: registry pass | Bijection/DoubleCount remain constructible but blocked |
 | Current cut already contains researcher-v0 | `git ls-tree HEAD researcher_v0` | Refuted | Prototype must be imported or adapted |
 

@@ -1654,6 +1654,44 @@ class Search(M.Edge):
             return False
         return True
 
+    def _goal_direct_unary_source_step(self, target, facts, active_rules):
+        if self._knowledge_has_fact(facts, target) is M.truth_value:
+            return None
+        remaining_rules = self.rules
+        while M.IdentityCompare(remaining_rules, M.EmptyList)() is M.false_value:
+            candidate_rule = M.Head(remaining_rules)()
+            candidate_is_active = False
+            for active_rule in active_rules:
+                if M.TermEqual(active_rule, candidate_rule)() is M.truth_value:
+                    candidate_is_active = True
+                    break
+            if candidate_is_active is False and RuleIsUnary(candidate_rule)() is M.truth_value:
+                unification = self._goal_unify_terms(
+                    RuleReplacement(candidate_rule)(),
+                    target,
+                )
+                if unification is not None:
+                    candidate_bindings = self._goal_unify_binding_list(unification)
+                    source = M.Head(
+                        M.Instantiate(RulePattern(candidate_rule)(), candidate_bindings)()
+                    )()
+                    if ContainsVar(source)() is M.false_value:
+                        if self._knowledge_has_fact(facts, source) is M.truth_value:
+                            conclusion = M.Head(
+                                M.Instantiate(
+                                    RuleReplacement(candidate_rule)(),
+                                    candidate_bindings,
+                                )()
+                            )()
+                            return candidate_rule, candidate_bindings, conclusion
+            remaining_rules = M.Tail(remaining_rules)()
+        return None
+
+    def _goal_has_manifested_unary_source(self, target, facts):
+        if self._knowledge_has_fact(facts, target) is M.truth_value:
+            return True
+        return self._goal_direct_unary_source_step(target, facts, []) is not None
+
     def _goal_seed_unary_binding(
         self,
         target,
@@ -1693,27 +1731,6 @@ class Search(M.Edge):
                             return M.Tail(merged)()
             remaining_rules = M.Tail(remaining_rules)()
         return None
-
-    def _goal_symmetric_premise_is_reflexive(self, premise):
-        if self._premise_uses_symmetric_relation(premise) is False:
-            return False
-        if M.IsPair(premise)() is M.truth_value:
-            constructor = premise
-        else:
-            constructor = M.GetConstructor(premise, self.registry)()
-        if M.IdentityCompare(constructor, M.EmptyList)() is M.truth_value:
-            return False
-        arguments = M.Tail(constructor)()
-        if M.IdentityCompare(arguments, M.EmptyList)() is M.truth_value:
-            return False
-        left = M.Head(arguments)()
-        rest = M.Tail(arguments)()
-        if M.IdentityCompare(rest, M.EmptyList)() is M.truth_value:
-            return False
-        right = M.Head(rest)()
-        if M.IdentityCompare(M.Tail(rest)(), M.EmptyList)() is M.false_value:
-            return False
-        return M.TermEqual(left, right)() is M.truth_value
 
     def _premise_has_candidate(self, premise, facts, knowledge_head_index, knowledge_exact_trie):
         if IsVarPattern(premise)() is M.truth_value:
@@ -1833,7 +1850,13 @@ class Search(M.Edge):
             premise_index += 1
             premises = M.Tail(premises)()
         ready_premises.sort(key=lambda entry: (-entry[0], entry[1]))
-        deferred_premises.sort(key=lambda entry: (-entry[0], entry[1]))
+        deferred_premises.sort(
+            key=lambda entry: (
+                0 if self._premise_uses_symmetric_relation(entry[2]) else 1,
+                -entry[0],
+                entry[1],
+            )
+        )
         ordered_ready = M.EmptyList
         for _score, _index, premise in reversed(ready_premises):
             ordered_ready = M.Pair(premise, ordered_ready)
@@ -1860,6 +1883,18 @@ class Search(M.Edge):
         remaining_bindings = matching_bindings
         while M.IdentityCompare(remaining_bindings, M.EmptyList)() is M.false_value:
             candidate_bindings = M.Head(remaining_bindings)()
+            candidate_rejected = False
+            for _score, _index, premise in deferred_premises:
+                if self._premise_uses_symmetric_relation(premise):
+                    instantiated = M.Instantiate(premise, candidate_bindings)()
+                    concrete_premise = M.Head(instantiated)()
+                    if ContainsVar(concrete_premise)() is M.false_value:
+                        if self._goal_has_manifested_unary_source(concrete_premise, facts) is False:
+                            candidate_rejected = True
+                            break
+            if candidate_rejected:
+                remaining_bindings = M.Tail(remaining_bindings)()
+                continue
             working_facts = facts
             working_delta = next_delta
             working_actions = actions_rev
@@ -1868,9 +1903,6 @@ class Search(M.Edge):
             for _score, _index, premise in deferred_premises:
                 instantiated = M.Instantiate(premise, candidate_bindings)()
                 concrete_premise = M.Head(instantiated)()
-                if self._goal_symmetric_premise_is_reflexive(concrete_premise):
-                    premises_ok = False
-                    break
                 if self._knowledge_has_fact(working_facts, concrete_premise) is M.truth_value:
                     continue
                 self._stage_debug(
@@ -1881,8 +1913,30 @@ class Search(M.Edge):
                 )
 
                 support_result = None
+                direct_step = self._goal_direct_unary_source_step(
+                    concrete_premise,
+                    working_facts,
+                    active_rules + [rule],
+                )
+                if direct_step is not None:
+                    direct_rule, direct_bindings, direct_conclusion = direct_step
+                    if self._knowledge_has_fact(working_delta, direct_conclusion) is M.false_value:
+                        direct_derived = M.Pair(direct_conclusion, M.EmptyList)
+                        direct_delta = M.Pair(direct_conclusion, working_delta)
+                        direct_actions = M.Pair(
+                            TheoremAction(direct_rule, direct_bindings)(),
+                            working_actions,
+                        )
+                        support_result = (
+                            direct_delta,
+                            direct_actions,
+                            direct_derived,
+                        )
                 candidate_rules = self.rules
-                while M.IdentityCompare(candidate_rules, M.EmptyList)() is M.false_value:
+                while (
+                    support_result is None
+                    and M.IdentityCompare(candidate_rules, M.EmptyList)() is M.false_value
+                ):
                     candidate_rule = M.Head(candidate_rules)()
                     candidate_is_active = False
                     for active_rule in active_rules + [rule]:

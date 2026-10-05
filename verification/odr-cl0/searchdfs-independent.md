@@ -1,6 +1,6 @@
 # CL1c independent SearchDFS probe
 
-**Status:** cosine alpha route now terminates; beta/gamma remain explicit Search failures; geometry baseline still blocked
+**Status:** all twelve runnable per-example routes succeed, including beta/gamma symmetry support; three angle examples remain explicitly blocked
 **Runner:** `verification/odr-cl0/searchdfs_independent.py`
 **Results:** `verification/odr-cl0/searchdfs-independent-results.json`
 **Per-example timeout:** 60 seconds, including pack boot
@@ -12,7 +12,7 @@ The original aggregate test used one example's start and one mixed rule list for
 ## Current manifest results
 
 ```text
-SUCCESS: 10
+SUCCESS: 12
     tao_problem_1_1_triangle
     tao_side_beta
     tao_side_gamma
@@ -23,15 +23,15 @@ SUCCESS: 10
     tao_positive_gamma_side
     tao_strict_triangle_inequality
     tao_cosine_alpha_identity
+    tao_cosine_beta_identity
+    tao_cosine_gamma_identity
 
 BLOCKED: 3
     tao_angle_alpha
     tao_angle_beta
     tao_angle_gamma
 
-FAILURE: 2
-    tao_cosine_beta_identity
-    tao_cosine_gamma_identity
+FAILURE: 0
 ```
 
 The nine successful runs use small, explicit manifests. Examples:
@@ -63,15 +63,16 @@ The cosine starts contain the required geometric facts, and the manifest is:
 ```text
 three side rules
 → tao_angle_from_sides
+→ geometry-ontology.distinct_is_symmetric
 → trigonometry.triangle_yields_generic_cosine_relation
 ```
 
 The manifest is semantically aligned with the `CosineRuleRelates` goal. After the matcher and premise-order repair, the direct per-example receipts are:
 
 ```text
-SUCCESS: tao_cosine_alpha_identity  (55.523s)
-FAILURE: tao_cosine_beta_identity   (21.350s)
-FAILURE: tao_cosine_gamma_identity  (20.347s)
+SUCCESS: tao_cosine_alpha_identity  (31.714s)
+SUCCESS: tao_cosine_beta_identity   (33.906s)
+SUCCESS: tao_cosine_gamma_identity  (36.204s)
 TIMEOUT: none
 ```
 
@@ -81,7 +82,7 @@ A direct `proof.JoinPremises` probe over the same twelve source/derived facts re
 
 The repair now preserves unresolved variable nodes during partial instantiation and adds `instantiate_preserves_unbound_variable_identity_test`. The generic trigonometry rule keeps the same premises and replacement but orders them from selective to expansive: `Triangle`, `AngleOf`, `Opposite`, side facts, lengths, `AngleMeasure`, then `Distinct`. This avoids exploring the independent side combinations before the angle and opposite-side bindings are known. The alpha cosine route now succeeds within the 60-second bound.
 
-Beta and gamma now terminate as `SearchFailureLabel`, rather than timing out. Their starts do not contain the reverse `Distinct` orientations used by the generic cosine rule; the existing `geometry-ontology.distinct_is_symmetric` source rule supplies that relation in the replay tests, but adding the unary rewrite directly to this SearchDFS theorem manifest is not yet a terminating checked route. No synthetic premises were added.
+Beta and gamma now succeed through the explicitly manifested `geometry-ontology.distinct_is_symmetric` unary route. The goal-directed SearchDFS support recursively sources the reverse `Distinct` facts, retains the source-premise theorem actions, and bounds recursive candidate exploration to the manifest. No synthetic premises were added.
 
 No invariant pruning or G4 machinery was used.
 
@@ -90,12 +91,12 @@ No invariant pruning or G4 machinery was used.
 ```text
 aggregate fixture: quarantined
 per-example manifests: repaired for termination, not all goals
-runnable manifest successes: 10/12
-runnable manifest failures: 2, with explicit premise-orientation reasons
+runnable manifest successes: 12/12
+runnable manifest failures: 0
 blocked examples: 3, with explicit missing-premise reasons
 timeouts: 0 in the direct per-example rerun
 invariant pruning involved: no
 SearchDFS baseline: not release-ready
 ```
 
-The next repair is to provide a terminating, explicitly manifested route for the reverse `Distinct` premises in the beta and gamma cosine cases, or retain those two failures with precise source-premise blockers. The angle examples require either corrected source fixtures or a new explicitly sourced premise contract; no synthetic facts should be added silently.
+The remaining geometry limitation is confined to the three angle examples, whose starts lack the `Triangle` and `Distinct` premises required by the available angle route. They remain explicitly blocked; no synthetic facts should be added silently.
