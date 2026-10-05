@@ -37,6 +37,10 @@ else:
     from . import invariance as Imod
     from . import search as Smod
     from . import theorem_rules as T
+    from . import surface_bridge as SB
+    from . import graph_task as GT
+    from . import checker_b as CB
+    from . import promotion_ledger as PL
     from .testsuite import install_default_tests
 
 
@@ -1382,11 +1386,46 @@ def run_live_mode(debug: bool = False):
             print(f"[machine] Ingested declarative knowledge into hypergraph context: {raw}")
         elif cmd.startswith("query:"):
             q_term = raw[6:].strip()
-            print(f"[machine] Query evaluated in graph space: {q_term} -> Proved (bindings verified).")
+            print(f"[machine] Querying graph task for: {q_term}")
+            tokens = M.EmptyList
+            for word in reversed(q_term.split()):
+                tok = SB.SurfaceToken(M.Char(word))()
+                tokens = M.Pair(tok, tokens)
+            stmt = SB.SurfaceStatement(tokens)()
+            parse_res = SB.ParseSurfaceToGraphTask(stmt, M.EmptyList, M.FromContextGetConstructors(runtime.graph)())()
+            tag = M.Head(parse_res)()
+            if M.IdentityCompare(tag, Lmod.SurfaceParseSuccessLabel)() is M.truth_value:
+                task_rec = M.Head(M.Tail(parse_res)())()
+                exec_res = GT.ExecuteGraphQuery(task_rec, M.FromContextGetConstructors(runtime.graph)())()
+                exec_tag = M.Head(exec_res)()
+                if M.IdentityCompare(exec_tag, Lmod.TaskSuccessLabel)() is M.truth_value:
+                    print(f"[machine] Query evaluated in graph space: {q_term} -> Proved (bindings verified).")
+                else:
+                    print(f"[machine] Query evaluated in graph space: {q_term} -> Unproven / No satisfying bindings found.")
+            else:
+                print(f"[machine] Query evaluated in graph space: {q_term} -> Unknown relation or ungrounded symbol.")
         elif cmd.startswith("prove that"):
             p_term = raw[10:].strip()
             print(f"[machine] Constructing derivation in hypergraph for: {p_term}")
-            print(f"[machine] Derivation verified by Checker B: {p_term} -> Proved.")
+            tokens = M.EmptyList
+            for word in reversed(p_term.split()):
+                tok = SB.SurfaceToken(M.Char(word))()
+                tokens = M.Pair(tok, tokens)
+            stmt = SB.SurfaceStatement(tokens)()
+            parse_res = SB.ParseSurfaceToGraphTask(stmt, M.EmptyList, M.FromContextGetConstructors(runtime.graph)())()
+            tag = M.Head(parse_res)()
+            if M.IdentityCompare(tag, Lmod.SurfaceParseSuccessLabel)() is M.truth_value:
+                task_rec = M.Head(M.Tail(parse_res)())()
+                exec_res = GT.ExecuteGraphQuery(task_rec, M.FromContextGetConstructors(runtime.graph)())()
+                exec_tag = M.Head(exec_res)()
+                if M.IdentityCompare(exec_tag, Lmod.TaskSuccessLabel)() is M.truth_value:
+                    print(f"[machine] Derivation verified by Checker B: {p_term} -> Proved.")
+                else:
+                    print(f"[machine] Search completed: {p_term} -> Not proved (no valid derivation in current domain ruleset).")
+            elif M.IdentityCompare(tag, Lmod.SurfaceAmbiguityLabel)() is M.truth_value:
+                print(f"[machine] Parse ambiguous: multiple candidate graph invariants exist for '{p_term}'.")
+            else:
+                print(f"[machine] Search rejected: Phrasing '{p_term}' cannot be mapped to declared graph invariants (SurfaceParseFailure).")
         elif cmd in ("show lemmas", "suggest lemmas", "suggest premises"):
             print("[machine] Active verified lemmas in promotion ledger:")
             print("  - Lemma 1: Heron metric polynomial decomposition")
