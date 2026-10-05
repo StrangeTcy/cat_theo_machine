@@ -70,6 +70,115 @@ class Multiply(M.Edge):
         return self.result
 
 
+class Divides(M.Edge):
+    def __init__(self, a, b, registry):
+        nat_a = IsNat(a, registry)()
+        nat_b = IsNat(b, registry)()
+        if M.AndAtom(nat_a, nat_b)() is M.truth_value:
+            atom_result = self._divides(a, b, registry)
+        else:
+            atom_result = M.false_value
+
+        self.result = atom_result
+        super().__init__(inputs=M.Pair(a, M.Pair(b, M.Pair(registry, M.EmptyList))), results=self.result)
+
+    def _divides(self, a, b, registry):
+        rep_a = M.NatRepOf(a, registry)()
+        rep_b = M.NatRepOf(b, registry)()
+        if M.IdentityCompare(rep_a, M.EmptyList)() is M.truth_value or M.IdentityCompare(rep_b, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        val_a = rep_a()
+        val_b = rep_b()
+        if val_a is None or val_b is None:
+            return M.false_value
+        if val_a == 0:
+            return M.truth_value if val_b == 0 else M.false_value
+        return M.truth_value if (val_b % val_a == 0) else M.false_value
+
+    def __call__(self):
+        return self.result
+
+
+Divisible = Divides
+
+
+class Gcd(M.Edge):
+    def __init__(self, a, b, registry):
+        nat_a = IsNat(a, registry)()
+        nat_b = IsNat(b, registry)()
+        if M.AndAtom(nat_a, nat_b)() is M.truth_value:
+            atom_result = self._gcd(a, b, registry)
+        else:
+            atom_result = M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+
+        self.result = atom_result
+        super().__init__(inputs=M.Pair(a, M.Pair(b, M.Pair(registry, M.EmptyList))), results=self.result)
+
+    def _gcd(self, a, b, registry):
+        rep_a = M.NatRepOf(a, registry)()
+        rep_b = M.NatRepOf(b, registry)()
+        if M.IdentityCompare(rep_a, M.EmptyList)() is M.truth_value or M.IdentityCompare(rep_b, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+        val_a = rep_a()
+        val_b = rep_b()
+        if val_a is None or val_b is None:
+            return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+        import math
+        val_gcd = math.gcd(val_a, val_b)
+        return M.NatFromRep(M.GMPRep(val_gcd), registry)()
+
+    def __call__(self):
+        return self.result
+
+
+class Modulo(M.Edge):
+    def __init__(self, a, b, registry):
+        nat_a = IsNat(a, registry)()
+        nat_b = IsNat(b, registry)()
+        if M.AndAtom(nat_a, nat_b)() is M.truth_value:
+            atom_result = self._mod(a, b, registry)
+        else:
+            atom_result = M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+
+        self.result = atom_result
+        super().__init__(inputs=M.Pair(a, M.Pair(b, M.Pair(registry, M.EmptyList))), results=self.result)
+
+    def _mod(self, a, b, registry):
+        rep_a = M.NatRepOf(a, registry)()
+        rep_b = M.NatRepOf(b, registry)()
+        if M.IdentityCompare(rep_a, M.EmptyList)() is M.truth_value or M.IdentityCompare(rep_b, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+        val_a = rep_a()
+        val_b = rep_b()
+        if val_a is None or val_b is None or val_b == 0:
+            return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+        val_mod = val_a % val_b
+        return M.NatFromRep(M.GMPRep(val_mod), registry)()
+
+    def __call__(self):
+        return self.result
+
+
+class IsCoprime(M.Edge):
+    def __init__(self, a, b, registry):
+        rep_a = M.NatRepOf(a, registry)()
+        rep_b = M.NatRepOf(b, registry)()
+        if M.IdentityCompare(rep_a, M.EmptyList)() is M.truth_value or M.IdentityCompare(rep_b, M.EmptyList)() is M.truth_value:
+            self.result = M.false_value
+        else:
+            import math
+            val_a = rep_a()
+            val_b = rep_b()
+            if val_a is None or val_b is None:
+                self.result = M.false_value
+            else:
+                self.result = M.truth_value if math.gcd(val_a, val_b) == 1 else M.false_value
+        super().__init__(inputs=M.Pair(a, M.Pair(b, M.Pair(registry, M.EmptyList))), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 Succ = M.Succ
 NatPred = M.NatPred
 Count = M.Count
@@ -125,6 +234,11 @@ __all__ = [
     "NatText",
     "FractionText",
     "WholeText",
+    "Divides",
+    "Divisible",
+    "Gcd",
+    "Modulo",
+    "IsCoprime",
     "one",
     "two",
     "three",

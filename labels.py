@@ -1377,6 +1377,26 @@ class SurfaceGrammarRuleLabel(ConstructorLabel):
 
 class SurfaceCorrespondenceLabel(ConstructorLabel):
     pass
+
+
+class DividesLabel(ConstructorLabel):
+    pass
+
+
+class DivisibleLabel(ConstructorLabel):
+    pass
+
+
+class GcdLabel(ConstructorLabel):
+    pass
+
+
+class ModLabel(ConstructorLabel):
+    pass
+
+
+class CoprimeLabel(ConstructorLabel):
+    pass
 TreeLabel = TreeLabel()
 ZeroLabel = ZeroLabel()
 SuccLabel = SuccLabel()
@@ -1720,6 +1740,11 @@ TaoProblem11AlphaValueLabel = TaoProblem11AlphaValueLabel()
 TaoProblem11BetaValueLabel = TaoProblem11BetaValueLabel()
 TaoProblem11GammaValueLabel = TaoProblem11GammaValueLabel()
 DistinctLabel = DistinctLabel()
+DividesLabel = DividesLabel()
+DivisibleLabel = DivisibleLabel()
+GcdLabel = GcdLabel()
+ModLabel = ModLabel()
+CoprimeLabel = CoprimeLabel()
 
 
 def sync_from_namespace(namespace):
@@ -2067,6 +2092,11 @@ def sync_from_namespace(namespace):
         "SurfaceAmbiguityLabel",
         "SurfaceGrammarRuleLabel",
         "SurfaceCorrespondenceLabel",
+        "DividesLabel",
+        "DivisibleLabel",
+        "GcdLabel",
+        "ModLabel",
+        "CoprimeLabel",
     ):
         if name in namespace:
             globals()[name] = namespace[name]
