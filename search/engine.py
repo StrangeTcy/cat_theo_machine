@@ -1485,6 +1485,509 @@ class Search(M.Edge):
         )
         return M.Pair(next_delta, M.Pair(actions_rev, M.Pair(rule_delta_facts, M.EmptyList)))
 
+    def _unary_rule_support_for_fact(self, target, facts):
+        """Find one sourced unary theorem step for a missing concrete fact.
+
+        This is deliberately a one-hop lookup.  It is used only by the
+        goal-directed theorem path below, so it cannot turn a general search
+        into an unbounded rewrite closure.  The returned binding is retained
+        in the theorem action, which keeps the source-premise provenance in
+        the replayed derivation.
+        """
+        remaining_rules = self.rules
+        while M.IdentityCompare(remaining_rules, M.EmptyList)() is M.false_value:
+            candidate = M.Head(remaining_rules)()
+            if RuleIsUnary(candidate)() is M.truth_value:
+                replacement_match = M.Match(RuleReplacement(candidate)(), target)()
+                if M.IdentityCompare(M.Head(replacement_match)(), M.truth_value)() is M.truth_value:
+                    candidate_bindings = M.Tail(replacement_match)()
+                    source_instantiated = M.Instantiate(
+                        RulePattern(candidate)(),
+                        candidate_bindings,
+                    )()
+                    source = M.Head(source_instantiated)()
+                    if ContainsVar(source)() is M.false_value:
+                        if self._knowledge_has_fact(facts, source) is M.truth_value:
+                            return (candidate, candidate_bindings)
+            remaining_rules = M.Tail(remaining_rules)()
+        return None
+
+    def _symmetric_rule_relation_label(self, rule):
+        if RuleIsUnary(rule)() is M.false_value:
+            return None
+        pattern_term = RulePattern(rule)()
+        replacement_term = RuleReplacement(rule)()
+        if M.IsPair(pattern_term)() is M.truth_value:
+            pattern_constructor = pattern_term
+        else:
+            pattern_constructor = M.GetConstructor(pattern_term, self.registry)()
+        if M.IsPair(replacement_term)() is M.truth_value:
+            replacement_constructor = replacement_term
+        else:
+            replacement_constructor = M.GetConstructor(replacement_term, self.registry)()
+        if M.IdentityCompare(pattern_constructor, M.EmptyList)() is M.truth_value:
+            return None
+        if M.IdentityCompare(replacement_constructor, M.EmptyList)() is M.truth_value:
+            return None
+        pattern_label = M.Head(pattern_constructor)()
+        replacement_label = M.Head(replacement_constructor)()
+        if M.IdentityCompare(pattern_label, replacement_label)() is M.false_value:
+            return None
+        pattern_args = M.Tail(pattern_constructor)()
+        replacement_args = M.Tail(replacement_constructor)()
+        if M.IdentityCompare(pattern_args, M.EmptyList)() is M.truth_value:
+            return None
+        if M.IdentityCompare(replacement_args, M.EmptyList)() is M.truth_value:
+            return None
+        pattern_rest = M.Tail(pattern_args)()
+        replacement_rest = M.Tail(replacement_args)()
+        if M.IdentityCompare(pattern_rest, M.EmptyList)() is M.false_value:
+            if M.IdentityCompare(M.Tail(pattern_rest)(), M.EmptyList)() is M.false_value:
+                return None
+        else:
+            return None
+        if M.IdentityCompare(replacement_rest, M.EmptyList)() is M.false_value:
+            if M.IdentityCompare(M.Tail(replacement_rest)(), M.EmptyList)() is M.false_value:
+                return None
+        else:
+            return None
+        pattern_left = M.Head(pattern_args)()
+        pattern_right = M.Head(pattern_rest)()
+        replacement_left = M.Head(replacement_args)()
+        replacement_right = M.Head(replacement_rest)()
+        if IsVarPattern(pattern_left)() is M.false_value:
+            return None
+        if IsVarPattern(pattern_right)() is M.false_value:
+            return None
+        if M.IdentityCompare(replacement_left, pattern_right)() is M.false_value:
+            return None
+        if M.IdentityCompare(replacement_right, pattern_left)() is M.false_value:
+            return None
+        return pattern_label
+
+    def _premise_uses_symmetric_relation(self, premise):
+        if M.IsPair(premise)() is M.truth_value:
+            constructor = premise
+        else:
+            constructor = M.GetConstructor(premise, self.registry)()
+        if M.IdentityCompare(constructor, M.EmptyList)() is M.truth_value:
+            return False
+        premise_label = M.Head(constructor)()
+        remaining_rules = self.rules
+        while M.IdentityCompare(remaining_rules, M.EmptyList)() is M.false_value:
+            relation_label = self._symmetric_rule_relation_label(M.Head(remaining_rules)())
+            if relation_label is not None:
+                if M.IdentityCompare(relation_label, premise_label)() is M.truth_value:
+                    return True
+            remaining_rules = M.Tail(remaining_rules)()
+        return False
+
+    def _goal_premise_score(self, term):
+        if IsVarPattern(term)() is M.truth_value:
+            return 0
+        if M.IsPair(term)() is M.truth_value:
+            return self._goal_premise_score(M.Head(term)()) + self._goal_premise_score(M.Tail(term)())
+        constructor = M.GetConstructor(term, self.registry)()
+        if M.IdentityCompare(constructor, M.EmptyList)() is M.truth_value:
+            return 1
+        score = 1
+        arguments = M.Tail(constructor)()
+        while M.IdentityCompare(arguments, M.EmptyList)() is M.false_value:
+            score += self._goal_premise_score(M.Head(arguments)())
+            arguments = M.Tail(arguments)()
+        return score
+
+    def _goal_unify_resolve(self, term, bindings):
+        if IsVarPattern(term)() is M.false_value:
+            return term
+        for variable, value in bindings:
+            if M.IdentityCompare(variable, term)() is M.truth_value:
+                if M.IdentityCompare(value, term)() is M.truth_value:
+                    return value
+                return self._goal_unify_resolve(value, bindings)
+        return term
+
+    def _goal_unify_terms(self, left, right, bindings=None):
+        if bindings is None:
+            bindings = []
+        left = self._goal_unify_resolve(left, bindings)
+        right = self._goal_unify_resolve(right, bindings)
+        if IsVarPattern(left)() is M.truth_value:
+            if IsVarPattern(right)() is M.truth_value:
+                if M.IdentityCompare(left, right)() is M.truth_value:
+                    return bindings
+            bindings.append((left, right))
+            return bindings
+        if IsVarPattern(right)() is M.truth_value:
+            bindings.append((right, left))
+            return bindings
+        left_pair = M.IsPair(left)() is M.truth_value
+        right_pair = M.IsPair(right)() is M.truth_value
+        if left_pair or right_pair:
+            if left_pair is False or right_pair is False:
+                return None
+            if self._goal_unify_terms(M.Head(left)(), M.Head(right)(), bindings) is None:
+                return None
+            return self._goal_unify_terms(M.Tail(left)(), M.Tail(right)(), bindings)
+        if M.TermEqual(left, right)() is M.truth_value:
+            return bindings
+        return None
+
+    def _goal_unify_binding_list(self, bindings):
+        result = M.EmptyList
+        for variable, value in reversed(bindings):
+            result = M.Pair(
+                M.Pair(variable, M.Pair(self._goal_unify_resolve(value, bindings), M.EmptyList)),
+                result,
+            )
+        return result
+
+    def _goal_has_ground_component(self, term):
+        if IsVarPattern(term)() is M.truth_value:
+            return False
+        if M.IsPair(term)() is M.truth_value:
+            arguments = M.Tail(term)()
+            while M.IdentityCompare(arguments, M.EmptyList)() is M.false_value:
+                if self._goal_has_ground_component(M.Head(arguments)()):
+                    return True
+                arguments = M.Tail(arguments)()
+            return False
+        return True
+
+    def _goal_seed_unary_binding(
+        self,
+        target,
+        bindings,
+        facts,
+        knowledge_head_index,
+        knowledge_exact_trie,
+    ):
+        remaining_rules = self.rules
+        while M.IdentityCompare(remaining_rules, M.EmptyList)() is M.false_value:
+            candidate_rule = M.Head(remaining_rules)()
+            if RuleIsUnary(candidate_rule)() is M.truth_value:
+                unification = self._goal_unify_terms(
+                    RuleReplacement(candidate_rule)(),
+                    target,
+                )
+                if unification is not None:
+                    candidate_bindings = self._goal_unify_binding_list(unification)
+                    source = M.Head(
+                        M.Instantiate(RulePattern(candidate_rule)(), candidate_bindings)()
+                    )()
+                    matches = self._match_premises(
+                        M.Pair(source, M.EmptyList),
+                        facts,
+                        candidate_bindings,
+                        knowledge_head_index,
+                        knowledge_exact_trie,
+                        M.EmptyList,
+                        M.truth_value,
+                    )
+                    if M.IdentityCompare(matches, M.EmptyList)() is M.false_value:
+                        merged = M.MergeBindings(
+                            bindings,
+                            M.Head(matches)(),
+                        )()
+                        if M.IdentityCompare(M.Head(merged)(), M.truth_value)() is M.truth_value:
+                            return M.Tail(merged)()
+            remaining_rules = M.Tail(remaining_rules)()
+        return None
+
+    def _goal_symmetric_premise_is_reflexive(self, premise):
+        if self._premise_uses_symmetric_relation(premise) is False:
+            return False
+        if M.IsPair(premise)() is M.truth_value:
+            constructor = premise
+        else:
+            constructor = M.GetConstructor(premise, self.registry)()
+        if M.IdentityCompare(constructor, M.EmptyList)() is M.truth_value:
+            return False
+        arguments = M.Tail(constructor)()
+        if M.IdentityCompare(arguments, M.EmptyList)() is M.truth_value:
+            return False
+        left = M.Head(arguments)()
+        rest = M.Tail(arguments)()
+        if M.IdentityCompare(rest, M.EmptyList)() is M.truth_value:
+            return False
+        right = M.Head(rest)()
+        if M.IdentityCompare(M.Tail(rest)(), M.EmptyList)() is M.false_value:
+            return False
+        return M.TermEqual(left, right)() is M.truth_value
+
+    def _premise_has_candidate(self, premise, facts, knowledge_head_index, knowledge_exact_trie):
+        if IsVarPattern(premise)() is M.truth_value:
+            return M.IdentityCompare(facts, M.EmptyList)() is M.false_value
+        if ContainsVar(premise)() is M.false_value:
+            if M.IdentityCompare(knowledge_exact_trie, M.EmptyList)() is M.false_value:
+                return K.KnowledgeTrieHasFact(knowledge_exact_trie, premise, self.registry)() is M.truth_value
+            return self._knowledge_has_fact(facts, premise) is M.truth_value
+        bucket = K.KnowledgeHeadIndexBucket(knowledge_head_index, premise, self.registry)()
+        return M.IdentityCompare(bucket, M.EmptyList)() is M.false_value
+
+    def _goal_directed_unary_support(
+        self,
+        rule,
+        current,
+        goal,
+        next_delta,
+        actions_rev,
+        knowledge_head_index=None,
+        knowledge_exact_trie=None,
+        active_rules=None,
+        depth=None,
+    ):
+        """Run a bounded, source-preserving goal-directed theorem route.
+
+        The replacement match fixes the target's concrete values.  Premises
+        already represented in the board are joined first; missing premises
+        are then discharged by recursively selecting a manifested theorem
+        whose replacement is that concrete premise.  The recursion is bounded
+        by the size of the explicit rule manifest and blocks active rules, so
+        a rewrite cycle cannot become an unbounded SearchDFS branch.
+
+        In particular, a missing ``Distinct(right, left)`` can be sourced from
+        the existing ``Distinct(left, right)`` through the ontology's unary
+        symmetry theorem.  Every such step is emitted as a ``TheoremAction``;
+        source premises therefore remain present during derivation replay.
+        """
+        if active_rules is None:
+            active_rules = []
+        if depth is None:
+            depth = 1
+            remaining_rules = self.rules
+            while M.IdentityCompare(remaining_rules, M.EmptyList)() is M.false_value:
+                depth += 1
+                remaining_rules = M.Tail(remaining_rules)()
+        if depth <= 0:
+            return None
+        for active_rule in active_rules:
+            if M.TermEqual(active_rule, rule)() is M.truth_value:
+                return None
+
+        replacement_unification = self._goal_unify_terms(
+            RuleReplacement(rule)(),
+            goal,
+        )
+        if replacement_unification is None:
+            return None
+        replacement_bindings = self._goal_unify_binding_list(replacement_unification)
+        facts = KnowledgeFacts(current)()
+        if knowledge_head_index is None or knowledge_exact_trie is None:
+            indexes = self._theorem_indexes_for(current)
+            knowledge_head_index = M.Head(indexes)()
+            knowledge_exact_trie = M.Head(M.Tail(indexes)())()
+
+        seeded_bindings = replacement_bindings
+        seed_passes = 0
+        while seed_passes != 2:
+            seed_passes += 1
+            seed_changed = False
+            seed_premises = RulePremises(rule)()
+            while M.IdentityCompare(seed_premises, M.EmptyList)() is M.false_value:
+                seed_premise = M.Head(seed_premises)()
+                if self._premise_uses_symmetric_relation(seed_premise) is False:
+                    seed_instantiated = M.Instantiate(seed_premise, seeded_bindings)()
+                    seed_target = M.Head(seed_instantiated)()
+                    if (
+                        ContainsVar(seed_target)() is M.truth_value
+                        and self._goal_has_ground_component(seed_target)
+                    ):
+                        seeded = self._goal_seed_unary_binding(
+                            seed_target,
+                            seeded_bindings,
+                            facts,
+                            knowledge_head_index,
+                            knowledge_exact_trie,
+                        )
+                        if seeded is not None:
+                            seeded_bindings = seeded
+                            seed_changed = True
+                seed_premises = M.Tail(seed_premises)()
+            if seed_changed is False:
+                break
+        replacement_bindings = seeded_bindings
+        ready_premises = []
+        deferred_premises = []
+        premises = RulePremises(rule)()
+        premise_index = 0
+        while M.IdentityCompare(premises, M.EmptyList)() is M.false_value:
+            premise = M.Head(premises)()
+            instantiated = M.Instantiate(premise, replacement_bindings)()
+            row = (
+                self._goal_premise_score(M.Head(instantiated)()),
+                premise_index,
+                premise,
+            )
+            if self._premise_uses_symmetric_relation(premise):
+                deferred_premises.append(row)
+            elif self._premise_has_candidate(
+                M.Head(instantiated)(),
+                facts,
+                knowledge_head_index,
+                knowledge_exact_trie,
+            ) is True:
+                ready_premises.append(row)
+            else:
+                deferred_premises.append(row)
+            premise_index += 1
+            premises = M.Tail(premises)()
+        ready_premises.sort(key=lambda entry: (-entry[0], entry[1]))
+        deferred_premises.sort(key=lambda entry: (-entry[0], entry[1]))
+        ordered_ready = M.EmptyList
+        for _score, _index, premise in reversed(ready_premises):
+            ordered_ready = M.Pair(premise, ordered_ready)
+
+        self._stage_debug(
+            "goal-directed route: ready-count=" + str(len(ready_premises))
+        )
+        matching_bindings = self._match_premises(
+            ordered_ready,
+            facts,
+            replacement_bindings,
+            knowledge_head_index,
+            knowledge_exact_trie,
+            M.EmptyList,
+            M.truth_value,
+        )
+        self._stage_debug(
+            "goal-directed route: matching=" + _debug_term(matching_bindings, self.registry)
+        )
+        if M.IdentityCompare(matching_bindings, M.EmptyList)() is M.truth_value:
+            self._stage_debug("goal-directed route: ready join had no bindings")
+            return None
+
+        remaining_bindings = matching_bindings
+        while M.IdentityCompare(remaining_bindings, M.EmptyList)() is M.false_value:
+            candidate_bindings = M.Head(remaining_bindings)()
+            working_facts = facts
+            working_delta = next_delta
+            working_actions = actions_rev
+            derived_facts = M.EmptyList
+            premises_ok = True
+            for _score, _index, premise in deferred_premises:
+                instantiated = M.Instantiate(premise, candidate_bindings)()
+                concrete_premise = M.Head(instantiated)()
+                if self._goal_symmetric_premise_is_reflexive(concrete_premise):
+                    premises_ok = False
+                    break
+                if self._knowledge_has_fact(working_facts, concrete_premise) is M.truth_value:
+                    continue
+                self._stage_debug(
+                    "goal-directed route: need "
+                    + _debug_term(concrete_premise, self.registry)
+                    + " bindings="
+                    + _debug_term(candidate_bindings, self.registry)
+                )
+
+                support_result = None
+                candidate_rules = self.rules
+                while M.IdentityCompare(candidate_rules, M.EmptyList)() is M.false_value:
+                    candidate_rule = M.Head(candidate_rules)()
+                    candidate_is_active = False
+                    for active_rule in active_rules + [rule]:
+                        if M.TermEqual(active_rule, candidate_rule)() is M.truth_value:
+                            candidate_is_active = True
+                            break
+                    if candidate_is_active is False:
+                        candidate_unification = self._goal_unify_terms(
+                            RuleReplacement(candidate_rule)(),
+                            concrete_premise,
+                        )
+                        if candidate_unification is not None:
+                            support_result = self._goal_directed_unary_support(
+                                candidate_rule,
+                                Knowledge(working_facts)(),
+                                concrete_premise,
+                                working_delta,
+                                working_actions,
+                                None,
+                                None,
+                                active_rules + [rule],
+                                depth - 1,
+                            )
+                            if support_result is not None:
+                                break
+                    candidate_rules = M.Tail(candidate_rules)()
+                if support_result is None:
+                    self._stage_debug(
+                        "goal-directed route: no support for "
+                        + _debug_term(concrete_premise, self.registry)
+                    )
+                    premises_ok = False
+                    break
+                working_delta, working_actions, child_derived = support_result
+                child_fact = M.Head(child_derived)()
+                child_match = M.Match(premise, child_fact)()
+                if M.IdentityCompare(M.Head(child_match)(), M.truth_value)() is M.false_value:
+                    premises_ok = False
+                    break
+                merged_bindings = M.MergeBindings(
+                    candidate_bindings,
+                    M.Tail(child_match)(),
+                )()
+                if M.IdentityCompare(M.Head(merged_bindings)(), M.truth_value)() is M.false_value:
+                    premises_ok = False
+                    break
+                candidate_bindings = M.Tail(merged_bindings)()
+                self._stage_debug(
+                    "goal-directed route: sourced "
+                    + _debug_term(child_fact, self.registry)
+                )
+                working_facts = Append(child_derived, working_facts)()
+                derived_facts = Append(child_derived, derived_facts)()
+
+            if premises_ok is True:
+                if self._premises_satisfied_by_bindings(
+                    RulePremises(rule)(),
+                    working_facts,
+                    candidate_bindings,
+                ) is M.truth_value:
+                    conclusion_instantiated = M.Instantiate(
+                        RuleReplacement(rule)(),
+                        candidate_bindings,
+                    )()
+                    conclusion = self._canonical_term(M.Head(conclusion_instantiated)())
+                    if ContainsVar(conclusion)() is M.false_value:
+                        if self._knowledge_has_fact(working_facts, conclusion) is M.false_value:
+                            if self._knowledge_has_fact(working_delta, conclusion) is M.false_value:
+                                working_delta = M.Pair(conclusion, working_delta)
+                                derived_facts = M.Pair(conclusion, derived_facts)
+                                working_actions = M.Pair(
+                                    TheoremAction(rule, candidate_bindings)(),
+                                    working_actions,
+                                )
+                                self._stage_debug(
+                                    "goal-directed theorem route: derived="
+                                    + _debug_term(derived_facts, self.registry)
+                                    + " rule="
+                                    + Pmod.PrettyRule(rule, self.registry)()
+                                )
+                                return working_delta, working_actions, derived_facts
+            if premises_ok is True:
+                self._stage_debug("goal-directed route: all support found but premise check failed")
+            self._stage_debug("goal-directed route: candidate bindings did not satisfy deferred premises")
+            remaining_bindings = M.Tail(remaining_bindings)()
+        return None
+
+    def _install_theorem_delta(self, current, knowledge_head_index, knowledge_exact_trie, rule_delta_facts):
+        if M.IdentityCompare(rule_delta_facts, M.EmptyList)() is M.truth_value:
+            return current, knowledge_head_index, knowledge_exact_trie
+        knowledge_exact_trie = K.KnowledgeTrieInsertChain(
+            knowledge_exact_trie,
+            rule_delta_facts,
+            self.registry,
+        )()
+        knowledge_head_index = K.KnowledgeHeadIndexInsertChain(
+            knowledge_head_index,
+            rule_delta_facts,
+            self.registry,
+        )()
+        current = Knowledge(
+            Append(rule_delta_facts, KnowledgeFacts(current))()
+        )()
+        return current, knowledge_head_index, knowledge_exact_trie
+
     def _premises_satisfied_by_bindings(self, premises, facts, bindings):
         if M.IdentityCompare(premises, M.EmptyList)() is M.truth_value:
             return M.truth_value
@@ -1677,6 +2180,46 @@ class SearchBFS(Search):
         next_delta = SearchTheoremCursorNextDelta(cursor)()
         actions_rev = SearchTheoremCursorActions(cursor)()
         if IsKnowledge(current)() is M.truth_value:
+            if IsKnowledge(goal)() is M.false_value:
+                goal_route = None
+                goal_rules = self.rules
+                while M.IdentityCompare(goal_rules, M.EmptyList)() is M.false_value:
+                    goal_rule = M.Head(goal_rules)()
+                    goal_route = self._goal_directed_unary_support(
+                        goal_rule,
+                        current,
+                        goal,
+                        next_delta,
+                        actions_rev,
+                        knowledge_head_index,
+                        knowledge_exact_trie,
+                    )
+                    if goal_route is not None:
+                        break
+                    goal_rules = M.Tail(goal_rules)()
+                if goal_route is not None:
+                    next_delta, actions_rev, rule_delta_facts = goal_route
+                    current, knowledge_head_index, knowledge_exact_trie = self._install_theorem_delta(
+                        current,
+                        knowledge_head_index,
+                        knowledge_exact_trie,
+                        rule_delta_facts,
+                    )
+                    goal_reached = self._goal_reached(current, goal, knowledge_exact_trie)
+                    if M.IdentityCompare(goal_reached, M.truth_value)() is M.truth_value:
+                        generated_count = M.Zero
+                        pending_facts = K.KnowledgeTrieFacts(next_delta, self.registry)()
+                        while M.IdentityCompare(pending_facts, M.EmptyList)() is M.false_value:
+                            self._record_prompt_generated_one()
+                            generated_count = self._succ_nat(generated_count)
+                            pending_facts = M.Tail(pending_facts)()
+                        next_plan_rev = Append(actions_rev, self._state_plan(state))()
+                        return self._advance_result(
+                            self._reverse(next_plan_rev, M.EmptyList),
+                            M.EmptyList,
+                            M.EmptyList,
+                            generated_count,
+                        )
             if IsKnowledge(goal)() is M.truth_value:
                 while M.IdentityCompare(rules, M.EmptyList)() is M.false_value:
                     active_cursor = SearchTheoremCursor(
@@ -1745,6 +2288,47 @@ class SearchBFS(Search):
                 if self._checkpoint_state_cursor(state, active_cursor) is M.truth_value:
                     return self._advance_result(M.EmptyList, M.EmptyList, M.EmptyList, M.Zero)
                 rule = M.Head(rules)()
+                rest_rules = M.Tail(rules)()
+                goal_directed = self._goal_directed_unary_support(
+                    rule,
+                    current,
+                    goal,
+                    next_delta,
+                    actions_rev,
+                    knowledge_head_index,
+                    knowledge_exact_trie,
+                )
+                if goal_directed is not None:
+                    next_delta, actions_rev, rule_delta_facts = goal_directed
+                    current, knowledge_head_index, knowledge_exact_trie = self._install_theorem_delta(
+                        current,
+                        knowledge_head_index,
+                        knowledge_exact_trie,
+                        rule_delta_facts,
+                    )
+                    self._stage_debug(
+                        "goal-directed unary support: derived="
+                        + _debug_term(rule_delta_facts, self.registry)
+                        + " rule="
+                        + Pmod.PrettyRule(rule, self.registry)()
+                    )
+                    goal_reached = self._goal_reached(current, goal, knowledge_exact_trie)
+                    if M.IdentityCompare(goal_reached, M.truth_value)() is M.truth_value:
+                        generated_count = M.Zero
+                        pending_facts = K.KnowledgeTrieFacts(next_delta, self.registry)()
+                        while M.IdentityCompare(pending_facts, M.EmptyList)() is M.false_value:
+                            self._record_prompt_generated_one()
+                            generated_count = self._succ_nat(generated_count)
+                            pending_facts = M.Tail(pending_facts)()
+                        next_plan_rev = Append(actions_rev, self._state_plan(state))()
+                        return self._advance_result(
+                            self._reverse(next_plan_rev, M.EmptyList),
+                            M.EmptyList,
+                            M.EmptyList,
+                            generated_count,
+                        )
+                    rules = rest_rules
+                    continue
                 rule_started_at = time.time()
                 if M.IdentityCompare(Pmod.DEBUG_TRACE_STATE(), M.truth_value)() is M.truth_value:
                     self._stage_debug(
