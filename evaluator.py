@@ -306,20 +306,20 @@ class EvaluateHoldoutSuite(M.Edge):
                 macro, inst_start, inst_goal, trusted_rules, reg
             )()
             eval_tag = M.Head(eval_res)()
-            passed = (
-                M.IdentityCompare(eval_tag, L.CandidateEvaluatedLabel)()
-                is M.truth_value
-            )
+            is_passed = M.IdentityCompare(
+                eval_tag, L.CandidateEvaluatedLabel
+            )()
+            is_expected_truth = M.IdentityCompare(expected, M.truth_value)()
 
-            if expected is M.truth_value:
-                if passed:
+            if is_expected_truth is M.truth_value:
+                if is_passed is M.truth_value:
                     passed_list = M.Pair(item, passed_list)
                     reg = M.Head(M.Tail(M.Tail(eval_res)())())()
                 else:
                     failed_list = M.Pair(item, failed_list)
             else:
                 # Negative near-miss control: must be rejected
-                if not passed:
+                if is_passed is M.false_value:
                     passed_list = M.Pair(item, passed_list)
                 else:
                     failed_list = M.Pair(item, failed_list)
