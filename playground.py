@@ -1,13 +1,13 @@
 # ============================================================
-# Playground — Generic Machine-Native Cartesian Exploration &
-# Invariant Discovery Engine
+# Playground — Machine-Native Irreducible Cartesian Engine
 #
-# General-purpose bounded generative sweep over primitive terms,
-# Cartesian products, equivalence projections, regularity detection,
-# and invariant synthesis without domain-specific hardcoding.
+# Foundational arity-agnostic Cartesian product generator,
+# Peano-native sequence counting, tuple operations, universal
+# relational quantifiers, and congruence projections.
 # ============================================================
 from __future__ import annotations
 
+from . import constructors as C
 from . import labels as L
 from . import machine as M
 from .math import arithmetic as A
@@ -15,20 +15,32 @@ from .math import arithmetic as A
 
 class ChainLength(M.Edge):
     """
-    Computes the count of elements in a Pair chain as an integer GMPRep.
+    Computes the length of a Pair chain as a native Peano Nat node (Zero/Succ).
     """
 
-    def __init__(self, chain):
-        self.result = self._count(chain, 0)
+    def __init__(self, chain, registry):
+        self.registry = registry
+        self.result = self._count(chain, registry)
         super().__init__(
-            inputs=M.Pair(chain, M.EmptyList),
+            inputs=M.Pair(chain, M.Pair(registry, M.EmptyList)),
             results=self.result,
         )
 
-    def _count(self, chain, acc):
+    def _count(self, chain, registry):
         if M.IdentityCompare(chain, M.EmptyList)() is M.truth_value:
-            return M.GMPRep(acc)
-        return self._count(M.Tail(chain)(), acc + 1)
+            return M.Pair(M.Zero, M.Pair(registry, M.EmptyList))
+        tail = M.Tail(chain)()
+        tail_res = self._count(tail, registry)
+        tail_len = M.Head(tail_res)()
+        reg1 = M.Head(M.Tail(tail_res)())()
+
+        succ_atom = M.Atom()
+        constructed = C.ConstructedBy(
+            succ_atom, L.SuccLabel, M.Pair(tail_len, M.EmptyList), reg1
+        )()
+        succ_node = M.Head(constructed)()
+        reg2 = M.Head(M.Tail(constructed)())()
+        return M.Pair(succ_node, M.Pair(reg2, M.EmptyList))
 
     def __call__(self):
         return self.result
@@ -136,60 +148,87 @@ class SetUnion(M.Edge):
 
 class BuildNatRange(M.Edge):
     """
-    Builds a finite domain chain of Nat nodes from start_int to end_int (inclusive).
+    Builds a finite domain of Nat nodes stepping from start_nat for count_nat steps.
     """
 
-    def __init__(self, start_int, end_int, registry):
+    def __init__(self, start_nat, count_nat, registry):
         self.registry = registry
-        self.result = self._build(start_int, end_int, registry)
+        self.result = self._build(start_nat, count_nat, registry)
         super().__init__(
             inputs=M.Pair(
-                M.GMPRep(start_int),
-                M.Pair(M.GMPRep(end_int), M.Pair(registry, M.EmptyList)),
+                start_nat,
+                M.Pair(count_nat, M.Pair(registry, M.EmptyList)),
             ),
             results=self.result,
         )
 
-    def _build(self, cur, end, registry):
-        if cur > end:
+    def _build(self, cur_start, cur_count, registry):
+        is_zero = M.NatEq(cur_count, M.Zero, registry)()
+        if is_zero is M.truth_value:
             return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
-        node_res = M.NatFromRep(M.GMPRep(cur), registry)()
-        node = M.Head(node_res)()
-        new_reg = M.Head(M.Tail(node_res)())()
-        rest_res = self._build(cur + 1, end, new_reg)
+
+        pred_res = M.NatPred(cur_count, registry)()
+        pred_count = M.Head(pred_res)()
+        reg1 = M.Head(M.Tail(pred_res)())()
+
+        # Construct successor of start for next iteration
+        succ_atom = M.Atom()
+        constructed = C.ConstructedBy(
+            succ_atom, L.SuccLabel, M.Pair(cur_start, M.EmptyList), reg1
+        )()
+        next_start = M.Head(constructed)()
+        reg2 = M.Head(M.Tail(constructed)())()
+
+        rest_res = self._build(next_start, pred_count, reg2)
         rest_chain = M.Head(rest_res)()
-        final_reg = M.Head(M.Tail(rest_res)())()
-        return M.Pair(M.Pair(node, rest_chain), M.Pair(final_reg, M.EmptyList))
+        reg3 = M.Head(M.Tail(rest_res)())()
+
+        return M.Pair(
+            M.Pair(cur_start, rest_chain),
+            M.Pair(reg3, M.EmptyList),
+        )
 
     def __call__(self):
         return self.result
 
 
-class CartesianProduct(M.Edge):
+class ProductOfDomains(M.Edge):
     """
-    Constructs the full Cartesian product D_a x D_b as a Pair chain of Pair(a, b).
+    Irreducible k-ary Cartesian product builder.
+    Takes a Pair chain of domains [D_1, D_2, ..., D_k] and produces
+    the product of tuples [[x_1, x_2, ..., x_k] for x_i in D_i].
     """
 
-    def __init__(self, domain_a, domain_b):
-        self.result = self._prod_outer(domain_a, domain_b)
+    def __init__(self, domains_chain):
+        self.result = self._prod(domains_chain)
         super().__init__(
-            inputs=M.Pair(domain_a, M.Pair(domain_b, M.EmptyList)),
+            inputs=M.Pair(domains_chain, M.EmptyList),
             results=self.result,
         )
 
-    def _prod_outer(self, cur_a, full_b):
-        if M.IdentityCompare(cur_a, M.EmptyList)() is M.truth_value:
-            return M.EmptyList
-        a = M.Head(cur_a)()
-        inner_pairs = self._prod_inner(a, full_b)
-        rest_pairs = self._prod_outer(M.Tail(cur_a)(), full_b)
-        return self._concat(inner_pairs, rest_pairs)
+    def _prod(self, domains):
+        if M.IdentityCompare(domains, M.EmptyList)() is M.truth_value:
+            # Base case: 0-ary product is a single empty tuple [[]]
+            return M.Pair(M.EmptyList, M.EmptyList)
+        head_dom = M.Head(domains)()
+        tail_doms = M.Tail(domains)()
+        rest_prod = self._prod(tail_doms)
+        return self._distribute_outer(head_dom, rest_prod)
 
-    def _prod_inner(self, a, cur_b):
-        if M.IdentityCompare(cur_b, M.EmptyList)() is M.truth_value:
+    def _distribute_outer(self, cur_head, rest_prod):
+        if M.IdentityCompare(cur_head, M.EmptyList)() is M.truth_value:
             return M.EmptyList
-        b = M.Head(cur_b)()
-        return M.Pair(M.Pair(a, b), self._prod_inner(a, M.Tail(cur_b)()))
+        x = M.Head(cur_head)()
+        with_x = self._distribute_inner(x, rest_prod)
+        rest = self._distribute_outer(M.Tail(cur_head)(), rest_prod)
+        return self._concat(with_x, rest)
+
+    def _distribute_inner(self, x, cur_tuples):
+        if M.IdentityCompare(cur_tuples, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        t = M.Head(cur_tuples)()
+        new_tuple = M.Pair(x, t)
+        return M.Pair(new_tuple, self._distribute_inner(x, M.Tail(cur_tuples)()))
 
     def _concat(self, list1, list2):
         if M.IdentityCompare(list1, M.EmptyList)() is M.truth_value:
@@ -200,111 +239,133 @@ class CartesianProduct(M.Edge):
         return self.result
 
 
-class FilterDomain(M.Edge):
+class FilterTuples(M.Edge):
     """
-    Filters a domain by an evaluable predicate edge class.
-    pred_fn: lambda item, reg -> (truth/false, updated_reg)
+    Filters a k-tuple domain by an evaluable predicate.
+    pred_fn: lambda tuple_chain, reg -> (truth/false, updated_reg)
     """
 
-    def __init__(self, domain, pred_fn, registry):
+    def __init__(self, tuples_chain, pred_fn, registry):
         self.registry = registry
-        self.result = self._filter(domain, pred_fn, registry)
+        self.result = self._filter(tuples_chain, pred_fn, registry)
         super().__init__(
-            inputs=M.Pair(domain, M.Pair(registry, M.EmptyList)),
+            inputs=M.Pair(tuples_chain, M.Pair(registry, M.EmptyList)),
             results=self.result,
         )
 
-    def _filter(self, cur_domain, pred_fn, registry):
-        if M.IdentityCompare(cur_domain, M.EmptyList)() is M.truth_value:
+    def _filter(self, cur_tuples, pred_fn, registry):
+        if M.IdentityCompare(cur_tuples, M.EmptyList)() is M.truth_value:
             return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
-        x = M.Head(cur_domain)()
-        pred_res = pred_fn(x, registry)
+        t = M.Head(cur_tuples)()
+        pred_res = pred_fn(t, registry)
         passed = M.Head(pred_res)()
         reg1 = M.Head(M.Tail(pred_res)())()
 
-        rest_res = self._filter(M.Tail(cur_domain)(), pred_fn, reg1)
+        rest_res = self._filter(M.Tail(cur_tuples)(), pred_fn, reg1)
         rest_filtered = M.Head(rest_res)()
         reg2 = M.Head(M.Tail(rest_res)())()
 
         if passed is M.truth_value:
-            return M.Pair(M.Pair(x, rest_filtered), M.Pair(reg2, M.EmptyList))
+            return M.Pair(M.Pair(t, rest_filtered), M.Pair(reg2, M.EmptyList))
         return M.Pair(rest_filtered, M.Pair(reg2, M.EmptyList))
 
     def __call__(self):
         return self.result
 
 
-class MapUnary(M.Edge):
+class MapDomain(M.Edge):
     """
-    Maps a generic unary evaluator f(x) over a domain, returning the image list and unique image set.
-    eval_fn: lambda item, reg -> (result_node, updated_reg)
+    Uniform k-ary domain evaluator.
+    Takes a domain of k-tuples and an operation evaluator f(args_tuple, reg).
+    Produces the evaluation list and unique image set.
     """
 
-    def __init__(self, domain, eval_fn, registry):
+    def __init__(self, tuples_chain, eval_fn, registry):
         self.registry = registry
-        self.result = self._map(domain, eval_fn, M.EmptyList, M.EmptyList, registry)
+        self.result = self._map(
+            tuples_chain, eval_fn, M.EmptyList, M.EmptyList, registry
+        )
         super().__init__(
-            inputs=M.Pair(domain, M.Pair(registry, M.EmptyList)),
+            inputs=M.Pair(tuples_chain, M.Pair(registry, M.EmptyList)),
             results=self.result,
         )
 
-    def _map(self, cur_domain, eval_fn, acc_list, acc_set, registry):
-        if M.IdentityCompare(cur_domain, M.EmptyList)() is M.truth_value:
+    def _map(self, cur_tuples, eval_fn, acc_list, acc_set, registry):
+        if M.IdentityCompare(cur_tuples, M.EmptyList)() is M.truth_value:
             return M.Pair(
                 acc_list,
                 M.Pair(acc_set, M.Pair(registry, M.EmptyList)),
             )
-        x = M.Head(cur_domain)()
-        eval_res = eval_fn(x, registry)
+        t = M.Head(cur_tuples)()
+        eval_res = eval_fn(t, registry)
         val = M.Head(eval_res)()
         reg1 = M.Head(M.Tail(eval_res)())()
 
         new_set = SetInsert(val, acc_set, reg1)()
         new_list = M.Pair(val, acc_list)
         return self._map(
-            M.Tail(cur_domain)(), eval_fn, new_list, new_set, reg1
+            M.Tail(cur_tuples)(), eval_fn, new_list, new_set, reg1
         )
 
     def __call__(self):
         return self.result
 
 
-class MapBinary(M.Edge):
+class UniversalQuantify(M.Edge):
     """
-    Maps a generic binary evaluator g(x, y) over a Cartesian product domain Pair(x, y),
-    returning the image list and unique image set.
-    eval_fn: lambda x, y, reg -> (result_node, updated_reg)
+    Universal Relational Quantifier (forall t in D^k : R(t)).
+    rel_fn: lambda tuple_chain, reg -> (truth/false, updated_reg)
     """
 
-    def __init__(self, cartesian_domain, eval_fn, registry):
+    def __init__(self, tuples_chain, rel_fn, registry):
         self.registry = registry
-        self.result = self._map(
-            cartesian_domain, eval_fn, M.EmptyList, M.EmptyList, registry
-        )
+        self.result = self._eval(tuples_chain, rel_fn, registry)
         super().__init__(
-            inputs=M.Pair(cartesian_domain, M.Pair(registry, M.EmptyList)),
+            inputs=M.Pair(tuples_chain, M.Pair(registry, M.EmptyList)),
             results=self.result,
         )
 
-    def _map(self, cur_pairs, eval_fn, acc_list, acc_set, registry):
-        if M.IdentityCompare(cur_pairs, M.EmptyList)() is M.truth_value:
-            return M.Pair(
-                acc_list,
-                M.Pair(acc_set, M.Pair(registry, M.EmptyList)),
-            )
-        pair = M.Head(cur_pairs)()
-        x = M.Head(pair)()
-        y = M.Tail(pair)()
+    def _eval(self, cur_tuples, rel_fn, registry):
+        if M.IdentityCompare(cur_tuples, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.truth_value, M.Pair(registry, M.EmptyList))
+        t = M.Head(cur_tuples)()
+        rel_res = rel_fn(t, registry)
+        holds = M.Head(rel_res)()
+        reg1 = M.Head(M.Tail(rel_res)())()
 
-        eval_res = eval_fn(x, y, registry)
-        val = M.Head(eval_res)()
-        reg1 = M.Head(M.Tail(eval_res)())()
+        if holds is M.false_value:
+            return M.Pair(M.false_value, M.Pair(reg1, M.EmptyList))
+        return self._eval(M.Tail(cur_tuples)(), rel_fn, reg1)
 
-        new_set = SetInsert(val, acc_set, reg1)()
-        new_list = M.Pair(val, acc_list)
-        return self._map(
-            M.Tail(cur_pairs)(), eval_fn, new_list, new_set, reg1
+    def __call__(self):
+        return self.result
+
+
+class ExistentialQuantify(M.Edge):
+    """
+    Existential Relational Quantifier (exists t in D^k : R(t)).
+    rel_fn: lambda tuple_chain, reg -> (truth/false, updated_reg)
+    """
+
+    def __init__(self, tuples_chain, rel_fn, registry):
+        self.registry = registry
+        self.result = self._eval(tuples_chain, rel_fn, registry)
+        super().__init__(
+            inputs=M.Pair(tuples_chain, M.Pair(registry, M.EmptyList)),
+            results=self.result,
         )
+
+    def _eval(self, cur_tuples, rel_fn, registry):
+        if M.IdentityCompare(cur_tuples, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.false_value, M.Pair(registry, M.EmptyList))
+        t = M.Head(cur_tuples)()
+        rel_res = rel_fn(t, registry)
+        holds = M.Head(rel_res)()
+        reg1 = M.Head(M.Tail(rel_res)())()
+
+        if holds is M.truth_value:
+            return M.Pair(M.truth_value, M.Pair(reg1, M.EmptyList))
+        return self._eval(M.Tail(cur_tuples)(), rel_fn, reg1)
 
     def __call__(self):
         return self.result
@@ -312,7 +373,7 @@ class MapBinary(M.Edge):
 
 class ProjectCongruence(M.Edge):
     """
-    Projects a domain or image set modulo an arbitrary modulus node M.
+    Projects a set of values under an equivalence modulus M.
     """
 
     def __init__(self, values_chain, mod_nat, registry):
@@ -343,9 +404,11 @@ class ProjectCongruence(M.Edge):
         return self.result
 
 
-class DetectDisjointness(M.Edge):
+class EvaluateSetRelation(M.Edge):
     """
-    Evaluates whether two image sets have an empty intersection.
+    Evaluates relations between image sets:
+    - Disjointness (intersection is empty)
+    - Constant image (singleton set)
     """
 
     def __init__(self, set_a, set_b, registry):
@@ -358,9 +421,9 @@ class DetectDisjointness(M.Edge):
 
     def _eval(self, set_a, set_b, registry):
         inter = SetIntersection(set_a, set_b, registry)()
-        is_empty = M.IdentityCompare(inter, M.EmptyList)()
+        is_disjoint = M.IdentityCompare(inter, M.EmptyList)()
         return M.Pair(
-            is_empty,
+            is_disjoint,
             M.Pair(inter, M.Pair(registry, M.EmptyList)),
         )
 
@@ -368,182 +431,89 @@ class DetectDisjointness(M.Edge):
         return self.result
 
 
-class DetectConstantImage(M.Edge):
-    """
-    Detects if an image set has size 1 (constant invariant).
-    """
-
-    def __init__(self, set_chain):
-        self.result = self._eval(set_chain)
-        super().__init__(
-            inputs=M.Pair(set_chain, M.EmptyList),
-            results=self.result,
-        )
-
-    def _eval(self, set_chain):
-        if M.IdentityCompare(set_chain, M.EmptyList)() is M.truth_value:
-            return M.false_value
-        tail = M.Tail(set_chain)()
-        if M.IdentityCompare(tail, M.EmptyList)() is M.truth_value:
-            return M.truth_value
-        return M.false_value
-
-    def __call__(self):
-        return self.result
-
-
-class DetectBinarySymmetry(M.Edge):
-    """
-    Detects if a binary operation g(x, y) is symmetric/commutative over a domain:
-    forall x, y in D: g(x, y) == g(y, x).
-    """
-
-    def __init__(self, domain, eval_fn, registry):
-        self.registry = registry
-        self.result = self._check(domain, domain, eval_fn, registry)
-        super().__init__(
-            inputs=M.Pair(domain, M.Pair(registry, M.EmptyList)),
-            results=self.result,
-        )
-
-    def _check(self, cur_a, full_b, eval_fn, registry):
-        if M.IdentityCompare(cur_a, M.EmptyList)() is M.truth_value:
-            return M.Pair(M.truth_value, M.Pair(registry, M.EmptyList))
-        x = M.Head(cur_a)()
-        inner_res = self._check_inner(x, full_b, eval_fn, registry)
-        inner_ok = M.Head(inner_res)()
-        reg1 = M.Head(M.Tail(inner_res)())()
-
-        if inner_ok is M.false_value:
-            return M.Pair(M.false_value, M.Pair(reg1, M.EmptyList))
-        return self._check(M.Tail(cur_a)(), full_b, eval_fn, reg1)
-
-    def _check_inner(self, x, cur_b, eval_fn, registry):
-        if M.IdentityCompare(cur_b, M.EmptyList)() is M.truth_value:
-            return M.Pair(M.truth_value, M.Pair(registry, M.EmptyList))
-        y = M.Head(cur_b)()
-
-        res_xy = eval_fn(x, y, registry)
-        val_xy = M.Head(res_xy)()
-        reg1 = M.Head(M.Tail(res_xy)())()
-
-        res_yx = eval_fn(y, x, reg1)
-        val_yx = M.Head(res_yx)()
-        reg2 = M.Head(M.Tail(res_yx)())()
-
-        eq = M.NatEq(val_xy, val_yx, reg2)()
-        if eq is M.false_value:
-            return M.Pair(M.false_value, M.Pair(reg2, M.EmptyList))
-        return self._check_inner(x, M.Tail(cur_b)(), eval_fn, reg2)
-
-    def __call__(self):
-        return self.result
-
-
-class DetectIdempotence(M.Edge):
-    """
-    Detects if a binary operation g(x, x) == x for all x in D.
-    """
-
-    def __init__(self, domain, eval_fn, registry):
-        self.registry = registry
-        self.result = self._check(domain, eval_fn, registry)
-        super().__init__(
-            inputs=M.Pair(domain, M.Pair(registry, M.EmptyList)),
-            results=self.result,
-        )
-
-    def _check(self, cur_domain, eval_fn, registry):
-        if M.IdentityCompare(cur_domain, M.EmptyList)() is M.truth_value:
-            return M.Pair(M.truth_value, M.Pair(registry, M.EmptyList))
-        x = M.Head(cur_domain)()
-
-        res_xx = eval_fn(x, x, registry)
-        val_xx = M.Head(res_xx)()
-        reg1 = M.Head(M.Tail(res_xx)())()
-
-        eq = M.NatEq(val_xx, x, reg1)()
-        if eq is M.false_value:
-            return M.Pair(M.false_value, M.Pair(reg1, M.EmptyList))
-        return self._check(M.Tail(cur_domain)(), eval_fn, reg1)
-
-    def __call__(self):
-        return self.result
-
-
 class RunPlaygroundCartesianSweep(M.Edge):
     """
-    Generic Cartesian sweep across domain bounds, evaluating operations,
-    congruence projections, and testing for algebraic regularities (symmetry,
-    idempotence, constant images, and disjoint image obstructions).
+    Generic Cartesian sweep using pure irreducible primitives:
+    - ProductOfDomains builds arbitrary k-ary domain products.
+    - MapDomain evaluates k-ary operations over tuples.
+    - ProjectCongruence evaluates equivalence projections.
+    - EvaluateSetRelation evaluates image regularities.
     """
 
-    def __init__(self, start_int, end_int, mod_int, registry):
+    def __init__(self, bound_nat, mod_nat, registry):
         self.registry = registry
-        self.result = self._run(start_int, end_int, mod_int, registry)
+        self.result = self._run(bound_nat, mod_nat, registry)
         super().__init__(
             inputs=M.Pair(
-                M.GMPRep(start_int),
-                M.Pair(
-                    M.GMPRep(end_int),
-                    M.Pair(
-                        M.GMPRep(mod_int),
-                        M.Pair(registry, M.EmptyList),
-                    ),
-                ),
+                bound_nat,
+                M.Pair(mod_nat, M.Pair(registry, M.EmptyList)),
             ),
             results=self.result,
         )
 
-    def _run(self, start_int, end_int, mod_int, registry):
-        # 1. Build generic base domain
-        range_res = BuildNatRange(start_int, end_int, registry)()
+    def _run(self, bound_nat, mod_nat, registry):
+        # 1. Base primitive domain: start from Zero for bound_nat steps
+        range_res = BuildNatRange(M.Zero, bound_nat, registry)()
         domain = M.Head(range_res)()
         reg1 = M.Head(M.Tail(range_res)())()
 
-        # 2. Modulus node
-        mod_res = M.NatFromRep(M.GMPRep(mod_int), reg1)()
-        mod_nat = M.Head(mod_res)()
-        reg2 = M.Head(M.Tail(mod_res)())()
-
-        # 3. Two node (for parity filtering)
-        two_res = M.NatFromRep(M.GMPRep(2), reg2)()
+        # 2. Parity constants (2 and 1)
+        two_res = M.NatFromRep(M.GMPRep(2), reg1)()
         two_nat = M.Head(two_res)()
-        reg3 = M.Head(M.Tail(two_res)())()
+        reg2 = M.Head(M.Tail(two_res)())()
 
-        one_res = M.NatFromRep(M.GMPRep(1), reg3)()
+        one_res = M.NatFromRep(M.GMPRep(1), reg2)()
         one_nat = M.Head(one_res)()
-        reg4 = M.Head(M.Tail(one_res)())()
+        reg3 = M.Head(M.Tail(one_res)())()
 
-        # Generic Predicate: IsOdd(x) -> x mod 2 == 1
-        def is_odd_pred(x, reg):
-            m_res = A.Modulo(x, two_nat, reg)()
-            rem = M.Head(m_res)()
-            r_reg = M.Head(M.Tail(m_res)())()
-            eq = M.NatEq(rem, one_nat, r_reg)()
-            return M.Pair(eq, M.Pair(r_reg, M.EmptyList))
+        # 3. 1-ary domain: ProductOfDomains([domain])
+        dom1 = ProductOfDomains(M.Pair(domain, M.EmptyList))()
 
-        # Filter odd subdomain
-        odd_domain_res = FilterDomain(domain, is_odd_pred, reg4)()
-        odd_domain = M.Head(odd_domain_res)()
-        reg5 = M.Head(M.Tail(odd_domain_res)())()
-
-        # Generic Unary: f(x) = x * x (Square)
-        def square_eval(x, reg):
+        # 1-ary operation over 1-tuple [x]: f([x]) = x * x
+        def square_fn(tuple_args, reg):
+            x = M.Head(tuple_args)()
             return A.Multiply(x, x, reg)()
 
-        # Map f(x) over domain
-        sq_map_res = MapUnary(domain, square_eval, reg5)()
+        sq_map_res = MapDomain(dom1, square_fn, reg3)()
         sq_list = M.Head(sq_map_res)()
-        reg6 = M.Head(M.Tail(M.Tail(sq_map_res)())())()
+        reg4 = M.Head(M.Tail(M.Tail(sq_map_res)())())()
 
-        # Project f(x) modulo M
-        sq_proj_res = ProjectCongruence(sq_list, mod_nat, reg6)()
+        # Project 1-ary image modulo M
+        sq_proj_res = ProjectCongruence(sq_list, mod_nat, reg4)()
         sq_mod_set = M.Head(sq_proj_res)()
-        reg7 = M.Head(M.Tail(sq_proj_res)())()
+        reg5 = M.Head(M.Tail(sq_proj_res)())()
 
-        # Generic Binary: g(x, y) = x^2 + y^2
-        def sum_sq_eval(x, y, reg):
+        # 4. 2-ary domain: ProductOfDomains([domain, domain])
+        dom2 = ProductOfDomains(M.Pair(domain, M.Pair(domain, M.EmptyList)))()
+
+        # Filter 2-tuples by parity: x mod 2 == 1 and y mod 2 == 1
+        def odd_pair_pred(tuple_args, reg):
+            x = M.Head(tuple_args)()
+            y = M.Head(M.Tail(tuple_args)())()
+
+            rx = A.Modulo(x, two_nat, reg)()
+            rem_x = M.Head(rx)()
+            r1 = M.Head(M.Tail(rx)())()
+            eq_x = M.NatEq(rem_x, one_nat, r1)()
+
+            ry = A.Modulo(y, two_nat, r1)()
+            rem_y = M.Head(ry)()
+            r2 = M.Head(M.Tail(ry)())()
+            eq_y = M.NatEq(rem_y, one_nat, r2)()
+
+            if eq_x is M.truth_value and eq_y is M.truth_value:
+                return M.Pair(M.truth_value, M.Pair(r2, M.EmptyList))
+            return M.Pair(M.false_value, M.Pair(r2, M.EmptyList))
+
+        odd_tuples_res = FilterTuples(dom2, odd_pair_pred, reg5)()
+        odd_tuples = M.Head(odd_tuples_res)()
+        reg6 = M.Head(M.Tail(odd_tuples_res)())()
+
+        # 2-ary operation over 2-tuple [x, y]: g([x, y]) = x^2 + y^2
+        def sum_sq_fn(tuple_args, reg):
+            x = M.Head(tuple_args)()
+            y = M.Head(M.Tail(tuple_args)())()
+
             sx = A.Multiply(x, x, reg)()
             nx = M.Head(sx)()
             r1 = M.Head(M.Tail(sx)())()
@@ -554,25 +524,21 @@ class RunPlaygroundCartesianSweep(M.Edge):
 
             return A.Add(nx, ny, r2)()
 
-        # Build Cartesian product Odd x Odd
-        odd_cartesian = CartesianProduct(odd_domain, odd_domain)()
-
-        # Map g(x, y) over Odd x Odd
-        odd_sum_map_res = MapBinary(odd_cartesian, sum_sq_eval, reg7)()
+        odd_sum_map_res = MapDomain(odd_tuples, sum_sq_fn, reg6)()
         odd_sum_list = M.Head(odd_sum_map_res)()
-        reg8 = M.Head(M.Tail(M.Tail(odd_sum_map_res)())())()
+        reg7 = M.Head(M.Tail(M.Tail(odd_sum_map_res)())())()
 
-        # Project g(x, y) modulo M
-        odd_sum_proj_res = ProjectCongruence(odd_sum_list, mod_nat, reg8)()
+        # Project 2-ary image modulo M
+        odd_sum_proj_res = ProjectCongruence(odd_sum_list, mod_nat, reg7)()
         odd_sum_mod_set = M.Head(odd_sum_proj_res)()
-        reg9 = M.Head(M.Tail(odd_sum_proj_res)())()
+        reg8 = M.Head(M.Tail(odd_sum_proj_res)())()
 
-        # Detect disjointness between f(D) mod M and g(Odd x Odd) mod M
-        disjoint_res = DetectDisjointness(sq_mod_set, odd_sum_mod_set, reg9)()
+        # 5. Evaluate relation between image sets (disjointness)
+        disjoint_res = EvaluateSetRelation(sq_mod_set, odd_sum_mod_set, reg8)()
         is_disjoint = M.Head(disjoint_res)()
-        reg10 = M.Head(M.Tail(M.Tail(disjoint_res)())())()
+        reg9 = M.Head(M.Tail(M.Tail(disjoint_res)())())()
 
-        # Record discovered regularities
+        # Wrap discovered invariant record
         sweep_record = M.Pair(
             L.DiscoveredInvariantLabel,
             M.Pair(
@@ -587,7 +553,7 @@ class RunPlaygroundCartesianSweep(M.Edge):
             ),
         )
 
-        return M.Pair(sweep_record, M.Pair(reg10, M.EmptyList))
+        return M.Pair(sweep_record, M.Pair(reg9, M.EmptyList))
 
     def __call__(self):
         return self.result
@@ -595,14 +561,23 @@ class RunPlaygroundCartesianSweep(M.Edge):
 
 def run_playground_interactive(graph):
     """
-    Runs the generic Cartesian exploration sweep and returns the dynamic formatted proposal.
+    Runs the irreducible Cartesian exploration sweep and returns the dynamic formatted proposal.
     """
     registry = M.FromContextGetConstructors(graph)()
-    sweep_res = RunPlaygroundCartesianSweep(0, 10, 4, registry)()
+
+    bound_res = M.NatFromRep(M.GMPRep(11), registry)()
+    bound_nat = M.Head(bound_res)()
+    reg1 = M.Head(M.Tail(bound_res)())()
+
+    mod_res = M.NatFromRep(M.GMPRep(4), reg1)()
+    mod_nat = M.Head(mod_res)()
+    reg2 = M.Head(M.Tail(mod_res)())()
+
+    sweep_res = RunPlaygroundCartesianSweep(bound_nat, mod_nat, reg2)()
     inv_rec = M.Head(sweep_res)()
 
-    mod_nat = M.Head(M.Tail(inv_rec)())()
-    mod_val = M.NatRepOf(mod_nat, registry)()()
+    res_mod = M.Head(M.Tail(inv_rec)())()
+    mod_val = M.NatRepOf(res_mod, reg2)()()
 
     sq_set = M.Head(M.Tail(M.Tail(inv_rec)())())()
     odd_sum_set = M.Head(M.Tail(M.Tail(M.Tail(inv_rec)())())())()
@@ -612,7 +587,7 @@ def run_playground_interactive(graph):
     sq_vals = []
     cur = sq_set
     while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
-        v = M.NatRepOf(M.Head(cur)(), registry)()()
+        v = M.NatRepOf(M.Head(cur)(), reg2)()()
         if v not in sq_vals:
             sq_vals.append(v)
         cur = M.Tail(cur)()
@@ -620,7 +595,7 @@ def run_playground_interactive(graph):
     odd_vals = []
     cur = odd_sum_set
     while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
-        v = M.NatRepOf(M.Head(cur)(), registry)()()
+        v = M.NatRepOf(M.Head(cur)(), reg2)()()
         if v not in odd_vals:
             odd_vals.append(v)
         cur = M.Tail(cur)()
@@ -630,8 +605,8 @@ def run_playground_interactive(graph):
 
     lines = [
         f"[machine] Cartesian Playground Sweep (domain 0..10):",
-        f"  - Unary Image Projection: f(x) = x^2 mod {mod_val} -> {sq_str}",
-        f"  - Binary Image Projection: g(x, y) = (x^2 + y^2) mod {mod_val} over odd subdomain -> {odd_str}",
+        f"  - 1-ary Image Projection: f([x]) = x^2 mod {mod_val} -> {sq_str}",
+        f"  - 2-ary Image Projection: g([x, y]) = (x^2 + y^2) mod {mod_val} over odd subdomain -> {odd_str}",
     ]
 
     if is_disjoint is M.truth_value:
@@ -639,7 +614,7 @@ def run_playground_interactive(graph):
             f"  - Disjoint Image Regularity: {sq_str} /\\ {odd_str} = empty"
         )
         lines.append(
-            f"  - Obstruction Invariant: f(z) = g(x, y) has no solution for odd x, y under mod {mod_val} projection."
+            f"  - Obstruction Invariant: f([z]) = g([x, y]) has no solution for odd x, y under mod {mod_val} projection."
         )
         lines.append(
             "  - Suggestion: Ground this discovered regularity into active context as an invariant lemma."
@@ -655,15 +630,13 @@ __all__ = (
     "SetIntersection",
     "SetUnion",
     "BuildNatRange",
-    "CartesianProduct",
-    "FilterDomain",
-    "MapUnary",
-    "MapBinary",
+    "ProductOfDomains",
+    "FilterTuples",
+    "MapDomain",
+    "UniversalQuantify",
+    "ExistentialQuantify",
     "ProjectCongruence",
-    "DetectDisjointness",
-    "DetectConstantImage",
-    "DetectBinarySymmetry",
-    "DetectIdempotence",
+    "EvaluateSetRelation",
     "RunPlaygroundCartesianSweep",
     "run_playground_interactive",
 )

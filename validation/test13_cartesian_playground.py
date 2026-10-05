@@ -1,5 +1,5 @@
 # ============================================================
-# TEST 13: Generic Cartesian Playground & Invariant Sweep Verification
+# TEST 13: Irreducible Machine-Native Cartesian Playground Verification
 # ============================================================
 import os
 import sys
@@ -18,7 +18,7 @@ from cat_theo_machine.math import arithmetic as A
 from cat_theo_machine.runtime import make_fresh_runtime
 
 t0 = time.time()
-print("=== TEST 13: Generic Cartesian Playground & Invariant Sweep ===")
+print("=== TEST 13: Irreducible Machine-Native Cartesian Playground ===")
 print()
 
 print("[1] Initializing runtime, hypergraph, and registry...")
@@ -28,104 +28,143 @@ registry = M.FromContextGetConstructors(graph)()
 print("    Runtime OK.")
 print()
 
-print("[2] Test Case 1: Generic BuildNatRange Domain Generator...")
-range_res = PG.BuildNatRange(0, 10, registry)()
-nats_chain = M.Head(range_res)()
-reg1 = M.Head(M.Tail(range_res)())()
+print("[2] Test Case 1: Machine-Native ChainLength & Peano Counting...")
+# Make a 3-element test list
+n1_res = M.NatFromRep(M.GMPRep(1), registry)()
+n1 = M.Head(n1_res)()
+reg1 = M.Head(M.Tail(n1_res)())()
 
-count = 0
-cur = nats_chain
-while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
-    count += 1
-    cur = M.Tail(cur)()
+n2_res = M.NatFromRep(M.GMPRep(2), reg1)()
+n2 = M.Head(n2_res)()
+reg2 = M.Head(M.Tail(n2_res)())()
 
-print(f"    Domain elements generated: {count} (Expected: 11)")
-assert count == 11, f"Expected 11 elements, got {count}"
+n3_res = M.NatFromRep(M.GMPRep(3), reg2)()
+n3 = M.Head(n3_res)()
+reg3 = M.Head(M.Tail(n3_res)())()
 
-print("[3] Test Case 2: Generic CartesianProduct Generator...")
-range_3_res = PG.BuildNatRange(0, 2, reg1)()
+test_chain = M.Pair(n1, M.Pair(n2, M.Pair(n3, M.EmptyList)))
+len_res = PG.ChainLength(test_chain, reg3)()
+len_node = M.Head(len_res)()
+reg4 = M.Head(M.Tail(len_res)())()
+
+len_val = M.NatRepOf(len_node, reg4)()()
+print(f"    Chain length: {len_val} (Expected: 3)")
+assert len_val == 3, f"Expected length 3, got {len_val}"
+
+print("[3] Test Case 2: Machine-Native BuildNatRange...")
+n11_res = M.NatFromRep(M.GMPRep(11), reg4)()
+n11 = M.Head(n11_res)()
+reg5 = M.Head(M.Tail(n11_res)())()
+
+range_res = PG.BuildNatRange(M.Zero, n11, reg5)()
+domain_11 = M.Head(range_res)()
+reg6 = M.Head(M.Tail(range_res)())()
+
+dom_len_res = PG.ChainLength(domain_11, reg6)()
+dom_len_node = M.Head(dom_len_res)()
+reg7 = M.Head(M.Tail(dom_len_res)())()
+dom_len_val = M.NatRepOf(dom_len_node, reg7)()()
+
+print(f"    Generated domain elements: {dom_len_val} (Expected: 11)")
+assert dom_len_val == 11, f"Expected 11 elements, got {dom_len_val}"
+
+print("[4] Test Case 3: Irreducible ProductOfDomains (k-ary Cartesian Products)...")
+range_3_res = PG.BuildNatRange(M.Zero, n3, reg7)()
 domain_3 = M.Head(range_3_res)()
-reg2 = M.Head(M.Tail(range_3_res)())()
+reg8 = M.Head(M.Tail(range_3_res)())()
 
-cart_prod = PG.CartesianProduct(domain_3, domain_3)()
-cart_count = 0
-cur = cart_prod
-while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
-    cart_count += 1
-    cur = M.Tail(cur)()
+# 2-ary product: ProductOfDomains([domain_3, domain_3])
+prod_2 = PG.ProductOfDomains(M.Pair(domain_3, M.Pair(domain_3, M.EmptyList)))()
+prod_len_res = PG.ChainLength(prod_2, reg8)()
+prod_len_node = M.Head(prod_len_res)()
+reg9 = M.Head(M.Tail(prod_len_res)())()
+prod_len_val = M.NatRepOf(prod_len_node, reg9)()()
 
-print(f"    Cartesian product 3x3 elements: {cart_count} (Expected: 9)")
-assert cart_count == 9, f"Expected 9 pairs, got {cart_count}"
+print(f"    Product 3x3 tuple count: {prod_len_val} (Expected: 9)")
+assert prod_len_val == 9, f"Expected 9 pairs, got {prod_len_val}"
 
-print("[4] Test Case 3: Generic MapUnary & ProjectCongruence...")
-n4_res = M.NatFromRep(M.GMPRep(4), reg2)()
+print("[5] Test Case 4: MapDomain with 1-ary & 2-ary Tuples...")
+n4_res = M.NatFromRep(M.GMPRep(4), reg9)()
 n4 = M.Head(n4_res)()
-reg3 = M.Head(M.Tail(n4_res)())()
+reg10 = M.Head(M.Tail(n4_res)())()
 
-map_unary_res = PG.MapUnary(
-    nats_chain, lambda x, reg: A.Multiply(x, x, reg)(), reg3
-)()
-sq_list = M.Head(map_unary_res)()
-reg4 = M.Head(M.Tail(M.Tail(map_unary_res)())())()
+# 1-ary domain: ProductOfDomains([domain_11])
+dom1 = PG.ProductOfDomains(M.Pair(domain_11, M.EmptyList))()
 
-proj_res = PG.ProjectCongruence(sq_list, n4, reg4)()
-sq_mod_set = M.Head(proj_res)()
-reg5 = M.Head(M.Tail(proj_res)())()
+def square_fn(tuple_args, reg):
+    x = M.Head(tuple_args)()
+    return A.Multiply(x, x, reg)()
+
+sq_map_res = PG.MapDomain(dom1, square_fn, reg10)()
+sq_list = M.Head(sq_map_res)()
+reg11 = M.Head(M.Tail(M.Tail(sq_map_res)())())()
+
+sq_proj_res = PG.ProjectCongruence(sq_list, n4, reg11)()
+sq_mod_set = M.Head(sq_proj_res)()
+reg12 = M.Head(M.Tail(sq_proj_res)())()
 
 sq_vals = []
 cur = sq_mod_set
 while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
-    v = M.NatRepOf(M.Head(cur)(), reg5)()()
+    v = M.NatRepOf(M.Head(cur)(), reg12)()()
     if v not in sq_vals:
         sq_vals.append(v)
     cur = M.Tail(cur)()
 
-print(f"    Squares mod 4 image set: {sorted(sq_vals)} (Expected: [0, 1])")
+print(f"    Squares mod 4 set: {sorted(sq_vals)} (Expected: [0, 1])")
 assert sorted(sq_vals) == [0, 1], f"Expected [0, 1], got {sq_vals}"
 
-print("[5] Test Case 4: Generic FilterDomain & MapBinary...")
-n2_res = M.NatFromRep(M.GMPRep(2), reg5)()
-n2 = M.Head(n2_res)()
-reg6 = M.Head(M.Tail(n2_res)())()
+print("[6] Test Case 5: FilterTuples & 2-ary Sum of Squares...")
+dom2 = PG.ProductOfDomains(M.Pair(domain_11, M.Pair(domain_11, M.EmptyList)))()
 
-n1_res = M.NatFromRep(M.GMPRep(1), reg6)()
-n1 = M.Head(n1_res)()
-reg7 = M.Head(M.Tail(n1_res)())()
+def odd_pair_pred(tuple_args, reg):
+    x = M.Head(tuple_args)()
+    y = M.Head(M.Tail(tuple_args)())()
 
-def is_odd_pred(x, reg):
-    m_res = A.Modulo(x, n2, reg)()
-    rem = M.Head(m_res)()
-    r_reg = M.Head(M.Tail(m_res)())()
-    eq = M.NatEq(rem, n1, r_reg)()
-    return M.Pair(eq, M.Pair(r_reg, M.EmptyList))
+    rx = A.Modulo(x, n2, reg)()
+    rem_x = M.Head(rx)()
+    r1 = M.Head(M.Tail(rx)())()
+    eq_x = M.NatEq(rem_x, n1, r1)()
 
-odd_domain_res = PG.FilterDomain(nats_chain, is_odd_pred, reg7)()
-odd_domain = M.Head(odd_domain_res)()
-reg8 = M.Head(M.Tail(odd_domain_res)())()
+    ry = A.Modulo(y, n2, r1)()
+    rem_y = M.Head(ry)()
+    r2 = M.Head(M.Tail(ry)())()
+    eq_y = M.NatEq(rem_y, n1, r2)()
 
-odd_cart = PG.CartesianProduct(odd_domain, odd_domain)()
+    if eq_x is M.truth_value and eq_y is M.truth_value:
+        return M.Pair(M.truth_value, M.Pair(r2, M.EmptyList))
+    return M.Pair(M.false_value, M.Pair(r2, M.EmptyList))
 
-def sum_sq_fn(x, y, reg):
+odd_tuples_res = PG.FilterTuples(dom2, odd_pair_pred, reg12)()
+odd_tuples = M.Head(odd_tuples_res)()
+reg13 = M.Head(M.Tail(odd_tuples_res)())()
+
+def sum_sq_fn(tuple_args, reg):
+    x = M.Head(tuple_args)()
+    y = M.Head(M.Tail(tuple_args)())()
+
     sx = A.Multiply(x, x, reg)()
     nx = M.Head(sx)()
     r1 = M.Head(M.Tail(sx)())()
+
     sy = A.Multiply(y, y, r1)()
     ny = M.Head(sy)()
     r2 = M.Head(M.Tail(sy)())()
+
     return A.Add(nx, ny, r2)()
 
-odd_sum_map_res = PG.MapBinary(odd_cart, sum_sq_fn, reg8)()
+odd_sum_map_res = PG.MapDomain(odd_tuples, sum_sq_fn, reg13)()
 odd_sum_list = M.Head(odd_sum_map_res)()
-reg9 = M.Head(M.Tail(M.Tail(odd_sum_map_res)())())()
+reg14 = M.Head(M.Tail(M.Tail(odd_sum_map_res)())())()
 
-odd_sum_proj_res = PG.ProjectCongruence(odd_sum_list, n4, reg9)()
+odd_sum_proj_res = PG.ProjectCongruence(odd_sum_list, n4, reg14)()
 odd_sum_mod_set = M.Head(odd_sum_proj_res)()
-reg10 = M.Head(M.Tail(odd_sum_proj_res)())()
+reg15 = M.Head(M.Tail(odd_sum_proj_res)())()
 
 odd_vals = []
 cur = odd_sum_mod_set
 while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
-    v = M.NatRepOf(M.Head(cur)(), reg10)()()
+    v = M.NatRepOf(M.Head(cur)(), reg15)()()
     if v not in odd_vals:
         odd_vals.append(v)
     cur = M.Tail(cur)()
@@ -133,41 +172,39 @@ while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
 print(f"    Odd sum of squares mod 4 set: {sorted(odd_vals)} (Expected: [2])")
 assert sorted(odd_vals) == [2], f"Expected [2], got {odd_vals}"
 
-print("[6] Test Case 5: Generic DetectDisjointness...")
-disjoint_res = PG.DetectDisjointness(sq_mod_set, odd_sum_mod_set, reg10)()
-is_disjoint = M.Head(disjoint_res)()
-reg11 = M.Head(M.Tail(M.Tail(disjoint_res)())())()
-is_empty = is_disjoint is M.truth_value
+print("[7] Test Case 6: EvaluateSetRelation Disjointness...")
+disjoint_res = PG.EvaluateSetRelation(sq_mod_set, odd_sum_mod_set, reg15)()
+is_disjoint = M.Head(disjoint_res)() is M.truth_value
+reg16 = M.Head(M.Tail(M.Tail(disjoint_res)())())()
 
-print(f"    Intersection is empty: {is_empty} (Expected: True)")
-assert is_empty, "Expected disjoint images!"
+print(f"    Disjoint images: {is_disjoint} (Expected: True)")
+assert is_disjoint, "Expected disjoint images!"
 
-print("[7] Test Case 6: Generic DetectBinarySymmetry & DetectIdempotence...")
-sym_add_res = PG.DetectBinarySymmetry(
-    domain_3, lambda x, y, r: A.Add(x, y, r)(), reg11
-)()
-sym_add = M.Head(sym_add_res)() is M.truth_value
-reg12 = M.Head(M.Tail(sym_add_res)())()
+print("[8] Test Case 7: UniversalQuantify for Commutativity...")
+def add_comm_rel(tuple_args, reg):
+    x = M.Head(tuple_args)()
+    y = M.Head(M.Tail(tuple_args)())()
 
-sym_mul_res = PG.DetectBinarySymmetry(
-    domain_3, lambda x, y, r: A.Multiply(x, y, r)(), reg12
-)()
-sym_mul = M.Head(sym_mul_res)() is M.truth_value
-reg13 = M.Head(M.Tail(sym_mul_res)())()
+    r_xy = A.Add(x, y, reg)()
+    v_xy = M.Head(r_xy)()
+    r1 = M.Head(M.Tail(r_xy)())()
 
-idem_gcd_res = PG.DetectIdempotence(
-    odd_domain, lambda x, y, r: A.Gcd(x, y, r)(), reg13
-)()
-idem_gcd = M.Head(idem_gcd_res)() is M.truth_value
-reg14 = M.Head(M.Tail(idem_gcd_res)())()
+    r_yx = A.Add(y, x, r1)()
+    v_yx = M.Head(r_yx)()
+    r2 = M.Head(M.Tail(r_yx)())()
 
-print(f"    Addition Symmetry: {sym_add} (Expected: True)")
-print(f"    Multiplication Symmetry: {sym_mul} (Expected: True)")
-print(f"    Gcd Idempotence: {idem_gcd} (Expected: True)")
-assert sym_add and sym_mul and idem_gcd, "Expected symmetries and idempotence to hold!"
+    eq = M.NatEq(v_xy, v_yx, r2)()
+    return M.Pair(eq, M.Pair(r2, M.EmptyList))
 
-print("[8] Test Case 7: Generic RunPlaygroundCartesianSweep Pipeline...")
-sweep_res = PG.RunPlaygroundCartesianSweep(0, 10, 4, registry)()
+quant_res = PG.UniversalQuantify(prod_2, add_comm_rel, reg16)()
+is_comm = M.Head(quant_res)() is M.truth_value
+reg17 = M.Head(M.Tail(quant_res)())()
+
+print(f"    Addition Commutativity Universal Invariant: {is_comm} (Expected: True)")
+assert is_comm, "Expected addition commutativity to hold universally!"
+
+print("[9] Test Case 8: RunPlaygroundCartesianSweep Pipeline...")
+sweep_res = PG.RunPlaygroundCartesianSweep(n11, n4, registry)()
 inv_rec = M.Head(sweep_res)()
 rec_tag = M.Head(inv_rec)()
 is_rec_ok = (
@@ -176,12 +213,12 @@ is_rec_ok = (
 print(f"    Invariant record label: {rec_tag} (Passed: {is_rec_ok})")
 assert is_rec_ok, "Expected DiscoveredInvariantLabel record!"
 
-print("[9] Test Case 8: Interactive Proposal Output...")
+print("[10] Test Case 9: Interactive Proposal Output...")
 output_str = PG.run_playground_interactive(graph)
 print(f"    Proposal Output generated:\n{output_str}")
 assert "Disjoint Image Regularity" in output_str, "Expected disjoint image regularity in output!"
 
 print()
 print(
-    f"=== ALL TEST 13 GENERIC CARTESIAN PLAYGROUND CHECKS PASSED in {time.time() - t0:.3f}s ==="
+    f"=== ALL TEST 13 IRREDUCIBLE CARTESIAN PLAYGROUND CHECKS PASSED in {time.time() - t0:.3f}s ==="
 )
