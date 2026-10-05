@@ -1,5 +1,8 @@
-from __future__ import annotations
-
+# ============================================================
+# CL4 — Candidate Macro Expander & Independent Evaluator
+# Unrolls untrusted macro candidate definitions into primitive
+# derivation steps and evaluates them with Checker B.
+# ============================================================
 from . import checker_b as CheckerB
 from . import labels as L
 from . import machine as M
@@ -8,16 +11,20 @@ from . import proof as P
 
 class CandidateMacro(M.Edge):
     """
-    An untrusted candidate macro / derivation schema.
-
-    Shape: Pair(CandidateMacroLabel, Pair(candidate_id, Pair(start_pattern, Pair(goal_pattern, Pair(plan, EmptyList)))))
+    Structured envelope for an untrusted candidate derivation macro.
+    inputs: [macro_id, start_pattern, goal_pattern, plan]
+    results: Pair(CandidateMacroLabel, Pair(macro_id, Pair(start_pattern, Pair(goal_pattern, Pair(plan, EmptyList)))))
     """
 
-    def __init__(self, candidate_id, start_pattern, goal_pattern, plan):
+    def __init__(self, macro_id, start_pattern, goal_pattern, plan):
+        self.macro_id = macro_id
+        self.start_pattern = start_pattern
+        self.goal_pattern = goal_pattern
+        self.plan = plan
         self.result = M.Pair(
             L.CandidateMacroLabel,
             M.Pair(
-                candidate_id,
+                macro_id,
                 M.Pair(
                     start_pattern,
                     M.Pair(
@@ -29,10 +36,13 @@ class CandidateMacro(M.Edge):
         )
         super().__init__(
             inputs=M.Pair(
-                candidate_id,
+                macro_id,
                 M.Pair(
                     start_pattern,
-                    M.Pair(goal_pattern, M.Pair(plan, M.EmptyList)),
+                    M.Pair(
+                        goal_pattern,
+                        M.Pair(plan, M.EmptyList),
+                    ),
                 ),
             ),
             results=self.result,
@@ -44,8 +54,7 @@ class CandidateMacro(M.Edge):
 
 class CandidateMacroID(M.Edge):
     def __init__(self, macro):
-        fields = M.Tail(macro)()
-        self.result = M.Head(fields)()
+        self.result = M.Head(M.Tail(macro)())()
         super().__init__(inputs=M.Pair(macro, M.EmptyList), results=self.result)
 
     def __call__(self):
@@ -54,8 +63,7 @@ class CandidateMacroID(M.Edge):
 
 class CandidateMacroStartPattern(M.Edge):
     def __init__(self, macro):
-        fields = M.Tail(macro)()
-        self.result = M.Head(M.Tail(fields)())()
+        self.result = M.Head(M.Tail(M.Tail(macro)())())()
         super().__init__(inputs=M.Pair(macro, M.EmptyList), results=self.result)
 
     def __call__(self):
@@ -64,8 +72,7 @@ class CandidateMacroStartPattern(M.Edge):
 
 class CandidateMacroGoalPattern(M.Edge):
     def __init__(self, macro):
-        fields = M.Tail(macro)()
-        self.result = M.Head(M.Tail(M.Tail(fields)())())()
+        self.result = M.Head(M.Tail(M.Tail(M.Tail(macro)())())())()
         super().__init__(inputs=M.Pair(macro, M.EmptyList), results=self.result)
 
     def __call__(self):
@@ -74,8 +81,9 @@ class CandidateMacroGoalPattern(M.Edge):
 
 class CandidateMacroPlan(M.Edge):
     def __init__(self, macro):
-        fields = M.Tail(macro)()
-        self.result = M.Head(M.Tail(M.Tail(M.Tail(fields)())())())()
+        self.result = M.Head(
+            M.Tail(M.Tail(M.Tail(M.Tail(macro)())())())()
+        )()
         super().__init__(inputs=M.Pair(macro, M.EmptyList), results=self.result)
 
     def __call__(self):
@@ -143,8 +151,8 @@ class ExpandCandidateMacro(M.Edge):
 
 class EvaluateCandidateProof(M.Edge):
     """
-    Evaluates an untrusted candidate macro on a problem instance by expanding it
-    into primitive steps and submitting the derivation to independent Checker B.
+    Full validation pipeline: Expands candidate macro on instance, checks
+    validity with independent Checker B, and returns a verified ProofReceipt.
     """
 
     def __init__(
@@ -172,34 +180,50 @@ class EvaluateCandidateProof(M.Edge):
         )
 
     def _evaluate(self, macro, instance_start, instance_goal, trusted_rules):
-        expanded = ExpandCandidateMacro(
+        exp_res = ExpandCandidateMacro(
             macro, instance_start, instance_goal, self.registry
         )()
-        tag = M.Head(expanded)()
+        exp_tag = M.Head(exp_res)()
 
-        if M.IdentityCompare(tag, L.CandidateExpandedLabel)() is M.false_value:
-            return expanded  # Expansion or matching failed
+        if M.IdentityCompare(exp_tag, L.CandidateExpandedLabel)() is M.false_value:
+            return exp_res
 
-        derivation = M.Head(M.Tail(expanded)())()
-        new_registry = M.Head(M.Tail(M.Tail(expanded)())())()
+        derivation = M.Head(M.Tail(exp_res)())()
+        new_reg = M.Head(M.Tail(M.Tail(exp_res)())())()
 
-        # Submit expanded derivation to Checker B
-        check_verdict = CheckerB.VerifyDerivation(
-            derivation,
-            instance_start,
-            instance_goal,
-            trusted_rules,
-            new_registry,
+        verify_res = CheckerB.VerifyDerivation(
+            derivation, instance_start, instance_goal, trusted_rules, new_reg
         )()
-        check_tag = M.Head(check_verdict)()
+        verify_tag = M.Head(verify_res)()
 
-        if M.IdentityCompare(check_tag, L.DerivationVerifiedLabel)() is M.truth_value:
-            return M.Pair(
-                L.CandidateEvaluatedLabel,
-                M.Pair(derivation, M.Pair(new_registry, M.EmptyList)),
-            )
+        if (
+            M.IdentityCompare(verify_tag, L.DerivationVerifiedLabel)()
+            is M.false_value
+        ):
+            return verify_res
 
-        return check_verdict  # Bubble up checker rejection reason
+        session_id = CandidateMacroID(macro)()
+        receipt = M.Pair(
+            L.ProofReceiptLabel,
+            M.Pair(
+                session_id,
+                M.Pair(
+                    instance_start,
+                    M.Pair(
+                        instance_goal,
+                        M.Pair(
+                            derivation,
+                            M.Pair(trusted_rules, M.EmptyList),
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        return M.Pair(
+            L.CandidateEvaluatedLabel,
+            M.Pair(receipt, M.Pair(new_reg, M.EmptyList)),
+        )
 
     def __call__(self):
         return self.result
@@ -245,7 +269,6 @@ class AblationTrial(M.Edge):
         if M.IdentityCompare(eval_tag, L.CandidateEvaluatedLabel)() is M.false_value:
             return eval_res
 
-        # Ablation baseline check: start must not equal goal trivially
         is_trivially_closed = M.Compare(instance_start, instance_goal)()
         if is_trivially_closed is M.truth_value:
             ablation_status = L.FailedLabel
@@ -290,65 +313,89 @@ class EvaluateHoldoutSuite(M.Edge):
             results=self.result,
         )
 
-    def _evaluate_suite(self, macro, holdouts, trusted_rules):
-        cur = holdouts
-        passed_list = M.EmptyList
-        failed_list = M.EmptyList
-        reg = self.registry
+    def _eval_suite_rec(
+        self, cur, macro, trusted_rules, reg, passed_list, failed_list
+    ):
+        if M.IdentityCompare(cur, M.EmptyList)() is M.truth_value:
+            return M.Pair(
+                L.HoldoutSuiteResultLabel,
+                M.Pair(
+                    passed_list,
+                    M.Pair(failed_list, M.EmptyList),
+                ),
+            )
 
-        while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
-            item = M.Head(cur)()
-            inst_start = M.Head(item)()
-            inst_goal = M.Head(M.Tail(item)())()
-            expected = M.Head(M.Tail(M.Tail(item)())())()
+        item = M.Head(cur)()
+        inst_start = M.Head(item)()
+        inst_goal = M.Head(M.Tail(item)())()
+        expected = M.Head(M.Tail(M.Tail(item)())())()
 
-            eval_res = EvaluateCandidateProof(
-                macro, inst_start, inst_goal, trusted_rules, reg
-            )()
-            eval_tag = M.Head(eval_res)()
-            is_passed = M.IdentityCompare(
-                eval_tag, L.CandidateEvaluatedLabel
-            )()
-            is_expected_truth = M.IdentityCompare(expected, M.truth_value)()
+        eval_res = EvaluateCandidateProof(
+            macro, inst_start, inst_goal, trusted_rules, reg
+        )()
+        eval_tag = M.Head(eval_res)()
+        is_passed = M.IdentityCompare(
+            eval_tag, L.CandidateEvaluatedLabel
+        )()
+        is_expected_truth = M.IdentityCompare(expected, M.truth_value)()
 
-            if is_expected_truth is M.truth_value:
-                if is_passed is M.truth_value:
-                    passed_list = M.Pair(item, passed_list)
-                    reg = M.Head(M.Tail(M.Tail(eval_res)())())()
-                else:
-                    failed_list = M.Pair(item, failed_list)
-            else:
-                # Negative near-miss control: must be rejected
-                if is_passed is M.false_value:
-                    passed_list = M.Pair(item, passed_list)
-                else:
-                    failed_list = M.Pair(item, failed_list)
-
-            cur = M.Tail(cur)()
-
-        return M.Pair(
-            L.HoldoutSuiteResultLabel,
-            M.Pair(
+        if is_expected_truth is M.truth_value:
+            if is_passed is M.truth_value:
+                next_passed = M.Pair(item, passed_list)
+                next_reg = M.Head(M.Tail(M.Tail(eval_res)())())()
+                return self._eval_suite_rec(
+                    M.Tail(cur)(),
+                    macro,
+                    trusted_rules,
+                    next_reg,
+                    next_passed,
+                    failed_list,
+                )
+            next_failed = M.Pair(item, failed_list)
+            return self._eval_suite_rec(
+                M.Tail(cur)(),
+                macro,
+                trusted_rules,
+                reg,
                 passed_list,
-                M.Pair(failed_list, M.EmptyList),
-            ),
+                next_failed,
+            )
+
+        if is_passed is M.false_value:
+            next_passed = M.Pair(item, passed_list)
+            return self._eval_suite_rec(
+                M.Tail(cur)(),
+                macro,
+                trusted_rules,
+                reg,
+                next_passed,
+                failed_list,
+            )
+        next_failed = M.Pair(item, failed_list)
+        return self._eval_suite_rec(
+            M.Tail(cur)(),
+            macro,
+            trusted_rules,
+            reg,
+            passed_list,
+            next_failed,
+        )
+
+    def _evaluate_suite(self, macro, holdouts, trusted_rules):
+        return self._eval_suite_rec(
+            holdouts,
+            macro,
+            trusted_rules,
+            self.registry,
+            M.EmptyList,
+            M.EmptyList,
         )
 
     def __call__(self):
         return self.result
 
 
-def sync_from_namespace(namespace):
-    for name in (
-        "EmptyList",
-        "truth_value",
-        "false_value",
-    ):
-        if name in namespace:
-            globals()[name] = namespace[name]
-
-
-__all__ = [
+__all__ = (
     "CandidateMacro",
     "CandidateMacroID",
     "CandidateMacroStartPattern",
@@ -358,4 +405,4 @@ __all__ = [
     "EvaluateCandidateProof",
     "AblationTrial",
     "EvaluateHoldoutSuite",
-]
+)

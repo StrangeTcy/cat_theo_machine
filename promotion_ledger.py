@@ -264,6 +264,19 @@ class QueryActivePromotions(M.Edge):
             results=self.result,
         )
 
+    def _query_rec(self, cur):
+        if M.IdentityCompare(cur, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+
+        entry = M.Head(cur)()
+        status = LedgerEntryStatus(entry)()
+        is_active = M.IdentityCompare(status, L.PromotionActiveLabel)()
+
+        if is_active is M.truth_value:
+            return M.Pair(entry, self._query_rec(M.Tail(cur)()))
+
+        return self._query_rec(M.Tail(cur)())
+
     def _query(self, ledger, promotion_class):
         is_schema = (
             M.IdentityCompare(promotion_class, L.ProofSchemaPromotionLabel)()
@@ -273,26 +286,7 @@ class QueryActivePromotions(M.Edge):
         else:
             entries = PromotionLedgerSearchPolicies(ledger)()
 
-        acc = M.EmptyList
-        cur = entries
-        while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
-            entry = M.Head(cur)()
-            status = LedgerEntryStatus(entry)()
-            is_active = (
-                M.IdentityCompare(status, L.PromotionActiveLabel)()
-            )
-            if is_active is M.truth_value:
-                acc = M.Pair(entry, acc)
-            cur = M.Tail(cur)()
-
-        # Reverse to maintain original chronological order
-        rev = M.EmptyList
-        cur_acc = acc
-        while M.IdentityCompare(cur_acc, M.EmptyList)() is M.false_value:
-            rev = M.Pair(M.Head(cur_acc)(), rev)
-            cur_acc = M.Tail(cur_acc)()
-
-        return rev
+        return self._query_rec(entries)
 
     def __call__(self):
         return self.result
@@ -380,7 +374,6 @@ class SubmitCandidateForPromotion(M.Edge):
         provenance,
         rules,
     ):
-        # --- Gate 1: Checker B Evaluation on Concrete Instance ---
         eval_res = Eval.EvaluateCandidateProof(
             candidate, start_instance, goal_instance, rules, self.registry
         )()
@@ -389,7 +382,6 @@ class SubmitCandidateForPromotion(M.Edge):
             M.IdentityCompare(eval_tag, L.CandidateEvaluatedLabel)()
             is M.false_value
         ):
-            # Proof failed Checker B verification!
             return M.Pair(
                 L.PromotionRejectedLabel,
                 M.Pair(eval_tag, M.Tail(eval_res)()),
@@ -397,7 +389,6 @@ class SubmitCandidateForPromotion(M.Edge):
 
         proof_receipt = M.Head(M.Tail(eval_res)())()
 
-        # --- Gate 2: Ablation Performance & Non-Regression Gate ---
         ablation_res = Eval.AblationTrial(
             candidate, start_instance, goal_instance, rules, self.registry
         )()
@@ -421,7 +412,6 @@ class SubmitCandidateForPromotion(M.Edge):
                 M.Pair(L.AblationRegressionLabel, M.Tail(ablation_res)()),
             )
 
-        # --- Gate 3: Withheld Holdout Suite Generalization Gate ---
         holdout_res = Eval.EvaluateHoldoutSuite(
             candidate, holdout_suite, rules, self.registry
         )()
@@ -435,7 +425,6 @@ class SubmitCandidateForPromotion(M.Edge):
                 M.Pair(L.HoldoutRegressionLabel, M.Tail(holdout_res)()),
             )
 
-        # Check that holdout failed_list is empty
         passed_list = M.Head(M.Tail(holdout_res)())()
         failed_list = M.Head(M.Tail(M.Tail(holdout_res)())())()
         if M.IdentityCompare(failed_list, M.EmptyList)() is M.false_value:
@@ -447,8 +436,6 @@ class SubmitCandidateForPromotion(M.Edge):
                 ),
             )
 
-        # --- Gate 4: Invariant Certificate Universal Preservation Check ---
-        # If provenance is a Pair where head is InvariantCertificateLabel, verify preservation
         has_provenance = M.IdentityCompare(provenance, M.EmptyList)()
         if has_provenance is M.false_value:
             prov_tag = M.Head(provenance)()
@@ -474,7 +461,6 @@ class SubmitCandidateForPromotion(M.Edge):
                         ),
                     )
 
-        # --- Gate 5: Atomic Ledger Commit & Version Increment ---
         current_version = PromotionLedgerVersion(ledger)()
         succ_res = M.Succ(current_version, self.registry)()
         next_version = M.Head(succ_res)()
@@ -544,45 +530,56 @@ class RollbackPromotion(M.Edge):
             results=self.result,
         )
 
-    def _rollback_entries(self, entries, target_entry_id, next_version, reason):
-        acc = M.EmptyList
-        found = M.false_value
-        revoked_entry = M.EmptyList
+    def _rollback_entries_rec(
+        self, cur, target_entry_id, next_version, reason
+    ):
+        if M.IdentityCompare(cur, M.EmptyList)() is M.truth_value:
+            return M.Pair(
+                M.false_value,
+                M.Pair(M.EmptyList, M.Pair(M.EmptyList, M.EmptyList)),
+            )
 
-        cur = entries
-        while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
-            entry = M.Head(cur)()
-            eid = LedgerEntryId(entry)()
-            is_match = M.IdentityCompare(eid, target_entry_id)()
+        entry = M.Head(cur)()
+        eid = LedgerEntryId(entry)()
+        is_match = M.IdentityCompare(eid, target_entry_id)()
 
-            if is_match is M.truth_value:
-                found = M.truth_value
-                eclass = LedgerEntryClass(entry)()
-                ecand = LedgerEntryCandidate(entry)()
-                ereceipt = LedgerEntryReceipt(entry)()
-                eprov = M.Pair(reason, LedgerEntryProvenance(entry)())
-                revoked_entry = LedgerEntry(
-                    eid,
-                    eclass,
-                    ecand,
-                    ereceipt,
-                    eprov,
-                    next_version,
-                    L.PromotionRevokedLabel,
-                )()
-                acc = M.Pair(revoked_entry, acc)
-            else:
-                acc = M.Pair(entry, acc)
-            cur = M.Tail(cur)()
+        if is_match is M.truth_value:
+            eclass = LedgerEntryClass(entry)()
+            ecand = LedgerEntryCandidate(entry)()
+            ereceipt = LedgerEntryReceipt(entry)()
+            eprov = M.Pair(reason, LedgerEntryProvenance(entry)())
+            revoked_entry = LedgerEntry(
+                eid,
+                eclass,
+                ecand,
+                ereceipt,
+                eprov,
+                next_version,
+                L.PromotionRevokedLabel,
+            )()
+            rest_entries = M.Tail(cur)()
+            return M.Pair(
+                M.truth_value,
+                M.Pair(
+                    M.Pair(revoked_entry, rest_entries),
+                    M.Pair(revoked_entry, M.EmptyList),
+                ),
+            )
 
-        # Reverse back to forward order
-        rev = M.EmptyList
-        cur_acc = acc
-        while M.IdentityCompare(cur_acc, M.EmptyList)() is M.false_value:
-            rev = M.Pair(M.Head(cur_acc)(), rev)
-            cur_acc = M.Tail(cur_acc)()
+        sub_res = self._rollback_entries_rec(
+            M.Tail(cur)(), target_entry_id, next_version, reason
+        )
+        found = M.Head(sub_res)()
+        sub_list = M.Head(M.Tail(sub_res)())()
+        rev_item = M.Head(M.Tail(M.Tail(sub_res)())())()
 
-        return M.Pair(found, M.Pair(rev, M.Pair(revoked_entry, M.EmptyList)))
+        return M.Pair(
+            found,
+            M.Pair(
+                M.Pair(entry, sub_list),
+                M.Pair(rev_item, M.EmptyList),
+            ),
+        )
 
     def _rollback(self, ledger, target_entry_id, revocation_reason):
         current_version = PromotionLedgerVersion(ledger)()
@@ -592,7 +589,7 @@ class RollbackPromotion(M.Edge):
         cur_schemata = PromotionLedgerProofSchemata(ledger)()
         cur_policies = PromotionLedgerSearchPolicies(ledger)()
 
-        res_s = self._rollback_entries(
+        res_s = self._rollback_entries_rec(
             cur_schemata, target_entry_id, next_version, revocation_reason
         )
         found_s = M.Head(res_s)()
@@ -611,7 +608,7 @@ class RollbackPromotion(M.Edge):
                 ),
             )
 
-        res_p = self._rollback_entries(
+        res_p = self._rollback_entries_rec(
             cur_policies, target_entry_id, next_version, revocation_reason
         )
         found_p = M.Head(res_p)()
@@ -630,7 +627,6 @@ class RollbackPromotion(M.Edge):
                 ),
             )
 
-        # Target entry not found in either branch
         return M.Pair(M.false_value, M.EmptyList)
 
     def __call__(self):
@@ -727,7 +723,6 @@ class ExecuteAutonomousDiscoveryCycle(M.Edge):
         promotion_class,
         ledger,
     ):
-        # Step 1: Mine invariant (if templates provided) or synthesize Candidate Macro directly
         has_templates = M.IdentityCompare(candidate_templates, M.EmptyList)()
         if has_templates is M.false_value:
             macro_mining_res = Miner.MineInvariantToCandidateMacro(
@@ -759,7 +754,6 @@ class ExecuteAutonomousDiscoveryCycle(M.Edge):
             )()
             provenance = M.EmptyList
 
-        # Step 2: Submit to promotion state machine
         submit_res = SubmitCandidateForPromotion(
             ledger,
             candidate_macro,
@@ -780,7 +774,6 @@ class ExecuteAutonomousDiscoveryCycle(M.Edge):
         ):
             return submit_res
 
-        # Step 3: Success! Wrap and return AutonomousCycleCompletedLabel
         new_ledger = M.Head(M.Tail(submit_res)())()
         promoted_entry = M.Head(M.Tail(M.Tail(submit_res)())())()
 
@@ -796,19 +789,7 @@ class ExecuteAutonomousDiscoveryCycle(M.Edge):
         return self.result
 
 
-def sync_from_namespace(namespace):
-    for name in (
-        "EmptyList",
-        "truth_value",
-        "false_value",
-        "Zero",
-        "Succ",
-    ):
-        if name in namespace:
-            globals()[name] = namespace[name]
-
-
-__all__ = [
+__all__ = (
     "LedgerEntry",
     "LedgerEntryId",
     "LedgerEntryClass",
@@ -826,4 +807,4 @@ __all__ = [
     "SubmitCandidateForPromotion",
     "RollbackPromotion",
     "ExecuteAutonomousDiscoveryCycle",
-]
+)

@@ -489,6 +489,12 @@ class MutateWithNoise(M.Edge):
             results=self.result,
         )
 
+    def _prepend_distractors_rec(self, cur_d, facts):
+        if M.IdentityCompare(cur_d, M.EmptyList)() is M.truth_value:
+            return facts
+        d = M.Head(cur_d)()
+        return M.Pair(d, self._prepend_distractors_rec(M.Tail(cur_d)(), facts))
+
     def _mutate(self, task, distractors):
         task_id = GT.TaskRecordId(task)()
         rung = GT.TaskRecordRung(task)()
@@ -498,19 +504,10 @@ class MutateWithNoise(M.Edge):
         rules = GT.TaskRecordRules(task)()
         prov = GT.TaskRecordProvenance(task)()
 
-        # Add duplicate of head fact
         head_fact = M.Head(facts)()
         with_dup = M.Pair(head_fact, facts)
+        noisy_facts = self._prepend_distractors_rec(distractors, with_dup)
 
-        # Prepend distractors
-        noisy_facts = with_dup
-        cur_d = distractors
-        while M.IdentityCompare(cur_d, M.EmptyList)() is M.false_value:
-            d = M.Head(cur_d)()
-            noisy_facts = M.Pair(d, noisy_facts)
-            cur_d = M.Tail(cur_d)()
-
-        # Return mutated task record
         return GT.GraphTaskRecord(
             task_id,
             rung,
@@ -533,7 +530,7 @@ class EvaluateCurriculumSuite(M.Edge):
 
     def __init__(self, task_list, registry):
         self.registry = registry
-        self.result = self._evaluate(task_list)
+        self.result = self._evaluate_rec(task_list, M.EmptyList, M.EmptyList)
         super().__init__(
             inputs=M.Pair(
                 task_list,
@@ -542,49 +539,32 @@ class EvaluateCurriculumSuite(M.Edge):
             results=self.result,
         )
 
-    def _evaluate(self, tasks):
-        passed_acc = M.EmptyList
-        failed_acc = M.EmptyList
+    def _evaluate_rec(self, cur, passed_acc, failed_acc):
+        if M.IdentityCompare(cur, M.EmptyList)() is M.truth_value:
+            return M.Pair(
+                L.CurriculumSuiteResultLabel,
+                M.Pair(
+                    passed_acc,
+                    M.Pair(failed_acc, M.EmptyList),
+                ),
+            )
 
-        cur = tasks
-        while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
-            task = M.Head(cur)()
-            exec_res = GT.ExecuteGraphQuery(task, self.registry)()
-            verdict = M.Head(exec_res)()
+        task = M.Head(cur)()
+        exec_res = GT.ExecuteGraphQuery(task, self.registry)()
+        verdict = M.Head(exec_res)()
 
-            if (
-                M.IdentityCompare(verdict, L.TaskSuccessLabel)()
-                is M.truth_value
-            ):
-                passed_acc = M.Pair(task, passed_acc)
-            else:
-                failed_acc = M.Pair(task, failed_acc)
+        if M.IdentityCompare(verdict, L.TaskSuccessLabel)() is M.truth_value:
+            next_passed = M.Pair(task, passed_acc)
+            return self._evaluate_rec(M.Tail(cur)(), next_passed, failed_acc)
 
-            cur = M.Tail(cur)()
-
-        return M.Pair(
-            L.CurriculumSuiteResultLabel,
-            M.Pair(
-                passed_acc,
-                M.Pair(failed_acc, M.EmptyList),
-            ),
-        )
+        next_failed = M.Pair(task, failed_acc)
+        return self._evaluate_rec(M.Tail(cur)(), passed_acc, next_failed)
 
     def __call__(self):
         return self.result
 
 
-def sync_from_namespace(namespace):
-    for name in (
-        "EmptyList",
-        "truth_value",
-        "false_value",
-    ):
-        if name in namespace:
-            globals()[name] = namespace[name]
-
-
-__all__ = [
+__all__ = (
     "BuildRung1RetrievalTask",
     "BuildRung2JoinTask",
     "BuildRung3ConstraintTask",
@@ -594,4 +574,4 @@ __all__ = [
     "BuildRung7PlannerTask",
     "MutateWithNoise",
     "EvaluateCurriculumSuite",
-]
+)

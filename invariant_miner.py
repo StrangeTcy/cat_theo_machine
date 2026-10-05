@@ -1,5 +1,9 @@
-from __future__ import annotations
-
+# ============================================================
+# G4 / CL2B — Invariant Trace Miner & Unreachability Prover
+# Mines structural invariants from execution traces and domain rules,
+# packages discoveries into untrusted CandidateMacro envelopes, and
+# constructs unreachability proofs under strict machine constraints.
+# ============================================================
 from . import evaluator as Eval
 from . import invariance as Inv
 from . import labels as L
@@ -9,25 +13,30 @@ from . import proof as P
 
 class InvariantCertificate(M.Edge):
     """
-    A certificate asserting that an invariant predicate Phi is preserved
-    across a ruleset, with trace provenance.
-
-    Shape: Pair(InvariantCertificateLabel, Pair(phi, Pair(rules, Pair(trace_provenance, EmptyList))))
+    Machine-native certificate representing a verified invariant property.
+    inputs: [phi, rules, trace]
+    results: Pair(InvariantCertificateLabel, Pair(phi, Pair(rules, Pair(trace, EmptyList))))
     """
 
-    def __init__(self, phi, rules, provenance):
+    def __init__(self, phi, rules, trace):
+        self.phi = phi
+        self.rules = rules
+        self.trace = trace
         self.result = M.Pair(
             L.InvariantCertificateLabel,
             M.Pair(
                 phi,
                 M.Pair(
                     rules,
-                    M.Pair(provenance, M.EmptyList),
+                    M.Pair(trace, M.EmptyList),
                 ),
             ),
         )
         super().__init__(
-            inputs=M.Pair(phi, M.Pair(rules, M.Pair(provenance, M.EmptyList))),
+            inputs=M.Pair(
+                phi,
+                M.Pair(rules, M.Pair(trace, M.EmptyList)),
+            ),
             results=self.result,
         )
 
@@ -37,8 +46,7 @@ class InvariantCertificate(M.Edge):
 
 class InvariantCertificatePhi(M.Edge):
     def __init__(self, cert):
-        fields = M.Tail(cert)()
-        self.result = M.Head(fields)()
+        self.result = M.Head(M.Tail(cert)())()
         super().__init__(inputs=M.Pair(cert, M.EmptyList), results=self.result)
 
     def __call__(self):
@@ -47,8 +55,7 @@ class InvariantCertificatePhi(M.Edge):
 
 class InvariantCertificateRules(M.Edge):
     def __init__(self, cert):
-        fields = M.Tail(cert)()
-        self.result = M.Head(M.Tail(fields)())()
+        self.result = M.Head(M.Tail(M.Tail(cert)())())()
         super().__init__(inputs=M.Pair(cert, M.EmptyList), results=self.result)
 
     def __call__(self):
@@ -57,8 +64,9 @@ class InvariantCertificateRules(M.Edge):
 
 class InvariantCertificateProvenance(M.Edge):
     def __init__(self, cert):
-        fields = M.Tail(cert)()
-        self.result = M.Head(M.Tail(M.Tail(fields)())())()
+        self.result = M.Head(
+            M.Tail(M.Tail(M.Tail(cert)())())()
+        )()
         super().__init__(inputs=M.Pair(cert, M.EmptyList), results=self.result)
 
     def __call__(self):
@@ -72,7 +80,7 @@ class CheckInvariantPreservationAcrossRules(M.Edge):
 
     def __init__(self, phi, rules, registry):
         self.registry = registry
-        self.result = self._check_all(phi, rules)
+        self.result = self._check_all_rec(phi, rules)
         super().__init__(
             inputs=M.Pair(
                 phi,
@@ -81,19 +89,19 @@ class CheckInvariantPreservationAcrossRules(M.Edge):
             results=self.result,
         )
 
-    def _check_all(self, phi, rules):
-        cur = rules
-        while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
-            rule = M.Head(cur)()
-            pres_res = Inv.Preserves(rule, phi, self.registry)()
-            if Inv.IsPreserves(pres_res)() is M.false_value:
-                # Refuted by this rule
-                return M.Pair(
-                    M.false_value,
-                    M.Pair(rule, M.Pair(pres_res, M.EmptyList)),
-                )
-            cur = M.Tail(cur)()
-        return M.Pair(M.truth_value, M.EmptyList)
+    def _check_all_rec(self, phi, cur):
+        if M.IdentityCompare(cur, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.truth_value, M.EmptyList)
+
+        rule = M.Head(cur)()
+        pres_res = Inv.Preserves(rule, phi, self.registry)()
+        if Inv.IsPreserves(pres_res)() is M.false_value:
+            return M.Pair(
+                M.false_value,
+                M.Pair(rule, M.Pair(pres_res, M.EmptyList)),
+            )
+
+        return self._check_all_rec(phi, M.Tail(cur)())
 
     def __call__(self):
         return self.result
@@ -116,22 +124,17 @@ class ExtractTraceStates(M.Edge):
             results=self.result,
         )
 
+    def _extract_steps_rec(self, cur_steps):
+        if M.IdentityCompare(cur_steps, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        step = M.Head(cur_steps)()
+        next_state = P.StepNext(step, self.registry)()
+        return M.Pair(next_state, self._extract_steps_rec(M.Tail(cur_steps)()))
+
     def _extract(self, trace, start):
         steps = P.DerivationSteps(trace, self.registry)()
-        acc = M.Pair(start, M.EmptyList)
-        cur = steps
-        while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
-            step = M.Head(cur)()
-            next_state = P.StepNext(step, self.registry)()
-            acc = M.Pair(next_state, acc)
-            cur = M.Tail(cur)()
-        # Reverse acc to maintain forward chronological order
-        rev = M.EmptyList
-        cur_acc = acc
-        while M.IdentityCompare(cur_acc, M.EmptyList)() is M.false_value:
-            rev = M.Pair(M.Head(cur_acc)(), rev)
-            cur_acc = M.Tail(cur_acc)()
-        return rev
+        rest_states = self._extract_steps_rec(steps)
+        return M.Pair(start, rest_states)
 
     def __call__(self):
         return self.result
@@ -145,7 +148,7 @@ class MineInvariantFromTrace(M.Edge):
 
     def __init__(self, trace, start, rules, candidate_templates, registry):
         self.registry = registry
-        self.result = self._mine(trace, start, rules, candidate_templates)
+        self.result = self._mine_rec(candidate_templates, trace, start, rules)
         super().__init__(
             inputs=M.Pair(
                 trace,
@@ -163,23 +166,21 @@ class MineInvariantFromTrace(M.Edge):
             results=self.result,
         )
 
-    def _mine(self, trace, start, rules, candidate_templates):
-        cur = candidate_templates
-        while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
-            phi = M.Head(cur)()
-            pres_check = CheckInvariantPreservationAcrossRules(
-                phi, rules, self.registry
-            )()
-            is_preserved = M.Head(pres_check)()
+    def _mine_rec(self, cur_templates, trace, start, rules):
+        if M.IdentityCompare(cur_templates, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.false_value, M.EmptyList)
 
-            if M.IdentityCompare(is_preserved, M.truth_value)() is M.truth_value:
-                # Invariant holds across all rules!
-                cert = InvariantCertificate(phi, rules, trace)()
-                return M.Pair(M.truth_value, M.Pair(cert, M.EmptyList))
+        phi = M.Head(cur_templates)()
+        pres_check = CheckInvariantPreservationAcrossRules(
+            phi, rules, self.registry
+        )()
+        is_preserved = M.Head(pres_check)()
 
-            cur = M.Tail(cur)()
+        if M.IdentityCompare(is_preserved, M.truth_value)() is M.truth_value:
+            cert = InvariantCertificate(phi, rules, trace)()
+            return M.Pair(M.truth_value, M.Pair(cert, M.EmptyList))
 
-        return M.Pair(M.false_value, M.EmptyList)
+        return self._mine_rec(M.Tail(cur_templates)(), trace, start, rules)
 
     def __call__(self):
         return self.result
@@ -320,7 +321,6 @@ class UnreachabilityProverByInvariant(M.Edge):
         is_preserved = M.Head(pres_check)()
 
         if M.IdentityCompare(is_preserved, M.truth_value)() is M.false_value:
-            # Invariant does not hold across all rules
             return M.Pair(L.InvariantRefutedLabel, M.Tail(pres_check)())
 
         start_facts = EnsureFactList(start)()
@@ -329,7 +329,6 @@ class UnreachabilityProverByInvariant(M.Edge):
         phi_target = Inv.PhiReading(target_facts, phi)()
 
         if M.Compare(phi_start, phi_target)() is M.false_value:
-            # Different invariant values -> Unreachable!
             return M.Pair(
                 L.UnreachableLabel,
                 M.Pair(
@@ -353,17 +352,7 @@ class UnreachabilityProverByInvariant(M.Edge):
         return self.result
 
 
-def sync_from_namespace(namespace):
-    for name in (
-        "EmptyList",
-        "truth_value",
-        "false_value",
-    ):
-        if name in namespace:
-            globals()[name] = namespace[name]
-
-
-__all__ = [
+__all__ = (
     "InvariantCertificate",
     "InvariantCertificatePhi",
     "InvariantCertificateRules",
@@ -372,5 +361,6 @@ __all__ = [
     "ExtractTraceStates",
     "MineInvariantFromTrace",
     "MineInvariantToCandidateMacro",
+    "EnsureFactList",
     "UnreachabilityProverByInvariant",
-]
+)
