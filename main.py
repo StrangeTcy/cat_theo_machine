@@ -1372,22 +1372,44 @@ def run_live_mode(debug: bool = False):
         elif cmd.startswith("fact:") or cmd.startswith("rule:") or cmd.startswith("word:"):
             print(f"[machine] Ingested declarative knowledge into hypergraph context: {raw}")
         elif cmd == "suggest lemmas":
-            print("[machine] Candidate lemmas that might bridge the search gap:")
-            print("  - Lemma (Symmetric Difference / AM-GM): x^4 + y^4 >= x^3*y + x*y^3 via (x-y)^2 * (x^2 + x*y + y^2) >= 0")
-            print("  - Lemma (Cauchy-Schwarz): (sum a_i * b_i)^2 <= (sum a_i^2) * (sum b_i^2)")
-            print("  - Lemma (Heron Metric): 16*A^2 = (a+b+c)(a+b-c)(a-b+c)(-a+b+c)")
-            print("  - Lemma (Parity Invariant): (a - b) mod 2 == (a + b) mod 2")
+            ledger = getattr(runtime.graph, "promotion_ledger", None)
+            candidates = []
+            if ledger is not None:
+                policies = PL.LedgerSearchPolicies(ledger)()
+                cur = policies
+                while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
+                    entry = M.Head(cur)()
+                    cand = PL.LedgerEntryCandidate(entry)()
+                    candidates.append(cand)
+                    cur = M.Tail(cur)()
+            if candidates:
+                print(f"[machine] Candidate lemmas in shadow ledger ({len(candidates)}):")
+                for i, c in enumerate(candidates, 1):
+                    print(f"  - Candidate {i}: {c}")
+            else:
+                print("[machine] No candidate lemmas currently in shadow ledger.")
         elif cmd == "suggest premises":
-            print("[machine] Abduction: missing premise candidates needed to close goal:")
-            print("  - Premise: NonNegative(x), NonNegative(y)")
-            print("  - Premise: IsReal(x), IsReal(y)")
-            print("  - Premise: TriangleInequality(a, b, c)")
+            print("[machine] Abduction: no open search goals currently require missing premise synthesis.")
         elif cmd == "show lemmas":
-            print("[machine] Active verified lemmas in promotion ledger:")
-            print("  - Lemma 1: Heron metric polynomial decomposition [verified by Checker B]")
-            print("  - Lemma 2: Blackboard sum parity congruence modulo 2 [verified by Checker B]")
-            print("  - Lemma 3: Cauchy sequence contraction mapping [verified by Checker B]")
-            print("  - Lemma 4: AM-GM 2-variable symmetric difference [verified by Checker B]")
+            ledger = getattr(runtime.graph, "promotion_ledger", None)
+            if ledger is not None:
+                schemata = PL.LedgerProofSchemata(ledger)()
+                entries = []
+                cur = schemata
+                while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
+                    entry = M.Head(cur)()
+                    cand = PL.LedgerEntryCandidate(entry)()
+                    st = PL.LedgerEntryStatus(entry)()
+                    entries.append((cand, st))
+                    cur = M.Tail(cur)()
+                if entries:
+                    print(f"[machine] Active verified lemmas in promotion ledger ({len(entries)}):")
+                    for i, (cand, st) in enumerate(entries, 1):
+                        print(f"  - Lemma {i}: {cand} [status: {st}]")
+                else:
+                    print("[machine] Active verified lemmas in promotion ledger: (none yet; run autonomous promotion)")
+            else:
+                print("[machine] Active verified lemmas in promotion ledger: (none yet; run autonomous promotion)")
         else:
             arith_val = _eval_arithmetic_expr(raw)
             if arith_val is not None:
@@ -1410,21 +1432,15 @@ def run_live_mode(debug: bool = False):
             if M.IdentityCompare(tag, Lmod.SurfaceParseSuccessLabel)() is M.truth_value:
                 task_rec = M.Head(M.Tail(parse_res)())()
                 task_rung = GT.TaskRecordRung(task_rec)()
-                if M.IdentityCompare(task_rung, Lmod.TaoProblem11TriangleLabel)() is M.truth_value:
-                    print("[machine] Tao Problem 1.1 metric structure: proved in 0.42 seconds (a=6, b=8, c=10, area=24).")
-                elif M.IdentityCompare(task_rung, Lmod.ParityLabel)() is M.truth_value:
-                    print("[machine] Engel E2 blackboard parity: proved in 0.12 seconds (final number is odd, parity invariant preserved).")
-                elif M.IdentityCompare(task_rung, Lmod.UnreachableLabel)() is M.truth_value:
-                    print("[machine] Engel coins: proved in 0.15 seconds (target state unreachable by invariant certificate).")
-                elif M.IdentityCompare(task_rung, Lmod.IsRealLabel)() is M.truth_value:
-                    print("[machine] Square roots are real: proved in 0.31 seconds (limit exists in R).")
+                t0 = time.time()
+                exec_res = GT.ExecuteGraphQuery(task_rec, reg)()
+                dt = time.time() - t0
+                exec_tag = M.Head(exec_res)()
+                if M.IdentityCompare(exec_tag, Lmod.TaskSuccessLabel)() is M.truth_value:
+                    binding = GT.TaskResultBinding(exec_res)()
+                    print(f"[machine] Task ({task_rung}) proved in {dt:.4f} seconds (binding: {binding}).")
                 else:
-                    exec_res = GT.ExecuteGraphQuery(task_rec, reg)()
-                    exec_tag = M.Head(exec_res)()
-                    if M.IdentityCompare(exec_tag, Lmod.TaskSuccessLabel)() is M.truth_value:
-                        print(f"[machine] Proved: '{raw}' (derivation verified by Checker B).")
-                    else:
-                        print("[machine] no, I can't prove that")
+                    print("[machine] no, I can't prove that")
             else:
                 print("[machine] no, I can't prove that")
 

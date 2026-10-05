@@ -1324,6 +1324,11 @@ class SnapshotCodec:
         )
         self.namespace["AllConstructors"] = graph.constructor_registry
 
+        # Restore extended roots if present in snapshot state
+        for attr in ("planner_state", "graph_tasks", "promotion_ledger", "invariant_catalog"):
+            if attr in state.roots:
+                setattr(graph, attr, state.roots[attr])
+
         graph.refresh_context()
 
         # If we had to rebuild legacy roots, persist an upgraded snapshot so
