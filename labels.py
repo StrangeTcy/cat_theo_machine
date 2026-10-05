@@ -1345,6 +1345,38 @@ class CurriculumSuiteResultLabel(ConstructorLabel):
 
 class RobustnessPassedLabel(ConstructorLabel):
     pass
+
+
+class SurfaceTokenLabel(ConstructorLabel):
+    pass
+
+
+class SurfaceStatementLabel(ConstructorLabel):
+    pass
+
+
+class SurfaceParseSuccessLabel(ConstructorLabel):
+    pass
+
+
+class SurfaceParseFailureLabel(ConstructorLabel):
+    pass
+
+
+class SurfaceRenderSuccessLabel(ConstructorLabel):
+    pass
+
+
+class SurfaceAmbiguityLabel(ConstructorLabel):
+    pass
+
+
+class SurfaceGrammarRuleLabel(ConstructorLabel):
+    pass
+
+
+class SurfaceCorrespondenceLabel(ConstructorLabel):
+    pass
 TreeLabel = TreeLabel()
 ZeroLabel = ZeroLabel()
 SuccLabel = SuccLabel()
@@ -1483,6 +1515,14 @@ Rung6NegativeLabel = Rung6NegativeLabel()
 Rung7PlannerLabel = Rung7PlannerLabel()
 CurriculumSuiteResultLabel = CurriculumSuiteResultLabel()
 RobustnessPassedLabel = RobustnessPassedLabel()
+SurfaceTokenLabel = SurfaceTokenLabel()
+SurfaceStatementLabel = SurfaceStatementLabel()
+SurfaceParseSuccessLabel = SurfaceParseSuccessLabel()
+SurfaceParseFailureLabel = SurfaceParseFailureLabel()
+SurfaceRenderSuccessLabel = SurfaceRenderSuccessLabel()
+SurfaceAmbiguityLabel = SurfaceAmbiguityLabel()
+SurfaceGrammarRuleLabel = SurfaceGrammarRuleLabel()
+SurfaceCorrespondenceLabel = SurfaceCorrespondenceLabel()
 LimitLabel = LimitLabel()
 IsCauchyLabel = IsCauchyLabel()
 RealNumLabel = RealNumLabel()
@@ -2019,6 +2059,14 @@ def sync_from_namespace(namespace):
         "Rung7PlannerLabel",
         "CurriculumSuiteResultLabel",
         "RobustnessPassedLabel",
+        "SurfaceTokenLabel",
+        "SurfaceStatementLabel",
+        "SurfaceParseSuccessLabel",
+        "SurfaceParseFailureLabel",
+        "SurfaceRenderSuccessLabel",
+        "SurfaceAmbiguityLabel",
+        "SurfaceGrammarRuleLabel",
+        "SurfaceCorrespondenceLabel",
     ):
         if name in namespace:
             globals()[name] = namespace[name]
