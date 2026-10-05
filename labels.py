@@ -1415,6 +1415,22 @@ class DisjointImageLabel(ConstructorLabel):
     pass
 
 
+class ConstantImageInvariantLabel(ConstructorLabel):
+    pass
+
+
+class SymmetricOperationInvariantLabel(ConstructorLabel):
+    pass
+
+
+class IdempotentOperationInvariantLabel(ConstructorLabel):
+    pass
+
+
+class IdentityElementInvariantLabel(ConstructorLabel):
+    pass
+
+
 class ParityMod4InvariantLabel(ConstructorLabel):
     pass
 TreeLabel = TreeLabel()
@@ -1769,6 +1785,10 @@ PlaygroundSweepLabel = PlaygroundSweepLabel()
 ObservedRegularityLabel = ObservedRegularityLabel()
 DiscoveredInvariantLabel = DiscoveredInvariantLabel()
 DisjointImageLabel = DisjointImageLabel()
+ConstantImageInvariantLabel = ConstantImageInvariantLabel()
+SymmetricOperationInvariantLabel = SymmetricOperationInvariantLabel()
+IdempotentOperationInvariantLabel = IdempotentOperationInvariantLabel()
+IdentityElementInvariantLabel = IdentityElementInvariantLabel()
 ParityMod4InvariantLabel = ParityMod4InvariantLabel()
 
 
@@ -2126,6 +2146,10 @@ def sync_from_namespace(namespace):
         "ObservedRegularityLabel",
         "DiscoveredInvariantLabel",
         "DisjointImageLabel",
+        "ConstantImageInvariantLabel",
+        "SymmetricOperationInvariantLabel",
+        "IdempotentOperationInvariantLabel",
+        "IdentityElementInvariantLabel",
         "ParityMod4InvariantLabel",
     ):
         if name in namespace:
