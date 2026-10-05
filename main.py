@@ -41,6 +41,7 @@ else:
     from . import graph_task as GT
     from . import checker_b as CB
     from . import promotion_ledger as PL
+    from .packs import PackLoader
     from .testsuite import install_default_tests
 
 
@@ -1320,6 +1321,17 @@ def run_live_mode(debug: bool = False):
             return int(cleaned)
         return None
 
+    def _get_pack(pack_name):
+        nonlocal packs
+        if packs is not None:
+            try:
+                return packs.by_name(pack_name)
+            except Exception:
+                pass
+        loader = PackLoader(runtime_namespace)
+        path = os.path.join(PACK_DIR, f"{pack_name}.pack.yaml")
+        return loader.load_pack_file(path, runtime.graph)
+
     std_correspondences = SB.BuildStandardCorrespondences(M.FromContextGetConstructors(runtime.graph)())()
 
     while True:
@@ -1339,6 +1351,26 @@ def run_live_mode(debug: bool = False):
             test_files = sorted(os.listdir(os.path.join(PACKAGE_DIR, "validation")))
             passed_count = sum(1 for tf in test_files if tf.startswith("test") and tf.endswith(".py"))
             print(f"[machine] Self-diagnostics: {passed_count}/{passed_count} validation suites passed. System healthy.")
+        elif cmd in ("solve the tao triangle problem", "solve tao", "solve tao problem 1.1"):
+            p = _get_pack("geometry")
+            start, goal = p.examples["tao_problem_1_1_triangle"]
+            _run_theorem_agenda(runtime, [("Tao Problem 1.1 metric structure", start, goal, None, None)], "Tao Problem 1.1 metric structure")
+        elif cmd in ("solve engel e1", "solve e1"):
+            p = _get_pack("engel-means")
+            start, goal = p.examples["engel_e1"]
+            _run_theorem_agenda(runtime, [("Engel E1", start, goal, p.rule_chain, p.phi)], "Engel E1 arithmetic mean invariant")
+        elif cmd in ("solve engel e2", "solve e2"):
+            p = _get_pack("engel-blackboard")
+            start, goal = p.examples["engel_e2_final_number_is_odd"]
+            _run_theorem_agenda(runtime, [("Engel E2", start, goal, p.rule_chain, p.phi)], "Engel E2 blackboard parity")
+        elif cmd in ("solve the coin problem", "solve coins"):
+            p = _get_pack("engel-coins")
+            start, goal = p.examples["engel_hhhhh_to_hhttt"]
+            _run_theorem_agenda(runtime, [("Engel coin problem", start, goal, p.rule_chain, p.phi)], "Engel coin problem")
+        elif cmd in ("prove square roots are real", "prove sqrt real"):
+            p = _get_pack("sqrt-real")
+            start, goal = p.examples["sqrt2_real"]
+            _run_theorem_agenda(runtime, [("Square roots are real", start, goal, None, None)], "Square roots are real")
         elif cmd.startswith("fact:") or cmd.startswith("rule:") or cmd.startswith("word:"):
             print(f"[machine] Ingested declarative knowledge into hypergraph context: {raw}")
         elif cmd == "suggest lemmas":
