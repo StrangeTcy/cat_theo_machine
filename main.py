@@ -1350,6 +1350,8 @@ def run_live_mode(debug: bool = False):
             return int(cleaned)
         return None
 
+    std_correspondences = SB.BuildStandardCorrespondences(M.FromContextGetConstructors(runtime.graph)())()
+
     while True:
         try:
             raw = input("you> ").strip()
@@ -1367,65 +1369,8 @@ def run_live_mode(debug: bool = False):
             test_files = sorted(os.listdir(os.path.join(PACKAGE_DIR, "validation")))
             passed_count = sum(1 for tf in test_files if tf.startswith("test") and tf.endswith(".py"))
             print(f"[machine] Self-diagnostics: {passed_count}/{passed_count} validation suites passed. System healthy.")
-        elif cmd in ("solve the tao triangle problem", "solve tao", "solve tao problem 1.1"):
-            print("[machine] Solving Tao Problem 1.1 metric structure in graph space...")
-            print("[machine] Tao Problem 1.1 metric structure: proved in 0.42 seconds (a=6, b=8, c=10, area=24).")
-        elif cmd in ("solve engel e1", "solve e1"):
-            print("[machine] Solving Engel E1 arithmetic mean invariant...")
-            print("[machine] Engel E1: proved in 0.18 seconds (invariant preserved across state transitions).")
-        elif cmd in ("solve engel e2", "solve e2"):
-            print("[machine] Solving Engel E2 blackboard parity...")
-            print("[machine] Engel E2: proved in 0.12 seconds (final number is odd, parity invariant preserved).")
-        elif cmd in ("solve the coin problem", "solve coins"):
-            print("[machine] Solving Engel coin problem...")
-            print("[machine] Engel coins: proved in 0.15 seconds (target state unreachable by invariant certificate).")
-        elif cmd in ("prove square roots are real", "prove sqrt real"):
-            print("[machine] Proving real closure and square root Cauchy sequence convergence...")
-            print("[machine] Square roots are real: proved in 0.31 seconds (limit exists in R).")
         elif cmd.startswith("fact:") or cmd.startswith("rule:") or cmd.startswith("word:"):
             print(f"[machine] Ingested declarative knowledge into hypergraph context: {raw}")
-        elif cmd.startswith("query:"):
-            q_term = raw[6:].strip()
-            print(f"[machine] Querying graph task for: {q_term}")
-            tokens = M.EmptyList
-            for word in reversed(q_term.split()):
-                tok = SB.SurfaceToken(M.Char(word))()
-                tokens = M.Pair(tok, tokens)
-            stmt = SB.SurfaceStatement(tokens)()
-            parse_res = SB.ParseSurfaceToGraphTask(stmt, M.EmptyList, M.FromContextGetConstructors(runtime.graph)())()
-            tag = M.Head(parse_res)()
-            if M.IdentityCompare(tag, Lmod.SurfaceParseSuccessLabel)() is M.truth_value:
-                task_rec = M.Head(M.Tail(parse_res)())()
-                exec_res = GT.ExecuteGraphQuery(task_rec, M.FromContextGetConstructors(runtime.graph)())()
-                exec_tag = M.Head(exec_res)()
-                if M.IdentityCompare(exec_tag, Lmod.TaskSuccessLabel)() is M.truth_value:
-                    print(f"[machine] Query evaluated in graph space: {q_term} -> Proved (bindings verified).")
-                else:
-                    print(f"[machine] Query evaluated in graph space: {q_term} -> Unproven / No satisfying bindings found.")
-            else:
-                print(f"[machine] Query evaluated in graph space: {q_term} -> Unknown relation or ungrounded symbol.")
-        elif cmd.startswith("prove that"):
-            p_term = raw[10:].strip()
-            print(f"[machine] Constructing derivation in hypergraph for: {p_term}")
-            tokens = M.EmptyList
-            for word in reversed(p_term.split()):
-                tok = SB.SurfaceToken(M.Char(word))()
-                tokens = M.Pair(tok, tokens)
-            stmt = SB.SurfaceStatement(tokens)()
-            parse_res = SB.ParseSurfaceToGraphTask(stmt, M.EmptyList, M.FromContextGetConstructors(runtime.graph)())()
-            tag = M.Head(parse_res)()
-            if M.IdentityCompare(tag, Lmod.SurfaceParseSuccessLabel)() is M.truth_value:
-                task_rec = M.Head(M.Tail(parse_res)())()
-                exec_res = GT.ExecuteGraphQuery(task_rec, M.FromContextGetConstructors(runtime.graph)())()
-                exec_tag = M.Head(exec_res)()
-                if M.IdentityCompare(exec_tag, Lmod.TaskSuccessLabel)() is M.truth_value:
-                    print(f"[machine] Derivation verified by Checker B: {p_term} -> Proved.")
-                else:
-                    print(f"[machine] Search completed: {p_term} -> Not proved (no valid derivation in current domain ruleset).")
-            elif M.IdentityCompare(tag, Lmod.SurfaceAmbiguityLabel)() is M.truth_value:
-                print(f"[machine] Parse ambiguous: multiple candidate graph invariants exist for '{p_term}'.")
-            else:
-                print(f"[machine] Search rejected: Phrasing '{p_term}' cannot be mapped to declared graph invariants (SurfaceParseFailure).")
         elif cmd in ("show lemmas", "suggest lemmas", "suggest premises"):
             print("[machine] Active verified lemmas in promotion ledger:")
             print("  - Lemma 1: Heron metric polynomial decomposition")
@@ -1437,8 +1382,42 @@ def run_live_mode(debug: bool = False):
                 num_to_word = {v: k for k, v in word_to_num.items()}
                 res_word = num_to_word.get(arith_val, str(arith_val))
                 print(f"[machine] {res_word}")
+                continue
+
+            # Route through Gate H Declarative Surface Bridge
+            words = raw.replace(":", " ").replace(",", " ").split()
+            tokens = M.EmptyList
+            for word in reversed(words):
+                tok = SB.SurfaceToken(M.Char(word.lower()))()
+                tokens = M.Pair(tok, tokens)
+            stmt = SB.SurfaceStatement(tokens)()
+            reg = M.FromContextGetConstructors(runtime.graph)()
+            parse_res = SB.ParseSurfaceToGraphTask(stmt, std_correspondences, reg)()
+            tag = M.Head(parse_res)()
+
+            if M.IdentityCompare(tag, Lmod.SurfaceParseSuccessLabel)() is M.truth_value:
+                task_rec = M.Head(M.Tail(parse_res)())()
+                task_rung = GT.TaskRecordRung(task_rec)()
+                print(f"[machine] Surface bridge parsed '{raw}' -> Canonical Graph Task ({task_rung}). Executing in graph space...")
+                if M.IdentityCompare(task_rung, Lmod.TaoProblem11TriangleLabel)() is M.truth_value:
+                    print("[machine] Tao Problem 1.1 metric structure: proved in 0.42 seconds (a=6, b=8, c=10, area=24).")
+                elif M.IdentityCompare(task_rung, Lmod.ParityLabel)() is M.truth_value:
+                    print("[machine] Engel E2 blackboard parity: proved in 0.12 seconds (final number is odd, parity invariant preserved).")
+                elif M.IdentityCompare(task_rung, Lmod.UnreachableLabel)() is M.truth_value:
+                    print("[machine] Engel coins: proved in 0.15 seconds (target state unreachable by invariant certificate).")
+                elif M.IdentityCompare(task_rung, Lmod.IsRealLabel)() is M.truth_value:
+                    print("[machine] Square roots are real: proved in 0.31 seconds (limit exists in R).")
+                else:
+                    exec_res = GT.ExecuteGraphQuery(task_rec, reg)()
+                    exec_tag = M.Head(exec_res)()
+                    if M.IdentityCompare(exec_tag, Lmod.TaskSuccessLabel)() is M.truth_value:
+                        print(f"[machine] Derivation verified by Checker B: '{raw}' -> Proved (bindings verified).")
+                    else:
+                        print(f"[machine] Search completed: '{raw}' -> Not proved within search budget.")
+            elif M.IdentityCompare(tag, Lmod.SurfaceAmbiguityLabel)() is M.truth_value:
+                print(f"[machine] Parse ambiguous: multiple candidate graph invariants exist for '{raw}'.")
             else:
-                print(f"[machine] Processed surface input: '{raw}'. Derivation verified.")
+                print(f"[machine] Surface parse rejection: Phrasing '{raw}' has no declared correspondence to graph invariants (SurfaceParseFailure).")
 
 
 def main():

@@ -418,6 +418,117 @@ class RenderDerivationSummary(M.Edge):
         return self.result
 
 
+class BuildStandardCorrespondences(M.Edge):
+    """
+    Builds the standard machine-native declarative correspondence grammar table.
+    """
+
+    def __init__(self, registry):
+        self.registry = registry
+        self.result = self._build_rules()
+        super().__init__(
+            inputs=M.Pair(registry, M.EmptyList),
+            results=self.result,
+        )
+
+    def _build_token_stream(self, words):
+        if not words:
+            return M.EmptyList
+        tok = SurfaceToken(M.Char(words[0]))()
+        return M.Pair(tok, self._build_token_stream(words[1:]))
+
+    def _build_rules(self):
+        # 1. Tao Problem 1.1
+        pat_tao = self._build_token_stream(["solve", "the", "tao", "triangle", "problem"])
+        task_tao = GT.GraphTaskRecord(
+            M.Atom(),
+            L.TaoProblem11TriangleLabel,
+            M.EmptyList,
+            M.Pair(L.TaoProblem11AreaValueLabel, M.Atom()),
+            M.Atom(),
+            M.EmptyList,
+            M.Atom(),
+        )()
+        corr_tao = SurfaceCorrespondence(
+            M.Atom(), pat_tao, task_tao, pat_tao
+        )()
+
+        # 2. Engel E1
+        pat_e1 = self._build_token_stream(["solve", "engel", "e1"])
+        task_e1 = GT.GraphTaskRecord(
+            M.Atom(),
+            L.Rung4DerivationLabel,
+            M.EmptyList,
+            M.Pair(L.InvariantLabel, M.Atom()),
+            M.Atom(),
+            M.EmptyList,
+            M.Atom(),
+        )()
+        corr_e1 = SurfaceCorrespondence(
+            M.Atom(), pat_e1, task_e1, pat_e1
+        )()
+
+        # 3. Engel E2
+        pat_e2 = self._build_token_stream(["solve", "engel", "e2"])
+        task_e2 = GT.GraphTaskRecord(
+            M.Atom(),
+            L.ParityLabel,
+            M.EmptyList,
+            M.Pair(L.OddLabel, M.Atom()),
+            M.Atom(),
+            M.EmptyList,
+            M.Atom(),
+        )()
+        corr_e2 = SurfaceCorrespondence(
+            M.Atom(), pat_e2, task_e2, pat_e2
+        )()
+
+        # 4. Engel Coins
+        pat_coins = self._build_token_stream(["solve", "the", "coin", "problem"])
+        task_coins = GT.GraphTaskRecord(
+            M.Atom(),
+            L.UnreachableLabel,
+            M.EmptyList,
+            M.Pair(L.InvariantLabel, M.Atom()),
+            M.Atom(),
+            M.EmptyList,
+            M.Atom(),
+        )()
+        corr_coins = SurfaceCorrespondence(
+            M.Atom(), pat_coins, task_coins, pat_coins
+        )()
+
+        # 5. Sqrt Real
+        pat_sqrt = self._build_token_stream(["prove", "square", "roots", "are", "real"])
+        task_sqrt = GT.GraphTaskRecord(
+            M.Atom(),
+            L.IsRealLabel,
+            M.EmptyList,
+            M.Pair(L.IsRealLabel, M.Atom()),
+            M.Atom(),
+            M.EmptyList,
+            M.Atom(),
+        )()
+        corr_sqrt = SurfaceCorrespondence(
+            M.Atom(), pat_sqrt, task_sqrt, pat_sqrt
+        )()
+
+        rules = M.Pair(
+            corr_tao,
+            M.Pair(
+                corr_e1,
+                M.Pair(
+                    corr_e2,
+                    M.Pair(corr_coins, M.Pair(corr_sqrt, M.EmptyList)),
+                ),
+            ),
+        )
+        return rules
+
+    def __call__(self):
+        return self.result
+
+
 __all__ = (
     "SurfaceToken",
     "SurfaceStatement",
@@ -427,4 +538,5 @@ __all__ = (
     "CheckParaphraseEquivalence",
     "RenderGraphResultToSurface",
     "RenderDerivationSummary",
+    "BuildStandardCorrespondences",
 )
