@@ -1397,6 +1397,26 @@ class ModLabel(ConstructorLabel):
 
 class CoprimeLabel(ConstructorLabel):
     pass
+
+
+class PlaygroundSweepLabel(ConstructorLabel):
+    pass
+
+
+class ObservedRegularityLabel(ConstructorLabel):
+    pass
+
+
+class DiscoveredInvariantLabel(ConstructorLabel):
+    pass
+
+
+class DisjointImageLabel(ConstructorLabel):
+    pass
+
+
+class ParityMod4InvariantLabel(ConstructorLabel):
+    pass
 TreeLabel = TreeLabel()
 ZeroLabel = ZeroLabel()
 SuccLabel = SuccLabel()
@@ -1745,6 +1765,11 @@ DivisibleLabel = DivisibleLabel()
 GcdLabel = GcdLabel()
 ModLabel = ModLabel()
 CoprimeLabel = CoprimeLabel()
+PlaygroundSweepLabel = PlaygroundSweepLabel()
+ObservedRegularityLabel = ObservedRegularityLabel()
+DiscoveredInvariantLabel = DiscoveredInvariantLabel()
+DisjointImageLabel = DisjointImageLabel()
+ParityMod4InvariantLabel = ParityMod4InvariantLabel()
 
 
 def sync_from_namespace(namespace):
@@ -2097,6 +2122,11 @@ def sync_from_namespace(namespace):
         "GcdLabel",
         "ModLabel",
         "CoprimeLabel",
+        "PlaygroundSweepLabel",
+        "ObservedRegularityLabel",
+        "DiscoveredInvariantLabel",
+        "DisjointImageLabel",
+        "ParityMod4InvariantLabel",
     ):
         if name in namespace:
             globals()[name] = namespace[name]

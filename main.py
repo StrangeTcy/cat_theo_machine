@@ -41,6 +41,7 @@ else:
     from . import graph_task as GT
     from . import checker_b as CB
     from . import promotion_ledger as PL
+    from . import playground as PG
     from .packs import PackLoader
     from .testsuite import install_default_tests
 
@@ -1374,7 +1375,7 @@ def run_live_mode(debug: bool = False):
         elif cmd.startswith("fact:") or cmd.startswith("rule:") or cmd.startswith("word:"):
             print(f"[machine] Ingested declarative knowledge into hypergraph context: {raw}")
         elif cmd == "suggest lemmas":
-            print("[machine] Running internal introspection and invariant discovery over hypergraph traces...")
+            print("[machine] Running internal introspection and Cartesian playground sweep...")
             ledger = getattr(runtime.graph, "promotion_ledger", None)
             candidates = []
             if ledger is not None:
@@ -1390,7 +1391,7 @@ def run_live_mode(debug: bool = False):
                 for i, c in enumerate(candidates, 1):
                     print(f"  - Candidate {i}: {c}")
             else:
-                print("[machine] Introspection complete: no candidate lemmas mined from current trace history (provide more derivation steps or sub-cases to mine recurring invariants).")
+                print(PG.run_playground_interactive(runtime.graph))
         elif cmd == "suggest premises":
             print("[machine] Abduction: no open search goals currently require missing premise synthesis.")
         elif cmd == "show lemmas":
