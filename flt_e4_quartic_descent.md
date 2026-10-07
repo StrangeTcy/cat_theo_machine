@@ -79,12 +79,13 @@ The named lemmas are not taken on faith. `test15` instantiates them and hands ev
 to the machine's own arithmetic:
 
 * `(m - n)(m + n) = m^2 - n^2`, `a^2 + b^2 = c^2` for the parametrized `a, b, c`, and
-  `IsCoprime(m - n, m + n)` by machine GCD — ten coprime opposite-parity pairs,
+  `IsCoprime(m - n, m + n)` by machine GCD — on `(m, n) = (2, 1), (3, 2), (6, 1)`,
 * `r^2 + s^2 = 2(p^4 + q^4)`, `r^2 = s^2 + 4p^2q^2`, and `NatLess(p^4 + q^4, u^4 + 4p^4q^4)`
-  — eight pairs,
-* `u < u^2` for `u` in 2..6, which is what turns a decrease in the square into a decrease in
-  the witness,
-* squares mod 4 in `{0, 1}` and odd fourth powers `= 1 mod 16` over a range of residues.
+  — on `(p, q) = (2, 1), (3, 2), (7, 2)`,
+* `u < u^2` for `u = 2, 3, 4`, which is what turns a decrease in the square into a decrease
+  in the witness,
+* squares mod 4 in `{0, 1}` for `x = 0, 1, 2, 3` and odd fourth powers `= 1 mod 16` for
+  `x = 1, 3, 5, 7`.
 
 The two things that are *not* computed are exactly the two that cannot be: the
 well-foundedness of `NatLess` (cited as `NoInfiniteDescent`, the same way the Engel E2 pack
@@ -94,8 +95,10 @@ machine checked as above).
 
 ## Purity and negative controls
 
-The descent start state names no numeral at all — six facts, all labels and names, which the
-suite verifies by walking every subterm and rejecting any `Nat`. There is no solution
+The descent start state names no numeral at all — six facts, all labels and names. The suite
+checks every argument slot of those six facts against `IsNat` and pins each argument chain
+length, so nothing in the start state can hide a numeral; the goal and the one-argument
+`NoSolution` shape are checked the same way. There is no solution
 constant and no board to enumerate. Two negative controls guard the conclusions:
 
 * drop `MinimalSolution(z)` and the descent produces no plan,
@@ -111,9 +114,9 @@ five steps in about four seconds, which is the route `test15` exercises.
 
 ## Repairs made along the way
 
-None of `labels.py` needed changing, but `flt-quartic` needed fifteen new labels
+`core.py` needed no change, but `labels.py` gained fifteen labels
 (`QuarticSolutionLabel`, `MinimalSolutionLabel`, `PythagoreanTripleLabel`,
 `PrimitiveTripleLabel`, `ParametrizesLabel`, the seven seed labels, `DescentStepLabel`,
-`NoSolutionLabel`, `NoInfiniteDescentLabel`), all registered in the `labels.py` sync list so
+`NoSolutionLabel`, `NoInfiniteDescentLabel`), all registered in `sync_from_namespace` so
 surface and story code can see them. `ParityMod4InvariantLabel` and `DisjointImageLabel`
 were already present, added by W3, and this pack is their first consumer.
