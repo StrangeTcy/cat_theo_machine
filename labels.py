@@ -1419,6 +1419,38 @@ class ObservedRegularityLabel(ConstructorLabel):
     pass
 
 
+class ProofStoryLabel(ConstructorLabel):
+    pass
+
+
+class NarrativeStepLabel(ConstructorLabel):
+    pass
+
+
+class RationaleAlgebraicLabel(ConstructorLabel):
+    pass
+
+
+class RationaleParityObstructionLabel(ConstructorLabel):
+    pass
+
+
+class RationaleAuxiliaryConstructionLabel(ConstructorLabel):
+    pass
+
+
+class RationaleMonovariantLabel(ConstructorLabel):
+    pass
+
+
+class RationaleDescentLabel(ConstructorLabel):
+    pass
+
+
+class RationaleQEDLabel(ConstructorLabel):
+    pass
+
+
 class DiscoveredInvariantLabel(ConstructorLabel):
     pass
 
@@ -1591,7 +1623,24 @@ SurfaceRenderSuccessLabel = SurfaceRenderSuccessLabel()
 SurfaceAmbiguityLabel = SurfaceAmbiguityLabel()
 SurfaceGrammarRuleLabel = SurfaceGrammarRuleLabel()
 SurfaceCorrespondenceLabel = SurfaceCorrespondenceLabel()
-LimitLabel = LimitLabel()
+SurfaceDefinitionLabel = SurfaceDefinitionLabel()
+ConceptQueryLabel = ConceptQueryLabel()
+DefinitionNotFoundLabel = DefinitionNotFoundLabel()
+DividesLabel = DividesLabel()
+DivisibleLabel = DivisibleLabel()
+GcdLabel = GcdLabel()
+ModLabel = ModLabel()
+CoprimeLabel = CoprimeLabel()
+PlaygroundSweepLabel = PlaygroundSweepLabel()
+ObservedRegularityLabel = ObservedRegularityLabel()
+ProofStoryLabel = ProofStoryLabel()
+NarrativeStepLabel = NarrativeStepLabel()
+RationaleAlgebraicLabel = RationaleAlgebraicLabel()
+RationaleParityObstructionLabel = RationaleParityObstructionLabel()
+RationaleAuxiliaryConstructionLabel = RationaleAuxiliaryConstructionLabel()
+RationaleMonovariantLabel = RationaleMonovariantLabel()
+RationaleDescentLabel = RationaleDescentLabel()
+RationaleQEDLabel = RationaleQEDLabel()
 IsCauchyLabel = IsCauchyLabel()
 RealNumLabel = RealNumLabel()
 IsRealLabel = IsRealLabel()
@@ -2162,6 +2211,14 @@ def sync_from_namespace(namespace):
         "CoprimeLabel",
         "PlaygroundSweepLabel",
         "ObservedRegularityLabel",
+        "ProofStoryLabel",
+        "NarrativeStepLabel",
+        "RationaleAlgebraicLabel",
+        "RationaleParityObstructionLabel",
+        "RationaleAuxiliaryConstructionLabel",
+        "RationaleMonovariantLabel",
+        "RationaleDescentLabel",
+        "RationaleQEDLabel",
         "DiscoveredInvariantLabel",
         "DisjointImageLabel",
         "ConstantImageInvariantLabel",

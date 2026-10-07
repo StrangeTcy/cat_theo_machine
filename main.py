@@ -1351,7 +1351,7 @@ def run_live_mode(debug: bool = False):
 
         cmd = raw.lower()
         if cmd == "run self-diagnostics":
-            print("[machine] Running self-diagnostics over 13 validation suites...")
+            print("[machine] Running self-diagnostics over 14 validation suites...")
             test_files = sorted(os.listdir(os.path.join(PACKAGE_DIR, "validation")))
             passed_count = sum(1 for tf in test_files if tf.startswith("test") and tf.endswith(".py"))
             print(f"[machine] Self-diagnostics: {passed_count}/{passed_count} validation suites passed. System healthy.")

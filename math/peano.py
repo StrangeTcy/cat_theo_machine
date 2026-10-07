@@ -112,9 +112,11 @@ class NatFromRep(Edge, G.GMPHostMath):
                 found.value = G.GMPRep(value)
                 return Pair(found, Pair(self.registry, EmptyList))
 
-        # For small values (<= 16), build the nat chain from Zero directly
-        # so fundamental integers are properly registered in the tree.
-        if value <= 16:
+        # When NatValueIndex is missing/empty, scanning the entire constructor
+        # registry to "discover" an existing nat node is extremely expensive.
+        # For small values, it's much faster (and semantically fine) to build
+        # the nat chain from Zero directly.
+        if value <= 256:
             current_node = Zero
             current_registry = self.registry
             current_value = self._zero_value()
@@ -131,18 +133,42 @@ class NatFromRep(Edge, G.GMPHostMath):
                 current_value = next_value
             return Pair(current_node, Pair(current_registry, EmptyList))
 
-        # For larger values (e.g. search budgets, counters, iteration limits),
-        # construct the nat node directly with its GMPRep and predecessor constructor
-        # to avoid O(N^2) Patricia tree allocations and memory exhaustion.
-        node = Atom()
-        node.value = G.GMPRep(value)
-        pred_value = value - self._one_value()
-        pred_node = Atom()
-        pred_node.value = G.GMPRep(pred_value)
-        node.constructor = Pair(SuccLabel, Pair(pred_node, EmptyList))
-        if IdentityCompare(index_tree, EmptyList)() is false_value:
-            _nat_value_index_store(index_tree, NatValueKey(G.GMPRep(value))(), node, self.registry)
-        return Pair(node, Pair(self.registry, EmptyList))
+        discovered = self._discover(value, TreeEntries(self.registry)())
+        if IdentityCompare(discovered, EmptyList)() is false_value:
+            discovered.value = G.GMPRep(value)
+            if IdentityCompare(index_tree, EmptyList)() is false_value:
+                _nat_value_index_store(index_tree, NatValueKey(G.GMPRep(value))(), discovered, self.registry)
+            return Pair(discovered, Pair(self.registry, EmptyList))
+
+        best_node = Zero
+        best_value = self._zero_value()
+        current_registry = self.registry
+        remaining_entries = TreeEntries(current_registry)()
+        Zero.value = G.GMPRep("0")
+        while IdentityCompare(remaining_entries, EmptyList)() is false_value:
+            entry = Head(remaining_entries)()
+            fact = Head(Tail(entry)())()
+            fact_rep = NatRepOf(fact, current_registry)()
+            if IdentityCompare(fact_rep, EmptyList)() is false_value:
+                fact_value = fact_rep()
+                if fact_value <= value and fact_value >= best_value:
+                    best_node = fact
+                    best_value = fact_value
+            remaining_entries = Tail(remaining_entries)()
+
+        current_node = best_node
+        current_value = best_value
+        while current_value < value:
+            next_value = current_value + self._one_value()
+            node = Atom()
+            constructed = C.ConstructedBy(node, SuccLabel, Pair(current_node, EmptyList), current_registry)()
+            current_node = Head(constructed)()
+            current_registry = Head(Tail(constructed)())()
+            current_node.value = G.GMPRep(next_value)
+            if IdentityCompare(index_tree, EmptyList)() is false_value:
+                _nat_value_index_store(index_tree, NatValueKey(G.GMPRep(next_value))(), current_node, current_registry)
+            current_value = next_value
+        return Pair(current_node, Pair(current_registry, EmptyList))
 
     def __call__(self):
         return self.result

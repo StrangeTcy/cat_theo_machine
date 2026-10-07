@@ -331,16 +331,7 @@ class PackLoader:
         )
 
     def load_pack_file(self, path, graph):
-        try:
-            import yaml
-        except ImportError:
-            import subprocess
-            import sys
-            subprocess.run(
-                [sys.executable, "-m", "pip", "install", "pyyaml", "--break-system-packages"],
-                capture_output=True,
-            )
-            import yaml
+        import yaml
 
         with open(path, "r", encoding="utf-8") as f:
             data = yaml.safe_load(f)

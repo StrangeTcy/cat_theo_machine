@@ -1,14 +1,6 @@
 from __future__ import annotations
 
-try:
-    import gmpy2
-except ImportError:
-    class _GMPY2Fallback:
-        def mpz(self, val):
-            if val == "":
-                return 0
-            return int(val)
-    gmpy2 = _GMPY2Fallback()
+import gmpy2
 
 from .core import (
     Atom,
