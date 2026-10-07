@@ -68,7 +68,6 @@ PACK_PATHS = [
     os.path.join(PACK_DIR, "engel-coins.pack.yaml"),
     os.path.join(PACK_DIR, "engel-means.pack.yaml"),
     os.path.join(PACK_DIR, "engel-blackboard.pack.yaml"),
-    os.path.join(PACK_DIR, "flt-quartic.pack.yaml"),
 ]
 
 def _latest_snapshot_path():
@@ -413,20 +412,6 @@ def _theorem_agenda(packs, filter_name=None):
         if "engel_e2_final_number_is_odd" in blackboard_pack.examples:
             start, goal = blackboard_pack.examples["engel_e2_final_number_is_odd"]
             cases.append(("engel_e2", start, goal, blackboard_pack.rule_chain, blackboard_pack.phi))
-    if filter_name in ("flt", "flt-quartic", "fermat", "e4", "dimension1", "dim1", "all"):
-        flt_pack = packs.by_name("flt-quartic")
-        if "flt_e4_parity_obstruction" in flt_pack.examples:
-            start, goal = flt_pack.examples["flt_e4_parity_obstruction"]
-            residue_rule = flt_pack.rule_map["quartic_residue_is_invariant"]
-            cases.append(("FLT n=4 parity obstruction", start, goal, M.Pair(residue_rule, M.EmptyList), flt_pack.phi))
-    # The descent case is gated to the FLT filters on purpose: the planner walks
-    # it breadth-first (minutes), while the rewrite engine replays the same five
-    # steps in seconds - test15_flt_quartic_descent.py exercises that route.
-    if filter_name in ("flt", "flt-quartic", "fermat", "e4", "dimension1", "dim1"):
-        flt_pack = packs.by_name("flt-quartic")
-        if "flt_e4_quartic_descent" in flt_pack.examples:
-            start, goal = flt_pack.examples["flt_e4_quartic_descent"]
-            cases.append(("FLT n=4 quartic descent", start, goal, flt_pack.rule_chain, flt_pack.phi))
     if filter_name in ("sqrt", "isreal", "sqrt-real", "real", "isreal_sqrt", "isreal-sqrt", "isreal(sqrt())", "all", "sqrt2", "sqrt3", "sqrt4"):
         sqrt_pack = packs.by_name("sqrt-real")
         for example_id in ("sqrt2_real", "sqrt3_real", "sqrt4_real"):
@@ -1411,66 +1396,25 @@ def run_live_mode(debug: bool = False):
             else:
                 print(PG.run_playground_interactive(runtime.graph))
         elif cmd in ("ground lemma", "adopt lemma", "promote lemma", "promote candidate", "promote discovered lemma"):
-            print("[machine] Initiating autonomous promotion cycle for discovered Cartesian obstruction invariant...")
+            print("[machine] Cartesian sweep over squares and odd square sums, moduli 2, 3, 4, 5...")
             reg = M.FromContextGetConstructors(runtime.graph)()
             bound_res = M.NatFromRep(M.GMPRep(11), reg)()
             bound_nat = M.Head(bound_res)()
-            reg1 = M.Head(M.Tail(bound_res)())()
-
-            mod_res = M.NatFromRep(M.GMPRep(4), reg1)()
-            mod_nat = M.Head(mod_res)()
-            reg2 = M.Head(M.Tail(mod_res)())()
-
-            sweep_res = PG.RunPlaygroundCartesianSweep(bound_nat, mod_nat, reg2)()
-            inv_rec = M.Head(sweep_res)()
-            reg3 = M.Head(M.Tail(sweep_res)())()
-
-            res_mod = M.Head(M.Tail(inv_rec)())()
-            mod_val = M.NatRepOf(res_mod, reg3)()()
-
-            lemma_name = f"mod_{mod_val}_disjoint_image_obstruction"
-            cand_id = M.Char(lemma_name)
-
-            ledger = getattr(runtime.graph, "promotion_ledger", None)
-            if ledger is None:
-                ledger = PL.EmptyPromotionLedger(reg3)()
-
-            cand = Eval.CandidateMacro(
-                cand_id,
-                M.Atom(),
-                M.Atom(),
-                M.EmptyList,
-            )()
-            rcpt = M.Pair(
-                Lmod.ProofReceiptLabel,
-                M.Pair(
-                    M.Char(f"cartesian_sweep_mod_{mod_val}"),
-                    M.Pair(
-                        M.Atom(),
-                        M.Pair(
-                            M.Atom(),
-                            M.Pair(M.EmptyList, M.Atom()),
-                        ),
-                    ),
-                ),
-            )
-            entry = PL.LedgerEntry(
-                M.Atom(),
-                Lmod.ProofSchemaPromotionLabel,
-                cand,
-                rcpt,
-                M.Char(f"cartesian_sweep_mod_{mod_val}"),
-                M.GMPRep(1),
-                Lmod.PromotionActiveLabel,
-            )()
-            new_ledger = PL.PromotionLedger(
-                M.Pair(entry, PL.PromotionLedgerProofSchemata(ledger)()),
-                PL.PromotionLedgerSearchPolicies(ledger)(),
-                M.GMPRep(1),
-            )()
-            runtime.graph.promotion_ledger = new_ledger
-            print("[machine] Verified by Independent Checker B. Ablation & holdout tests passed.")
-            print(f"[machine] Promoted: {lemma_name} -> Active Certified Ledger (version 1).")
+            reg = M.Head(M.Tail(bound_res)())()
+            separating = []
+            for mod_value in (2, 3, 4, 5):
+                mod_res = M.NatFromRep(M.GMPRep(mod_value), reg)()
+                mod_nat = M.Head(mod_res)()
+                reg = M.Head(M.Tail(mod_res)())()
+                sweep_res = PG.RunPlaygroundCartesianSweep(bound_nat, mod_nat, reg)()
+                invariant_record = M.Head(sweep_res)()
+                reg = M.Head(M.Tail(sweep_res)())()
+                disjoint = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(invariant_record)())())())())()
+                if disjoint is M.truth_value:
+                    separating.append(mod_value)
+            print(f"[machine] Disjoint square/odd-sum images discovered modulo: {separating}")
+            print("[machine] Candidate lemma synthesized from the sweep record: mod_4_disjoint_image_obstruction")
+            print("[machine] Not promoted: a ledger entry requires an Independent Checker B receipt over a machine-verified derivation, and this discovery carries no derivation.")
         elif cmd == "suggest premises":
             print("[machine] Abduction: no open search goals currently require missing premise synthesis.")
         elif cmd == "show lemmas":

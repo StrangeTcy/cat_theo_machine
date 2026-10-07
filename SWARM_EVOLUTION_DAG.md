@@ -67,7 +67,7 @@ The machine's capabilities and subsystems are partitioned into five core dimensi
 | **W3** | Cartesian Playground & Sweep | Infra / Dim 1 | `playground.py` | `math/peano.py`, `labels.py` | Irreducible $k$-ary domain products, projections |
 | **W4** | Independent Proof Checker B | Dim 4 | `checker_b.py` | `core.py`, `proof.py` | Zero-trust receipt verifier, step auditor |
 | **W5** | Surface Grammar & Lexicon | Dim 5 | `surface_bridge.py` | `graph_task.py`, `labels.py` | Declarative parser, render engine, concept defs |
-| **W6** | FLT $n=4$ Quartic Descent | Dim 1 | `packs/flt-quartic.pack.yaml` | W3 | Modulo 4 obstruction, Pythagorean parametrization |
+| **W6** | FLT $n=4$ Residue Discovery | Dim 1 | `validation/test15_flt_residue_discovery.py` | W3 | Modulo 4 obstruction discovered live; parametrization descent open |
 | **W7** | FLT $n=3$ Eisenstein Factorization | Dim 1 | `packs/flt_eisenstein.pack.yaml`| W3 | Eisenstein norm ring $\mathbb{Z}[\omega]$, cubic descent |
 | **W8** | IMO Geometry & Aux Construction | Dim 2 | `packs/imo_geometry.pack.yaml` | W4 | Auxiliary point synthesizers, cyclic quads |
 | **W9** | IMO Combinatorics & Func-Eq | Dim 2 | `packs/imo_algebra.pack.yaml` | W4 | Cauchy/d'Alembert equations, extremal sets |
@@ -85,12 +85,12 @@ The machine's capabilities and subsystems are partitioned into five core dimensi
 ## 4. Current Status Matrix
 
 - [x] **W1 (Persistence & Snapshot Codec)**: Completed & verified in `test12_persistence_cold_resume.py`.
-- [x] **W3 (Cartesian Playground & Sweeper)**: Completed & verified in `test13_cartesian_playground.py`; its mod 4 sweep result is grounded as the FLT obstruction in `flt-quartic.pack.yaml`.
-- [x] **W4 (Independent Checker B)**: Completed & verified in `test5_checker_b_derivation_verification.py`; extended by W6 so step verification also covers knowledge-rewriting (fact-list) steps and `FactsCover`-style knowledge goals.
+- [x] **W3 (Cartesian Playground & Sweeper)**: Completed & verified in `test13_cartesian_playground.py`; its mod 4 sweep is the FLT obstruction the machine discovers on its own in `validation/test15_flt_residue_discovery.py`.
+- [x] **W4 (Independent Checker B)**: Completed & verified in `test5_checker_b_derivation_verification.py`; step verification also covers knowledge-rewriting (fact-list) steps and `FactsCover`-style knowledge goals, covered by `validation/test16_checker_b_knowledge_rewrite.py`.
 - [x] **W5 (Surface Grammar & Lexicon)**: Completed & verified in `test11_surface_language_bridge.py`.
 - [x] **W11 (Invariant Trace Miner & Evaluator)**: Completed & verified in `test7_candidate_evaluator_ablation.py` and `test8_invariant_trace_miner.py`.
 - [x] **W12 (Dual-Ledger Promotion Loop)**: Completed & verified in `test9_autonomous_promotion_loop.py`.
-- [x] **W6 (FLT $n=4$ Quartic Descent)**: Completed & verified in `validation/test15_flt_quartic_descent.py` and the live session `validation/test16_flt_live_session.py`; pack is `packs/flt-quartic.pack.yaml`, writeup in `flt_e4_quartic_descent.md`.
+- [~] **W6 (FLT $n=4$)**: The hand-authored `flt-quartic` pack was withdrawn as a hardcoding violation. What remains is machine-derived and verified in `validation/test15_flt_residue_discovery.py`: the Cartesian sweep discovers modulus 4, the machine's own arithmetic runs the complete residue case analysis (fourth powers are $\{0,1\}$ mod 4, two odd fourth powers give 2), the discovered obstruction names its own candidate lemma, and the promotion ledger refuses to ledger it without a Checker B receipt. The Pythagorean parametrization descent needed for the full theorem is not derivable by the current machinery and stays open.
 - [ ] **W7 (FLT $n=3$ Eisenstein UFD Factorization)**: Ready for execution.
 - [ ] **W8 (IMO Geometry & Auxiliary Construction Engine)**: Ready for execution.
 - [ ] **W9 (IMO Combinatorics, Functional Equations & NT)**: Ready for execution.
