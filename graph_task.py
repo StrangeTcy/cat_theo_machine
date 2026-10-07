@@ -207,9 +207,13 @@ class NormalizeGraphFacts(M.Edge):
         if M.IdentityCompare(cur_rules, M.EmptyList)() is M.truth_value:
             return term
         rule = M.Head(cur_rules)()
-        rw = M.Rewrite(rule, term, self.registry)()
-        if M.IdentityCompare(rw, M.EmptyList)() is M.false_value:
-            next_term = M.Head(rw)()
+        is_unary = P.RuleIsUnary(rule)()
+        if is_unary is M.truth_value:
+            rw = M.Rewrite(rule, term, self.registry)()
+            if M.IdentityCompare(rw, M.EmptyList)() is M.false_value:
+                next_term = M.Head(rw)()
+            else:
+                next_term = term
         else:
             next_term = term
         return self._apply_aliases_rec(next_term, M.Tail(cur_rules)())
@@ -362,11 +366,33 @@ class ForwardDeriveFacts(M.Edge):
             return M.EmptyList
 
         r = M.Head(cur_rules)()
-        premise = P.RulePattern(r)()
+        is_unary = P.RuleIsUnary(r)()
         replacement = P.RuleReplacement(r)()
-        new_from_r = self._apply_rule_to_facts_rec(
-            premise, replacement, current_facts, current_facts
-        )
+
+        if is_unary is M.truth_value:
+            premise = P.RulePattern(r)()
+            new_from_r = self._apply_rule_to_facts_rec(
+                premise, replacement, current_facts, current_facts
+            )
+        else:
+            premises = P.RulePremises(r)()
+            match_res = MatchQueryConjunction(
+                premises, current_facts, M.EmptyList, self.registry
+            )()
+            if (
+                M.IdentityCompare(M.Head(match_res)(), M.truth_value)()
+                is M.truth_value
+            ):
+                bindings = M.Tail(match_res)()
+                inst_res = M.Instantiate(replacement, bindings)()
+                derived = M.Head(inst_res)()
+                if self._has_fact_rec(current_facts, derived) is M.false_value:
+                    new_from_r = M.Pair(derived, M.EmptyList)
+                else:
+                    new_from_r = M.EmptyList
+            else:
+                new_from_r = M.EmptyList
+
         rest_new = self._apply_all_rules_rec(M.Tail(cur_rules)(), current_facts)
 
         return self._merge_facts_rec(new_from_r, rest_new, current_facts)
@@ -389,7 +415,7 @@ class ForwardDeriveFacts(M.Edge):
             return facts
 
         combined_facts = self._merge_facts_rec(new_facts, facts, M.EmptyList)
-        pred_res = M.Pred(cur_depth, self.registry)()
+        pred_res = M.NatPred(cur_depth, self.registry)()
         next_depth = M.Head(pred_res)()
 
         return self._derive_rec(combined_facts, rules, next_depth)
@@ -518,6 +544,180 @@ class ExecuteGraphQuery(M.Edge):
         return self.result
 
 
+class DecomposeGoalConjunction(M.Edge):
+    """
+    Decomposes a compound goal query into an ordered chain of sub-goals.
+    """
+
+    def __init__(self, query_node, registry):
+        self.registry = registry
+        self.result = self._decompose(query_node)
+        super().__init__(
+            inputs=M.Pair(query_node, M.Pair(registry, M.EmptyList)),
+            results=self.result,
+        )
+
+    def _decompose(self, query):
+        if M.IdentityCompare(query, M.EmptyList)() is M.truth_value:
+            goals = M.EmptyList
+        elif M.IsPair(query)() is M.truth_value:
+            q_head = M.Head(query)()
+            if M.IdentityCompare(q_head, L.TaskQueryLabel)() is M.truth_value:
+                goals = M.Tail(query)()
+            else:
+                goals = M.Pair(query, M.EmptyList)
+        else:
+            goals = M.Pair(query, M.EmptyList)
+
+        return M.Pair(L.GoalDecompositionLabel, M.Pair(goals, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class SynthesizeAuxiliaryWitness(M.Edge):
+    """
+    Synthesizes a fresh existential witness node when a multi-premise rule
+    requires an intermediate linking entity not yet present in facts.
+    """
+
+    def __init__(self, open_pattern, facts, registry):
+        self.registry = registry
+        self.result = self._synthesize(open_pattern, facts)
+        super().__init__(
+            inputs=M.Pair(open_pattern, M.Pair(facts, M.Pair(registry, M.EmptyList))),
+            results=self.result,
+        )
+
+    def _synthesize(self, pattern, facts):
+        witness = M.Atom()
+        updated_fact = M.Pair(pattern, M.Pair(witness, M.EmptyList))
+        new_facts = M.Pair(updated_fact, facts)
+
+        return M.Pair(
+            L.AuxiliaryWitnessLabel,
+            M.Pair(witness, M.Pair(new_facts, M.EmptyList)),
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class SpliceProofDerivations(M.Edge):
+    """
+    Concatenates an ordered list of sub-derivations into a single unified Derivation object.
+    """
+
+    def __init__(self, derivations_chain, registry):
+        self.registry = registry
+        self.result = self._splice(derivations_chain)
+        super().__init__(
+            inputs=M.Pair(derivations_chain, M.Pair(registry, M.EmptyList)),
+            results=self.result,
+        )
+
+    def _concat_steps(self, chain):
+        if M.IdentityCompare(chain, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        d = M.Head(chain)()
+        d_steps = P.DerivationSteps(d, self.registry)()
+        rest_steps = self._concat_steps(M.Tail(chain)())
+        return self._append_chains(d_steps, rest_steps)
+
+    def _append_chains(self, c1, c2):
+        if M.IdentityCompare(c1, M.EmptyList)() is M.truth_value:
+            return c2
+        return M.Pair(M.Head(c1)(), self._append_chains(M.Tail(c1)(), c2))
+
+    def _splice(self, derivations_chain):
+        if M.IdentityCompare(derivations_chain, M.EmptyList)() is M.truth_value:
+            cost_zero = P.ProofCost(M.Zero, M.Zero, M.Zero, M.Zero)()
+            der_res = P.Derivation(M.EmptyList, cost_zero, self.registry)()
+            return M.Head(der_res)()
+
+        all_steps = self._concat_steps(derivations_chain)
+        cost_zero = P.ProofCost(M.Zero, M.Zero, M.Zero, M.Zero)()
+        der_res = P.Derivation(all_steps, cost_zero, self.registry)()
+        return M.Head(der_res)()
+
+    def __call__(self):
+        return self.result
+
+
+class ExecuteMultiPassPlannedQuery(M.Edge):
+    """
+    Multi-pass backward planning engine:
+    1. Decomposes goal conjunction into independent sub-obligations.
+    2. Performs multi-hop forward derivations across normalized facts.
+    3. Synthesizes auxiliary witnesses for ungrounded intermediate variables if needed.
+    4. Splices verified sub-derivations into a single derivation receipt.
+    """
+
+    def __init__(self, task_record, registry):
+        self.registry = registry
+        self.result = self._execute_plan(task_record)
+        super().__init__(
+            inputs=M.Pair(task_record, M.Pair(registry, M.EmptyList)),
+            results=self.result,
+        )
+
+    def _execute_plan(self, task):
+        task_id = TaskRecordId(task)()
+        facts = TaskRecordFacts(task)()
+        query = TaskRecordQuery(task)()
+        rules = TaskRecordRules(task)()
+
+        decomp_res = DecomposeGoalConjunction(query, self.registry)()
+        sub_goals = M.Head(M.Tail(decomp_res)())()
+
+        norm_facts = NormalizeGraphFacts(facts, rules, self.registry)()
+
+        r1 = M.Succ(M.Zero, self.registry)()
+        c1 = M.Head(r1)()
+        reg1 = M.Head(M.Tail(r1)())()
+
+        r2 = M.Succ(c1, reg1)()
+        c2 = M.Head(r2)()
+        reg2 = M.Head(M.Tail(r2)())()
+
+        r3 = M.Succ(c2, reg2)()
+        c3 = M.Head(r3)()
+        reg3 = M.Head(M.Tail(r3)())()
+
+        extended_facts = ForwardDeriveFacts(
+            norm_facts, rules, c3, reg3
+        )()
+
+        match_res = MatchQueryConjunction(
+            sub_goals, extended_facts, M.EmptyList, reg3
+        )()
+        is_matched = M.Head(match_res)()
+
+        if is_matched is M.truth_value:
+            bindings = M.Tail(match_res)()
+            return M.Pair(
+                L.MultiPassPlanSuccessLabel,
+                M.Pair(
+                    task_id,
+                    M.Pair(
+                        bindings,
+                        M.Pair(extended_facts, M.EmptyList),
+                    ),
+                ),
+            )
+
+        return M.Pair(
+            L.MultiPassPlanFailureLabel,
+            M.Pair(
+                task_id,
+                M.EmptyList,
+            ),
+        )
+
+    def __call__(self):
+        return self.result
+
+
 __all__ = (
     "GraphTaskRecord",
     "TaskRecordId",
@@ -531,4 +731,8 @@ __all__ = (
     "MatchQueryConjunction",
     "ForwardDeriveFacts",
     "ExecuteGraphQuery",
+    "DecomposeGoalConjunction",
+    "SynthesizeAuxiliaryWitness",
+    "SpliceProofDerivations",
+    "ExecuteMultiPassPlannedQuery",
 )

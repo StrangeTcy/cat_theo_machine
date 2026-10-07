@@ -1451,6 +1451,26 @@ class RationaleQEDLabel(ConstructorLabel):
     pass
 
 
+class GoalDecompositionLabel(ConstructorLabel):
+    pass
+
+
+class AuxiliaryWitnessLabel(ConstructorLabel):
+    pass
+
+
+class ProofSpliceLabel(ConstructorLabel):
+    pass
+
+
+class MultiPassPlanSuccessLabel(ConstructorLabel):
+    pass
+
+
+class MultiPassPlanFailureLabel(ConstructorLabel):
+    pass
+
+
 class DiscoveredInvariantLabel(ConstructorLabel):
     pass
 
@@ -1641,6 +1661,11 @@ RationaleAuxiliaryConstructionLabel = RationaleAuxiliaryConstructionLabel()
 RationaleMonovariantLabel = RationaleMonovariantLabel()
 RationaleDescentLabel = RationaleDescentLabel()
 RationaleQEDLabel = RationaleQEDLabel()
+GoalDecompositionLabel = GoalDecompositionLabel()
+AuxiliaryWitnessLabel = AuxiliaryWitnessLabel()
+ProofSpliceLabel = ProofSpliceLabel()
+MultiPassPlanSuccessLabel = MultiPassPlanSuccessLabel()
+MultiPassPlanFailureLabel = MultiPassPlanFailureLabel()
 DiscoveredInvariantLabel = DiscoveredInvariantLabel()
 DisjointImageLabel = DisjointImageLabel()
 ConstantImageInvariantLabel = ConstantImageInvariantLabel()
@@ -2210,6 +2235,11 @@ def sync_from_namespace(namespace):
         "RationaleMonovariantLabel",
         "RationaleDescentLabel",
         "RationaleQEDLabel",
+        "GoalDecompositionLabel",
+        "AuxiliaryWitnessLabel",
+        "ProofSpliceLabel",
+        "MultiPassPlanSuccessLabel",
+        "MultiPassPlanFailureLabel",
         "DiscoveredInvariantLabel",
         "DisjointImageLabel",
         "ConstantImageInvariantLabel",

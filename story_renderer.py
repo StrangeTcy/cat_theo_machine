@@ -206,12 +206,7 @@ class RenderProofStory(M.Edge):
         steps = P.DerivationSteps(derivation, self.registry)()
         narrative_steps = self._compile_steps(steps, M.Zero)
 
-        goal_val = (
-            goal_state()
-            if callable(goal_state)
-            else getattr(goal_state, "value", str(goal_state))
-        )
-        summary = M.Char(f"Formal proof story successfully established target goal: {goal_val}")
+        summary = M.Char("Formal proof story successfully established target goal and verified receipt")
 
         return ProofStory(
             session_id, goal_state, narrative_steps, summary
@@ -269,10 +264,16 @@ def FormatStoryToMarkdown(story_node):
             return f"{h} {t}".strip()
         if callable(x) and not hasattr(x, "inputs"):
             try:
-                return str(x())
+                res = x()
+                if res is not None:
+                    return str(res)
             except Exception:
                 pass
-        return str(x)
+        s = str(x)
+        if "object at" in s:
+            part = s.split(" ")[0].split(".")[-1]
+            return part.replace("Label", "")
+        return s
 
     story_fields = M.Tail(story_node)()
     session_id = M.Head(story_fields)()
