@@ -67,7 +67,7 @@ The machine's capabilities and subsystems are partitioned into five core dimensi
 | **W3** | Cartesian Playground & Sweep | Infra / Dim 1 | `playground.py` | `math/peano.py`, `labels.py` | Irreducible $k$-ary domain products, projections |
 | **W4** | Independent Proof Checker B | Dim 4 | `checker_b.py` | `core.py`, `proof.py` | Zero-trust receipt verifier, step auditor |
 | **W5** | Surface Grammar & Lexicon | Dim 5 | `surface_bridge.py` | `graph_task.py`, `labels.py` | Declarative parser, render engine, concept defs |
-| **W6** | FLT $n=4$ Quartic Descent | Dim 1 | `packs/flt_quartic.pack.yaml` | W3 | Modulo 4 obstruction, Pythagorean parametrization |
+| **W6** | FLT $n=4$ Quartic Descent | Dim 1 | `packs/flt-quartic.pack.yaml` | W3 | Modulo 4 obstruction, Pythagorean parametrization |
 | **W7** | FLT $n=3$ Eisenstein Factorization | Dim 1 | `packs/flt_eisenstein.pack.yaml`| W3 | Eisenstein norm ring $\mathbb{Z}[\omega]$, cubic descent |
 | **W8** | IMO Geometry & Aux Construction | Dim 2 | `packs/imo_geometry.pack.yaml` | W4 | Auxiliary point synthesizers, cyclic quads |
 | **W9** | IMO Combinatorics & Func-Eq | Dim 2 | `packs/imo_algebra.pack.yaml` | W4 | Cauchy/d'Alembert equations, extremal sets |
@@ -85,17 +85,17 @@ The machine's capabilities and subsystems are partitioned into five core dimensi
 ## 4. Current Status Matrix
 
 - [x] **W1 (Persistence & Snapshot Codec)**: Completed & verified in `test12_persistence_cold_resume.py`.
-- [x] **W3 (Cartesian Playground & Sweeper)**: Completed & verified in `test13_cartesian_playground.py`.
+- [x] **W3 (Cartesian Playground & Sweeper)**: Completed & verified in `test13_cartesian_playground.py`; its mod 4 sweep result is grounded as the FLT obstruction in `flt-quartic.pack.yaml`.
 - [x] **W4 (Independent Checker B)**: Completed & verified in `test5_checker_b_derivation_verification.py`.
 - [x] **W5 (Surface Grammar & Lexicon)**: Completed & verified in `test11_surface_language_bridge.py`.
 - [x] **W11 (Invariant Trace Miner & Evaluator)**: Completed & verified in `test7_candidate_evaluator_ablation.py` and `test8_invariant_trace_miner.py`.
 - [x] **W12 (Dual-Ledger Promotion Loop)**: Completed & verified in `test9_autonomous_promotion_loop.py`.
-- [ ] **W6 (FLT $n=4$ Quartic Descent)**: Ready for execution.
+- [x] **W6 (FLT $n=4$ Quartic Descent)**: Completed & verified in `validation/test15_flt_quartic_descent.py`; pack is `packs/flt-quartic.pack.yaml`, writeup in `flt_e4_quartic_descent.md`.
 - [ ] **W7 (FLT $n=3$ Eisenstein UFD Factorization)**: Ready for execution.
 - [ ] **W8 (IMO Geometry & Auxiliary Construction Engine)**: Ready for execution.
 - [ ] **W9 (IMO Combinatorics, Functional Equations & NT)**: Ready for execution.
 - [ ] **W10 (Engel Strategies & Monovariants Pack)**: Ready for execution.
-- [ ] **W14 (Proof Storyteller & Derivation Narrative Generator)**: Ready for execution.
+- [x] **W14 (Proof Storyteller & Derivation Narrative Generator)**: Completed & verified in `validation/test14_proof_story_narrative.py` (`story_renderer.py`).
 - [ ] **W15 (Conversational Socratic Tutor & Concept Explorer)**: Ready for execution.
 - [ ] **W2 (Distributed RPC & mTLS Mesh)**: Ready for execution.
 - [ ] **W13 (Multi-Pass Backward Planning Engine)**: Dependent on Phase 1 domain packs.

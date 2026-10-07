@@ -1477,6 +1477,66 @@ class IdentityElementInvariantLabel(ConstructorLabel):
 
 class ParityMod4InvariantLabel(ConstructorLabel):
     pass
+
+
+class QuarticSolutionLabel(ConstructorLabel):
+    pass
+
+
+class MinimalSolutionLabel(ConstructorLabel):
+    pass
+
+
+class PythagoreanTripleLabel(ConstructorLabel):
+    pass
+
+
+class PrimitiveTripleLabel(ConstructorLabel):
+    pass
+
+
+class ParametrizesLabel(ConstructorLabel):
+    pass
+
+
+class ParamMSeedLabel(ConstructorLabel):
+    pass
+
+
+class ParamNSeedLabel(ConstructorLabel):
+    pass
+
+
+class SquareRSeedLabel(ConstructorLabel):
+    pass
+
+
+class SquareSSeedLabel(ConstructorLabel):
+    pass
+
+
+class RelapsePSeedLabel(ConstructorLabel):
+    pass
+
+
+class RelapseQSeedLabel(ConstructorLabel):
+    pass
+
+
+class RelapseUSeedLabel(ConstructorLabel):
+    pass
+
+
+class DescentStepLabel(ConstructorLabel):
+    pass
+
+
+class NoSolutionLabel(ConstructorLabel):
+    pass
+
+
+class NoInfiniteDescentLabel(ConstructorLabel):
+    pass
 TreeLabel = TreeLabel()
 ZeroLabel = ZeroLabel()
 SuccLabel = SuccLabel()
@@ -1648,6 +1708,21 @@ SymmetricOperationInvariantLabel = SymmetricOperationInvariantLabel()
 IdempotentOperationInvariantLabel = IdempotentOperationInvariantLabel()
 IdentityElementInvariantLabel = IdentityElementInvariantLabel()
 ParityMod4InvariantLabel = ParityMod4InvariantLabel()
+QuarticSolutionLabel = QuarticSolutionLabel()
+MinimalSolutionLabel = MinimalSolutionLabel()
+PythagoreanTripleLabel = PythagoreanTripleLabel()
+PrimitiveTripleLabel = PrimitiveTripleLabel()
+ParametrizesLabel = ParametrizesLabel()
+ParamMSeedLabel = ParamMSeedLabel()
+ParamNSeedLabel = ParamNSeedLabel()
+SquareRSeedLabel = SquareRSeedLabel()
+SquareSSeedLabel = SquareSSeedLabel()
+RelapsePSeedLabel = RelapsePSeedLabel()
+RelapseQSeedLabel = RelapseQSeedLabel()
+RelapseUSeedLabel = RelapseUSeedLabel()
+DescentStepLabel = DescentStepLabel()
+NoSolutionLabel = NoSolutionLabel()
+NoInfiniteDescentLabel = NoInfiniteDescentLabel()
 LimitLabel = LimitLabel()
 IsCauchyLabel = IsCauchyLabel()
 RealNumLabel = RealNumLabel()
@@ -2217,6 +2292,21 @@ def sync_from_namespace(namespace):
         "IdempotentOperationInvariantLabel",
         "IdentityElementInvariantLabel",
         "ParityMod4InvariantLabel",
+        "QuarticSolutionLabel",
+        "MinimalSolutionLabel",
+        "PythagoreanTripleLabel",
+        "PrimitiveTripleLabel",
+        "ParametrizesLabel",
+        "ParamMSeedLabel",
+        "ParamNSeedLabel",
+        "SquareRSeedLabel",
+        "SquareSSeedLabel",
+        "RelapsePSeedLabel",
+        "RelapseQSeedLabel",
+        "RelapseUSeedLabel",
+        "DescentStepLabel",
+        "NoSolutionLabel",
+        "NoInfiniteDescentLabel",
     ):
         if name in namespace:
             globals()[name] = namespace[name]

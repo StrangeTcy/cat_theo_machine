@@ -1,0 +1,341 @@
+format: hyge-pack
+version: 1
+
+name: flt-quartic
+description: >
+  Fermat's Last Theorem, exponent 4. No positive integers satisfy x^4 + y^4 = z^4.
+  Two machine-native facts carry the whole proof. The parity obstruction is the one
+  the Cartesian sweep over [0, 10) already discovers on its own: squares modulo 4
+  land in {0, 1}, a sum of two odd squares lands in {2}, and the two images are
+  disjoint. The descent is the quartic relapse: a primitive solution of x^4 + y^4 = z^4
+  is a primitive Pythagorean triple with legs x^2, y^2 and hypotenuse z^2, the
+  parametrization data m, n forces m + n and m - n to be coprime squares r^2 and s^2,
+  and re-parametrizing the triple (s, 2*v, r), where n = 2*v^2, yields a solution
+  (p, q, u) whose hypotenuse u is strictly below z. Nothing here enumerates a solution, a descent chain, or a witness
+  value; every witness is a Skolem seed of the lemma that introduces it, and the
+  well-foundedness step is cited, not unfolded.
+
+requires: []
+
+phi:
+  call:
+    head: {sym: ParityMod4InvariantLabel}
+    args: [{var: p}]
+
+rules:
+  # --- a quartic solution is a primitive Pythagorean triple ------------------
+  # Consumes the assumed solution and the parity datum; emits the triple over
+  # the squared legs together with the parity of those squared legs.
+  - id: quartic_solution_is_primitive_triple
+    premises:
+      - call: {head: {sym: QuarticSolutionLabel}, args: [{var: x}, {var: y}, {var: z}]}
+      - call: {head: {sym: CoprimeLabel}, args: [{var: x}, {var: y}]}
+      - call: {head: {sym: ParityLabel}, args: [{var: x}, {sym: OddLabel}]}
+      - call: {head: {sym: ParityLabel}, args: [{var: y}, {sym: EvenLabel}]}
+    replacement:
+      list:
+        - call:
+            head: {sym: PythagoreanTripleLabel}
+            args:
+              - call: {head: {sym: ExprPowLabel}, args: [{var: x}, {sym: two}]}
+              - call: {head: {sym: ExprPowLabel}, args: [{var: y}, {sym: two}]}
+              - call: {head: {sym: ExprPowLabel}, args: [{var: z}, {sym: two}]}
+        - call:
+            head: {sym: PrimitiveTripleLabel}
+            args:
+              - call: {head: {sym: ExprPowLabel}, args: [{var: x}, {sym: two}]}
+              - call: {head: {sym: ExprPowLabel}, args: [{var: y}, {sym: two}]}
+              - call: {head: {sym: ExprPowLabel}, args: [{var: z}, {sym: two}]}
+        - call:
+            head: {sym: ParityLabel}
+            args:
+              - call: {head: {sym: ExprPowLabel}, args: [{var: x}, {sym: two}]}
+              - {sym: OddLabel}
+        - call:
+            head: {sym: ParityLabel}
+            args:
+              - call: {head: {sym: ExprPowLabel}, args: [{var: y}, {sym: two}]}
+              - {sym: EvenLabel}
+
+  # --- the primitive triple parametrization, odd leg first -------------------
+  # Consumes the triple and its leg parities; the witnesses m, n enter as
+  # Skolem seeds of this lemma, never as values.
+  - id: primitive_triple_parametrization
+    premises:
+      - call: {head: {sym: PrimitiveTripleLabel}, args: [{var: a}, {var: b}, {var: c}]}
+      - call: {head: {sym: ParityLabel}, args: [{var: a}, {sym: OddLabel}]}
+      - call: {head: {sym: ParityLabel}, args: [{var: b}, {sym: EvenLabel}]}
+    replacement:
+      list:
+        - call:
+            head: {sym: ParametrizesLabel}
+            args:
+              - call: {head: {sym: ParamMSeedLabel}, args: [{var: a}, {var: b}, {var: c}]}
+              - call: {head: {sym: ParamNSeedLabel}, args: [{var: a}, {var: b}, {var: c}]}
+              - {var: a}
+              - {var: b}
+              - {var: c}
+        - call:
+            head: {sym: CoprimeLabel}
+            args:
+              - call: {head: {sym: ParamMSeedLabel}, args: [{var: a}, {var: b}, {var: c}]}
+              - call: {head: {sym: ParamNSeedLabel}, args: [{var: a}, {var: b}, {var: c}]}
+        - call:
+            head: {sym: ParityLabel}
+            args:
+              - call: {head: {sym: ParamMSeedLabel}, args: [{var: a}, {var: b}, {var: c}]}
+              - {sym: OddLabel}
+        - call:
+            head: {sym: ParityLabel}
+            args:
+              - call: {head: {sym: ParamNSeedLabel}, args: [{var: a}, {var: b}, {var: c}]}
+              - {sym: EvenLabel}
+        - call:
+            head: {sym: ExprEqLabel}
+            args:
+              - {var: a}
+              - call:
+                  head: {sym: ExprAddLabel}
+                  args:
+                    - call:
+                        head: {sym: ExprPowLabel}
+                        args:
+                          - call: {head: {sym: ParamMSeedLabel}, args: [{var: a}, {var: b}, {var: c}]}
+                          - {sym: two}
+                    - call:
+                        head: {sym: ExprNegLabel}
+                        args:
+                          - call:
+                              head: {sym: ExprPowLabel}
+                              args:
+                                - call: {head: {sym: ParamNSeedLabel}, args: [{var: a}, {var: b}, {var: c}]}
+                                - {sym: two}
+        - call:
+            head: {sym: ExprEqLabel}
+            args:
+              - {var: b}
+              - call:
+                  head: {sym: ExprMulLabel}
+                  args:
+                    - {sym: two}
+                    - call:
+                        head: {sym: ExprMulLabel}
+                        args:
+                          - call: {head: {sym: ParamMSeedLabel}, args: [{var: a}, {var: b}, {var: c}]}
+                          - call: {head: {sym: ParamNSeedLabel}, args: [{var: a}, {var: b}, {var: c}]}
+        - call:
+            head: {sym: ExprEqLabel}
+            args:
+              - {var: c}
+              - call:
+                  head: {sym: ExprAddLabel}
+                  args:
+                    - call:
+                        head: {sym: ExprPowLabel}
+                        args:
+                          - call: {head: {sym: ParamMSeedLabel}, args: [{var: a}, {var: b}, {var: c}]}
+                          - {sym: two}
+                    - call:
+                        head: {sym: ExprPowLabel}
+                        args:
+                          - call: {head: {sym: ParamNSeedLabel}, args: [{var: a}, {var: b}, {var: c}]}
+                          - {sym: two}
+
+  # --- coprime opposite parity factors of a square are squares ---------------
+  # The identity is (m - n)(m + n) = m^2 - n^2 with the two factors coprime.
+  # Consumes the equation that says the odd leg is a square; keeps exactly the
+  # two facts the relapse still needs.
+  - id: coprime_factor_of_square_is_square
+    premises:
+      - call:
+          head: {sym: ExprEqLabel}
+          args:
+            - call:
+                head: {sym: ExprPowLabel}
+                args: [{var: w}, {sym: two}]
+            - call:
+                head: {sym: ExprAddLabel}
+                args:
+                  - call: {head: {sym: ExprPowLabel}, args: [{var: m}, {sym: two}]}
+                  - call:
+                      head: {sym: ExprNegLabel}
+                      args:
+                        - call: {head: {sym: ExprPowLabel}, args: [{var: n}, {sym: two}]}
+      - call: {head: {sym: CoprimeLabel}, args: [{var: m}, {var: n}]}
+      - call: {head: {sym: ParityLabel}, args: [{var: m}, {sym: OddLabel}]}
+      - call: {head: {sym: ParityLabel}, args: [{var: n}, {sym: EvenLabel}]}
+    replacement:
+      list:
+        - call: {head: {sym: CoprimeLabel}, args: [{var: m}, {var: n}]}
+        - call: {head: {sym: ParityLabel}, args: [{var: n}, {sym: EvenLabel}]}
+        - call:
+            head: {sym: ExprEqLabel}
+            args:
+              - call: {head: {sym: ExprAddLabel}, args: [{var: m}, {var: n}]}
+              - call:
+                  head: {sym: ExprPowLabel}
+                  args:
+                    - call: {head: {sym: SquareRSeedLabel}, args: [{var: m}, {var: n}]}
+                    - {sym: two}
+        - call:
+            head: {sym: ExprEqLabel}
+            args:
+              - call:
+                  head: {sym: ExprAddLabel}
+                  args:
+                    - {var: m}
+                    - call: {head: {sym: ExprNegLabel}, args: [{var: n}]}
+              - call:
+                  head: {sym: ExprPowLabel}
+                  args:
+                    - call: {head: {sym: SquareSSeedLabel}, args: [{var: m}, {var: n}]}
+                    - {sym: two}
+
+  # --- the quartic relapse: the descent produces a strictly smaller solution -
+  # Consumes the coprime-square datum and the hypotenuse identity. The smaller
+  # solution and its strict decrease are the whole content of the descent.
+  - id: quartic_descent_relapse
+    premises:
+      - call: {head: {sym: MinimalSolutionLabel}, args: [{var: z}]}
+      - call: {head: {sym: CoprimeLabel}, args: [{var: m}, {var: n}]}
+      - call: {head: {sym: ParityLabel}, args: [{var: n}, {sym: EvenLabel}]}
+      - call:
+          head: {sym: ExprEqLabel}
+          args:
+            - call:
+                head: {sym: ExprAddLabel}
+                args: [{var: m}, {var: n}]
+            - call:
+                head: {sym: ExprPowLabel}
+                args:
+                  - call: {head: {sym: SquareRSeedLabel}, args: [{var: m}, {var: n}]}
+                  - {sym: two}
+      - call:
+          head: {sym: ExprEqLabel}
+          args:
+            - call:
+                head: {sym: ExprAddLabel}
+                args:
+                  - {var: m}
+                  - call: {head: {sym: ExprNegLabel}, args: [{var: n}]}
+            - call:
+                head: {sym: ExprPowLabel}
+                args:
+                  - call: {head: {sym: SquareSSeedLabel}, args: [{var: m}, {var: n}]}
+                  - {sym: two}
+      - call:
+          head: {sym: ExprEqLabel}
+          args:
+            - call:
+                head: {sym: ExprPowLabel}
+                args: [{var: z}, {sym: two}]
+            - call:
+                head: {sym: ExprAddLabel}
+                args:
+                  - call: {head: {sym: ExprPowLabel}, args: [{var: m}, {sym: two}]}
+                  - call: {head: {sym: ExprPowLabel}, args: [{var: n}, {sym: two}]}
+    replacement:
+      list:
+        - call: {head: {sym: MinimalSolutionLabel}, args: [{var: z}]}
+        - call:
+            head: {sym: QuarticSolutionLabel}
+            args:
+              - call: {head: {sym: RelapsePSeedLabel}, args: [{var: m}, {var: n}]}
+              - call: {head: {sym: RelapseQSeedLabel}, args: [{var: m}, {var: n}]}
+              - call: {head: {sym: RelapseUSeedLabel}, args: [{var: m}, {var: n}]}
+        - call:
+            head: {sym: NatLessLabel}
+            args:
+              - call: {head: {sym: RelapseUSeedLabel}, args: [{var: m}, {var: n}]}
+              - {var: z}
+        - call:
+            head: {sym: DescentStepLabel}
+            args:
+              - {var: z}
+              - call: {head: {sym: RelapseUSeedLabel}, args: [{var: m}, {var: n}]}
+
+  # --- the mod 4 reading rides along the relapse -----------------------------
+  # The observable ParityMod4Invariant is an invariant of the quartic form: this
+  # rule rewrites x^4 + y^4 = z^4 into (x^2)^2 + (y^2)^2 = (z^2)^2 and carries
+  # the reading p through untouched. It is the rule the ReachabilityPrune is
+  # allowed to use when the goal claims a residue the sweep never produces.
+  - id: quartic_residue_is_invariant
+    premises:
+      - call: {head: {sym: ParityMod4InvariantLabel}, args: [{var: p}]}
+      - call: {head: {sym: QuarticSolutionLabel}, args: [{var: x}, {var: y}, {var: z}]}
+    replacement:
+      list:
+        - call: {head: {sym: ParityMod4InvariantLabel}, args: [{var: p}]}
+        - call: {head: {sym: QuarticSolutionLabel}, args: [{var: x}, {var: y}, {var: z}]}
+        - call:
+            head: {sym: ExprEqLabel}
+            args:
+              - call:
+                  head: {sym: ExprAddLabel}
+                  args:
+                    - call:
+                        head: {sym: ExprPowLabel}
+                        args:
+                          - call: {head: {sym: ExprPowLabel}, args: [{var: x}, {sym: two}]}
+                          - {sym: two}
+                    - call:
+                        head: {sym: ExprPowLabel}
+                        args:
+                          - call: {head: {sym: ExprPowLabel}, args: [{var: y}, {sym: two}]}
+                          - {sym: two}
+              - call:
+                  head: {sym: ExprPowLabel}
+                  args:
+                    - call: {head: {sym: ExprPowLabel}, args: [{var: z}, {sym: two}]}
+                    - {sym: two}
+
+  # --- well-foundedness closes the chain ------------------------------------
+  # Consumes the minimality datum, the smaller solution, and the strict
+  # decrease, and cites no_infinite_descent to refuse the minimal solution.
+  - id: no_infinite_descent
+    premises:
+      - call: {head: {sym: MinimalSolutionLabel}, args: [{var: z}]}
+      - call: {head: {sym: NoInfiniteDescentLabel}, args: [{var: z}]}
+      - call: {head: {sym: QuarticSolutionLabel}, args: [{var: p}, {var: q}, {var: u}]}
+      - call: {head: {sym: NatLessLabel}, args: [{var: u}, {var: z}]}
+      - call: {head: {sym: DescentStepLabel}, args: [{var: z}, {var: u}]}
+    replacement:
+      list:
+        - call: {head: {sym: NoSolutionLabel}, args: [{char: Four}]}
+
+examples:
+  - id: flt_e4_quartic_descent
+    start:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call: {head: {sym: QuarticSolutionLabel}, args: [{char: x}, {char: y}, {char: z}]}
+              - call: {head: {sym: MinimalSolutionLabel}, args: [{char: z}]}
+              - call: {head: {sym: CoprimeLabel}, args: [{char: x}, {char: y}]}
+              - call: {head: {sym: ParityLabel}, args: [{char: x}, {sym: OddLabel}]}
+              - call: {head: {sym: ParityLabel}, args: [{char: y}, {sym: EvenLabel}]}
+              - call: {head: {sym: NoInfiniteDescentLabel}, args: [{char: z}]}
+    goal:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call: {head: {sym: NoSolutionLabel}, args: [{char: Four}]}
+
+  - id: flt_e4_parity_obstruction
+    start:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call: {head: {sym: ParityMod4InvariantLabel}, args: [{sym: one}]}
+              - call: {head: {sym: QuarticSolutionLabel}, args: [{char: x}, {char: y}, {char: z}]}
+              - call: {head: {sym: ParityLabel}, args: [{char: x}, {sym: OddLabel}]}
+              - call: {head: {sym: ParityLabel}, args: [{char: y}, {sym: OddLabel}]}
+    goal:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call: {head: {sym: ParityMod4InvariantLabel}, args: [{sym: two}]}
