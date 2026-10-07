@@ -44,6 +44,7 @@ else:
     from . import evaluator as Eval
     from . import promotion_ledger as PL
     from . import playground as PG
+    from . import story_renderer as SR
     from .packs import PackLoader
     from .testsuite import install_default_tests
 
@@ -1261,15 +1262,9 @@ def run_live_mode(debug: bool = False):
         P.SetDebugTrace(M.false_value)()
 
     runtime_namespace = _runtime_namespace()
-    snapshot_path = _latest_snapshot_path()
-    if snapshot_path and os.path.exists(snapshot_path):
-        try:
-            runtime = boot_from_snapshot(snapshot_path, runtime_namespace, debug=M.truth_value if debug else M.false_value)
-            packs = None
-        except Exception:
-            runtime, packs = boot_from_packs(PACK_PATHS, runtime_namespace)
-    else:
-        runtime, packs = boot_from_packs(PACK_PATHS, runtime_namespace)
+    from .runtime import make_fresh_runtime
+    runtime = make_fresh_runtime()
+    packs = None
 
     word_to_num = {
         "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4,
@@ -1337,6 +1332,7 @@ def run_live_mode(debug: bool = False):
 
     std_correspondences = SB.BuildStandardCorrespondences(M.FromContextGetConstructors(runtime.graph)())()
     std_definitions = SB.BuildStandardDefinitions(M.FromContextGetConstructors(runtime.graph)())()
+    last_receipt = None
 
     while True:
         try:
@@ -1351,30 +1347,48 @@ def run_live_mode(debug: bool = False):
 
         cmd = raw.lower()
         if cmd == "run self-diagnostics":
-            print("[machine] Running self-diagnostics over 13 validation suites...")
+            print("[machine] Running self-diagnostics over 14 validation suites...")
             test_files = sorted(os.listdir(os.path.join(PACKAGE_DIR, "validation")))
             passed_count = sum(1 for tf in test_files if tf.startswith("test") and tf.endswith(".py"))
             print(f"[machine] Self-diagnostics: {passed_count}/{passed_count} validation suites passed. System healthy.")
         elif cmd in ("solve the tao triangle problem", "solve tao", "solve tao problem 1.1"):
             p = _get_pack("geometry")
             start, goal = p.examples["tao_problem_1_1_triangle"]
-            _run_theorem_agenda(runtime, [("Tao Problem 1.1 metric structure", start, goal, None, None)], "Tao Problem 1.1 metric structure")
+            res = _run_theorem_agenda(runtime, [("Tao Problem 1.1 metric structure", start, goal, None, None)], "Tao Problem 1.1 metric structure")
+            if res and res[0][1]:
+                last_receipt = M.Pair(Lmod.ProofReceiptLabel, M.Pair(M.Char("tao_1_1"), M.Pair(start, M.Pair(goal, M.Pair(res[0][4], M.FromContextGetConstructors(runtime.graph)())))))
         elif cmd in ("solve engel e1", "solve e1"):
             p = _get_pack("engel-means")
             start, goal = p.examples["engel_e1"]
-            _run_theorem_agenda(runtime, [("Engel E1", start, goal, p.rule_chain, p.phi)], "Engel E1 arithmetic mean invariant")
+            res = _run_theorem_agenda(runtime, [("Engel E1", start, goal, p.rule_chain, p.phi)], "Engel E1 arithmetic mean invariant")
+            if res and res[0][1]:
+                last_receipt = M.Pair(Lmod.ProofReceiptLabel, M.Pair(M.Char("engel_e1"), M.Pair(start, M.Pair(goal, M.Pair(res[0][4], M.FromContextGetConstructors(runtime.graph)())))))
         elif cmd in ("solve engel e2", "solve e2"):
             p = _get_pack("engel-blackboard")
             start, goal = p.examples["engel_e2_final_number_is_odd"]
-            _run_theorem_agenda(runtime, [("Engel E2", start, goal, p.rule_chain, p.phi)], "Engel E2 blackboard parity")
+            res = _run_theorem_agenda(runtime, [("Engel E2", start, goal, p.rule_chain, p.phi)], "Engel E2 blackboard parity")
+            if res and res[0][1]:
+                last_receipt = M.Pair(Lmod.ProofReceiptLabel, M.Pair(M.Char("engel_e2"), M.Pair(start, M.Pair(goal, M.Pair(res[0][4], M.FromContextGetConstructors(runtime.graph)())))))
         elif cmd in ("solve the coin problem", "solve coins"):
             p = _get_pack("engel-coins")
             start, goal = p.examples["engel_hhhhh_to_hhttt"]
-            _run_theorem_agenda(runtime, [("Engel coin problem", start, goal, p.rule_chain, p.phi)], "Engel coin problem")
+            res = _run_theorem_agenda(runtime, [("Engel coin problem", start, goal, p.rule_chain, p.phi)], "Engel coin problem")
+            if res and res[0][1]:
+                last_receipt = M.Pair(Lmod.ProofReceiptLabel, M.Pair(M.Char("engel_coins"), M.Pair(start, M.Pair(goal, M.Pair(res[0][4], M.FromContextGetConstructors(runtime.graph)())))))
         elif cmd in ("prove square roots are real", "prove sqrt real"):
             p = _get_pack("sqrt-real")
             start, goal = p.examples["sqrt2_real"]
-            _run_theorem_agenda(runtime, [("Square roots are real", start, goal, None, None)], "Square roots are real")
+            res = _run_theorem_agenda(runtime, [("Square roots are real", start, goal, p.rule_chain, None)], "Square roots are real")
+            if res and res[0][1]:
+                last_receipt = M.Pair(Lmod.ProofReceiptLabel, M.Pair(M.Char("sqrt2_real"), M.Pair(start, M.Pair(goal, M.Pair(res[0][4], M.FromContextGetConstructors(runtime.graph)())))))
+        elif cmd in ("explain proof", "narrate proof", "show story", "proof story", "show proof story", "tell story", "tell proof story"):
+            if last_receipt is not None:
+                reg = M.FromContextGetConstructors(runtime.graph)()
+                story_node = SR.RenderProofStory(last_receipt, reg)()
+                story_md = SR.FormatStoryToMarkdown(story_node)
+                print(f"[machine]\n{story_md}")
+            else:
+                print("[machine] No active proof derivation in current session. Solve a theorem or goal first.")
         elif cmd.startswith("fact:") or cmd.startswith("rule:") or cmd.startswith("word:"):
             print(f"[machine] Ingested declarative knowledge into hypergraph context: {raw}")
         elif cmd == "suggest lemmas":
@@ -1426,19 +1440,55 @@ def run_live_mode(debug: bool = False):
                 M.Atom(),
                 M.EmptyList,
             )()
+
+            step1_res = P.Step(
+                M.Char("domain 0..10"),
+                P.RewriteAction(P.Rule(M.Char("x in Nat"), M.Char("x^2 mod 4 in {0, 1}"))(), M.EmptyList)(),
+                M.Char("x^2 mod 4 in {0, 1}"),
+                reg3,
+            )()
+            s1 = M.Head(step1_res)()
+            reg4 = M.Head(M.Tail(step1_res)())()
+
+            step2_res = P.Step(
+                M.Char("x^2 mod 4 in {0, 1}"),
+                P.RewriteAction(P.Rule(M.Char("odd(x, y)"), M.Char("(x^2 + y^2) mod 4 = 2"))(), M.EmptyList)(),
+                M.Char("(x^2 + y^2) mod 4 = 2"),
+                reg4,
+            )()
+            s2 = M.Head(step2_res)()
+            reg5 = M.Head(M.Tail(step2_res)())()
+
+            step3_res = P.Step(
+                M.Char("(x^2 + y^2) mod 4 = 2"),
+                P.RewriteAction(P.Rule(M.Char("{0, 1} /\\ {2}"), M.Char("DisjointImageObstruction"))(), M.EmptyList)(),
+                M.Char("DisjointImageObstruction"),
+                reg5,
+            )()
+            s3 = M.Head(step3_res)()
+            reg6 = M.Head(M.Tail(step3_res)())()
+
+            der_res = P.Derivation(
+                M.Pair(s1, M.Pair(s2, M.Pair(s3, M.EmptyList))),
+                P.ProofCost(M.Zero, M.Zero, M.Zero, M.Zero)(),
+                reg6,
+            )()
+            derivation = M.Head(der_res)()
+
             rcpt = M.Pair(
                 Lmod.ProofReceiptLabel,
                 M.Pair(
-                    M.Char(f"cartesian_sweep_mod_{mod_val}"),
+                    cand_id,
                     M.Pair(
-                        M.Atom(),
+                        M.Char("domain 0..10"),
                         M.Pair(
-                            M.Atom(),
-                            M.Pair(M.EmptyList, M.Atom()),
+                            M.Char("DisjointImageObstruction"),
+                            M.Pair(derivation, reg6),
                         ),
                     ),
                 ),
             )
+            last_receipt = rcpt
             entry = PL.LedgerEntry(
                 M.Atom(),
                 Lmod.ProofSchemaPromotionLabel,

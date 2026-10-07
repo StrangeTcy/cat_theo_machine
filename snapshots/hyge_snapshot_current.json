@@ -375,20 +375,31 @@
     "SurfaceAmbiguityLabel": 6390,
     "SurfaceGrammarRuleLabel": 6391,
     "SurfaceCorrespondenceLabel": 6392,
-    "DividesLabel": 6393,
-    "DivisibleLabel": 6394,
-    "GcdLabel": 6395,
-    "ModLabel": 6396,
-    "CoprimeLabel": 6397,
-    "PlaygroundSweepLabel": 6398,
-    "ObservedRegularityLabel": 6399,
-    "DiscoveredInvariantLabel": 6400,
-    "DisjointImageLabel": 6401,
-    "ConstantImageInvariantLabel": 6402,
-    "SymmetricOperationInvariantLabel": 6403,
-    "IdempotentOperationInvariantLabel": 6404,
-    "IdentityElementInvariantLabel": 6405,
-    "ParityMod4InvariantLabel": 6406
+    "SurfaceDefinitionLabel": 6393,
+    "ConceptQueryLabel": 6394,
+    "DefinitionNotFoundLabel": 6395,
+    "DividesLabel": 6396,
+    "DivisibleLabel": 6397,
+    "GcdLabel": 6398,
+    "ModLabel": 6399,
+    "CoprimeLabel": 6400,
+    "PlaygroundSweepLabel": 6401,
+    "ObservedRegularityLabel": 6402,
+    "ProofStoryLabel": 6403,
+    "NarrativeStepLabel": 6404,
+    "RationaleAlgebraicLabel": 6405,
+    "RationaleParityObstructionLabel": 6406,
+    "RationaleAuxiliaryConstructionLabel": 6407,
+    "RationaleMonovariantLabel": 6408,
+    "RationaleDescentLabel": 6409,
+    "RationaleQEDLabel": 6410,
+    "DiscoveredInvariantLabel": 6411,
+    "DisjointImageLabel": 6412,
+    "ConstantImageInvariantLabel": 6413,
+    "SymmetricOperationInvariantLabel": 6414,
+    "IdempotentOperationInvariantLabel": 6415,
+    "IdentityElementInvariantLabel": 6416,
+    "ParityMod4InvariantLabel": 6417
   },
   "objects": [
     {
@@ -66008,58 +66019,102 @@
     },
     {
       "id": 6393,
-      "name": "DividesLabel"
+      "name": "SurfaceDefinitionLabel"
     },
     {
       "id": 6394,
-      "name": "DivisibleLabel"
+      "name": "ConceptQueryLabel"
     },
     {
       "id": 6395,
-      "name": "GcdLabel"
+      "name": "DefinitionNotFoundLabel"
     },
     {
       "id": 6396,
-      "name": "ModLabel"
+      "name": "DividesLabel"
     },
     {
       "id": 6397,
-      "name": "CoprimeLabel"
+      "name": "DivisibleLabel"
     },
     {
       "id": 6398,
-      "name": "PlaygroundSweepLabel"
+      "name": "GcdLabel"
     },
     {
       "id": 6399,
-      "name": "ObservedRegularityLabel"
+      "name": "ModLabel"
     },
     {
       "id": 6400,
-      "name": "DiscoveredInvariantLabel"
+      "name": "CoprimeLabel"
     },
     {
       "id": 6401,
-      "name": "DisjointImageLabel"
+      "name": "PlaygroundSweepLabel"
     },
     {
       "id": 6402,
-      "name": "ConstantImageInvariantLabel"
+      "name": "ObservedRegularityLabel"
     },
     {
       "id": 6403,
-      "name": "SymmetricOperationInvariantLabel"
+      "name": "ProofStoryLabel"
     },
     {
       "id": 6404,
-      "name": "IdempotentOperationInvariantLabel"
+      "name": "NarrativeStepLabel"
     },
     {
       "id": 6405,
-      "name": "IdentityElementInvariantLabel"
+      "name": "RationaleAlgebraicLabel"
     },
     {
       "id": 6406,
+      "name": "RationaleParityObstructionLabel"
+    },
+    {
+      "id": 6407,
+      "name": "RationaleAuxiliaryConstructionLabel"
+    },
+    {
+      "id": 6408,
+      "name": "RationaleMonovariantLabel"
+    },
+    {
+      "id": 6409,
+      "name": "RationaleDescentLabel"
+    },
+    {
+      "id": 6410,
+      "name": "RationaleQEDLabel"
+    },
+    {
+      "id": 6411,
+      "name": "DiscoveredInvariantLabel"
+    },
+    {
+      "id": 6412,
+      "name": "DisjointImageLabel"
+    },
+    {
+      "id": 6413,
+      "name": "ConstantImageInvariantLabel"
+    },
+    {
+      "id": 6414,
+      "name": "SymmetricOperationInvariantLabel"
+    },
+    {
+      "id": 6415,
+      "name": "IdempotentOperationInvariantLabel"
+    },
+    {
+      "id": 6416,
+      "name": "IdentityElementInvariantLabel"
+    },
+    {
+      "id": 6417,
       "name": "ParityMod4InvariantLabel"
     }
   ]
