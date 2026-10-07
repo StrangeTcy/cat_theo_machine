@@ -1322,6 +1322,89 @@ def run_live_mode(debug: bool = False):
             return int(cleaned)
         return None
 
+    EXPLANATION_TOPICS = {
+        "subdomain": (
+            "A subdomain is a subset of a base domain filtered by a predicate or condition. "
+            "For example, filtering the base integer domain 0..10 by the predicate 'is odd' "
+            "yields the odd subdomain {1, 3, 5, 7, 9}."
+        ),
+        "projection": (
+            "An image projection is the set of equivalence classes or remainder values obtained "
+            "by evaluating an operation and mapping the results modulo an integer M."
+        ),
+        "image projection": (
+            "An image projection is the set of equivalence classes or remainder values obtained "
+            "by evaluating an operation and mapping the results modulo an integer M."
+        ),
+        "disjoint": (
+            "Two sets are disjoint when their intersection is empty (share no elements). "
+            "In proof search, disjoint image projections establish that two expressions can never evaluate to the same value."
+        ),
+        "obstruction": (
+            "An obstruction is a structural invariant conflict (such as disjoint residue sets) "
+            "that mathematically prevents an equation or goal from having valid solutions."
+        ),
+        "parity": (
+            "Parity is the property of an integer being even (0 mod 2) or odd (1 mod 2). "
+            "Parity conservation is used as an invariant in combinatorial and Diophantine proofs."
+        ),
+        "invariant": (
+            "An invariant is a mathematical property or relation that remains constant under all allowable "
+            "operations and state transitions."
+        ),
+        "monovariant": (
+            "A monovariant is a semi-invariant function that changes monotonically (always strictly decreases or increases) "
+            "at each step, guaranteeing termination and convergence."
+        ),
+        "cartesian": (
+            "A Cartesian product of domains D_1, ..., D_k is the set of all ordered k-tuples (x_1, ..., x_k) "
+            "where each x_i belongs to D_i."
+        ),
+        "cartesian product": (
+            "A Cartesian product of domains D_1, ..., D_k is the set of all ordered k-tuples (x_1, ..., x_k) "
+            "where each x_i belongs to D_i."
+        ),
+        "k-ary": (
+            "Arity refers to the number of arguments an operation receives: 1-ary takes 1 argument [x], "
+            "2-ary takes 2 arguments [x, y], and k-ary takes a k-tuple of arguments."
+        ),
+        "arity": (
+            "Arity refers to the number of arguments an operation receives: 1-ary takes 1 argument [x], "
+            "2-ary takes 2 arguments [x, y], and k-ary takes a k-tuple of arguments."
+        ),
+        "flt": (
+            "Fermat's Last Theorem states that the Diophantine equation x^n + y^n = z^n has no non-zero "
+            "integer solutions for integers n > 2."
+        ),
+        "fermat": (
+            "Fermat's Last Theorem states that the Diophantine equation x^n + y^n = z^n has no non-zero "
+            "integer solutions for integers n > 2."
+        ),
+        "engel": (
+            "Arthur Engel's problem-solving strategies formalize heuristics like the Invariance Principle, "
+            "the Extremal Principle, Coloring Proofs, and Monovariants."
+        ),
+        "ledger": (
+            "The promotion ledger is a dual-ledger state machine separating unvetted candidate lemmas (shadow ledger) "
+            "from certified active rewrite rules (active ledger)."
+        ),
+    }
+
+    def _explain_concept(text: str):
+        cleaned = text.strip().lower().rstrip("?.! ")
+        for prefix in ("what is a ", "what is an ", "what is ", "what's a ", "what's an ", "what's ", "explain ", "define ", "why is "):
+            if cleaned.startswith(prefix):
+                term = cleaned[len(prefix):].strip()
+                if term in EXPLANATION_TOPICS:
+                    return EXPLANATION_TOPICS[term]
+                for key, val in EXPLANATION_TOPICS.items():
+                    if key in term:
+                        return val
+        for key, val in EXPLANATION_TOPICS.items():
+            if key in cleaned:
+                return val
+        return None
+
     def _get_pack(pack_name):
         nonlocal packs
         if packs is not None:
@@ -1415,6 +1498,11 @@ def run_live_mode(debug: bool = False):
             else:
                 print("[machine] Active verified lemmas in promotion ledger: (none yet; run autonomous promotion)")
         else:
+            explanation = _explain_concept(raw)
+            if explanation is not None:
+                print(f"[machine] {explanation}")
+                continue
+
             arith_val = _eval_arithmetic_expr(raw)
             if arith_val is not None:
                 num_to_word = {v: k for k, v in word_to_num.items()}
