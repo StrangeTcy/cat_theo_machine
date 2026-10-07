@@ -86,11 +86,11 @@ The machine's capabilities and subsystems are partitioned into five core dimensi
 
 - [x] **W1 (Persistence & Snapshot Codec)**: Completed & verified in `test12_persistence_cold_resume.py`.
 - [x] **W3 (Cartesian Playground & Sweeper)**: Completed & verified in `test13_cartesian_playground.py`; its mod 4 sweep result is grounded as the FLT obstruction in `flt-quartic.pack.yaml`.
-- [x] **W4 (Independent Checker B)**: Completed & verified in `test5_checker_b_derivation_verification.py`.
+- [x] **W4 (Independent Checker B)**: Completed & verified in `test5_checker_b_derivation_verification.py`; extended by W6 so step verification also covers knowledge-rewriting (fact-list) steps and `FactsCover`-style knowledge goals.
 - [x] **W5 (Surface Grammar & Lexicon)**: Completed & verified in `test11_surface_language_bridge.py`.
 - [x] **W11 (Invariant Trace Miner & Evaluator)**: Completed & verified in `test7_candidate_evaluator_ablation.py` and `test8_invariant_trace_miner.py`.
 - [x] **W12 (Dual-Ledger Promotion Loop)**: Completed & verified in `test9_autonomous_promotion_loop.py`.
-- [x] **W6 (FLT $n=4$ Quartic Descent)**: Completed & verified in `validation/test15_flt_quartic_descent.py`; pack is `packs/flt-quartic.pack.yaml`, writeup in `flt_e4_quartic_descent.md`.
+- [x] **W6 (FLT $n=4$ Quartic Descent)**: Completed & verified in `validation/test15_flt_quartic_descent.py` and the live session `validation/test16_flt_live_session.py`; pack is `packs/flt-quartic.pack.yaml`, writeup in `flt_e4_quartic_descent.md`.
 - [ ] **W7 (FLT $n=3$ Eisenstein UFD Factorization)**: Ready for execution.
 - [ ] **W8 (IMO Geometry & Auxiliary Construction Engine)**: Ready for execution.
 - [ ] **W9 (IMO Combinatorics, Functional Equations & NT)**: Ready for execution.

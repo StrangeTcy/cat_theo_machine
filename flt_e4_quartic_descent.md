@@ -104,6 +104,37 @@ constant and no board to enumerate. Two negative controls guard the conclusions:
 * drop `MinimalSolution(z)` and the descent produces no plan,
 * ask for a residue the sweep already has, and `ReachabilityPrune` refuses to prune.
 
+## The live session (`test16`)
+
+`test15` proves the claims above. `validation/test16_flt_live_session.py` asks the sharper
+question: with the pack as its only input, how much of the content does the *machine* produce
+and accept on its own? The pack states the conjecture; the session re-derives it:
+
+* **The modulus is discovered, not declared.** The session sweeps `[0, 11)` against moduli
+  `2, 3, 4, 5` and records where the two images separate: `2`, `3` and `5` leave them
+  overlapping, while `4` gives the square image `{0, 1}` and the odd-pair image `{2}`, with
+  `2` outside `{0, 1}`.
+* **The invariant is mined, not assumed.** A decoy template is offered first and refuted by
+  `CheckInvariantPreservationAcrossRules`. `MineInvariantFromTrace` then runs over the five-step
+  derivation the machine itself searched out, and issues an `InvariantCertificate` whose phi is
+  the conjecture template and whose provenance is that derivation.
+* **The obstruction is proved by the certificate**, through
+  `UnreachabilityProverByInvariant`: `Unreachable`, with `PhiHolds` on the start state.
+* **The descent lemmas are checked on instances** by the machine's own arithmetic — including
+  the corrupted near-miss `r^2 = s^2 + 4p^2q^2 + 1`, which is refuted.
+* **The learned schema is promoted through the W12 gates**: `EvaluateCandidateProof` issues the
+  Checker B receipt, `AblationTrial` reports `Proved`, the withheld holdouts (the near-miss as
+  an expected-false instance) come back with an empty failed list, and
+  `SubmitCandidateForPromotion` commits the schema to the ledger at version one. A second
+  candidate whose holdout *claims* the near-miss is provable is rejected, and the ledger does
+  not move.
+* **The promoted schema replays from the ledger alone**: `QueryActivePromotions` →
+  `ExpandCandidateMacro` → independent `CheckerB.VerifyDerivation` of the replayed chain.
+
+So the pack is a statement of the conjecture with its lemma vocabulary, and the session is the
+machine discovering, certifying, promoting, and replaying it. Nothing in `invariance.py`,
+`invariant_miner.py`, `evaluator.py` or `promotion_ledger.py` mentions FLT, quartics, or mod 4.
+
 ## Wiring
 
 The pack is loaded by `main.py` at boot. The theorem agenda reaches it under the filters
@@ -113,6 +144,15 @@ planner walks it breadth-first and takes minutes, while the rewrite engine repla
 five steps in about four seconds, which is the route `test15` exercises.
 
 ## Repairs made along the way
+
+`checker_b.py` gained knowledge-state step verification, forced by `test16`. `VerifyProofStep`
+now re-derives a fact-list rewrite of the current knowledge by joining the rule's premises
+against the facts (`JoinPremises` + `ApplyKnowledgeRewrite`, and for theorem-style rules the
+instantiated, canonicalized conclusion) instead of matching the rule pattern against the whole
+knowledge term, and `VerifyDerivation` accepts `FactsCover` when both the goal and the reached
+term are knowledge states — the same success criterion `RewriteSearch` uses. Without that
+repair no candidate macro over a knowledge-rewriting pack could ever collect a receipt, so the
+promotion gate had nothing to verify. `test5` stays 8/8 and `test15` is unaffected.
 
 `core.py` needed no change, but `labels.py` gained fifteen labels
 (`QuarticSolutionLabel`, `MinimalSolutionLabel`, `PythagoreanTripleLabel`,

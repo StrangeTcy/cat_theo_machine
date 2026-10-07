@@ -43,6 +43,11 @@ class VerifyProofStep(M.Edge):
 
         derived = self._apply_action(action, current, self.registry)
         if M.Compare(derived, next_term)() is M.false_value:
+            if (
+                self._knowledge_reproduces(rule, current, next_term)()
+                is M.truth_value
+            ):
+                return M.Pair(L.StepVerifiedLabel, M.Pair(next_term, M.EmptyList))
             return M.Pair(
                 L.ConclusionMutationLabel,
                 M.Pair(derived, M.Pair(next_term, M.EmptyList)),
@@ -50,9 +55,52 @@ class VerifyProofStep(M.Edge):
 
         return M.Pair(L.StepVerifiedLabel, M.Pair(next_term, M.EmptyList))
 
+    def _apply_knowledge_rule(self, rule, current):
+        facts = P.KnowledgeFacts(current)()
+        bindings_list = P.JoinPremises(P.RulePremises(rule)(), facts, M.EmptyList)()
+        if M.IdentityCompare(bindings_list, M.EmptyList)() is M.truth_value:
+            return current
+        bindings = M.Head(bindings_list)()
+        if P.ReplacementIsFactList(rule)() is M.truth_value:
+            return P.ApplyKnowledgeRewrite(current, rule, bindings)()
+        inst = M.Instantiate(P.RuleReplacement(rule)(), bindings)()
+        conclusion = M.CanonicalArithmeticTerm(M.Head(inst)(), self.registry)()
+        return P.Knowledge(M.Pair(conclusion, facts))()
+
+    def _knowledge_reproduces(self, rule, current, next_term):
+        if P.IsKnowledge(current)() is M.false_value:
+            return M.false_value
+        if M.Compare(current, next_term)() is M.truth_value:
+            return M.truth_value
+        facts = P.KnowledgeFacts(current)()
+        premises = P.RulePremises(rule)()
+        bindings_list = P.JoinPremises(premises, facts, M.EmptyList)()
+        remaining = bindings_list
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            bindings = M.Head(remaining)()
+            if P.ReplacementIsFactList(rule)() is M.truth_value:
+                candidate = P.ApplyKnowledgeRewrite(current, rule, bindings)()
+                if M.Compare(candidate, next_term)() is M.truth_value:
+                    return M.truth_value
+            else:
+                inst = M.Instantiate(P.RuleReplacement(rule)(), bindings)()
+                conclusion = M.CanonicalArithmeticTerm(
+                    M.Head(inst)(), self.registry
+                )()
+                plain = P.Knowledge(M.Pair(conclusion, facts))()
+                if M.Compare(plain, next_term)() is M.truth_value:
+                    return M.truth_value
+                normalized = P.NormalizeKnowledge(plain, self.registry)()
+                if M.Compare(normalized, next_term)() is M.truth_value:
+                    return M.truth_value
+            remaining = M.Tail(remaining)()
+        return M.false_value
+
     def _apply_action(self, action, current, registry):
         if P.IsTheoremAction(action)() is M.truth_value:
             rule = P.ActionRule(action)()
+            if P.IsKnowledge(current)() is M.truth_value:
+                return self._apply_knowledge_rule(rule, current)
             bindings = P.ActionBindings(action)()
             if P.RuleIsUnary(rule)() is M.truth_value:
                 pattern = P.RulePattern(rule)()
@@ -115,9 +163,17 @@ class VerifyDerivation(M.Edge):
             results=self.result,
         )
 
+    def _reaches(self, last_term, goal):
+        if P.IsKnowledge(goal)() is M.truth_value:
+            if P.IsKnowledge(last_term)() is M.truth_value:
+                return P.FactsCover(
+                    P.KnowledgeFacts(goal)(), P.KnowledgeFacts(last_term)()
+                )()
+        return M.Compare(last_term, goal)()
+
     def _check_steps(self, cur_steps, last_term, computed, goal, trusted_rules):
         if M.IdentityCompare(cur_steps, M.EmptyList)() is M.truth_value:
-            if M.Compare(last_term, goal)() is M.false_value:
+            if self._reaches(last_term, goal) is M.false_value:
                 return M.Pair(
                     L.GoalMismatchLabel,
                     M.Pair(last_term, M.Pair(goal, M.EmptyList)),
@@ -153,7 +209,7 @@ class VerifyDerivation(M.Edge):
     def _check(self, derivation, start, goal, trusted_rules):
         steps = P.DerivationSteps(derivation, self.registry)()
         if M.IdentityCompare(steps, M.EmptyList)() is M.truth_value:
-            if M.Compare(start, goal)() is M.truth_value:
+            if self._reaches(start, goal) is M.truth_value:
                 return M.Pair(L.DerivationVerifiedLabel, M.EmptyList)
             return M.Pair(
                 L.GoalMismatchLabel,
