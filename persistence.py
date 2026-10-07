@@ -7,7 +7,15 @@ import pickle
 import sys
 import tempfile
 import time
-import gmpy2
+try:
+    import gmpy2
+except ImportError:
+    class _GMPY2Fallback:
+        def mpz(self, val):
+            if val == "":
+                return 0
+            return int(val)
+    gmpy2 = _GMPY2Fallback()
 
 from . import machine as M
 from . import context as Ctxmod
@@ -24,6 +32,14 @@ from . import rewrite_rules as Rmod
 from . import search as Smod
 from . import theorem_rules as Tmod
 from . import trees as T
+from . import planner as Plannermod
+from . import graph_task as GraphTaskmod
+from . import curriculum as Curriculummod
+from . import checker_b as CheckerBmod
+from . import evaluator as Evaluatormod
+from . import invariant_miner as InvariantMinermod
+from . import promotion_ledger as PromotionLedgermod
+from . import surface_bridge as SurfaceBridgemod
 
 SNAPSHOT_SYMBOL_NAMES = [
     "EmptyList",
@@ -265,6 +281,10 @@ SNAPSHOT_SYMBOL_NAMES = [
     "nine",
 ]
 
+for _lbl_name, _lbl_val in vars(Lmod).items():
+    if (_lbl_name.endswith("Label") or _lbl_name.endswith("Tag")) and _lbl_name != "ConstructorLabel" and _lbl_name not in SNAPSHOT_SYMBOL_NAMES:
+        SNAPSHOT_SYMBOL_NAMES.append(_lbl_name)
+
 
 def _restore_constructor_registry_shard_worker(snapshot_path, shard_index, shard_count, output_path):
     """Spawn-safe worker for restoring a shard of constructor_registry.
@@ -430,6 +450,10 @@ class SnapshotCodec:
         "search_jobs",
         "search_memo",
         "nat_value_index",
+        "planner_state",
+        "graph_tasks",
+        "promotion_ledger",
+        "invariant_catalog",
     ]
 
     def __init__(self, namespace, symbol_names=None):
@@ -945,13 +969,19 @@ class SnapshotCodec:
         return self._decode_scalar(payload["value"])
 
     def _child_refs(self, obj):
+        refs = ()
         if self._is_pair_object(obj):
             return (obj.head.value, obj.tail.value)
         if self._is_edge_object(obj) is self._ns_get("truth_value"):
-            return (obj.inputs, obj.results, obj.value)
-        if obj.value is None:
-            return ()
-        return (obj.value,)
+            refs = (obj.inputs, obj.results, obj.value)
+        elif obj.value is not None:
+            refs = (obj.value,)
+        try:
+            if obj.constructor is not None:
+                refs = refs + (obj.constructor,)
+        except Exception:
+            pass
+        return refs
 
     def _intern(self, obj):
         # Non-recursive intern. Use a machine Pair chain as the work queue so we
@@ -1011,36 +1041,44 @@ class SnapshotCodec:
                 "name": namespace_name,
             }
 
+        rec = None
         if self._is_pair_object(obj):
-            return {
+            rec = {
                 "id": oid,
                 "head": self._encode_field(obj.head.value),
                 "tail": self._encode_field(obj.tail.value),
             }
-
-        if self._is_edge_object(obj) is self._ns_get("truth_value"):
-            return {
+        elif self._is_edge_object(obj) is self._ns_get("truth_value"):
+            rec = {
                 "id": oid,
                 "inputs": self._encode_field(obj.inputs),
                 "results": self._encode_field(obj.results),
                 "value": self._encode_field(obj.value),
             }
+        else:
+            try:
+                symbol = obj.symbol
+            except Exception:
+                symbol = None
+            if symbol is not None:
+                rec = {
+                    "id": oid,
+                    "symbol": symbol,
+                    "value": self._encode_field(obj.value),
+                }
+            else:
+                rec = {
+                    "id": oid,
+                    "value": self._encode_field(obj.value),
+                }
 
         try:
-            symbol = obj.symbol
+            if obj.constructor is not None:
+                rec["constructor"] = self._encode_field(obj.constructor)
         except Exception:
-            symbol = None
-        if symbol is not None:
-            return {
-                "id": oid,
-                "symbol": symbol,
-                "value": self._encode_field(obj.value),
-            }
+            pass
 
-        return {
-            "id": oid,
-            "value": self._encode_field(obj.value),
-        }
+        return rec
 
     def _capture_from_roots(self, roots):
         self.obj_to_id = {}
@@ -1093,6 +1131,13 @@ class SnapshotCodec:
             "search_memo": graph.search_memo,
             "nat_value_index": graph.nat_value_index,
         }
+        for attr in ("planner_state", "graph_tasks", "promotion_ledger", "invariant_catalog"):
+            try:
+                val = vars(graph).get(attr, None)
+                if val is not None:
+                    roots[attr] = val
+            except Exception:
+                pass
         if extra_roots is not None:
             for name in extra_roots:
                 roots[name] = extra_roots[name]
@@ -1162,6 +1207,9 @@ class SnapshotCodec:
                 obj._snapshot_edge_marker = obj
             else:
                 obj.value = self._decode_field(record["value"], id_to_obj)
+
+            if "constructor" in record:
+                obj.constructor = self._decode_field(record["constructor"], id_to_obj)
 
         roots = {}
         for name in snapshot["roots"]:
@@ -1276,6 +1324,11 @@ class SnapshotCodec:
         )
         self.namespace["AllConstructors"] = graph.constructor_registry
 
+        # Restore extended roots if present in snapshot state
+        for attr in ("planner_state", "graph_tasks", "promotion_ledger", "invariant_catalog"):
+            if attr in state.roots:
+                setattr(graph, attr, state.roots[attr])
+
         graph.refresh_context()
 
         # If we had to rebuild legacy roots, persist an upgraded snapshot so
@@ -1324,6 +1377,14 @@ def _runtime_namespace_for_restore():
     namespace.update(vars(Rmod))
     namespace.update(vars(Smod))
     namespace.update(vars(Tmod))
+    namespace.update(vars(Plannermod))
+    namespace.update(vars(GraphTaskmod))
+    namespace.update(vars(Curriculummod))
+    namespace.update(vars(CheckerBmod))
+    namespace.update(vars(Evaluatormod))
+    namespace.update(vars(InvariantMinermod))
+    namespace.update(vars(PromotionLedgermod))
+    namespace.update(vars(SurfaceBridgemod))
     for name in (
         "Zero",
         "one",
