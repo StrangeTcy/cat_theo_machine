@@ -374,7 +374,21 @@
     "SurfaceRenderSuccessLabel": 6389,
     "SurfaceAmbiguityLabel": 6390,
     "SurfaceGrammarRuleLabel": 6391,
-    "SurfaceCorrespondenceLabel": 6392
+    "SurfaceCorrespondenceLabel": 6392,
+    "DividesLabel": 6393,
+    "DivisibleLabel": 6394,
+    "GcdLabel": 6395,
+    "ModLabel": 6396,
+    "CoprimeLabel": 6397,
+    "PlaygroundSweepLabel": 6398,
+    "ObservedRegularityLabel": 6399,
+    "DiscoveredInvariantLabel": 6400,
+    "DisjointImageLabel": 6401,
+    "ConstantImageInvariantLabel": 6402,
+    "SymmetricOperationInvariantLabel": 6403,
+    "IdempotentOperationInvariantLabel": 6404,
+    "IdentityElementInvariantLabel": 6405,
+    "ParityMod4InvariantLabel": 6406
   },
   "objects": [
     {
@@ -65991,6 +66005,62 @@
     {
       "id": 6392,
       "name": "SurfaceCorrespondenceLabel"
+    },
+    {
+      "id": 6393,
+      "name": "DividesLabel"
+    },
+    {
+      "id": 6394,
+      "name": "DivisibleLabel"
+    },
+    {
+      "id": 6395,
+      "name": "GcdLabel"
+    },
+    {
+      "id": 6396,
+      "name": "ModLabel"
+    },
+    {
+      "id": 6397,
+      "name": "CoprimeLabel"
+    },
+    {
+      "id": 6398,
+      "name": "PlaygroundSweepLabel"
+    },
+    {
+      "id": 6399,
+      "name": "ObservedRegularityLabel"
+    },
+    {
+      "id": 6400,
+      "name": "DiscoveredInvariantLabel"
+    },
+    {
+      "id": 6401,
+      "name": "DisjointImageLabel"
+    },
+    {
+      "id": 6402,
+      "name": "ConstantImageInvariantLabel"
+    },
+    {
+      "id": 6403,
+      "name": "SymmetricOperationInvariantLabel"
+    },
+    {
+      "id": 6404,
+      "name": "IdempotentOperationInvariantLabel"
+    },
+    {
+      "id": 6405,
+      "name": "IdentityElementInvariantLabel"
+    },
+    {
+      "id": 6406,
+      "name": "ParityMod4InvariantLabel"
     }
   ]
 }
