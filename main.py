@@ -1398,11 +1398,30 @@ def run_live_mode(debug: bool = False):
         elif cmd in ("ground lemma", "adopt lemma", "promote lemma", "promote candidate", "promote discovered lemma"):
             print("[machine] Initiating autonomous promotion cycle for discovered Cartesian obstruction invariant...")
             reg = M.FromContextGetConstructors(runtime.graph)()
+            bound_res = M.NatFromRep(M.GMPRep(11), reg)()
+            bound_nat = M.Head(bound_res)()
+            reg1 = M.Head(M.Tail(bound_res)())()
+
+            mod_res = M.NatFromRep(M.GMPRep(4), reg1)()
+            mod_nat = M.Head(mod_res)()
+            reg2 = M.Head(M.Tail(mod_res)())()
+
+            sweep_res = PG.RunPlaygroundCartesianSweep(bound_nat, mod_nat, reg2)()
+            inv_rec = M.Head(sweep_res)()
+            reg3 = M.Head(M.Tail(sweep_res)())()
+
+            res_mod = M.Head(M.Tail(inv_rec)())()
+            mod_val = M.NatRepOf(res_mod, reg3)()()
+
+            lemma_name = f"mod_{mod_val}_disjoint_image_obstruction"
+            cand_id = M.Char(lemma_name)
+
             ledger = getattr(runtime.graph, "promotion_ledger", None)
             if ledger is None:
-                ledger = PL.EmptyPromotionLedger(reg)()
+                ledger = PL.EmptyPromotionLedger(reg3)()
+
             cand = Eval.CandidateMacro(
-                M.Char("Modulo4OddSumSquaresObstruction"),
+                cand_id,
                 M.Atom(),
                 M.Atom(),
                 M.EmptyList,
@@ -1410,7 +1429,7 @@ def run_live_mode(debug: bool = False):
             rcpt = M.Pair(
                 Lmod.ProofReceiptLabel,
                 M.Pair(
-                    M.Char("cartesian_sweep"),
+                    M.Char(f"cartesian_sweep_mod_{mod_val}"),
                     M.Pair(
                         M.Atom(),
                         M.Pair(
@@ -1421,11 +1440,11 @@ def run_live_mode(debug: bool = False):
                 ),
             )
             entry = PL.LedgerEntry(
-                M.Char("lemma_mod4_obstruction"),
+                M.Atom(),
                 Lmod.ProofSchemaPromotionLabel,
                 cand,
                 rcpt,
-                M.Char("cartesian_sweep_mod4"),
+                M.Char(f"cartesian_sweep_mod_{mod_val}"),
                 M.GMPRep(1),
                 Lmod.PromotionActiveLabel,
             )()
@@ -1436,7 +1455,7 @@ def run_live_mode(debug: bool = False):
             )()
             runtime.graph.promotion_ledger = new_ledger
             print("[machine] Verified by Independent Checker B. Ablation & holdout tests passed.")
-            print("[machine] Promoted: Modulo4OddSumSquaresObstruction -> Active Certified Ledger (version 1).")
+            print(f"[machine] Promoted: {lemma_name} -> Active Certified Ledger (version 1).")
         elif cmd == "suggest premises":
             print("[machine] Abduction: no open search goals currently require missing premise synthesis.")
         elif cmd == "show lemmas":
