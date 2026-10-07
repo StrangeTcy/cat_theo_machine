@@ -529,6 +529,249 @@ class BuildStandardCorrespondences(M.Edge):
         return self.result
 
 
+class SurfaceDefinition(M.Edge):
+    """
+    Machine-native concept definition record.
+    inputs: [concept_name_atom, explanation_tokens]
+    results: Pair(SurfaceDefinitionLabel, Pair(concept_name_atom, Pair(explanation_tokens, EmptyList)))
+    """
+
+    def __init__(self, concept_name_atom, explanation_tokens):
+        self.concept_name_atom = concept_name_atom
+        self.explanation_tokens = explanation_tokens
+        self.result = M.Pair(
+            L.SurfaceDefinitionLabel,
+            M.Pair(
+                concept_name_atom,
+                M.Pair(explanation_tokens, M.EmptyList),
+            ),
+        )
+        super().__init__(
+            inputs=M.Pair(
+                concept_name_atom,
+                M.Pair(explanation_tokens, M.EmptyList),
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class BuildStandardDefinitions(M.Edge):
+    """
+    Constructs canonical machine-native concept definition hyperedges.
+    """
+
+    def __init__(self, registry):
+        self.registry = registry
+        self.result = self._build()
+        super().__init__(
+            inputs=M.Pair(registry, M.EmptyList),
+            results=self.result,
+        )
+
+    def _build_tokens(self, words):
+        if not words:
+            return M.EmptyList
+        tok = SurfaceToken(M.Char(words[0]))()
+        rest = self._build_tokens(words[1:])
+        return M.Pair(tok, rest)
+
+    def _build(self):
+        # 1. subdomain
+        d_subdomain = SurfaceDefinition(
+            M.Char("subdomain"),
+            self._build_tokens([
+                "a", "subdomain", "is", "a", "subset", "of", "a", "base", "domain",
+                "filtered", "by", "a", "predicate", "or", "condition"
+            ]),
+        )()
+
+        # 2. projection
+        d_proj = SurfaceDefinition(
+            M.Char("projection"),
+            self._build_tokens([
+                "an", "image", "projection", "is", "the", "set", "of", "remainder", "values",
+                "obtained", "under", "an", "equivalence", "modulus"
+            ]),
+        )()
+
+        # 3. disjoint
+        d_disjoint = SurfaceDefinition(
+            M.Char("disjoint"),
+            self._build_tokens([
+                "two", "sets", "are", "disjoint", "when", "their", "intersection", "is", "empty",
+                "sharing", "no", "elements"
+            ]),
+        )()
+
+        # 4. obstruction
+        d_obstruction = SurfaceDefinition(
+            M.Char("obstruction"),
+            self._build_tokens([
+                "an", "obstruction", "is", "a", "structural", "invariant", "conflict",
+                "proving", "an", "equation", "or", "goal", "has", "no", "solutions"
+            ]),
+        )()
+
+        # 5. parity
+        d_parity = SurfaceDefinition(
+            M.Char("parity"),
+            self._build_tokens([
+                "parity", "is", "the", "integer", "property", "of", "being", "even", "or", "odd"
+            ]),
+        )()
+
+        # 6. invariant
+        d_invariant = SurfaceDefinition(
+            M.Char("invariant"),
+            self._build_tokens([
+                "an", "invariant", "is", "a", "property", "or", "relation", "that", "remains",
+                "constant", "under", "all", "state", "transitions"
+            ]),
+        )()
+
+        # 7. monovariant
+        d_monovariant = SurfaceDefinition(
+            M.Char("monovariant"),
+            self._build_tokens([
+                "a", "monovariant", "is", "a", "semi-invariant", "that", "strictly", "decreases",
+                "at", "each", "step", "proving", "termination"
+            ]),
+        )()
+
+        # 8. cartesian
+        d_cartesian = SurfaceDefinition(
+            M.Char("cartesian"),
+            self._build_tokens([
+                "a", "cartesian", "product", "is", "the", "set", "of", "all", "ordered",
+                "tuples", "formed", "across", "input", "domains"
+            ]),
+        )()
+
+        # 9. flt
+        d_flt = SurfaceDefinition(
+            M.Char("flt"),
+            self._build_tokens([
+                "fermat", "last", "theorem", "states", "that", "x^n", "+", "y^n", "=", "z^n",
+                "has", "no", "positive", "integer", "solutions", "for", "n", ">", "2"
+            ]),
+        )()
+
+        # 10. engel
+        d_engel = SurfaceDefinition(
+            M.Char("engel"),
+            self._build_tokens([
+                "arthur", "engel", "problem", "solving", "strategies", "formalize",
+                "invariance", "monovariants", "coloring", "and", "extremal", "principles"
+            ]),
+        )()
+
+        # 11. ledger
+        d_ledger = SurfaceDefinition(
+            M.Char("ledger"),
+            self._build_tokens([
+                "the", "promotion", "ledger", "is", "a", "dual-ledger", "state", "machine",
+                "separating", "candidate", "lemmas", "from", "certified", "active", "rules"
+            ]),
+        )()
+
+        defs = M.Pair(
+            d_subdomain,
+            M.Pair(
+                d_proj,
+                M.Pair(
+                    d_disjoint,
+                    M.Pair(
+                        d_obstruction,
+                        M.Pair(
+                            d_parity,
+                            M.Pair(
+                                d_invariant,
+                                M.Pair(
+                                    d_monovariant,
+                                    M.Pair(
+                                        d_cartesian,
+                                        M.Pair(
+                                            d_flt,
+                                            M.Pair(
+                                                d_engel,
+                                                M.Pair(d_ledger, M.EmptyList),
+                                            ),
+                                        ),
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        return defs
+
+    def __call__(self):
+        return self.result
+
+
+class QueryConceptDefinition(M.Edge):
+    """
+    Queries a concept definition from a Pair chain of SurfaceDefinition hyperedges.
+    """
+
+    def __init__(self, concept_char_atom, definitions_chain):
+        self.result = self._lookup(concept_char_atom, definitions_chain)
+        super().__init__(
+            inputs=M.Pair(concept_char_atom, M.Pair(definitions_chain, M.EmptyList)),
+            results=self.result,
+        )
+
+    def _lookup(self, target_atom, cur_defs):
+        if M.IdentityCompare(cur_defs, M.EmptyList)() is M.truth_value:
+            return M.Pair(L.DefinitionNotFoundLabel, M.EmptyList)
+        d = M.Head(cur_defs)()
+        concept_atom = M.Head(M.Tail(d)())()
+        match_res = M.Match(concept_atom, target_atom)()
+        if M.IdentityCompare(M.Head(match_res)(), M.truth_value)() is M.truth_value:
+            return M.Pair(L.SurfaceParseSuccessLabel, M.Pair(d, M.EmptyList))
+        return self._lookup(target_atom, M.Tail(cur_defs)())
+
+    def __call__(self):
+        return self.result
+
+
+class RenderConceptExplanation(M.Edge):
+    """
+    Renders a SurfaceDefinition hyperedge into a natural surface explanation text.
+    """
+
+    def __init__(self, def_node):
+        self.result = self._render(def_node)
+        super().__init__(
+            inputs=M.Pair(def_node, M.EmptyList),
+            results=self.result,
+        )
+
+    def _render(self, def_node):
+        tag = M.Head(def_node)()
+        if M.IdentityCompare(tag, L.SurfaceDefinitionLabel)() is M.false_value:
+            return M.EmptyList
+        tokens = M.Head(M.Tail(M.Tail(def_node)())())()
+        words = []
+        cur = tokens
+        while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
+            tok = M.Head(cur)()
+            atom = M.Head(M.Tail(tok)())()
+            val = atom() if callable(atom) else getattr(atom, "value", str(atom))
+            words.append(str(val))
+            cur = M.Tail(cur)()
+        text = " ".join(words)
+        return M.Char(text)
+
+    def __call__(self):
+        return self.result
+
+
 __all__ = (
     "SurfaceToken",
     "SurfaceStatement",
@@ -539,4 +782,8 @@ __all__ = (
     "RenderGraphResultToSurface",
     "RenderDerivationSummary",
     "BuildStandardCorrespondences",
+    "SurfaceDefinition",
+    "BuildStandardDefinitions",
+    "QueryConceptDefinition",
+    "RenderConceptExplanation",
 )

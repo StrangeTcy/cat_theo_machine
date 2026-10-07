@@ -1334,6 +1334,7 @@ def run_live_mode(debug: bool = False):
         return loader.load_pack_file(path, runtime.graph)
 
     std_correspondences = SB.BuildStandardCorrespondences(M.FromContextGetConstructors(runtime.graph)())()
+    std_definitions = SB.BuildStandardDefinitions(M.FromContextGetConstructors(runtime.graph)())()
 
     while True:
         try:
@@ -1420,6 +1421,22 @@ def run_live_mode(debug: bool = False):
                 num_to_word = {v: k for k, v in word_to_num.items()}
                 res_word = num_to_word.get(arith_val, str(arith_val))
                 print(f"[machine] {res_word}")
+                continue
+
+            # Check if query is a conceptual inquiry for native hypergraph definitions
+            clean_cmd = cmd.strip().rstrip("?.!")
+            found_def = False
+            for token_word in clean_cmd.split():
+                norm_word = token_word.rstrip("s") if token_word.endswith("s") and len(token_word) > 4 else token_word
+                q_def = SB.QueryConceptDefinition(M.Char(norm_word), std_definitions)()
+                if M.IdentityCompare(M.Head(q_def)(), Lmod.SurfaceParseSuccessLabel)() is M.truth_value:
+                    def_node = M.Head(M.Tail(q_def)())()
+                    rendered = SB.RenderConceptExplanation(def_node)()
+                    text = rendered() if callable(rendered) else getattr(rendered, "value", str(rendered))
+                    print(f"[machine] {text}")
+                    found_def = True
+                    break
+            if found_def:
                 continue
 
             # Route through Gate H Declarative Surface Bridge

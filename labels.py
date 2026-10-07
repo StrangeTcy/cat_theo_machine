@@ -1379,6 +1379,18 @@ class SurfaceCorrespondenceLabel(ConstructorLabel):
     pass
 
 
+class SurfaceDefinitionLabel(ConstructorLabel):
+    pass
+
+
+class ConceptQueryLabel(ConstructorLabel):
+    pass
+
+
+class DefinitionNotFoundLabel(ConstructorLabel):
+    pass
+
+
 class DividesLabel(ConstructorLabel):
     pass
 
@@ -1781,6 +1793,9 @@ DivisibleLabel = DivisibleLabel()
 GcdLabel = GcdLabel()
 ModLabel = ModLabel()
 CoprimeLabel = CoprimeLabel()
+SurfaceDefinitionLabel = SurfaceDefinitionLabel()
+ConceptQueryLabel = ConceptQueryLabel()
+DefinitionNotFoundLabel = DefinitionNotFoundLabel()
 PlaygroundSweepLabel = PlaygroundSweepLabel()
 ObservedRegularityLabel = ObservedRegularityLabel()
 DiscoveredInvariantLabel = DiscoveredInvariantLabel()
@@ -2137,6 +2152,9 @@ def sync_from_namespace(namespace):
         "SurfaceAmbiguityLabel",
         "SurfaceGrammarRuleLabel",
         "SurfaceCorrespondenceLabel",
+        "SurfaceDefinitionLabel",
+        "ConceptQueryLabel",
+        "DefinitionNotFoundLabel",
         "DividesLabel",
         "DivisibleLabel",
         "GcdLabel",

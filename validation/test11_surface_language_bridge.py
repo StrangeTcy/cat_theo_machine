@@ -222,7 +222,45 @@ print(
 )
 assert is_ambig_caught, "Test 7 Failed: Grammar ambiguity was not caught!"
 
+print("[9] Test Case 8: Native Concept Definition Lookup and Explanation Rendering...")
+defs = Bridge.BuildStandardDefinitions(registry)()
+
+# Query 'subdomain'
+q_subdomain = Bridge.QueryConceptDefinition(M.Char("subdomain"), defs)()
+q_subdomain_tag = M.Head(q_subdomain)()
+assert (
+    M.IdentityCompare(q_subdomain_tag, L.SurfaceParseSuccessLabel)()
+    is M.truth_value
+), "Test 8 Failed: Subdomain concept lookup failed!"
+subdomain_def = M.Head(M.Tail(q_subdomain)())()
+subdomain_exp = Bridge.RenderConceptExplanation(subdomain_def)()
+subdomain_text = subdomain_exp() if callable(subdomain_exp) else getattr(subdomain_exp, "value", str(subdomain_exp))
+print(f"    Subdomain Explanation: '{subdomain_text}'")
+assert "subset of a base domain" in str(subdomain_text), "Test 8 Failed: Subdomain explanation text mismatch!"
+
+# Query 'obstruction'
+q_obstruction = Bridge.QueryConceptDefinition(M.Char("obstruction"), defs)()
+q_obstruction_tag = M.Head(q_obstruction)()
+assert (
+    M.IdentityCompare(q_obstruction_tag, L.SurfaceParseSuccessLabel)()
+    is M.truth_value
+), "Test 8 Failed: Obstruction concept lookup failed!"
+obstruction_def = M.Head(M.Tail(q_obstruction)())()
+obstruction_exp = Bridge.RenderConceptExplanation(obstruction_def)()
+obstruction_text = obstruction_exp() if callable(obstruction_exp) else getattr(obstruction_exp, "value", str(obstruction_exp))
+print(f"    Obstruction Explanation: '{obstruction_text}'")
+assert "structural invariant conflict" in str(obstruction_text), "Test 8 Failed: Obstruction explanation text mismatch!"
+
+# Query unknown concept
+q_unknown = Bridge.QueryConceptDefinition(M.Char("nonexistent_concept"), defs)()
+q_unknown_tag = M.Head(q_unknown)()
+assert (
+    M.IdentityCompare(q_unknown_tag, L.DefinitionNotFoundLabel)()
+    is M.truth_value
+), "Test 8 Failed: Nonexistent concept lookup should return DefinitionNotFoundLabel!"
+print(f"    Unknown Concept Lookup Tag: {q_unknown_tag} (Not found as expected)")
+
 print()
 print(
-    f"=== ALL 7 GATE H SURFACE-LANGUAGE BRIDGE TESTS PASSED in {time.time() - t0:.3f}s ==="
+    f"=== ALL 8 GATE H SURFACE-LANGUAGE BRIDGE TESTS PASSED in {time.time() - t0:.3f}s ==="
 )
