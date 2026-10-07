@@ -1352,6 +1352,10 @@ def run_live_mode(debug: bool = False):
             "An invariant is a mathematical property or relation that remains constant under all allowable "
             "operations and state transitions."
         ),
+        "invariance": (
+            "The Invariance Principle states that if an invariant property is preserved across all valid moves, "
+            "any target state with a different invariant value is unreachable."
+        ),
         "monovariant": (
             "A monovariant is a semi-invariant function that changes monotonically (always strictly decreases or increases) "
             "at each step, guaranteeing termination and convergence."
@@ -1363,6 +1367,10 @@ def run_live_mode(debug: bool = False):
         "cartesian product": (
             "A Cartesian product of domains D_1, ..., D_k is the set of all ordered k-tuples (x_1, ..., x_k) "
             "where each x_i belongs to D_i."
+        ),
+        "sweep": (
+            "A Cartesian playground sweep systematically evaluates primitive term operations across bounded finite domains "
+            "to detect regularities, symmetries, and invariant obstructions."
         ),
         "k-ary": (
             "Arity refers to the number of arguments an operation receives: 1-ary takes 1 argument [x], "
@@ -1388,21 +1396,56 @@ def run_live_mode(debug: bool = False):
             "The promotion ledger is a dual-ledger state machine separating unvetted candidate lemmas (shadow ledger) "
             "from certified active rewrite rules (active ledger)."
         ),
+        "checker b": (
+            "Checker B is an independent proof verification kernel that re-evaluates derivation receipts "
+            "without relying on the primary search planner."
+        ),
+        "help": (
+            "Available interactive directives:\n"
+            "  - prove <statement> / for positive integers ... prove that ...\n"
+            "  - suggest lemmas (runs internal introspection & Cartesian sweep)\n"
+            "  - rule: <premises> -> <conclusion> (teaches a declarative lemma)\n"
+            "  - fact: <predicate> (asserts a ground hypergraph fact)\n"
+            "  - show lemmas / show ledger (displays active verified schemata)\n"
+            "  - solve tao / solve engel e1 / solve engel e2 / solve coins\n"
+            "  - what is <concept>? / explain <concept> (requests concept clarification)\n"
+            "  - <arithmetic expression> (e.g. 'two plus two', 'the product of three and four')"
+        ),
     }
 
     def _explain_concept(text: str):
         cleaned = text.strip().lower().rstrip("?.! ")
-        for prefix in ("what is a ", "what is an ", "what is ", "what's a ", "what's an ", "what's ", "explain ", "define ", "why is "):
-            if cleaned.startswith(prefix):
-                term = cleaned[len(prefix):].strip()
+        if cleaned in ("help", "?", "commands", "directives"):
+            return EXPLANATION_TOPICS["help"]
+
+        prefixes = (
+            "what is a ", "what is an ", "what is ", "what are ",
+            "what's a ", "what's an ", "what's ", "what does ",
+            "explain ", "define ", "why is ", "why are ", "tell me about ",
+            "can you explain ", "how does ", "how do ", "meaning of "
+        )
+        is_question = any(cleaned.startswith(p) for p in prefixes) or text.strip().endswith("?")
+
+        for p in prefixes:
+            if cleaned.startswith(p):
+                term = cleaned[len(p):].strip()
                 if term in EXPLANATION_TOPICS:
                     return EXPLANATION_TOPICS[term]
                 for key, val in EXPLANATION_TOPICS.items():
                     if key in term:
                         return val
+
         for key, val in EXPLANATION_TOPICS.items():
             if key in cleaned:
                 return val
+
+        if is_question and not cleaned.startswith("prove") and not cleaned.startswith("for positive integers"):
+            return (
+                f"I do not have a registered explanation for '{text.strip()}'. "
+                "You can query known concepts (e.g., 'What is a subdomain?', 'Explain invariants') "
+                "or teach new knowledge using 'rule: ...' or 'fact: ...'."
+            )
+
         return None
 
     def _get_pack(pack_name):
