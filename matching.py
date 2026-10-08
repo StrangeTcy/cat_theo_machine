@@ -95,42 +95,116 @@ class HypergraphIsomorphismMatch(M.Edge):
 
     def __init__(self, g1, g2, registry):
         self.registry = registry
-        # Extract edge chains from Hypergraph instances or Pair chains
-        edges_1 = getattr(g1, "edges", g1)
-        edges_2 = getattr(g2, "edges", g2)
-        self.result = self._check_isomorphism(edges_1, edges_2, M.EmptyList, registry)
+        self.result = self._match_hypergraphs(g1.edges, g2.edges, M.EmptyList, registry)
         super().__init__(
             inputs=M.Pair(g1, M.Pair(g2, M.Pair(registry, M.EmptyList))),
             results=self.result,
         )
 
-    def _check_isomorphism(self, e1_chain, e2_chain, mapping, reg):
-        if M.IdentityCompare(e1_chain, M.EmptyList)() is M.truth_value and M.IdentityCompare(e2_chain, M.EmptyList)() is M.truth_value:
-            iso_node = M.Pair(L.IsomorphismLabel, M.Pair(mapping, M.EmptyList))
-            return M.Pair(M.truth_value, M.Pair(iso_node, M.Pair(reg, M.EmptyList)))
-
-        if M.IdentityCompare(e1_chain, M.EmptyList)() is M.truth_value or M.IdentityCompare(e2_chain, M.EmptyList)() is M.truth_value:
+    def _match_hypergraphs(self, remaining_e1, pool_e2, mapping, reg):
+        # Base case: All edges in G1 matched
+        if M.IdentityCompare(remaining_e1, M.EmptyList)() is M.truth_value:
+            # G2 must also have no unmatched edges left (bijective edge count)
+            if M.IdentityCompare(pool_e2, M.EmptyList)() is M.truth_value:
+                iso_node = M.Pair(L.IsomorphismLabel, M.Pair(mapping, M.EmptyList))
+                return M.Pair(M.truth_value, M.Pair(iso_node, M.Pair(reg, M.EmptyList)))
             return M.Pair(M.false_value, M.Pair(M.EmptyList, M.Pair(reg, M.EmptyList)))
 
-        h1 = M.Head(e1_chain)()
-        t1 = M.Tail(e1_chain)()
+        target_e1 = M.Head(remaining_e1)()
+        rest_e1 = M.Tail(remaining_e1)()
 
-        h2 = M.Head(e2_chain)()
-        t2 = M.Tail(e2_chain)()
+        # Search through pool_e2 for an edge matching target_e1
+        return self._search_candidate_e2(target_e1, rest_e1, pool_e2, M.EmptyList, mapping, reg)
 
-        # Relational edge compatibility
-        rel1 = M.Head(h1)()
-        rel2 = M.Head(h2)()
+    def _search_candidate_e2(self, target_e1, rest_e1, current_pool, skipped_pool, mapping, reg):
+        if M.IdentityCompare(current_pool, M.EmptyList)() is M.truth_value:
+            # No edge in G2 matches target_e1 under current mapping
+            return M.Pair(M.false_value, M.Pair(M.EmptyList, M.Pair(reg, M.EmptyList)))
 
+        candidate_e2 = M.Head(current_pool)()
+        other_candidates = M.Tail(current_pool)()
+
+        # Try to unify target_e1 with candidate_e2
+        unify_res = self._unify_edges(target_e1, candidate_e2, mapping)
+        can_unify = M.Head(unify_res)()
+        extended_mapping = M.Head(M.Tail(unify_res)())()
+
+        if can_unify is M.truth_value:
+            # Candidate matched: remove candidate_e2 from pool
+            new_pool = self._concat_chains(skipped_pool, other_candidates)
+            sub_res = self._match_hypergraphs(rest_e1, new_pool, extended_mapping, reg)
+            if M.Head(sub_res)() is M.truth_value:
+                return sub_res
+
+        # Backtrack: skip this candidate edge and try the rest of pool_e2
+        new_skipped = M.Pair(candidate_e2, skipped_pool)
+        return self._search_candidate_e2(target_e1, rest_e1, other_candidates, new_skipped, mapping, reg)
+
+    def _unify_edges(self, edge1, edge2, mapping):
+        rel1 = M.Head(edge1)()
+        rel2 = M.Head(edge2)()
         if M.Compare(rel1, rel2)() is M.false_value:
-            return M.Pair(M.false_value, M.Pair(M.EmptyList, M.Pair(reg, M.EmptyList)))
+            return M.Pair(M.false_value, M.Pair(mapping, M.EmptyList))
 
-        # Update bijective renaming mapping
-        arg1 = M.Head(M.Tail(h1)())()
-        arg2 = M.Head(M.Tail(h2)())()
-        new_mapping = M.Pair(M.Pair(arg1, arg2), mapping)
+        args1 = M.Tail(edge1)()
+        args2 = M.Tail(edge2)()
+        return self._unify_args(args1, args2, mapping)
 
-        return self._check_isomorphism(t1, t2, new_mapping, reg)
+    def _unify_args(self, args1, args2, mapping):
+        if M.IdentityCompare(args1, M.EmptyList)() is M.truth_value and M.IdentityCompare(args2, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.truth_value, M.Pair(mapping, M.EmptyList))
+        if M.IdentityCompare(args1, M.EmptyList)() is M.truth_value or M.IdentityCompare(args2, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.false_value, M.Pair(mapping, M.EmptyList))
+
+        a1 = M.Head(args1)()
+        a2 = M.Head(args2)()
+
+        # Check bijective mapping consistency
+        bind_res = self._extend_bijection(a1, a2, mapping)
+        is_consistent = M.Head(bind_res)()
+        if is_consistent is M.false_value:
+            return M.Pair(M.false_value, M.Pair(mapping, M.EmptyList))
+
+        new_map = M.Head(M.Tail(bind_res)())()
+        return self._unify_args(M.Tail(args1)(), M.Tail(args2)(), new_map)
+
+    def _extend_bijection(self, x, y, cur_map):
+        # 1. Forward lookup: has x been mapped?
+        forward_val = self._lookup_forward(x, cur_map)
+        if M.IdentityCompare(forward_val, M.EmptyList)() is M.false_value:
+            if M.Compare(forward_val, y)() is M.truth_value:
+                return M.Pair(M.truth_value, M.Pair(cur_map, M.EmptyList))
+            return M.Pair(M.false_value, M.Pair(cur_map, M.EmptyList))
+
+        # 2. Reverse lookup: has y already been mapped to something other than x?
+        reverse_val = self._lookup_reverse(y, cur_map)
+        if M.IdentityCompare(reverse_val, M.EmptyList)() is M.false_value:
+            return M.Pair(M.false_value, M.Pair(cur_map, M.EmptyList))
+
+        # 3. Fresh pair: extend bijective mapping
+        extended = M.Pair(M.Pair(x, y), cur_map)
+        return M.Pair(M.truth_value, M.Pair(extended, M.EmptyList))
+
+    def _lookup_forward(self, key, cur_map):
+        if M.IdentityCompare(cur_map, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        entry = M.Head(cur_map)()
+        if M.Compare(M.Head(entry)(), key)() is M.truth_value:
+            return M.Tail(entry)()
+        return self._lookup_forward(key, M.Tail(cur_map)())
+
+    def _lookup_reverse(self, val, cur_map):
+        if M.IdentityCompare(cur_map, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        entry = M.Head(cur_map)()
+        if M.Compare(M.Tail(entry)(), val)() is M.truth_value:
+            return M.Head(entry)()
+        return self._lookup_reverse(val, M.Tail(cur_map)())
+
+    def _concat_chains(self, list1, list2):
+        if M.IdentityCompare(list1, M.EmptyList)() is M.truth_value:
+            return list2
+        return M.Pair(M.Head(list1)(), self._concat_chains(M.Tail(list1)(), list2))
 
     def __call__(self):
         return self.result

@@ -43,13 +43,15 @@ runtime2 = make_fresh_runtime()
 g1 = runtime.graph
 g2 = runtime2.graph
 
+# g1 has binary_op then identity
 g1.edges = M.Pair(
     M.Pair(M.Char("binary_op"), M.Pair(a, M.Pair(b, M.EmptyList))),
     M.Pair(M.Pair(M.Char("identity"), M.Pair(a, M.EmptyList)), M.EmptyList),
 )
+# g2 has identity then binary_op in REVERSE order
 g2.edges = M.Pair(
-    M.Pair(M.Char("binary_op"), M.Pair(n1, M.Pair(n2, M.EmptyList))),
-    M.Pair(M.Pair(M.Char("identity"), M.Pair(n1, M.EmptyList)), M.EmptyList),
+    M.Pair(M.Char("identity"), M.Pair(n1, M.EmptyList)),
+    M.Pair(M.Pair(M.Char("binary_op"), M.Pair(n1, M.Pair(n2, M.EmptyList))), M.EmptyList),
 )
 
 iso_res = MatchMod.HypergraphIsomorphismMatch(g1, g2, registry)()
@@ -57,10 +59,10 @@ is_iso = M.Head(iso_res)()
 iso_node = M.Head(M.Tail(iso_res)())()
 reg1 = M.Head(M.Tail(M.Tail(iso_res)())())()
 
-assert is_iso is M.truth_value, "G1 and G2 should be isomorphic"
+assert is_iso is M.truth_value, "G1 and G2 should be isomorphic despite reversed edge ordering"
 iso_tag = M.Head(iso_node)()
 assert M.IdentityCompare(iso_tag, L.IsomorphismLabel)() is M.truth_value, "Tag should be IsomorphismLabel"
-print("    Level 2 Isomorphism verified: G1 ≅ G2 (Passed)")
+print("    Level 2 Isomorphism verified across reversed edge ordering: G1 ≅ G2 (Passed)")
 
 print("\n[3] Test Case 2: Level 4 Shared Structural Invariant Bridging...")
 # Entity E (Elliptic Curve representation)
