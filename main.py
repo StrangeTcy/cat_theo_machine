@@ -1557,7 +1557,7 @@ def run_live_mode(debug: bool = False):
                 print("[machine] Would you care to give it a name?")
             elif M.IdentityCompare(prop_status, Lmod.AlgebraicTemplateLabel)() is M.truth_value:
                 pending_proposal = "algebraic structure over tested operations and laws"
-                print("[machine] The tested operations satisfy recorded laws on these elements. We need a name for this sort of structure.")
+                print(PG.run_playground_interactive(runtime.graph))
             else:
                 print(PG.run_playground_interactive(runtime.graph))
         elif cmd in ("ground lemma", "adopt lemma", "promote lemma", "promote candidate", "promote discovered lemma"):
