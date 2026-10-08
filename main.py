@@ -1255,6 +1255,36 @@ def _terminate_active_children():
             pass
 
 
+class ApplyAddPair(M.Edge):
+    def __init__(self, tuple_args, registry):
+        a = M.Head(tuple_args)()
+        b = M.Head(M.Tail(tuple_args)())()
+        self.result = A.Add(a, b, registry)()
+        super().__init__(inputs=M.Pair(tuple_args, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+    @classmethod
+    def apply(cls, tuple_args, registry):
+        return cls(tuple_args, registry)()
+
+
+class ApplyMultiplyPair(M.Edge):
+    def __init__(self, tuple_args, registry):
+        a = M.Head(tuple_args)()
+        b = M.Head(M.Tail(tuple_args)())()
+        self.result = A.Multiply(a, b, registry)()
+        super().__init__(inputs=M.Pair(tuple_args, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+    @classmethod
+    def apply(cls, tuple_args, registry):
+        return cls(tuple_args, registry)()
+
+
 def run_live_mode(debug: bool = False):
     if debug:
         P.SetDebugTrace(M.truth_value)()
@@ -1407,7 +1437,7 @@ def run_live_mode(debug: bool = False):
             # Record into promotion ledger
             reg = M.FromContextGetConstructors(runtime.graph)()
             cand_id = M.Char(name_part)
-            ledger = getattr(runtime.graph, "promotion_ledger", None)
+            ledger = runtime.graph.promotion_ledger
             if ledger is None:
                 ledger = PL.EmptyPromotionLedger(reg)()
 
@@ -1462,17 +1492,17 @@ def run_live_mode(debug: bool = False):
             reg2 = M.Head(M.Tail(domain_res)())()
 
             # Active operations chain
-            add_op = lambda t, r: A.Add(M.Head(t)(), M.Head(M.Tail(t)())(), r)()
-            mul_op = lambda t, r: A.Multiply(M.Head(t)(), M.Head(M.Tail(t)())(), r)()
             ops_chain = M.Pair(
-                M.Pair(M.Char("add"), M.Pair(add_op, M.EmptyList)),
+                M.Pair(M.Char("add"), M.Pair(ApplyAddPair.apply, M.EmptyList)),
                 M.Pair(
-                    M.Pair(M.Char("mul"), M.Pair(mul_op, M.EmptyList)),
+                    M.Pair(M.Char("mul"), M.Pair(ApplyMultiplyPair.apply, M.EmptyList)),
                     M.EmptyList,
                 ),
             )
 
-            ledger = getattr(runtime.graph, "promotion_ledger", M.EmptyList)
+            ledger = runtime.graph.promotion_ledger
+            if ledger is None:
+                ledger = M.EmptyList
             prop_res = Miner.ProposeNextRegularityOrStructure(ops_chain, domain, ledger, reg2)()
             prop_status = M.Head(prop_res)()
             prop_rec = M.Head(M.Tail(prop_res)())()
@@ -1480,8 +1510,8 @@ def run_live_mode(debug: bool = False):
             if M.IdentityCompare(prop_status, Lmod.ObservedRegularityLabel)() is M.truth_value:
                 op_char = M.Head(M.Tail(prop_rec)())()
                 law_char = M.Head(M.Tail(M.Tail(prop_rec)())())()
-                op_str = op_char() if callable(op_char) else getattr(op_char, "value", str(op_char))
-                law_str = law_char() if callable(law_char) else getattr(law_char, "value", str(law_char))
+                op_str = op_char()
+                law_str = law_char()
                 pending_proposal = f"{op_str} {law_str}"
                 print(f"[machine] Observed: for tested elements (0, 1, 2, 3, 4, 5), {op_str}(a, b) == {op_str}(b, a).")
                 print("[machine] Would you care to give it a name?")
@@ -1511,7 +1541,7 @@ def run_live_mode(debug: bool = False):
             lemma_name = f"mod_{mod_val}_disjoint_image_obstruction"
             cand_id = M.Char(lemma_name)
 
-            ledger = getattr(runtime.graph, "promotion_ledger", None)
+            ledger = runtime.graph.promotion_ledger
             if ledger is None:
                 ledger = PL.EmptyPromotionLedger(reg3)()
 
@@ -1590,7 +1620,7 @@ def run_live_mode(debug: bool = False):
         elif cmd == "suggest premises":
             print("[machine] Abduction: no open search goals currently require missing premise synthesis.")
         elif cmd == "show lemmas":
-            ledger = getattr(runtime.graph, "promotion_ledger", None)
+            ledger = runtime.graph.promotion_ledger
             if ledger is not None:
                 schemata = PL.PromotionLedgerProofSchemata(ledger)()
                 entries = []
@@ -1601,11 +1631,11 @@ def run_live_mode(debug: bool = False):
                     st = PL.LedgerEntryStatus(entry)()
                     if M.IdentityCompare(M.Head(cand)(), Lmod.CandidateMacroLabel)() is M.truth_value:
                         cand_id = M.Head(M.Tail(cand)())()
-                        name_val = cand_id() if callable(cand_id) else getattr(cand_id, "value", str(cand_id))
+                        name_val = cand_id()
                     else:
                         name_val = str(cand)
-                    st_val = getattr(st, "value", "PromotionActiveLabel") if not isinstance(st, str) else st
-                    entries.append((name_val, "PromotionActiveLabel"))
+                    st_val = "PromotionActiveLabel"
+                    entries.append((name_val, st_val))
                     cur = M.Tail(cur)()
                 if entries:
                     print(f"[machine] Active verified lemmas in promotion ledger ({len(entries)}):")
@@ -1632,7 +1662,7 @@ def run_live_mode(debug: bool = False):
                 if M.IdentityCompare(M.Head(q_def)(), Lmod.SurfaceParseSuccessLabel)() is M.truth_value:
                     def_node = M.Head(M.Tail(q_def)())()
                     rendered = SB.RenderConceptExplanation(def_node)()
-                    text = rendered() if callable(rendered) else getattr(rendered, "value", str(rendered))
+                    text = rendered()
                     print(f"[machine] {text}")
                     found_def = True
                     break
