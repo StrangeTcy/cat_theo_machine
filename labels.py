@@ -1513,6 +1513,26 @@ class AlgebraicTemplateLabel(ConstructorLabel):
 
 class TemplateInstanceLabel(ConstructorLabel):
     pass
+
+
+class ExactMatchLabel(ConstructorLabel):
+    pass
+
+
+class IsomorphismLabel(ConstructorLabel):
+    pass
+
+
+class EmbeddingMatchLabel(ConstructorLabel):
+    pass
+
+
+class SharedInvariantBridgeLabel(ConstructorLabel):
+    pass
+
+
+class AnalogyMatchLabel(ConstructorLabel):
+    pass
 TreeLabel = TreeLabel()
 ZeroLabel = ZeroLabel()
 SuccLabel = SuccLabel()
@@ -1693,6 +1713,11 @@ EvaluationTensorLabel = EvaluationTensorLabel()
 EvaluationEntryLabel = EvaluationEntryLabel()
 AlgebraicTemplateLabel = AlgebraicTemplateLabel()
 TemplateInstanceLabel = TemplateInstanceLabel()
+ExactMatchLabel = ExactMatchLabel()
+IsomorphismLabel = IsomorphismLabel()
+EmbeddingMatchLabel = EmbeddingMatchLabel()
+SharedInvariantBridgeLabel = SharedInvariantBridgeLabel()
+AnalogyMatchLabel = AnalogyMatchLabel()
 LimitLabel = LimitLabel()
 IsCauchyLabel = IsCauchyLabel()
 RealNumLabel = RealNumLabel()
@@ -2271,6 +2296,11 @@ def sync_from_namespace(namespace):
         "EvaluationEntryLabel",
         "AlgebraicTemplateLabel",
         "TemplateInstanceLabel",
+        "ExactMatchLabel",
+        "IsomorphismLabel",
+        "EmbeddingMatchLabel",
+        "SharedInvariantBridgeLabel",
+        "AnalogyMatchLabel",
     ):
         if name in namespace:
             globals()[name] = namespace[name]

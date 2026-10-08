@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from . import labels as L
 from . import machine as M
 from . import proof as P
 
@@ -79,6 +80,101 @@ class TermEqual(M.Edge):
                 return M.false_value
             stack = M.Pair(M.Pair(M.Tail(cx)(), M.Tail(cy)()), stack)
         return M.truth_value
+
+    def __call__(self):
+        return self.result
+
+
+class HypergraphIsomorphismMatch(M.Edge):
+    """
+    Level 2 Matching: Determines if two structural subgraphs G1 and G2 are isomorphic
+    under a consistent bijective renaming of entity carrier nodes.
+    inputs: [graph_edges_1, graph_edges_2, registry]
+    results: Pair(is_isomorphic, Pair(renaming_map, Pair(registry, EmptyList)))
+    """
+
+    def __init__(self, edges_1, edges_2, registry):
+        self.registry = registry
+        self.result = self._check_isomorphism(edges_1, edges_2, M.EmptyList, registry)
+        super().__init__(
+            inputs=M.Pair(edges_1, M.Pair(edges_2, M.Pair(registry, M.EmptyList))),
+            results=self.result,
+        )
+
+    def _check_isomorphism(self, e1_chain, e2_chain, mapping, reg):
+        if M.IdentityCompare(e1_chain, M.EmptyList)() is M.truth_value and M.IdentityCompare(e2_chain, M.EmptyList)() is M.truth_value:
+            iso_node = M.Pair(L.IsomorphismLabel, M.Pair(mapping, M.EmptyList))
+            return M.Pair(M.truth_value, M.Pair(iso_node, M.Pair(reg, M.EmptyList)))
+
+        if M.IdentityCompare(e1_chain, M.EmptyList)() is M.truth_value or M.IdentityCompare(e2_chain, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.false_value, M.Pair(M.EmptyList, M.Pair(reg, M.EmptyList)))
+
+        h1 = M.Head(e1_chain)()
+        t1 = M.Tail(e1_chain)()
+
+        h2 = M.Head(e2_chain)()
+        t2 = M.Tail(e2_chain)()
+
+        # Relational edge compatibility
+        rel1 = M.Head(h1)()
+        rel2 = M.Head(h2)()
+
+        if M.Compare(rel1, rel2)() is M.false_value:
+            return M.Pair(M.false_value, M.Pair(M.EmptyList, M.Pair(reg, M.EmptyList)))
+
+        # Update bijective renaming mapping
+        arg1 = M.Head(M.Tail(h1)())()
+        arg2 = M.Head(M.Tail(h2)())()
+        new_mapping = M.Pair(M.Pair(arg1, arg2), mapping)
+
+        return self._check_isomorphism(t1, t2, new_mapping, reg)
+
+    def __call__(self):
+        return self.result
+
+
+class HypergraphSharedInvariantBridge(M.Edge):
+    """
+    Level 4 Matching: Detects when two non-isomorphic parent graphs G1 and G2
+    both produce isomorphic or matching intermediate invariant representations (e.g. E -> rho <- f).
+    inputs: [entity_1, invariant_getter_1, entity_2, invariant_getter_2, registry]
+    results: Pair(SharedInvariantBridgeLabel, Pair(bridge_node, Pair(registry, EmptyList)))
+    """
+
+    def __init__(self, e1, get_inv_1, e2, get_inv_2, registry):
+        self.registry = registry
+        self.result = self._bridge(e1, get_inv_1, e2, get_inv_2, registry)
+        super().__init__(
+            inputs=M.Pair(e1, M.Pair(e2, M.Pair(registry, M.EmptyList))),
+            results=self.result,
+        )
+
+    def _bridge(self, e1, get_inv_1, e2, get_inv_2, reg):
+        res1 = get_inv_1(e1, reg)
+        inv1 = M.Head(res1)()
+        r1 = M.Head(M.Tail(res1)())()
+
+        res2 = get_inv_2(e2, r1)
+        inv2 = M.Head(res2)()
+        r2 = M.Head(M.Tail(res2)())()
+
+        # Check equivalence between intermediate invariants
+        eq_res = M.Compare(inv1, inv2)()
+
+        if eq_res is M.truth_value:
+            bridge_node = M.Pair(
+                L.SharedInvariantBridgeLabel,
+                M.Pair(
+                    e1,
+                    M.Pair(
+                        e2,
+                        M.Pair(inv1, M.EmptyList),
+                    ),
+                ),
+            )
+            return M.Pair(M.truth_value, M.Pair(bridge_node, M.Pair(r2, M.EmptyList)))
+
+        return M.Pair(M.false_value, M.Pair(M.EmptyList, M.Pair(r2, M.EmptyList)))
 
     def __call__(self):
         return self.result
