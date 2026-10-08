@@ -39,16 +39,20 @@ b = M.Char("elem_b")
 n1 = M.Char("elem_1")
 n2 = M.Char("elem_2")
 
-g1_edges = M.Pair(
+runtime2 = make_fresh_runtime()
+g1 = runtime.graph
+g2 = runtime2.graph
+
+g1.edges = M.Pair(
     M.Pair(M.Char("binary_op"), M.Pair(a, M.Pair(b, M.EmptyList))),
     M.Pair(M.Pair(M.Char("identity"), M.Pair(a, M.EmptyList)), M.EmptyList),
 )
-g2_edges = M.Pair(
+g2.edges = M.Pair(
     M.Pair(M.Char("binary_op"), M.Pair(n1, M.Pair(n2, M.EmptyList))),
     M.Pair(M.Pair(M.Char("identity"), M.Pair(n1, M.EmptyList)), M.EmptyList),
 )
 
-iso_res = MatchMod.HypergraphIsomorphismMatch(g1_edges, g2_edges, registry)()
+iso_res = MatchMod.HypergraphIsomorphismMatch(g1, g2, registry)()
 is_iso = M.Head(iso_res)()
 iso_node = M.Head(M.Tail(iso_res)())()
 reg1 = M.Head(M.Tail(M.Tail(iso_res)())())()

@@ -87,17 +87,20 @@ class TermEqual(M.Edge):
 
 class HypergraphIsomorphismMatch(M.Edge):
     """
-    Level 2 Matching: Determines if two structural subgraphs G1 and G2 are isomorphic
-    under a consistent bijective renaming of entity carrier nodes.
-    inputs: [graph_edges_1, graph_edges_2, registry]
+    Level 2 Matching: Determines if two Hypergraph instances G1 and G2 are isomorphic
+    under a consistent bijective renaming of entity carrier nodes across their hyperedges.
+    inputs: [hypergraph_1, hypergraph_2, registry]
     results: Pair(is_isomorphic, Pair(renaming_map, Pair(registry, EmptyList)))
     """
 
-    def __init__(self, edges_1, edges_2, registry):
+    def __init__(self, g1, g2, registry):
         self.registry = registry
+        # Extract edge chains from Hypergraph instances or Pair chains
+        edges_1 = getattr(g1, "edges", g1)
+        edges_2 = getattr(g2, "edges", g2)
         self.result = self._check_isomorphism(edges_1, edges_2, M.EmptyList, registry)
         super().__init__(
-            inputs=M.Pair(edges_1, M.Pair(edges_2, M.Pair(registry, M.EmptyList))),
+            inputs=M.Pair(g1, M.Pair(g2, M.Pair(registry, M.EmptyList))),
             results=self.result,
         )
 
