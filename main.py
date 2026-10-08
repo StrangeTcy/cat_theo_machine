@@ -1255,6 +1255,50 @@ def _terminate_active_children():
             pass
 
 
+def _words_to_token_chain(words):
+    if not words:
+        return M.EmptyList
+    tok = SB.SurfaceToken(M.Char(words[0].lower()))()
+    return M.Pair(tok, _words_to_token_chain(words[1:]))
+
+
+def _print_ledger_lemmas(cur, lemma_idx):
+    if M.IdentityCompare(cur, M.EmptyList)() is M.truth_value:
+        return
+    entry = M.Head(cur)()
+    cand = PL.LedgerEntryCandidate(entry)()
+    if M.IdentityCompare(M.Head(cand)(), Lmod.CandidateMacroLabel)() is M.truth_value:
+        cand_id = M.Head(M.Tail(cand)())()
+        name_val = cand_id()
+    else:
+        name_val = str(cand)
+    print(f"  - Lemma {lemma_idx}: {name_val} [status: PromotionActiveLabel]")
+    _print_ledger_lemmas(M.Tail(cur)(), lemma_idx + 1)
+
+
+def _check_concept_definition_query(words, std_definitions):
+    if not words:
+        return M.false_value
+    word = words[0]
+    norm_word = word[:-1] if word.endswith("s") and len(word) > 4 else word
+    q_def = SB.QueryConceptDefinition(M.Char(norm_word), std_definitions)()
+    if M.IdentityCompare(M.Head(q_def)(), Lmod.SurfaceParseSuccessLabel)() is M.truth_value:
+        def_node = M.Head(M.Tail(q_def)())()
+        rendered = SB.RenderConceptExplanation(def_node)()
+        print(f"[machine] {rendered()}")
+        return M.truth_value
+    return _check_concept_definition_query(words[1:], std_definitions)
+
+
+def _strip_naming_prefix(text, prefixes):
+    if not prefixes:
+        return text.strip()
+    prefix = prefixes[0]
+    if text.lower().startswith(prefix):
+        return text[len(prefix):].strip()
+    return _strip_naming_prefix(text, prefixes[1:])
+
+
 class ApplyAddPair(M.Edge):
     def __init__(self, tuple_args, registry):
         a = M.Head(tuple_args)()
@@ -1264,10 +1308,6 @@ class ApplyAddPair(M.Edge):
 
     def __call__(self):
         return self.result
-
-    @classmethod
-    def apply(cls, tuple_args, registry):
-        return cls(tuple_args, registry)()
 
 
 class ApplyMultiplyPair(M.Edge):
@@ -1279,10 +1319,6 @@ class ApplyMultiplyPair(M.Edge):
 
     def __call__(self):
         return self.result
-
-    @classmethod
-    def apply(cls, tuple_args, registry):
-        return cls(tuple_args, registry)()
 
 
 def run_live_mode(debug: bool = False):
@@ -1423,11 +1459,7 @@ def run_live_mode(debug: bool = False):
         elif cmd.startswith("fact:") or cmd.startswith("rule:") or cmd.startswith("word:"):
             print(f"[machine] Ingested declarative knowledge into hypergraph context: {raw}")
         elif cmd.startswith("call this ") or cmd.startswith("yes, call this ") or cmd.startswith("name this ") or cmd.startswith("call it "):
-            name_part = raw
-            for prefix in ("call this ", "yes, call this ", "name this ", "call it "):
-                if name_part.lower().startswith(prefix):
-                    name_part = name_part[len(prefix):].strip()
-                    break
+            name_part = _strip_naming_prefix(raw, ("call this ", "yes, call this ", "name this ", "call it "))
 
             # Append to talk_lessons.log
             log_line = f"Lesson named: '{name_part}' | Discovery: {pending_proposal}\n"
@@ -1493,9 +1525,9 @@ def run_live_mode(debug: bool = False):
 
             # Active operations chain
             ops_chain = M.Pair(
-                M.Pair(M.Char("add"), M.Pair(ApplyAddPair.apply, M.EmptyList)),
+                M.Pair(M.Char("add"), M.Pair(ApplyAddPair, M.EmptyList)),
                 M.Pair(
-                    M.Pair(M.Char("mul"), M.Pair(ApplyMultiplyPair.apply, M.EmptyList)),
+                    M.Pair(M.Char("mul"), M.Pair(ApplyMultiplyPair, M.EmptyList)),
                     M.EmptyList,
                 ),
             )
@@ -1623,58 +1655,27 @@ def run_live_mode(debug: bool = False):
             ledger = runtime.graph.promotion_ledger
             if ledger is not None:
                 schemata = PL.PromotionLedgerProofSchemata(ledger)()
-                entries = []
-                cur = schemata
-                while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
-                    entry = M.Head(cur)()
-                    cand = PL.LedgerEntryCandidate(entry)()
-                    st = PL.LedgerEntryStatus(entry)()
-                    if M.IdentityCompare(M.Head(cand)(), Lmod.CandidateMacroLabel)() is M.truth_value:
-                        cand_id = M.Head(M.Tail(cand)())()
-                        name_val = cand_id()
-                    else:
-                        name_val = str(cand)
-                    st_val = "PromotionActiveLabel"
-                    entries.append((name_val, st_val))
-                    cur = M.Tail(cur)()
-                if entries:
-                    print(f"[machine] Active verified lemmas in promotion ledger ({len(entries)}):")
-                    for i, (cand_name, st_name) in enumerate(entries, 1):
-                        print(f"  - Lemma {i}: {cand_name} [status: {st_name}]")
-                else:
+                if M.IdentityCompare(schemata, M.EmptyList)() is M.truth_value:
                     print("[machine] Active verified lemmas in promotion ledger: (none yet; run autonomous promotion)")
+                else:
+                    print("[machine] Active verified lemmas in promotion ledger:")
+                    _print_ledger_lemmas(schemata, 1)
             else:
                 print("[machine] Active verified lemmas in promotion ledger: (none yet; run autonomous promotion)")
         else:
             arith_val = _eval_arithmetic_expr(raw)
             if arith_val is not None:
-                num_to_word = {v: k for k, v in word_to_num.items()}
-                res_word = num_to_word.get(arith_val, str(arith_val))
-                print(f"[machine] {res_word}")
+                print(f"[machine] {arith_val}")
                 continue
 
             # Check if query is a conceptual inquiry for native hypergraph definitions
             clean_cmd = cmd.strip().rstrip("?.!")
-            found_def = False
-            for token_word in clean_cmd.split():
-                norm_word = token_word.rstrip("s") if token_word.endswith("s") and len(token_word) > 4 else token_word
-                q_def = SB.QueryConceptDefinition(M.Char(norm_word), std_definitions)()
-                if M.IdentityCompare(M.Head(q_def)(), Lmod.SurfaceParseSuccessLabel)() is M.truth_value:
-                    def_node = M.Head(M.Tail(q_def)())()
-                    rendered = SB.RenderConceptExplanation(def_node)()
-                    text = rendered()
-                    print(f"[machine] {text}")
-                    found_def = True
-                    break
-            if found_def:
+            if _check_concept_definition_query(clean_cmd.split(), std_definitions) is M.truth_value:
                 continue
 
             # Route through Gate H Declarative Surface Bridge
             words = raw.replace(":", " ").replace(",", " ").split()
-            tokens = M.EmptyList
-            for word in reversed(words):
-                tok = SB.SurfaceToken(M.Char(word.lower()))()
-                tokens = M.Pair(tok, tokens)
+            tokens = _words_to_token_chain(words)
             stmt = SB.SurfaceStatement(tokens)()
             reg = M.FromContextGetConstructors(runtime.graph)()
             parse_res = SB.ParseSurfaceToGraphTask(stmt, std_correspondences, reg)()

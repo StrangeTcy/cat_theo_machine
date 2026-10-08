@@ -757,16 +757,18 @@ class RenderConceptExplanation(M.Edge):
         if M.IdentityCompare(tag, L.SurfaceDefinitionLabel)() is M.false_value:
             return M.EmptyList
         tokens = M.Head(M.Tail(M.Tail(def_node)())())()
-        words = []
-        cur = tokens
-        while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
-            tok = M.Head(cur)()
-            atom = M.Head(M.Tail(tok)())()
-            val = atom() if callable(atom) else getattr(atom, "value", str(atom))
-            words.append(str(val))
-            cur = M.Tail(cur)()
-        text = " ".join(words)
-        return M.Char(text)
+        return M.Char(self._tokens_to_string(tokens))
+
+    def _tokens_to_string(self, cur):
+        if M.IdentityCompare(cur, M.EmptyList)() is M.truth_value:
+            return ""
+        tok = M.Head(cur)()
+        atom = M.Head(M.Tail(tok)())()
+        val = str(atom())
+        rest_str = self._tokens_to_string(M.Tail(cur)())
+        if rest_str:
+            return val + " " + rest_str
+        return val
 
     def __call__(self):
         return self.result
