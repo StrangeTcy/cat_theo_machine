@@ -1309,6 +1309,10 @@ class ApplyAddPair(M.Edge):
     def __call__(self):
         return self.result
 
+    @classmethod
+    def apply(cls, tuple_args, registry):
+        return cls(tuple_args, registry)()
+
 
 class ApplyMultiplyPair(M.Edge):
     def __init__(self, tuple_args, registry):
@@ -1319,6 +1323,10 @@ class ApplyMultiplyPair(M.Edge):
 
     def __call__(self):
         return self.result
+
+    @classmethod
+    def apply(cls, tuple_args, registry):
+        return cls(tuple_args, registry)()
 
 
 def run_live_mode(debug: bool = False):
@@ -1525,9 +1533,9 @@ def run_live_mode(debug: bool = False):
 
             # Active operations chain
             ops_chain = M.Pair(
-                M.Pair(M.Char("add"), M.Pair(ApplyAddPair, M.EmptyList)),
+                M.Pair(M.Char("add"), M.Pair(ApplyAddPair.apply, M.EmptyList)),
                 M.Pair(
-                    M.Pair(M.Char("mul"), M.Pair(ApplyMultiplyPair, M.EmptyList)),
+                    M.Pair(M.Char("mul"), M.Pair(ApplyMultiplyPair.apply, M.EmptyList)),
                     M.EmptyList,
                 ),
             )
