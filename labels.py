@@ -1497,6 +1497,22 @@ class IdentityElementInvariantLabel(ConstructorLabel):
 
 class ParityMod4InvariantLabel(ConstructorLabel):
     pass
+
+
+class EvaluationTensorLabel(ConstructorLabel):
+    pass
+
+
+class EvaluationEntryLabel(ConstructorLabel):
+    pass
+
+
+class AlgebraicTemplateLabel(ConstructorLabel):
+    pass
+
+
+class TemplateInstanceLabel(ConstructorLabel):
+    pass
 TreeLabel = TreeLabel()
 ZeroLabel = ZeroLabel()
 SuccLabel = SuccLabel()
@@ -1673,6 +1689,10 @@ SymmetricOperationInvariantLabel = SymmetricOperationInvariantLabel()
 IdempotentOperationInvariantLabel = IdempotentOperationInvariantLabel()
 IdentityElementInvariantLabel = IdentityElementInvariantLabel()
 ParityMod4InvariantLabel = ParityMod4InvariantLabel()
+EvaluationTensorLabel = EvaluationTensorLabel()
+EvaluationEntryLabel = EvaluationEntryLabel()
+AlgebraicTemplateLabel = AlgebraicTemplateLabel()
+TemplateInstanceLabel = TemplateInstanceLabel()
 LimitLabel = LimitLabel()
 IsCauchyLabel = IsCauchyLabel()
 RealNumLabel = RealNumLabel()
@@ -2247,6 +2267,10 @@ def sync_from_namespace(namespace):
         "IdempotentOperationInvariantLabel",
         "IdentityElementInvariantLabel",
         "ParityMod4InvariantLabel",
+        "EvaluationTensorLabel",
+        "EvaluationEntryLabel",
+        "AlgebraicTemplateLabel",
+        "TemplateInstanceLabel",
     ):
         if name in namespace:
             globals()[name] = namespace[name]

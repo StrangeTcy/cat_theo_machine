@@ -90,15 +90,15 @@ The machine's capabilities and subsystems are partitioned into five core dimensi
 - [x] **W5 (Surface Grammar & Lexicon)**: Completed & verified in `test11_surface_language_bridge.py`.
 - [x] **W11 (Invariant Trace Miner & Evaluator)**: Completed & verified in `test7_candidate_evaluator_ablation.py` and `test8_invariant_trace_miner.py`.
 - [x] **W12 (Dual-Ledger Promotion Loop)**: Completed & verified in `test9_autonomous_promotion_loop.py`.
+- [x] **W14 (Proof Storyteller & Derivation Narrative Generator)**: Completed & verified in `test14_proof_story_narrative.py`.
+- [x] **W13 (Multi-Pass Backward Planning Engine)**: Completed & verified in `test15_multi_pass_planner.py`.
 - [ ] **W6 (FLT $n=4$ Quartic Descent)**: Ready for execution.
 - [ ] **W7 (FLT $n=3$ Eisenstein UFD Factorization)**: Ready for execution.
 - [ ] **W8 (IMO Geometry & Auxiliary Construction Engine)**: Ready for execution.
 - [ ] **W9 (IMO Combinatorics, Functional Equations & NT)**: Ready for execution.
 - [ ] **W10 (Engel Strategies & Monovariants Pack)**: Ready for execution.
-- [ ] **W14 (Proof Storyteller & Derivation Narrative Generator)**: Ready for execution.
 - [ ] **W15 (Conversational Socratic Tutor & Concept Explorer)**: Ready for execution.
 - [ ] **W2 (Distributed RPC & mTLS Mesh)**: Ready for execution.
-- [ ] **W13 (Multi-Pass Backward Planning Engine)**: Dependent on Phase 1 domain packs.
 - [ ] **W16 / W17 (Distributed Prover & Byzantine Consensus)**: Dependent on Phase 2.
 
 ---

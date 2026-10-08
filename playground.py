@@ -559,6 +559,61 @@ class RunPlaygroundCartesianSweep(M.Edge):
         return self.result
 
 
+class EvaluateOperationTensor(M.Edge):
+    """
+    Evaluates an arithmetic operation across all tuples in a k-ary domain product,
+    generating a ground EvaluationTensor record.
+    inputs: [op_name, op_func, tuples_chain, registry]
+    results: Pair(EvaluationTensorLabel, Pair(op_name, Pair(entry_chain, Pair(registry, EmptyList))))
+    """
+
+    def __init__(self, op_name, op_func, tuples_chain, registry):
+        self.registry = registry
+        self.result = self._eval_tensor(op_name, op_func, tuples_chain, registry)
+        super().__init__(
+            inputs=M.Pair(
+                op_name,
+                M.Pair(tuples_chain, M.Pair(registry, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def _eval_tensor(self, op_name, op_func, cur_tuples, reg):
+        if M.IdentityCompare(cur_tuples, M.EmptyList)() is M.truth_value:
+            tensor_node = M.Pair(
+                L.EvaluationTensorLabel,
+                M.Pair(op_name, M.Pair(M.EmptyList, M.EmptyList)),
+            )
+            return M.Pair(tensor_node, M.Pair(reg, M.EmptyList))
+
+        head_tuple = M.Head(cur_tuples)()
+        tail_tuples = M.Tail(cur_tuples)()
+
+        call_res = op_func(head_tuple, reg)
+        out_val = M.Head(call_res)()
+        r1 = M.Head(M.Tail(call_res)())()
+
+        rest_res = self._eval_tensor(op_name, op_func, tail_tuples, r1)
+        rest_tensor = M.Head(rest_res)()
+        r2 = M.Head(M.Tail(rest_res)())()
+
+        rest_entries = M.Head(M.Tail(M.Tail(rest_tensor)())())()
+
+        entry = M.Pair(
+            L.EvaluationEntryLabel,
+            M.Pair(head_tuple, M.Pair(out_val, M.EmptyList)),
+        )
+
+        tensor_node = M.Pair(
+            L.EvaluationTensorLabel,
+            M.Pair(op_name, M.Pair(M.Pair(entry, rest_entries), M.EmptyList)),
+        )
+        return M.Pair(tensor_node, M.Pair(r2, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
 def run_playground_interactive(graph):
     """
     Runs the irreducible Cartesian exploration sweep and returns the dynamic formatted proposal.
@@ -638,5 +693,6 @@ __all__ = (
     "ProjectCongruence",
     "EvaluateSetRelation",
     "RunPlaygroundCartesianSweep",
+    "EvaluateOperationTensor",
     "run_playground_interactive",
 )

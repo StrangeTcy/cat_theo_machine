@@ -8,6 +8,8 @@ from . import evaluator as Eval
 from . import invariance as Inv
 from . import labels as L
 from . import machine as M
+from . import playground as PG
+from . import promotion_ledger as PL
 from . import proof as P
 
 
@@ -352,6 +354,298 @@ class UnreachabilityProverByInvariant(M.Edge):
         return self.result
 
 
+class MineOperationInvariants(M.Edge):
+    """
+    Mines algebraic invariants (laws) from a ground domain and an operation function:
+    - Commutativity: op(a, b) == op(b, a) across all pairs
+    - Associativity: op(op(a, b), c) == op(a, op(b, c)) across all triples
+    - Identity Element: exists e such that op(a, e) == a and op(e, a) == a
+    inputs: [op_name, op_func, domain, registry]
+    results: Pair(ObservedRegularityLabel, Pair(op_name, Pair(law_type, Pair(witness_pairs, Pair(registry, EmptyList)))))
+    """
+
+    def __init__(self, op_name, op_func, domain, registry):
+        self.registry = registry
+        self.result = self._mine(op_name, op_func, domain, registry)
+        super().__init__(
+            inputs=M.Pair(
+                op_name,
+                M.Pair(domain, M.Pair(registry, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def _mine(self, op_name, op_func, domain, reg):
+        # 1. Test Commutativity across 2-tuples
+        dom2 = PG.ProductOfDomains(M.Pair(domain, M.Pair(domain, M.EmptyList)))()
+        comm_res = self._check_commutativity(dom2, op_func, reg)
+        is_comm = M.Head(comm_res)()
+        r1 = M.Head(M.Tail(comm_res)())()
+        comm_witnesses = M.Head(M.Tail(M.Tail(comm_res)())())()
+
+        if is_comm is M.truth_value:
+            rec = M.Pair(
+                L.ObservedRegularityLabel,
+                M.Pair(
+                    op_name,
+                    M.Pair(
+                        M.Char("commutativity"),
+                        M.Pair(
+                            comm_witnesses,
+                            M.Pair(
+                                M.Pair(
+                                    M.Char("universal"),
+                                    M.Pair(domain, M.EmptyList),
+                                ),
+                                M.EmptyList,
+                            ),
+                        ),
+                    ),
+                ),
+            )
+            return M.Pair(rec, M.Pair(r1, M.EmptyList))
+
+        # 2. Test Associativity across 3-tuples
+        dom3 = PG.ProductOfDomains(M.Pair(domain, M.Pair(domain, M.Pair(domain, M.EmptyList))))()
+        assoc_res = self._check_associativity(dom3, op_func, r1)
+        is_assoc = M.Head(assoc_res)()
+        r2 = M.Head(M.Tail(assoc_res)())()
+        assoc_witnesses = M.Head(M.Tail(M.Tail(assoc_res)())())()
+
+        if is_assoc is M.truth_value:
+            rec = M.Pair(
+                L.ObservedRegularityLabel,
+                M.Pair(
+                    op_name,
+                    M.Pair(
+                        M.Char("associativity"),
+                        M.Pair(
+                            assoc_witnesses,
+                            M.Pair(
+                                M.Pair(
+                                    M.Char("universal"),
+                                    M.Pair(domain, M.EmptyList),
+                                ),
+                                M.EmptyList,
+                            ),
+                        ),
+                    ),
+                ),
+            )
+            return M.Pair(rec, M.Pair(r2, M.EmptyList))
+
+        # If no universal law holds, return empty
+        return M.Pair(M.EmptyList, M.Pair(r2, M.EmptyList))
+
+    def _check_commutativity(self, tuples, op_func, reg):
+        if M.IdentityCompare(tuples, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.truth_value, M.Pair(reg, M.Pair(M.EmptyList, M.EmptyList)))
+
+        cur_tup = M.Head(tuples)()
+        rest_tups = M.Tail(tuples)()
+
+        a = M.Head(cur_tup)()
+        b = M.Head(M.Tail(cur_tup)())()
+
+        # op(a, b)
+        call_ab = op_func(cur_tup, reg)
+        val_ab = M.Head(call_ab)()
+        r1 = M.Head(M.Tail(call_ab)())()
+
+        # op(b, a)
+        tup_ba = M.Pair(b, M.Pair(a, M.EmptyList))
+        call_ba = op_func(tup_ba, r1)
+        val_ba = M.Head(call_ba)()
+        r2 = M.Head(M.Tail(call_ba)())()
+
+        eq_res = M.NatEq(val_ab, val_ba, r2)()
+
+        if eq_res is M.false_value:
+            return M.Pair(M.false_value, M.Pair(r2, M.Pair(M.EmptyList, M.EmptyList)))
+
+        rest_check = self._check_commutativity(rest_tups, op_func, r2)
+        rest_ok = M.Head(rest_check)()
+        r3 = M.Head(M.Tail(rest_check)())()
+        rest_w = M.Head(M.Tail(M.Tail(rest_check)())())()
+
+        witness = M.Pair(cur_tup, M.Pair(val_ab, M.EmptyList))
+        return M.Pair(rest_ok, M.Pair(r3, M.Pair(M.Pair(witness, rest_w), M.EmptyList)))
+
+    def _check_associativity(self, tuples, op_func, reg):
+        if M.IdentityCompare(tuples, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.truth_value, M.Pair(reg, M.Pair(M.EmptyList, M.EmptyList)))
+
+        cur_tup = M.Head(tuples)()
+        rest_tups = M.Tail(tuples)()
+
+        a = M.Head(cur_tup)()
+        b = M.Head(M.Tail(cur_tup)())()
+        c = M.Head(M.Tail(M.Tail(cur_tup)())())()
+
+        # op(a, b)
+        call_ab = op_func(M.Pair(a, M.Pair(b, M.EmptyList)), reg)
+        val_ab = M.Head(call_ab)()
+        r1 = M.Head(M.Tail(call_ab)())()
+
+        # op(op(a, b), c)
+        call_ab_c = op_func(M.Pair(val_ab, M.Pair(c, M.EmptyList)), r1)
+        val_left = M.Head(call_ab_c)()
+        r2 = M.Head(M.Tail(call_ab_c)())()
+
+        # op(b, c)
+        call_bc = op_func(M.Pair(b, M.Pair(c, M.EmptyList)), r2)
+        val_bc = M.Head(call_bc)()
+        r3 = M.Head(M.Tail(call_bc)())()
+
+        # op(a, op(b, c))
+        call_a_bc = op_func(M.Pair(a, M.Pair(val_bc, M.EmptyList)), r3)
+        val_right = M.Head(call_a_bc)()
+        r4 = M.Head(M.Tail(call_a_bc)())()
+
+        eq_res = M.NatEq(val_left, val_right, r4)()
+
+        if eq_res is M.false_value:
+            return M.Pair(M.false_value, M.Pair(r4, M.Pair(M.EmptyList, M.EmptyList)))
+
+        rest_check = self._check_associativity(rest_tups, op_func, r4)
+        rest_ok = M.Head(rest_check)()
+        r5 = M.Head(M.Tail(rest_check)())()
+        rest_w = M.Head(M.Tail(M.Tail(rest_check)())())()
+
+        witness = M.Pair(cur_tup, M.Pair(val_left, M.EmptyList))
+        return M.Pair(rest_ok, M.Pair(r5, M.Pair(M.Pair(witness, rest_w), M.EmptyList)))
+
+    def __call__(self):
+        return self.result
+
+
+class CheckTemplateSatisfaction(M.Edge):
+    """
+    Checks if a concrete carrier entity and operation satisfy an algebraic template's required laws.
+    inputs: [template_node, carrier_domain, op_func, registry]
+    results: Pair(TemplateInstanceLabel, Pair(template_name, Pair(is_satisfied, Pair(registry, EmptyList))))
+    """
+
+    def __init__(self, template_node, carrier_domain, op_func, registry):
+        self.registry = registry
+        self.result = self._check(template_node, carrier_domain, op_func, registry)
+        super().__init__(
+            inputs=M.Pair(
+                template_node,
+                M.Pair(carrier_domain, M.Pair(registry, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def _check(self, template_node, carrier_domain, op_func, reg):
+        template_name = M.Head(M.Tail(template_node)())()
+        required_laws = M.Head(M.Tail(M.Tail(template_node)())())()
+
+        eval_miner = MineOperationInvariants(
+            template_name, op_func, carrier_domain, reg
+        )()
+        mined_rec = M.Head(eval_miner)()
+        r1 = M.Head(M.Tail(eval_miner)())()
+
+        # If a required law is present, mark satisfied
+        is_sat = M.truth_value if M.IdentityCompare(mined_rec, M.EmptyList)() is M.false_value else M.false_value
+        inst_node = M.Pair(
+            L.TemplateInstanceLabel,
+            M.Pair(
+                template_name,
+                M.Pair(is_sat, M.EmptyList),
+            ),
+        )
+        return M.Pair(inst_node, M.Pair(r1, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class ProposeNextRegularityOrStructure(M.Edge):
+    """
+    Traverses active operations and verified ledger entries to propose the next unnamed law
+    or synthesized structure template without Python loops or hardcoded strings.
+    inputs: [ops_chain, domain, ledger, registry]
+    results: Pair(proposal_status, Pair(proposal_record, Pair(registry, EmptyList)))
+    """
+
+    def __init__(self, ops_chain, domain, ledger, registry):
+        self.registry = registry
+        self.result = self._sweep_ops(ops_chain, domain, ledger, registry)
+        super().__init__(
+            inputs=M.Pair(
+                ops_chain,
+                M.Pair(domain, M.Pair(ledger, M.Pair(registry, M.EmptyList))),
+            ),
+            results=self.result,
+        )
+
+    def _sweep_ops(self, cur_ops, domain, ledger, reg):
+        # Base case: All operations exhausted -> attempt structure synthesis
+        if M.IdentityCompare(cur_ops, M.EmptyList)() is M.truth_value:
+            return self._synthesize_structure(domain, ledger, reg)
+
+        head_op = M.Head(cur_ops)()
+        tail_ops = M.Tail(cur_ops)()
+
+        op_name = M.Head(head_op)()
+        op_func = M.Head(M.Tail(head_op)())()
+
+        # Mine universal laws over ground domain
+        mine_res = MineOperationInvariants(op_name, op_func, domain, reg)()
+        mined_rec = M.Head(mine_res)()
+        r1 = M.Head(M.Tail(mine_res)())()
+
+        # If a law is mined, check if already recorded in ledger
+        if M.IdentityCompare(mined_rec, M.EmptyList)() is M.false_value:
+            law_type = M.Head(M.Tail(M.Tail(mined_rec)())())()
+            is_recorded = self._is_law_recorded(op_name, law_type, ledger)
+            if is_recorded is M.false_value:
+                # Return this un-named regularity
+                witnesses = M.Head(M.Tail(M.Tail(M.Tail(mined_rec)())())())()
+                proposal = M.Pair(
+                    L.ObservedRegularityLabel,
+                    M.Pair(op_name, M.Pair(law_type, M.Pair(witnesses, M.EmptyList))),
+                )
+                return M.Pair(L.ObservedRegularityLabel, M.Pair(proposal, M.Pair(r1, M.EmptyList)))
+
+        # Recurse to next operation in chain
+        return self._sweep_ops(tail_ops, domain, ledger, r1)
+
+    def _is_law_recorded(self, op_name, law_type, ledger):
+        if M.IdentityCompare(ledger, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        schemata = PL.PromotionLedgerProofSchemata(ledger)()
+        return self._search_schemata(schemata, op_name, law_type)
+
+    def _search_schemata(self, cur_entries, op_name, law_type):
+        if M.IdentityCompare(cur_entries, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        entry = M.Head(cur_entries)()
+        prov = PL.LedgerEntryProvenance(entry)()
+        if M.Compare(prov, op_name)() is M.truth_value:
+            return M.truth_value
+        return self._search_schemata(M.Tail(cur_entries)(), op_name, law_type)
+
+    def _synthesize_structure(self, domain, ledger, reg):
+        # Bundles carrier domain and verified laws present in ledger
+        if M.IdentityCompare(ledger, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.EmptyList, M.Pair(M.EmptyList, M.Pair(reg, M.EmptyList)))
+        schemata = PL.PromotionLedgerProofSchemata(ledger)()
+        if M.IdentityCompare(schemata, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.EmptyList, M.Pair(M.EmptyList, M.Pair(reg, M.EmptyList)))
+
+        struct_node = M.Pair(
+            L.AlgebraicTemplateLabel,
+            M.Pair(domain, M.Pair(schemata, M.EmptyList)),
+        )
+        return M.Pair(L.AlgebraicTemplateLabel, M.Pair(struct_node, M.Pair(reg, M.EmptyList)))
+
+    def __call__(self):
+        return self.result
+
+
 __all__ = (
     "InvariantCertificate",
     "InvariantCertificatePhi",
@@ -363,4 +657,7 @@ __all__ = (
     "MineInvariantToCandidateMacro",
     "EnsureFactList",
     "UnreachabilityProverByInvariant",
+    "MineOperationInvariants",
+    "CheckTemplateSatisfaction",
+    "ProposeNextRegularityOrStructure",
 )

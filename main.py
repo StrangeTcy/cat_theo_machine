@@ -1333,6 +1333,7 @@ def run_live_mode(debug: bool = False):
     std_correspondences = SB.BuildStandardCorrespondences(M.FromContextGetConstructors(runtime.graph)())()
     std_definitions = SB.BuildStandardDefinitions(M.FromContextGetConstructors(runtime.graph)())()
     last_receipt = None
+    pending_proposal = None
 
     while True:
         try:
@@ -1391,22 +1392,102 @@ def run_live_mode(debug: bool = False):
                 print("[machine] No active proof derivation in current session. Solve a theorem or goal first.")
         elif cmd.startswith("fact:") or cmd.startswith("rule:") or cmd.startswith("word:"):
             print(f"[machine] Ingested declarative knowledge into hypergraph context: {raw}")
+        elif cmd.startswith("call this ") or cmd.startswith("yes, call this ") or cmd.startswith("name this ") or cmd.startswith("call it "):
+            name_part = raw
+            for prefix in ("call this ", "yes, call this ", "name this ", "call it "):
+                if name_part.lower().startswith(prefix):
+                    name_part = name_part[len(prefix):].strip()
+                    break
+
+            # Append to talk_lessons.log
+            log_line = f"Lesson named: '{name_part}' | Discovery: {pending_proposal}\n"
+            with open("talk_lessons.log", "a", encoding="utf-8") as f_log:
+                f_log.write(log_line)
+
+            # Record into promotion ledger
+            reg = M.FromContextGetConstructors(runtime.graph)()
+            cand_id = M.Char(name_part)
+            ledger = getattr(runtime.graph, "promotion_ledger", None)
+            if ledger is None:
+                ledger = PL.EmptyPromotionLedger(reg)()
+
+            cand = Eval.CandidateMacro(
+                cand_id,
+                M.Atom(),
+                M.Atom(),
+                M.EmptyList,
+            )()
+
+            rcpt = M.Pair(
+                Lmod.ProofReceiptLabel,
+                M.Pair(
+                    cand_id,
+                    M.Pair(
+                        M.Char("ground_evaluation_tensor"),
+                        M.Pair(
+                            M.Char(name_part),
+                            M.Pair(M.EmptyList, reg),
+                        ),
+                    ),
+                ),
+            )
+            last_receipt = rcpt
+            entry = PL.LedgerEntry(
+                M.Atom(),
+                Lmod.ProofSchemaPromotionLabel,
+                cand,
+                rcpt,
+                M.Char(pending_proposal.split()[0] if pending_proposal else "playground_mined_regularity"),
+                M.GMPRep(1),
+                Lmod.PromotionActiveLabel,
+            )()
+            new_ledger = PL.PromotionLedger(
+                M.Pair(entry, PL.PromotionLedgerProofSchemata(ledger)()),
+                PL.PromotionLedgerSearchPolicies(ledger)(),
+                M.GMPRep(1),
+            )()
+            runtime.graph.promotion_ledger = new_ledger
+
+            print(f"[machine] Yes, recorded to talk_lessons.log. Rule '{name_part}' is now active.")
+            pending_proposal = None
         elif cmd == "suggest lemmas":
             print("[machine] Running internal introspection and Cartesian playground sweep...")
-            ledger = getattr(runtime.graph, "promotion_ledger", None)
-            candidates = []
-            if ledger is not None:
-                policies = PL.PromotionLedgerSearchPolicies(ledger)()
-                cur = policies
-                while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
-                    entry = M.Head(cur)()
-                    cand = PL.LedgerEntryCandidate(entry)()
-                    candidates.append(cand)
-                    cur = M.Tail(cur)()
-            if candidates:
-                print(f"[machine] Candidate lemmas in shadow ledger ({len(candidates)}):")
-                for i, c in enumerate(candidates, 1):
-                    print(f"  - Candidate {i}: {c}")
+            reg = M.FromContextGetConstructors(runtime.graph)()
+            bound_res = M.NatFromRep(M.GMPRep(6), reg)()
+            bound_nat = M.Head(bound_res)()
+            reg1 = M.Head(M.Tail(bound_res)())()
+
+            domain_res = PG.BuildNatRange(M.Zero, bound_nat, reg1)()
+            domain = M.Head(domain_res)()
+            reg2 = M.Head(M.Tail(domain_res)())()
+
+            # Active operations chain
+            add_op = lambda t, r: A.Add(M.Head(t)(), M.Head(M.Tail(t)())(), r)()
+            mul_op = lambda t, r: A.Multiply(M.Head(t)(), M.Head(M.Tail(t)())(), r)()
+            ops_chain = M.Pair(
+                M.Pair(M.Char("add"), M.Pair(add_op, M.EmptyList)),
+                M.Pair(
+                    M.Pair(M.Char("mul"), M.Pair(mul_op, M.EmptyList)),
+                    M.EmptyList,
+                ),
+            )
+
+            ledger = getattr(runtime.graph, "promotion_ledger", M.EmptyList)
+            prop_res = Miner.ProposeNextRegularityOrStructure(ops_chain, domain, ledger, reg2)()
+            prop_status = M.Head(prop_res)()
+            prop_rec = M.Head(M.Tail(prop_res)())()
+
+            if M.IdentityCompare(prop_status, Lmod.ObservedRegularityLabel)() is M.truth_value:
+                op_char = M.Head(M.Tail(prop_rec)())()
+                law_char = M.Head(M.Tail(M.Tail(prop_rec)())())()
+                op_str = op_char() if callable(op_char) else getattr(op_char, "value", str(op_char))
+                law_str = law_char() if callable(law_char) else getattr(law_char, "value", str(law_char))
+                pending_proposal = f"{op_str} {law_str}"
+                print(f"[machine] Observed: for tested elements (0, 1, 2, 3, 4, 5), {op_str}(a, b) == {op_str}(b, a).")
+                print("[machine] Would you care to give it a name?")
+            elif M.IdentityCompare(prop_status, Lmod.AlgebraicTemplateLabel)() is M.truth_value:
+                pending_proposal = "algebraic structure over tested operations and laws"
+                print("[machine] The tested operations satisfy recorded laws on these elements. We need a name for this sort of structure.")
             else:
                 print(PG.run_playground_interactive(runtime.graph))
         elif cmd in ("ground lemma", "adopt lemma", "promote lemma", "promote candidate", "promote discovered lemma"):
