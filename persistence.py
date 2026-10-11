@@ -475,6 +475,12 @@ class SnapshotCodec:
         # Identity index: id(obj) -> oid. Keeps _captured_object_id O(1).
         # obj_to_id holds strong references to every captured object, so no
         # id() can be recycled while the index is live.
+        #
+        # Sanctioned host-layer Python under SWARM_EVOLUTION_DAG.md §5.2, which
+        # requires both halves of its exception: this is codec/host code, and
+        # there is no machine analogue -- object identity is a Python-level fact
+        # and an anonymous Atom carries no term-derived key to index by. It is
+        # what makes capture ~16,000 objects/s instead of ~620.
         self._ids_by_pyid = {}
         self.next_id = 1
 

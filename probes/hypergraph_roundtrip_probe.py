@@ -95,8 +95,10 @@ def check(path):
     cursor = edges
     while M.IdentityCompare(cursor, M.EmptyList)() is M.false_value and M.IsPair(cursor)() is M.truth_value:
         candidate = M.Head(cursor)()
-        symbol = getattr(M.Head(candidate)(), "symbol", None)
-        if symbol == "house_note":
+        # Machine-side lookup: Compare is structural, so it matches an interned
+        # Char. IdentityCompare would not, and getattr on the payload would be
+        # reaching past a predicate the machine already provides.
+        if M.Compare(M.Head(candidate)(), M.Char("house_note"))() is M.truth_value:
             note = M.Head(M.Tail(M.Tail(candidate)())())()
         cursor = M.Tail(cursor)()
     print(
@@ -109,11 +111,11 @@ def check(path):
         ),
         flush=True,
     )
-    print("CHECK note type=%s len=%d intact=%s" % (
-        type(note).__name__,
-        len(note.symbol) if note is not None else -1,
-        note is not None and note.symbol == NOTE_TEXT,
-    ), flush=True)
+    # IsAtom and Compare answer both questions the old print asked with
+    # type(note).__name__ and note.symbol == NOTE_TEXT.
+    note_is_atom = note is not None and M.IsAtom(note, registry)() is M.truth_value
+    note_intact = note is not None and M.Compare(note, M.Char(NOTE_TEXT))() is M.truth_value
+    print("CHECK note atom=%s intact=%s" % (note_is_atom, note_intact), flush=True)
     if chain_len(graph.nodes, M) == 0:
         print("CHECK FAILED: hypergraph content did not survive the snapshot", flush=True)
         raise SystemExit(1)

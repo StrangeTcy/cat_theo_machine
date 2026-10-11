@@ -124,11 +124,22 @@ These arrived during Phase 0/1 execution and are prerequisites or enablers rathe
 
 Every Arena agent working on this repository must strictly adhere to the following invariants:
 1. **Repository & Branch**: Work exclusively on the branch your own session is pinned to, and never on another session's branch. (This rule was first published naming one specific branch, `arena/01a108cd-cat-theo-machine`, but every copy of this document — including the two on other branches — carried that same hardcoded name, so it was never a usable instruction. The invariant is one-branch-per-session, not one-branch-for-everyone.)
-2. **Machine Representation Purity**:
+2. **Machine Representation Purity** — binding in the kernel, and in any code that constructs or consumes machine terms:
    - Do not edit `core.py`.
-   - Never use Python built-in lists, dicts, or Python bools in machine runtime code. All constructs must use `Pair`, `EmptyList`, `truth_value`, `false_value`, `Atom`, `Char`, and native labels.
-   - Never use `isinstance`, `hasattr`, `type`, `__class__`, or `__new__`.
-   - Counting and arithmetic must operate via Peano `Zero`, `SuccLabel`, and `GMPRep`.
+   - Build and inspect machine values with `Pair`, `EmptyList`, `truth_value`, `false_value`, `Atom`, `Char`, and native labels — not Python lists, dicts, or bools.
+   - Do not reach into a machine value with `isinstance`, `hasattr`, `type`, `__class__`, or `__new__`; use the machine's own predicates (`IsPair`, `IsTree`, `Compare`, `IdentityCompare`).
+   - Counting and arithmetic over machine quantities operate via Peano `Zero`, `SuccLabel`, and `GMPRep`.
+
+   **Host-layer exception.** This rule was first published unqualified, which made it stricter than the codebase it governs: read literally it condemned 46 sites in verified, shipped code. The boundary that is actually observed is a layer boundary, and it is now stated as such.
+
+   - The kernel — `core.py`, `machine.py`, `context.py`, `labels.py`, `proof.py`, `trees.py`, `graph.py`, `matching.py` — contains **zero** forbidden constructs and must stay that way. That is the invariant worth defending.
+   - Outside it, in host, harness, codec and CLI layers (`main.py`, `persistence.py`, `packs.py`, `runtime.py`, `prettyprinting.py`, `search/`, `testsuite.py`, `story_renderer.py`, `validation/`, `probes/`), Python natives are permitted where there is no machine analogue. `isinstance` 11, `__class__` 16, `type(` 8, `getattr(` 7, `hasattr(` 4 already live there.
+
+   Two standing cases, so nobody re-litigates them:
+   - `persistence.py`'s object-identity index (`_ids_by_pyid`, `_name_by_objid`) is keyed on Python `id()`. Object identity is a Python-level fact and an anonymous `Atom` has no term-derived key, so a pure-machine equivalent is not merely slower, it is not expressible. It buys capture ~620 → ~16,000 objects/s. Sanctioned.
+   - Measurement and reporting in harnesses (chain lengths, timings, byte counts) may use Python ints. What must not happen is a Python count standing in for a machine quantity inside a term.
+
+   **The exception is conjunctive: both halves must hold.** The code is host-layer, *and* there is no machine analogue for what it does. Being in a harness or a probe is not by itself a licence — if the machine can already answer the question (`Compare`, `IsAtom`, `IsPair`, `IsTree`), then reaching into a payload with `getattr`, `type`, or `.symbol` is a violation wherever it sits. The identity index passes both halves. A probe that read `.symbol` to find an edge by name and `type(x).__name__` to report what came back passed only the first; it was fixed to use `Compare` and `IsAtom`. An earlier draft of this section stated the test as "whether the value crosses into a machine term", which made layer the only condition and would have excused that probe. Do not spend a session on an unscoped purity refactor of host code, and do not cite this rule to reject working host-layer code — but do not cite the host layer to excuse bypassing a predicate the machine already provides.
 3. **No Domain-Specific Hardcoding**: Do not hardcode problem targets or fixed heuristics in search or mining modules.
 4. **Verification Requirement**: Every new worker module or pack must include an automated verification suite in `validation/` with $100\%$ green test results before promotion. There are currently **19** suites, `test1`–`test19`, each a standalone script. Run one with `PYTHONPATH=<repo-parent> python -u validation/testN_*.py` (the suites insert the package parent onto `sys.path` themselves and import as `cat_theo_machine.*`).
 5. **Snapshot Root Invariant**: any new machine state that must survive a cold resume has to be registered as a root in `SnapshotCodec.capture()` and restored in `activate()`. Content added through the graph's `nodes`/`edges` context is now covered; state kept only in Python attributes is not, and silently evaporates on reload.

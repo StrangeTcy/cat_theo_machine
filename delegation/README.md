@@ -34,14 +34,37 @@ From `SWARM_EVOLUTION_DAG.md` §5, restated so no brief has to repeat them:
 
 1. **Branch**: work only on the branch your session is pinned to. Never touch another
    session's branch. **Do not open a pull request** — commit to your branch and report.
-2. **Machine representation purity**:
+2. **Machine representation purity** — binding in the kernel and in any code that
+   constructs or consumes machine terms:
    - Never edit `core.py`.
-   - No Python `list`, `dict`, `set`, or `bool` in machine runtime code. Use `Pair`,
-     `EmptyList`, `truth_value`, `false_value`, `Atom`, `Char`, and native labels.
-   - Never `isinstance`, `hasattr`, `type`, `__class__`, `__new__` on machine values.
-     (Plain-Python helper code outside the machine — harnesses, test scaffolding — is
-     exempt, but keep the boundary obvious.)
-   - Counting and arithmetic go through Peano `Zero`, `SuccLabel`, `GMPRep`.
+   - Build and inspect machine values with `Pair`, `EmptyList`, `truth_value`,
+     `false_value`, `Atom`, `Char`, and native labels — not Python lists, dicts, or bools.
+   - Do not reach into a machine value with `isinstance`, `hasattr`, `type`, `__class__`,
+     or `__new__`; use the machine's own predicates (`IsPair`, `IsTree`, `Compare`,
+     `IdentityCompare`). A fresh `M.Char("name")` is **not** identical to an interned one,
+     so `IdentityCompare` silently fails there — use `Compare`, or read `.symbol` in a
+     harness.
+   - Counting and arithmetic over machine quantities go through Peano `Zero`, `SuccLabel`,
+     `GMPRep`.
+
+   **Host-layer exception (read this before "fixing" anything).** The kernel — `core.py`,
+   `machine.py`, `context.py`, `labels.py`, `proof.py`, `trees.py`, `graph.py`,
+   `matching.py` — has zero forbidden constructs and must stay that way. Outside it
+   (`main.py`, `persistence.py`, `packs.py`, `runtime.py`, `search/`, `testsuite.py`,
+   `validation/`, `probes/`), Python natives are permitted where there is no machine
+   analogue, and 46 such sites already exist in verified, shipped code. Sanctioned and not
+   up for re-litigation: `persistence.py`'s `_ids_by_pyid` / `_name_by_objid` identity index,
+   keyed on Python `id()`, because object identity has no machine analogue and an anonymous
+   `Atom` has no term-derived key — it buys capture ~620 → ~16,000 objects/s. Python ints for
+   measurement and reporting in harnesses are fine too.
+
+   **The exception is conjunctive: both halves must hold.** Your code is host-layer, *and*
+   there is no machine analogue for what it does. Being in a harness or a probe is not by
+   itself a licence — if the machine can already answer the question (`Compare`, `IsAtom`,
+   `IsPair`, `IsTree`), then reaching into a payload with `getattr`, `type`, or `.symbol` is a
+   violation wherever it sits, and it will be sent back. Do not spend your session on an
+   unscoped purity refactor, and do not cite this rule to reject working host-layer code — but
+   do not cite the host layer to excuse bypassing a predicate the machine already provides.
 3. **No domain-specific hardcoding**: no problem targets, no named lemmas, no fixed
    heuristics baked into search or mining modules. This is the rule that got the
    hand-authored FLT quartic pack withdrawn (DAG §4, W6). Write generic machinery and let
