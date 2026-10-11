@@ -436,6 +436,10 @@ class SnapshotCodec:
         self.namespace = namespace
         self.symbol_names = symbol_names if symbol_names is not None else SNAPSHOT_SYMBOL_NAMES
         self.obj_to_id = {}
+        # Identity index: id(obj) -> oid. Keeps _captured_object_id O(1).
+        # obj_to_id holds strong references to every captured object, so no
+        # id() can be recycled while the index is live.
+        self._ids_by_pyid = {}
         self.next_id = 1
 
     def _restore_tree_root_worker(queue, state, namespace, root_name, registry):
@@ -469,11 +473,7 @@ class SnapshotCodec:
         return self._ns_get("IdentityCompare")(marker, obj)() is self._ns_get("truth_value")
 
     def _captured_object_id(self, target):
-        for obj in self.obj_to_id:
-            oid = self.obj_to_id[obj]
-            if obj is target:
-                return oid
-        return None
+        return self._ids_by_pyid.get(id(target))
 
     def _scalar_payload(self, x):
         try:
@@ -986,6 +986,7 @@ class SnapshotCodec:
             oid = self.next_id
             self.next_id += 1
             self.obj_to_id[current] = oid
+            self._ids_by_pyid[id(current)] = oid
 
             for child in self._child_refs(current):
                 if child is None:
@@ -1000,11 +1001,7 @@ class SnapshotCodec:
 
     def _record_for(self, obj):
         oid = self.obj_to_id[obj]
-        namespace_name = None
-        for name in self.namespace:
-            if self.namespace[name] is obj:
-                namespace_name = name
-                break
+        namespace_name = self._name_by_objid.get(id(obj))
         if namespace_name is not None:
             return {
                 "id": oid,
@@ -1044,7 +1041,14 @@ class SnapshotCodec:
 
     def _capture_from_roots(self, roots):
         self.obj_to_id = {}
+        self._ids_by_pyid = {}
         self.next_id = 1
+
+        # Reverse lookup for symbol detection in _record_for. Built once per
+        # capture, first name wins, mirroring the previous namespace scan.
+        self._name_by_objid = {}
+        for name in self.namespace:
+            self._name_by_objid.setdefault(id(self.namespace[name]), name)
 
         for name in roots:
             self._intern(roots[name])
@@ -1086,6 +1090,8 @@ class SnapshotCodec:
             "rule_order": graph.rule_order,
             "derivations": graph.derivations,
             "derivation_schemata": graph.derivation_schemata,
+            "nodes": graph.nodes,
+            "edges": graph.edges,
             "search_history": graph.search_history,
             "search_comparisons": graph.search_comparisons,
             "search_comparison_jobs": graph.search_comparison_jobs,
@@ -1263,6 +1269,8 @@ class SnapshotCodec:
             print("DEBUG: activate: replacing graph context...", flush=True)
         graph._replace_context(
             constructors=rebuilt_registry,
+            nodes=state.roots.get("nodes", self._ns_get("EmptyList")),
+            edges=state.roots.get("edges", self._ns_get("EmptyList")),
             all_rules=rebuilt_all_rules,
             rule_order=state.roots["rule_order"],
             derivations=rebuilt_derivations,
