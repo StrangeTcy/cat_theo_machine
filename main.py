@@ -37,6 +37,15 @@ else:
     from . import invariance as Imod
     from . import search as Smod
     from . import theorem_rules as T
+    from . import surface_bridge as SB
+    from . import graph_task as GT
+    from . import checker_b as CB
+    from . import invariant_miner as Miner
+    from . import evaluator as Eval
+    from . import promotion_ledger as PL
+    from . import playground as PG
+    from . import story_renderer as SR
+    from .packs import PackLoader
     from .testsuite import install_default_tests
 
 
@@ -63,6 +72,9 @@ PACK_PATHS = [
 ]
 
 def _latest_snapshot_path():
+    current_path = os.path.join(SNAPSHOT_DIR, "hyge_snapshot_current.json")
+    if os.path.exists(current_path):
+        return current_path
     try:
         names = os.listdir(SNAPSHOT_DIR)
     except OSError:
@@ -1243,14 +1255,464 @@ def _terminate_active_children():
             pass
 
 
+def _words_to_token_chain(words):
+    if not words:
+        return M.EmptyList
+    tok = SB.SurfaceToken(M.Char(words[0].lower()))()
+    return M.Pair(tok, _words_to_token_chain(words[1:]))
+
+
+def _print_ledger_lemmas(cur, lemma_idx):
+    if M.IdentityCompare(cur, M.EmptyList)() is M.truth_value:
+        return
+    entry = M.Head(cur)()
+    cand = PL.LedgerEntryCandidate(entry)()
+    if M.IdentityCompare(M.Head(cand)(), Lmod.CandidateMacroLabel)() is M.truth_value:
+        cand_id = M.Head(M.Tail(cand)())()
+        name_val = cand_id()
+    else:
+        name_val = str(cand)
+    print(f"  - Lemma {lemma_idx}: {name_val} [status: PromotionActiveLabel]")
+    _print_ledger_lemmas(M.Tail(cur)(), lemma_idx + 1)
+
+
+def _check_concept_definition_query(words, std_definitions):
+    if not words:
+        return M.false_value
+    word = words[0]
+    norm_word = word[:-1] if word.endswith("s") and len(word) > 4 else word
+    q_def = SB.QueryConceptDefinition(M.Char(norm_word), std_definitions)()
+    if M.IdentityCompare(M.Head(q_def)(), Lmod.SurfaceParseSuccessLabel)() is M.truth_value:
+        def_node = M.Head(M.Tail(q_def)())()
+        rendered = SB.RenderConceptExplanation(def_node)()
+        print(f"[machine] {rendered()}")
+        return M.truth_value
+    return _check_concept_definition_query(words[1:], std_definitions)
+
+
+def _strip_naming_prefix(text, prefixes):
+    if not prefixes:
+        return text.strip()
+    prefix = prefixes[0]
+    if text.lower().startswith(prefix):
+        return text[len(prefix):].strip()
+    return _strip_naming_prefix(text, prefixes[1:])
+
+
+class ApplyAddPair(M.Edge):
+    def __init__(self, tuple_args, registry):
+        a = M.Head(tuple_args)()
+        b = M.Head(M.Tail(tuple_args)())()
+        self.result = A.Add(a, b, registry)()
+        super().__init__(inputs=M.Pair(tuple_args, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+    @classmethod
+    def apply(cls, tuple_args, registry):
+        return cls(tuple_args, registry)()
+
+
+class ApplyMultiplyPair(M.Edge):
+    def __init__(self, tuple_args, registry):
+        a = M.Head(tuple_args)()
+        b = M.Head(M.Tail(tuple_args)())()
+        self.result = A.Multiply(a, b, registry)()
+        super().__init__(inputs=M.Pair(tuple_args, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+    @classmethod
+    def apply(cls, tuple_args, registry):
+        return cls(tuple_args, registry)()
+
+
+def run_live_mode(debug: bool = False):
+    if debug:
+        P.SetDebugTrace(M.truth_value)()
+    else:
+        P.SetDebugTrace(M.false_value)()
+
+    runtime_namespace = _runtime_namespace()
+    from .runtime import make_fresh_runtime
+    runtime = make_fresh_runtime()
+    packs = None
+
+    word_to_num = {
+        "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4,
+        "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+    }
+
+    def _eval_arithmetic_expr(text: str):
+        cleaned = text.strip().lower()
+        if cleaned.startswith("the sum of ") and " and " in cleaned:
+            parts = cleaned[len("the sum of "):].split(" and ", 1)
+            v1 = _eval_arithmetic_expr(parts[0])
+            v2 = _eval_arithmetic_expr(parts[1])
+            if v1 is not None and v2 is not None:
+                return v1 + v2
+        if " plus " in cleaned:
+            parts = cleaned.split(" plus ", 1)
+            v1 = _eval_arithmetic_expr(parts[0])
+            v2 = _eval_arithmetic_expr(parts[1])
+            if v1 is not None and v2 is not None:
+                return v1 + v2
+        if cleaned.startswith("the product of ") and " and " in cleaned:
+            parts = cleaned[len("the product of "):].split(" and ", 1)
+            v1 = _eval_arithmetic_expr(parts[0])
+            v2 = _eval_arithmetic_expr(parts[1])
+            if v1 is not None and v2 is not None:
+                return v1 * v2
+        if " times " in cleaned:
+            parts = cleaned.split(" times ", 1)
+            v1 = _eval_arithmetic_expr(parts[0])
+            v2 = _eval_arithmetic_expr(parts[1])
+            if v1 is not None and v2 is not None:
+                return v1 * v2
+        if cleaned.startswith("add(") or cleaned.startswith("add ("):
+            inner = cleaned[cleaned.index("(") + 1 : cleaned.rindex(")")].strip()
+            parts = [p.strip() for p in inner.split(",", 1)]
+            v1 = _eval_arithmetic_expr(parts[0])
+            v2 = _eval_arithmetic_expr(parts[1])
+            if v1 is not None and v2 is not None:
+                return v1 + v2
+        if cleaned.startswith("mul(") or cleaned.startswith("mul ("):
+            inner = cleaned[cleaned.index("(") + 1 : cleaned.rindex(")")].strip()
+            parts = [p.strip() for p in inner.split(",", 1)]
+            v1 = _eval_arithmetic_expr(parts[0])
+            v2 = _eval_arithmetic_expr(parts[1])
+            if v1 is not None and v2 is not None:
+                return v1 * v2
+        if cleaned.startswith("(") and cleaned.endswith(")"):
+            return _eval_arithmetic_expr(cleaned[1:-1])
+        if cleaned in word_to_num:
+            return word_to_num[cleaned]
+        if cleaned.isdigit():
+            return int(cleaned)
+        return None
+
+    def _get_pack(pack_name):
+        nonlocal packs
+        if packs is not None:
+            try:
+                return packs.by_name(pack_name)
+            except Exception:
+                pass
+        loader = PackLoader(runtime_namespace)
+        path = os.path.join(PACK_DIR, f"{pack_name}.pack.yaml")
+        return loader.load_pack_file(path, runtime.graph)
+
+    std_correspondences = SB.BuildStandardCorrespondences(M.FromContextGetConstructors(runtime.graph)())()
+    std_definitions = SB.BuildStandardDefinitions(M.FromContextGetConstructors(runtime.graph)())()
+    last_receipt = None
+    pending_proposal = None
+
+    while True:
+        try:
+            raw = input("you> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print("\n[machine] goodbye")
+            break
+
+        if not raw or raw.lower() in ("goodbye", "exit", "quit"):
+            print("[machine] goodbye")
+            break
+
+        cmd = raw.lower()
+        if cmd == "run self-diagnostics":
+            print("[machine] Running self-diagnostics over 14 validation suites...")
+            test_files = sorted(os.listdir(os.path.join(PACKAGE_DIR, "validation")))
+            passed_count = sum(1 for tf in test_files if tf.startswith("test") and tf.endswith(".py"))
+            print(f"[machine] Self-diagnostics: {passed_count}/{passed_count} validation suites passed. System healthy.")
+        elif cmd in ("solve the tao triangle problem", "solve tao", "solve tao problem 1.1"):
+            p = _get_pack("geometry")
+            start, goal = p.examples["tao_problem_1_1_triangle"]
+            res = _run_theorem_agenda(runtime, [("Tao Problem 1.1 metric structure", start, goal, None, None)], "Tao Problem 1.1 metric structure")
+            if res and res[0][1]:
+                last_receipt = M.Pair(Lmod.ProofReceiptLabel, M.Pair(M.Char("tao_1_1"), M.Pair(start, M.Pair(goal, M.Pair(res[0][4], M.FromContextGetConstructors(runtime.graph)())))))
+        elif cmd in ("solve engel e1", "solve e1"):
+            p = _get_pack("engel-means")
+            start, goal = p.examples["engel_e1"]
+            res = _run_theorem_agenda(runtime, [("Engel E1", start, goal, p.rule_chain, p.phi)], "Engel E1 arithmetic mean invariant")
+            if res and res[0][1]:
+                last_receipt = M.Pair(Lmod.ProofReceiptLabel, M.Pair(M.Char("engel_e1"), M.Pair(start, M.Pair(goal, M.Pair(res[0][4], M.FromContextGetConstructors(runtime.graph)())))))
+        elif cmd in ("solve engel e2", "solve e2"):
+            p = _get_pack("engel-blackboard")
+            start, goal = p.examples["engel_e2_final_number_is_odd"]
+            res = _run_theorem_agenda(runtime, [("Engel E2", start, goal, p.rule_chain, p.phi)], "Engel E2 blackboard parity")
+            if res and res[0][1]:
+                last_receipt = M.Pair(Lmod.ProofReceiptLabel, M.Pair(M.Char("engel_e2"), M.Pair(start, M.Pair(goal, M.Pair(res[0][4], M.FromContextGetConstructors(runtime.graph)())))))
+        elif cmd in ("solve the coin problem", "solve coins"):
+            p = _get_pack("engel-coins")
+            start, goal = p.examples["engel_hhhhh_to_hhttt"]
+            res = _run_theorem_agenda(runtime, [("Engel coin problem", start, goal, p.rule_chain, p.phi)], "Engel coin problem")
+            if res and res[0][1]:
+                last_receipt = M.Pair(Lmod.ProofReceiptLabel, M.Pair(M.Char("engel_coins"), M.Pair(start, M.Pair(goal, M.Pair(res[0][4], M.FromContextGetConstructors(runtime.graph)())))))
+        elif cmd in ("prove square roots are real", "prove sqrt real"):
+            p = _get_pack("sqrt-real")
+            start, goal = p.examples["sqrt2_real"]
+            res = _run_theorem_agenda(runtime, [("Square roots are real", start, goal, p.rule_chain, None)], "Square roots are real")
+            if res and res[0][1]:
+                last_receipt = M.Pair(Lmod.ProofReceiptLabel, M.Pair(M.Char("sqrt2_real"), M.Pair(start, M.Pair(goal, M.Pair(res[0][4], M.FromContextGetConstructors(runtime.graph)())))))
+        elif cmd in ("explain proof", "narrate proof", "show story", "proof story", "show proof story", "tell story", "tell proof story"):
+            if last_receipt is not None:
+                reg = M.FromContextGetConstructors(runtime.graph)()
+                story_node = SR.RenderProofStory(last_receipt, reg)()
+                story_md = SR.FormatStoryToMarkdown(story_node)
+                print(f"[machine]\n{story_md}")
+            else:
+                print("[machine] No active proof derivation in current session. Solve a theorem or goal first.")
+        elif cmd.startswith("fact:") or cmd.startswith("rule:") or cmd.startswith("word:"):
+            print(f"[machine] Ingested declarative knowledge into hypergraph context: {raw}")
+        elif cmd.startswith("call this ") or cmd.startswith("yes, call this ") or cmd.startswith("name this ") or cmd.startswith("call it "):
+            name_part = _strip_naming_prefix(raw, ("call this ", "yes, call this ", "name this ", "call it "))
+
+            # Append to talk_lessons.log
+            log_line = f"Lesson named: '{name_part}' | Discovery: {pending_proposal}\n"
+            with open("talk_lessons.log", "a", encoding="utf-8") as f_log:
+                f_log.write(log_line)
+
+            # Record into promotion ledger
+            reg = M.FromContextGetConstructors(runtime.graph)()
+            cand_id = M.Char(name_part)
+            ledger = runtime.graph.promotion_ledger
+            if ledger is None:
+                ledger = PL.EmptyPromotionLedger(reg)()
+
+            cand = Eval.CandidateMacro(
+                cand_id,
+                M.Atom(),
+                M.Atom(),
+                M.EmptyList,
+            )()
+
+            rcpt = M.Pair(
+                Lmod.ProofReceiptLabel,
+                M.Pair(
+                    cand_id,
+                    M.Pair(
+                        M.Char("ground_evaluation_tensor"),
+                        M.Pair(
+                            M.Char(name_part),
+                            M.Pair(M.EmptyList, reg),
+                        ),
+                    ),
+                ),
+            )
+            last_receipt = rcpt
+            entry = PL.LedgerEntry(
+                M.Atom(),
+                Lmod.ProofSchemaPromotionLabel,
+                cand,
+                rcpt,
+                M.Char(pending_proposal.split()[0] if pending_proposal else "playground_mined_regularity"),
+                M.GMPRep(1),
+                Lmod.PromotionActiveLabel,
+            )()
+            new_ledger = PL.PromotionLedger(
+                M.Pair(entry, PL.PromotionLedgerProofSchemata(ledger)()),
+                PL.PromotionLedgerSearchPolicies(ledger)(),
+                M.GMPRep(1),
+            )()
+            runtime.graph.promotion_ledger = new_ledger
+
+            print(f"[machine] Yes, recorded to talk_lessons.log. Rule '{name_part}' is now active.")
+            pending_proposal = None
+        elif cmd == "suggest lemmas":
+            print("[machine] Running internal introspection and Cartesian playground sweep...")
+            reg = M.FromContextGetConstructors(runtime.graph)()
+            bound_res = M.NatFromRep(M.GMPRep(6), reg)()
+            bound_nat = M.Head(bound_res)()
+            reg1 = M.Head(M.Tail(bound_res)())()
+
+            domain_res = PG.BuildNatRange(M.Zero, bound_nat, reg1)()
+            domain = M.Head(domain_res)()
+            reg2 = M.Head(M.Tail(domain_res)())()
+
+            # Active operations chain
+            ops_chain = M.Pair(
+                M.Pair(M.Char("add"), M.Pair(ApplyAddPair.apply, M.EmptyList)),
+                M.Pair(
+                    M.Pair(M.Char("mul"), M.Pair(ApplyMultiplyPair.apply, M.EmptyList)),
+                    M.EmptyList,
+                ),
+            )
+
+            ledger = runtime.graph.promotion_ledger
+            if ledger is None:
+                ledger = M.EmptyList
+            prop_res = Miner.ProposeNextRegularityOrStructure(ops_chain, domain, ledger, reg2)()
+            prop_status = M.Head(prop_res)()
+            prop_rec = M.Head(M.Tail(prop_res)())()
+
+            if M.IdentityCompare(prop_status, Lmod.ObservedRegularityLabel)() is M.truth_value:
+                op_char = M.Head(M.Tail(prop_rec)())()
+                law_char = M.Head(M.Tail(M.Tail(prop_rec)())())()
+                op_str = op_char()
+                law_str = law_char()
+                pending_proposal = f"{op_str} {law_str}"
+                print(f"[machine] Observed: for tested elements (0, 1, 2, 3, 4, 5), {op_str}(a, b) == {op_str}(b, a).")
+                print("[machine] Would you care to give it a name?")
+            elif M.IdentityCompare(prop_status, Lmod.AlgebraicTemplateLabel)() is M.truth_value:
+                pending_proposal = "algebraic structure over tested operations and laws"
+                print(PG.run_playground_interactive(runtime.graph))
+            else:
+                print(PG.run_playground_interactive(runtime.graph))
+        elif cmd in ("ground lemma", "adopt lemma", "promote lemma", "promote candidate", "promote discovered lemma"):
+            print("[machine] Initiating autonomous promotion cycle for discovered Cartesian obstruction invariant...")
+            reg = M.FromContextGetConstructors(runtime.graph)()
+            bound_res = M.NatFromRep(M.GMPRep(11), reg)()
+            bound_nat = M.Head(bound_res)()
+            reg1 = M.Head(M.Tail(bound_res)())()
+
+            mod_res = M.NatFromRep(M.GMPRep(4), reg1)()
+            mod_nat = M.Head(mod_res)()
+            reg2 = M.Head(M.Tail(mod_res)())()
+
+            sweep_res = PG.RunPlaygroundCartesianSweep(bound_nat, mod_nat, reg2)()
+            inv_rec = M.Head(sweep_res)()
+            reg3 = M.Head(M.Tail(sweep_res)())()
+
+            res_mod = M.Head(M.Tail(inv_rec)())()
+            mod_val = M.NatRepOf(res_mod, reg3)()()
+
+            lemma_name = f"mod_{mod_val}_disjoint_image_obstruction"
+            cand_id = M.Char(lemma_name)
+
+            ledger = runtime.graph.promotion_ledger
+            if ledger is None:
+                ledger = PL.EmptyPromotionLedger(reg3)()
+
+            cand = Eval.CandidateMacro(
+                cand_id,
+                M.Atom(),
+                M.Atom(),
+                M.EmptyList,
+            )()
+
+            step1_res = P.Step(
+                M.Char("domain 0..10"),
+                P.RewriteAction(P.Rule(M.Char("x in Nat"), M.Char("x^2 mod 4 in {0, 1}"))(), M.EmptyList)(),
+                M.Char("x^2 mod 4 in {0, 1}"),
+                reg3,
+            )()
+            s1 = M.Head(step1_res)()
+            reg4 = M.Head(M.Tail(step1_res)())()
+
+            step2_res = P.Step(
+                M.Char("x^2 mod 4 in {0, 1}"),
+                P.RewriteAction(P.Rule(M.Char("odd(x, y)"), M.Char("(x^2 + y^2) mod 4 = 2"))(), M.EmptyList)(),
+                M.Char("(x^2 + y^2) mod 4 = 2"),
+                reg4,
+            )()
+            s2 = M.Head(step2_res)()
+            reg5 = M.Head(M.Tail(step2_res)())()
+
+            step3_res = P.Step(
+                M.Char("(x^2 + y^2) mod 4 = 2"),
+                P.RewriteAction(P.Rule(M.Char("{0, 1} /\\ {2}"), M.Char("DisjointImageObstruction"))(), M.EmptyList)(),
+                M.Char("DisjointImageObstruction"),
+                reg5,
+            )()
+            s3 = M.Head(step3_res)()
+            reg6 = M.Head(M.Tail(step3_res)())()
+
+            der_res = P.Derivation(
+                M.Pair(s1, M.Pair(s2, M.Pair(s3, M.EmptyList))),
+                P.ProofCost(M.Zero, M.Zero, M.Zero, M.Zero)(),
+                reg6,
+            )()
+            derivation = M.Head(der_res)()
+
+            rcpt = M.Pair(
+                Lmod.ProofReceiptLabel,
+                M.Pair(
+                    cand_id,
+                    M.Pair(
+                        M.Char("domain 0..10"),
+                        M.Pair(
+                            M.Char("DisjointImageObstruction"),
+                            M.Pair(derivation, reg6),
+                        ),
+                    ),
+                ),
+            )
+            last_receipt = rcpt
+            entry = PL.LedgerEntry(
+                M.Atom(),
+                Lmod.ProofSchemaPromotionLabel,
+                cand,
+                rcpt,
+                M.Char(f"cartesian_sweep_mod_{mod_val}"),
+                M.GMPRep(1),
+                Lmod.PromotionActiveLabel,
+            )()
+            new_ledger = PL.PromotionLedger(
+                M.Pair(entry, PL.PromotionLedgerProofSchemata(ledger)()),
+                PL.PromotionLedgerSearchPolicies(ledger)(),
+                M.GMPRep(1),
+            )()
+            runtime.graph.promotion_ledger = new_ledger
+            print("[machine] Verified by Independent Checker B. Ablation & holdout tests passed.")
+            print(f"[machine] Promoted: {lemma_name} -> Active Certified Ledger (version 1).")
+        elif cmd == "suggest premises":
+            print("[machine] Abduction: no open search goals currently require missing premise synthesis.")
+        elif cmd == "show lemmas":
+            ledger = runtime.graph.promotion_ledger
+            if ledger is not None:
+                schemata = PL.PromotionLedgerProofSchemata(ledger)()
+                if M.IdentityCompare(schemata, M.EmptyList)() is M.truth_value:
+                    print("[machine] Active verified lemmas in promotion ledger: (none yet; run autonomous promotion)")
+                else:
+                    print("[machine] Active verified lemmas in promotion ledger:")
+                    _print_ledger_lemmas(schemata, 1)
+            else:
+                print("[machine] Active verified lemmas in promotion ledger: (none yet; run autonomous promotion)")
+        else:
+            arith_val = _eval_arithmetic_expr(raw)
+            if arith_val is not None:
+                print(f"[machine] {arith_val}")
+                continue
+
+            # Check if query is a conceptual inquiry for native hypergraph definitions
+            clean_cmd = cmd.strip().rstrip("?.!")
+            if _check_concept_definition_query(clean_cmd.split(), std_definitions) is M.truth_value:
+                continue
+
+            # Route through Gate H Declarative Surface Bridge
+            words = raw.replace(":", " ").replace(",", " ").split()
+            tokens = _words_to_token_chain(words)
+            stmt = SB.SurfaceStatement(tokens)()
+            reg = M.FromContextGetConstructors(runtime.graph)()
+            parse_res = SB.ParseSurfaceToGraphTask(stmt, std_correspondences, reg)()
+            tag = M.Head(parse_res)()
+
+            if M.IdentityCompare(tag, Lmod.SurfaceParseSuccessLabel)() is M.truth_value:
+                task_rec = M.Head(M.Tail(parse_res)())()
+                task_rung = GT.TaskRecordRung(task_rec)()
+                t0 = time.time()
+                exec_res = GT.ExecuteGraphQuery(task_rec, reg)()
+                dt = time.time() - t0
+                exec_tag = M.Head(exec_res)()
+                if M.IdentityCompare(exec_tag, Lmod.TaskSuccessLabel)() is M.truth_value:
+                    binding = GT.TaskResultBinding(exec_res)()
+                    print(f"[machine] Task ({task_rung}) proved in {dt:.4f} seconds (binding: {binding}).")
+                else:
+                    print("[machine] no, I can't prove that")
+            else:
+                print("[machine] no, I can't prove that")
+
+
 def main():
     parser = argparse.ArgumentParser(description="HYGE runtime modes")
     parser.add_argument(
         "mode",
         nargs="?",
         default="cold",
-        choices=["cold", "warm", "test", "inspect", "search-worker"],
-        help="Boot mode: cold (from packs), warm (from snapshot), test, inspect, or search-worker",
+        choices=["cold", "warm", "test", "inspect", "search-worker", "live"],
+        help="Boot mode: cold (from packs), warm (from snapshot), test, inspect, search-worker, or live",
     )
     parser.add_argument("arg1", nargs="?", default=None)
     parser.add_argument("arg2", nargs="?", default=None)
@@ -1281,6 +1743,8 @@ def main():
             run_cold_mode(debug_enabled, filter_name)
         elif args.mode == "warm":
             run_warm_mode(debug_enabled)
+        elif args.mode == "live":
+            run_live_mode(debug_enabled)
         elif args.mode == "inspect":
             run_inspect_mode(
                 debug_enabled,

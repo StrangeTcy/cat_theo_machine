@@ -1163,6 +1163,10 @@ class InvariantRefutedLabel(ConstructorLabel):
     pass
 
 
+class InvariantCertificateLabel(ConstructorLabel):
+    pass
+
+
 class PerimeterLabel(ConstructorLabel):
     pass
 
@@ -1175,6 +1179,360 @@ class TaoProblem11PerimeterValueLabel(ConstructorLabel):
     pass
 
 
+class StepVerifiedLabel(ConstructorLabel):
+    pass
+
+
+class DerivationVerifiedLabel(ConstructorLabel):
+    pass
+
+
+class UnknownRuleLabel(ConstructorLabel):
+    pass
+
+
+class ConclusionMutationLabel(ConstructorLabel):
+    pass
+
+
+class PremiseMismatchLabel(ConstructorLabel):
+    pass
+
+
+class InvalidPremiseRefLabel(ConstructorLabel):
+    pass
+
+
+class GoalMismatchLabel(ConstructorLabel):
+    pass
+
+
+class CandidateScopeMismatchLabel(ConstructorLabel):
+    pass
+
+
+class ProofReceiptLabel(ConstructorLabel):
+    pass
+
+
+class StepDiscontinuityLabel(ConstructorLabel):
+    pass
+
+
+class CheckPolicyLabel(ConstructorLabel):
+    pass
+
+
+class CandidateMacroLabel(ConstructorLabel):
+    pass
+
+
+class CandidateMatchFailureLabel(ConstructorLabel):
+    pass
+
+
+class CandidateExpandedLabel(ConstructorLabel):
+    pass
+
+
+class CandidateEvaluatedLabel(ConstructorLabel):
+    pass
+
+
+class AblationVerifiedLabel(ConstructorLabel):
+    pass
+
+
+class HoldoutSuiteResultLabel(ConstructorLabel):
+    pass
+
+
+class ProofSchemaPromotionLabel(ConstructorLabel):
+    pass
+
+
+class SearchPolicyPromotionLabel(ConstructorLabel):
+    pass
+
+
+class LedgerEntryLabel(ConstructorLabel):
+    pass
+
+
+class PromotionLedgerLabel(ConstructorLabel):
+    pass
+
+
+class PromotionApprovedLabel(ConstructorLabel):
+    pass
+
+
+class PromotionRejectedLabel(ConstructorLabel):
+    pass
+
+
+class PromotionRevokedLabel(ConstructorLabel):
+    pass
+
+
+class PromotionActiveLabel(ConstructorLabel):
+    pass
+
+
+class AblationRegressionLabel(ConstructorLabel):
+    pass
+
+
+class HoldoutRegressionLabel(ConstructorLabel):
+    pass
+
+
+class AutonomousCycleCompletedLabel(ConstructorLabel):
+    pass
+
+
+class GraphTaskRecordLabel(ConstructorLabel):
+    pass
+
+
+class TaskSuccessLabel(ConstructorLabel):
+    pass
+
+
+class TaskFailureLabel(ConstructorLabel):
+    pass
+
+
+class TaskQueryLabel(ConstructorLabel):
+    pass
+
+
+class TaskBindingsLabel(ConstructorLabel):
+    pass
+
+
+class Rung1RetrievalLabel(ConstructorLabel):
+    pass
+
+
+class Rung2JoinLabel(ConstructorLabel):
+    pass
+
+
+class Rung3ConstraintLabel(ConstructorLabel):
+    pass
+
+
+class Rung4DerivationLabel(ConstructorLabel):
+    pass
+
+
+class Rung5AliasLabel(ConstructorLabel):
+    pass
+
+
+class Rung6NegativeLabel(ConstructorLabel):
+    pass
+
+
+class Rung7PlannerLabel(ConstructorLabel):
+    pass
+
+
+class CurriculumSuiteResultLabel(ConstructorLabel):
+    pass
+
+
+class RobustnessPassedLabel(ConstructorLabel):
+    pass
+
+
+class SurfaceTokenLabel(ConstructorLabel):
+    pass
+
+
+class SurfaceStatementLabel(ConstructorLabel):
+    pass
+
+
+class SurfaceParseSuccessLabel(ConstructorLabel):
+    pass
+
+
+class SurfaceParseFailureLabel(ConstructorLabel):
+    pass
+
+
+class SurfaceRenderSuccessLabel(ConstructorLabel):
+    pass
+
+
+class SurfaceAmbiguityLabel(ConstructorLabel):
+    pass
+
+
+class SurfaceGrammarRuleLabel(ConstructorLabel):
+    pass
+
+
+class SurfaceCorrespondenceLabel(ConstructorLabel):
+    pass
+
+
+class SurfaceDefinitionLabel(ConstructorLabel):
+    pass
+
+
+class ConceptQueryLabel(ConstructorLabel):
+    pass
+
+
+class DefinitionNotFoundLabel(ConstructorLabel):
+    pass
+
+
+class DividesLabel(ConstructorLabel):
+    pass
+
+
+class DivisibleLabel(ConstructorLabel):
+    pass
+
+
+class GcdLabel(ConstructorLabel):
+    pass
+
+
+class ModLabel(ConstructorLabel):
+    pass
+
+
+class CoprimeLabel(ConstructorLabel):
+    pass
+
+
+class PlaygroundSweepLabel(ConstructorLabel):
+    pass
+
+
+class ObservedRegularityLabel(ConstructorLabel):
+    pass
+
+
+class ProofStoryLabel(ConstructorLabel):
+    pass
+
+
+class NarrativeStepLabel(ConstructorLabel):
+    pass
+
+
+class RationaleAlgebraicLabel(ConstructorLabel):
+    pass
+
+
+class RationaleParityObstructionLabel(ConstructorLabel):
+    pass
+
+
+class RationaleAuxiliaryConstructionLabel(ConstructorLabel):
+    pass
+
+
+class RationaleMonovariantLabel(ConstructorLabel):
+    pass
+
+
+class RationaleDescentLabel(ConstructorLabel):
+    pass
+
+
+class RationaleQEDLabel(ConstructorLabel):
+    pass
+
+
+class GoalDecompositionLabel(ConstructorLabel):
+    pass
+
+
+class AuxiliaryWitnessLabel(ConstructorLabel):
+    pass
+
+
+class ProofSpliceLabel(ConstructorLabel):
+    pass
+
+
+class MultiPassPlanSuccessLabel(ConstructorLabel):
+    pass
+
+
+class MultiPassPlanFailureLabel(ConstructorLabel):
+    pass
+
+
+class DiscoveredInvariantLabel(ConstructorLabel):
+    pass
+
+
+class DisjointImageLabel(ConstructorLabel):
+    pass
+
+
+class ConstantImageInvariantLabel(ConstructorLabel):
+    pass
+
+
+class SymmetricOperationInvariantLabel(ConstructorLabel):
+    pass
+
+
+class IdempotentOperationInvariantLabel(ConstructorLabel):
+    pass
+
+
+class IdentityElementInvariantLabel(ConstructorLabel):
+    pass
+
+
+class ParityMod4InvariantLabel(ConstructorLabel):
+    pass
+
+
+class EvaluationTensorLabel(ConstructorLabel):
+    pass
+
+
+class EvaluationEntryLabel(ConstructorLabel):
+    pass
+
+
+class AlgebraicTemplateLabel(ConstructorLabel):
+    pass
+
+
+class TemplateInstanceLabel(ConstructorLabel):
+    pass
+
+
+class ExactMatchLabel(ConstructorLabel):
+    pass
+
+
+class IsomorphismLabel(ConstructorLabel):
+    pass
+
+
+class EmbeddingMatchLabel(ConstructorLabel):
+    pass
+
+
+class SharedInvariantBridgeLabel(ConstructorLabel):
+    pass
+
+
+class AnalogyMatchLabel(ConstructorLabel):
+    pass
 TreeLabel = TreeLabel()
 ZeroLabel = ZeroLabel()
 SuccLabel = SuccLabel()
@@ -1267,9 +1625,99 @@ InvariantLabel = InvariantLabel()
 UnreachableLabel = UnreachableLabel()
 InvariantCandidateLabel = InvariantCandidateLabel()
 InvariantRefutedLabel = InvariantRefutedLabel()
+InvariantCertificateLabel = InvariantCertificateLabel()
 PerimeterLabel = PerimeterLabel()
 ArccosLabel = ArccosLabel()
 TaoProblem11PerimeterValueLabel = TaoProblem11PerimeterValueLabel()
+StepVerifiedLabel = StepVerifiedLabel()
+DerivationVerifiedLabel = DerivationVerifiedLabel()
+UnknownRuleLabel = UnknownRuleLabel()
+ConclusionMutationLabel = ConclusionMutationLabel()
+PremiseMismatchLabel = PremiseMismatchLabel()
+InvalidPremiseRefLabel = InvalidPremiseRefLabel()
+GoalMismatchLabel = GoalMismatchLabel()
+CandidateScopeMismatchLabel = CandidateScopeMismatchLabel()
+ProofReceiptLabel = ProofReceiptLabel()
+CheckPolicyLabel = CheckPolicyLabel()
+StepDiscontinuityLabel = StepDiscontinuityLabel()
+CandidateMacroLabel = CandidateMacroLabel()
+CandidateMatchFailureLabel = CandidateMatchFailureLabel()
+CandidateExpandedLabel = CandidateExpandedLabel()
+CandidateEvaluatedLabel = CandidateEvaluatedLabel()
+AblationVerifiedLabel = AblationVerifiedLabel()
+HoldoutSuiteResultLabel = HoldoutSuiteResultLabel()
+ProofSchemaPromotionLabel = ProofSchemaPromotionLabel()
+SearchPolicyPromotionLabel = SearchPolicyPromotionLabel()
+LedgerEntryLabel = LedgerEntryLabel()
+PromotionLedgerLabel = PromotionLedgerLabel()
+PromotionApprovedLabel = PromotionApprovedLabel()
+PromotionRejectedLabel = PromotionRejectedLabel()
+PromotionRevokedLabel = PromotionRevokedLabel()
+PromotionActiveLabel = PromotionActiveLabel()
+AblationRegressionLabel = AblationRegressionLabel()
+HoldoutRegressionLabel = HoldoutRegressionLabel()
+AutonomousCycleCompletedLabel = AutonomousCycleCompletedLabel()
+GraphTaskRecordLabel = GraphTaskRecordLabel()
+TaskSuccessLabel = TaskSuccessLabel()
+TaskFailureLabel = TaskFailureLabel()
+TaskQueryLabel = TaskQueryLabel()
+TaskBindingsLabel = TaskBindingsLabel()
+Rung1RetrievalLabel = Rung1RetrievalLabel()
+Rung2JoinLabel = Rung2JoinLabel()
+Rung3ConstraintLabel = Rung3ConstraintLabel()
+Rung4DerivationLabel = Rung4DerivationLabel()
+Rung5AliasLabel = Rung5AliasLabel()
+Rung6NegativeLabel = Rung6NegativeLabel()
+Rung7PlannerLabel = Rung7PlannerLabel()
+CurriculumSuiteResultLabel = CurriculumSuiteResultLabel()
+RobustnessPassedLabel = RobustnessPassedLabel()
+SurfaceTokenLabel = SurfaceTokenLabel()
+SurfaceStatementLabel = SurfaceStatementLabel()
+SurfaceParseSuccessLabel = SurfaceParseSuccessLabel()
+SurfaceParseFailureLabel = SurfaceParseFailureLabel()
+SurfaceRenderSuccessLabel = SurfaceRenderSuccessLabel()
+SurfaceAmbiguityLabel = SurfaceAmbiguityLabel()
+SurfaceGrammarRuleLabel = SurfaceGrammarRuleLabel()
+SurfaceCorrespondenceLabel = SurfaceCorrespondenceLabel()
+SurfaceDefinitionLabel = SurfaceDefinitionLabel()
+ConceptQueryLabel = ConceptQueryLabel()
+DefinitionNotFoundLabel = DefinitionNotFoundLabel()
+DividesLabel = DividesLabel()
+DivisibleLabel = DivisibleLabel()
+GcdLabel = GcdLabel()
+ModLabel = ModLabel()
+CoprimeLabel = CoprimeLabel()
+PlaygroundSweepLabel = PlaygroundSweepLabel()
+ObservedRegularityLabel = ObservedRegularityLabel()
+ProofStoryLabel = ProofStoryLabel()
+NarrativeStepLabel = NarrativeStepLabel()
+RationaleAlgebraicLabel = RationaleAlgebraicLabel()
+RationaleParityObstructionLabel = RationaleParityObstructionLabel()
+RationaleAuxiliaryConstructionLabel = RationaleAuxiliaryConstructionLabel()
+RationaleMonovariantLabel = RationaleMonovariantLabel()
+RationaleDescentLabel = RationaleDescentLabel()
+RationaleQEDLabel = RationaleQEDLabel()
+GoalDecompositionLabel = GoalDecompositionLabel()
+AuxiliaryWitnessLabel = AuxiliaryWitnessLabel()
+ProofSpliceLabel = ProofSpliceLabel()
+MultiPassPlanSuccessLabel = MultiPassPlanSuccessLabel()
+MultiPassPlanFailureLabel = MultiPassPlanFailureLabel()
+DiscoveredInvariantLabel = DiscoveredInvariantLabel()
+DisjointImageLabel = DisjointImageLabel()
+ConstantImageInvariantLabel = ConstantImageInvariantLabel()
+SymmetricOperationInvariantLabel = SymmetricOperationInvariantLabel()
+IdempotentOperationInvariantLabel = IdempotentOperationInvariantLabel()
+IdentityElementInvariantLabel = IdentityElementInvariantLabel()
+ParityMod4InvariantLabel = ParityMod4InvariantLabel()
+EvaluationTensorLabel = EvaluationTensorLabel()
+EvaluationEntryLabel = EvaluationEntryLabel()
+AlgebraicTemplateLabel = AlgebraicTemplateLabel()
+TemplateInstanceLabel = TemplateInstanceLabel()
+ExactMatchLabel = ExactMatchLabel()
+IsomorphismLabel = IsomorphismLabel()
+EmbeddingMatchLabel = EmbeddingMatchLabel()
+SharedInvariantBridgeLabel = SharedInvariantBridgeLabel()
+AnalogyMatchLabel = AnalogyMatchLabel()
 LimitLabel = LimitLabel()
 IsCauchyLabel = IsCauchyLabel()
 RealNumLabel = RealNumLabel()
@@ -1660,6 +2108,7 @@ def sync_from_namespace(namespace):
         "UnreachableLabel",
         "InvariantCandidateLabel",
         "InvariantRefutedLabel",
+        "InvariantCertificateLabel",
         "PerimeterLabel",
         "ArccosLabel",
         "TaoProblem11PerimeterValueLabel",
@@ -1763,6 +2212,95 @@ def sync_from_namespace(namespace):
         "PerimeterLabel",
         "ArccosLabel",
         "TaoProblem11PerimeterValueLabel",
+        "StepVerifiedLabel",
+        "DerivationVerifiedLabel",
+        "UnknownRuleLabel",
+        "ConclusionMutationLabel",
+        "PremiseMismatchLabel",
+        "InvalidPremiseRefLabel",
+        "GoalMismatchLabel",
+        "CandidateScopeMismatchLabel",
+        "ProofReceiptLabel",
+        "CheckPolicyLabel",
+        "StepDiscontinuityLabel",
+        "CandidateMacroLabel",
+        "CandidateMatchFailureLabel",
+        "CandidateExpandedLabel",
+        "CandidateEvaluatedLabel",
+        "AblationVerifiedLabel",
+        "HoldoutSuiteResultLabel",
+        "ProofSchemaPromotionLabel",
+        "SearchPolicyPromotionLabel",
+        "LedgerEntryLabel",
+        "PromotionLedgerLabel",
+        "PromotionApprovedLabel",
+        "PromotionRejectedLabel",
+        "PromotionRevokedLabel",
+        "PromotionActiveLabel",
+        "AblationRegressionLabel",
+        "HoldoutRegressionLabel",
+        "AutonomousCycleCompletedLabel",
+        "GraphTaskRecordLabel",
+        "TaskSuccessLabel",
+        "TaskFailureLabel",
+        "TaskQueryLabel",
+        "TaskBindingsLabel",
+        "Rung1RetrievalLabel",
+        "Rung2JoinLabel",
+        "Rung3ConstraintLabel",
+        "Rung4DerivationLabel",
+        "Rung5AliasLabel",
+        "Rung6NegativeLabel",
+        "Rung7PlannerLabel",
+        "CurriculumSuiteResultLabel",
+        "RobustnessPassedLabel",
+        "SurfaceTokenLabel",
+        "SurfaceStatementLabel",
+        "SurfaceParseSuccessLabel",
+        "SurfaceParseFailureLabel",
+        "SurfaceRenderSuccessLabel",
+        "SurfaceAmbiguityLabel",
+        "SurfaceGrammarRuleLabel",
+        "SurfaceCorrespondenceLabel",
+        "SurfaceDefinitionLabel",
+        "ConceptQueryLabel",
+        "DefinitionNotFoundLabel",
+        "DividesLabel",
+        "DivisibleLabel",
+        "GcdLabel",
+        "ModLabel",
+        "CoprimeLabel",
+        "PlaygroundSweepLabel",
+        "ObservedRegularityLabel",
+        "ProofStoryLabel",
+        "NarrativeStepLabel",
+        "RationaleAlgebraicLabel",
+        "RationaleParityObstructionLabel",
+        "RationaleAuxiliaryConstructionLabel",
+        "RationaleMonovariantLabel",
+        "RationaleDescentLabel",
+        "RationaleQEDLabel",
+        "GoalDecompositionLabel",
+        "AuxiliaryWitnessLabel",
+        "ProofSpliceLabel",
+        "MultiPassPlanSuccessLabel",
+        "MultiPassPlanFailureLabel",
+        "DiscoveredInvariantLabel",
+        "DisjointImageLabel",
+        "ConstantImageInvariantLabel",
+        "SymmetricOperationInvariantLabel",
+        "IdempotentOperationInvariantLabel",
+        "IdentityElementInvariantLabel",
+        "ParityMod4InvariantLabel",
+        "EvaluationTensorLabel",
+        "EvaluationEntryLabel",
+        "AlgebraicTemplateLabel",
+        "TemplateInstanceLabel",
+        "ExactMatchLabel",
+        "IsomorphismLabel",
+        "EmbeddingMatchLabel",
+        "SharedInvariantBridgeLabel",
+        "AnalogyMatchLabel",
     ):
         if name in namespace:
             globals()[name] = namespace[name]
