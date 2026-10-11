@@ -425,6 +425,18 @@ def _restore_constructor_registry_shard_worker(snapshot_path, shard_index, shard
         os.replace(temp_path, output_path)
 
 
+def _upgrade_resave_enabled():
+    """Whether activating a legacy snapshot may rewrite the file it was loaded from.
+
+    Reading a snapshot used to rewrite it in place with no output at all, so a
+    committed fixture could change underneath a test run and an inspection boot
+    cost a full capture plus write. Set HYGE_SNAPSHOT_UPGRADE_RESAVE=0 to load
+    without mutating the source file.
+    """
+    value = os.environ.get("HYGE_SNAPSHOT_UPGRADE_RESAVE", "1").strip().lower()
+    return value not in ("0", "false", "no", "off")
+
+
 class SnapshotState:
     def __init__(self, roots, symbols, root_ids, symbol_ids, id_to_obj, records, needs_upgrade):
         self.roots = roots
@@ -533,6 +545,18 @@ class SnapshotCodec:
             if "IsTree" in self.namespace:
                 if self.namespace["IsTree"](tree)() is self.namespace["truth_value"]:
                     return M.truth_value
+        except Exception:
+            pass
+        # The runtime namespace does not carry "IsTree": trees.IsTree is never
+        # re-exported into machine's namespace, so the lookup above is always a
+        # miss and the general Tree case fell through to SearchPatriciaIsTree,
+        # which only recognizes search patricia trees. Every non-empty all_rules
+        # was therefore judged legacy, and every boot rewrote the snapshot it had
+        # just loaded. Ask the module directly; IsTree tests Head(tree) against
+        # TreeLabel, which a legacy TreeNode (head is a key) fails.
+        try:
+            if T.IsTree(tree)() is M.truth_value:
+                return M.truth_value
         except Exception:
             pass
         try:
@@ -1356,12 +1380,20 @@ class SnapshotCodec:
                     needs_upgrade = M.truth_value
                     break
             if needs_upgrade is M.truth_value:
-                if debug is M.truth_value:
-                    print("DEBUG: activate: saving upgraded snapshot...", flush=True)
-                t_save0 = time.monotonic()
-                self.save(graph, snapshot_path)
-                if debug is M.truth_value:
-                    print(f"DEBUG: activate: upgraded snapshot saved ({time.monotonic() - t_save0:.2f}s)", flush=True)
+                if _upgrade_resave_enabled():
+                    print("snapshot upgrade: rewriting in place -> " + snapshot_path, flush=True)
+                    if debug is M.truth_value:
+                        print("DEBUG: activate: saving upgraded snapshot...", flush=True)
+                    t_save0 = time.monotonic()
+                    self.save(graph, snapshot_path)
+                    if debug is M.truth_value:
+                        print(f"DEBUG: activate: upgraded snapshot saved ({time.monotonic() - t_save0:.2f}s)", flush=True)
+                else:
+                    print(
+                        "snapshot upgrade: in-place rewrite skipped "
+                        "(HYGE_SNAPSHOT_UPGRADE_RESAVE=0)",
+                        flush=True,
+                    )
 
         return graph
 

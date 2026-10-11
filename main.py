@@ -1422,10 +1422,61 @@ def run_live_mode(debug: bool = False):
 
         cmd = raw.lower()
         if cmd == "run self-diagnostics":
-            print("[machine] Running self-diagnostics over 14 validation suites...")
-            test_files = sorted(os.listdir(os.path.join(PACKAGE_DIR, "validation")))
-            passed_count = sum(1 for tf in test_files if tf.startswith("test") and tf.endswith(".py"))
-            print(f"[machine] Self-diagnostics: {passed_count}/{passed_count} validation suites passed. System healthy.")
+            validation_dir = os.path.join(PACKAGE_DIR, "validation")
+            test_files = sorted(
+                tf
+                for tf in os.listdir(validation_dir)
+                if tf.startswith("test") and tf.endswith(".py")
+            )
+            print(
+                f"[machine] Running self-diagnostics over {len(test_files)} validation suites..."
+            )
+            # This used to count the files in validation/ and then report that
+            # count over itself, so it always claimed every suite had passed
+            # without executing any of them. Run them instead.
+            parent_dir = os.path.dirname(PACKAGE_DIR)
+            diag_env = dict(os.environ)
+            existing_pythonpath = diag_env.get("PYTHONPATH", "")
+            diag_env["PYTHONPATH"] = (
+                parent_dir + os.pathsep + existing_pythonpath
+                if existing_pythonpath
+                else parent_dir
+            )
+            failures = []
+            for tf in test_files:
+                suite_started = time.monotonic()
+                proc = subprocess.run(
+                    [sys.executable, "-u", os.path.join(validation_dir, tf)],
+                    cwd=parent_dir,
+                    env=diag_env,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                )
+                if proc.returncode == 0:
+                    print(
+                        f"[machine]   PASS {tf} ({time.monotonic() - suite_started:.1f}s)"
+                    )
+                else:
+                    failures.append(tf)
+                    print(
+                        f"[machine]   FAIL {tf} (exit {proc.returncode}, "
+                        f"{time.monotonic() - suite_started:.1f}s)"
+                    )
+                    tail = (proc.stdout or "").strip().splitlines()[-3:]
+                    for line in tail:
+                        print(f"[machine]        {line}")
+            passed_count = len(test_files) - len(failures)
+            if failures:
+                print(
+                    f"[machine] Self-diagnostics: {passed_count}/{len(test_files)} suites "
+                    f"passed; failed: " + ", ".join(failures)
+                )
+            else:
+                print(
+                    f"[machine] Self-diagnostics: {passed_count}/{len(test_files)} "
+                    f"validation suites passed. System healthy."
+                )
         elif cmd in ("solve the tao triangle problem", "solve tao", "solve tao problem 1.1"):
             p = _get_pack("geometry")
             start, goal = p.examples["tao_problem_1_1_triangle"]

@@ -74,9 +74,13 @@ Build `dialogue.py`: an interactive, stateful Socratic layer over the existing b
 
 `PYTHONPATH=/home/user .venv/bin/python -u validation/test24_socratic_dialogue.py` green, plus
 all 19 existing suites green. Highest regression risk: `test11` (surface bridge), `test14`
-(story renderer), `test1`/`test4` (planner, if you touch REPL flow), and `main.py`'s
-`run self-diagnostics` path, which counts suites and will need its number updated from 14 to
-whatever the total is when you land (it currently prints a hardcoded count).
+(story renderer), and `test1`/`test4` (planner, if you touch REPL flow).
+
+`main.py`'s `run self-diagnostics` REPL command now really executes every suite in
+`validation/` as a subprocess and reports actual pass/fail with timings (it used to count the
+files and print that count over itself, always claiming success). Your new suite is picked up
+automatically — no count to update — but expect that command to take ~4 minutes, and use it as
+your final gate rather than as a quick check.
 
 ## Non-goals
 

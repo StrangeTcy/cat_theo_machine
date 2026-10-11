@@ -86,9 +86,15 @@ From `SWARM_EVOLUTION_DAG.md` §5, restated so no brief has to repeat them:
   prefer named `Char` entities for anything you intend to query after a reload.
 - Legacy snapshots with no `nodes`/`edges` root fall back to `EmptyList` and report 0/0.
   That is expected, not a failure.
-- Merely loading a legacy snapshot rewrites it in place via the codec's auto-upgrade path.
-  If you load a committed snapshot for inspection, check `git status` afterwards and
-  revert unintended rewrites before committing.
+- Booting a snapshot used to rewrite it in place, silently, because the codec's tree-currency
+  check was dead code and judged every non-empty root legacy. That is fixed: current-format
+  snapshots are no longer rewritten, and genuinely legacy ones announce the rewrite. For a
+  guaranteed non-mutating load (inspection, bisecting, tests), set
+  `HYGE_SNAPSHOT_UPGRADE_RESAVE=0`. Still worth a `git status snapshots/` before committing.
+- The REPL command `run self-diagnostics` executes every suite in `validation/` as a
+  subprocess and reports real pass/fail with timings. It is the full gate and takes ~4
+  minutes; it used to count files and always claim success, so ignore any older note that
+  says its suite count is hardcoded.
 
 ## Reporting back
 

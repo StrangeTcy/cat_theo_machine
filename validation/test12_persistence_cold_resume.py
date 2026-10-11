@@ -4,6 +4,7 @@
 # across characters, rules, planner states, derivation receipts,
 # graph tasks, promotion ledgers, and surface language bridges.
 # ============================================================
+import hashlib
 import json
 import os
 import sys
@@ -37,7 +38,7 @@ def run_all_tests():
     print()
 
     passed = 0
-    total = 7
+    total = 10
 
     runtime = Persist.make_fresh_runtime() if hasattr(Persist, "make_fresh_runtime") else None
     if runtime is None:
@@ -253,6 +254,127 @@ def run_all_tests():
         passed += 1
     else:
         print(f"  [FAIL] Probe 7 failed: token symbol mismatch ({tok_val})")
+
+    # ------------------------------------------------------------
+    # Probe 8: Tree Currency Discrimination (the upgrade trigger)
+    # ------------------------------------------------------------
+    # The upgrade path in activate() and the rebuild path in
+    # _restore_tree_root() both ask _is_current_tree whether a loaded root is a
+    # modern tree or a legacy TreeNode. The general Tree case used to be
+    # unreachable: the check looked "IsTree" up in the runtime namespace, which
+    # never carries it, so every non-empty root was judged legacy. That forced a
+    # full tree rebuild on every boot and made every boot rewrite the snapshot
+    # it had just loaded.
+    print()
+    print("[Probe 8] Tree Currency Discrimination (upgrade trigger)")
+    from cat_theo_machine import trees as Trees
+
+    modern_tree = M.Tree(M.EmptyList)
+    legacy_node = Trees.TreeNode(M.Zero, M.Zero, M.EmptyList, M.EmptyList)
+    modern_is_current = codec._is_current_tree(modern_tree) is M.truth_value
+    empty_is_current = codec._is_current_tree(M.EmptyList) is M.truth_value
+    legacy_is_current = codec._is_current_tree(legacy_node) is M.truth_value
+
+    if modern_is_current and empty_is_current and not legacy_is_current:
+        print("  [PASS] Modern Tree and EmptyList are current; legacy TreeNode is not.")
+        passed += 1
+    else:
+        print(
+            f"  [FAIL] Probe 8 failed: modern_current={modern_is_current} "
+            f"empty_current={empty_is_current} legacy_current={legacy_is_current}"
+        )
+
+    # ------------------------------------------------------------
+    # Probe 9: Hypergraph Content (nodes / edges) Round-Trip
+    # ------------------------------------------------------------
+    # The codec originally had no root for graph.nodes or graph.edges, so
+    # imported hypergraph content came back empty after a save/restore while the
+    # kernel roots round-tripped fine.
+    print()
+    print("[Probe 9] Hypergraph Content (nodes/edges) Round-Trip")
+
+    def _chain_len(x):
+        count = 0
+        while (
+            M.IdentityCompare(x, M.EmptyList)() is M.false_value
+            and M.IsPair(x)() is M.truth_value
+        ):
+            count += 1
+            x = M.Tail(x)()
+        return count
+
+    node_house = M.Char("house-1")
+    node_person = M.Char("person-1")
+    hyper_nodes = M.Pair(node_house, M.Pair(node_person, M.EmptyList))
+    hyper_edges = M.Pair(
+        M.Pair(M.Char("lives_in"), M.Pair(node_house, M.Pair(node_person, M.EmptyList))),
+        M.EmptyList,
+    )
+    graph._replace_context(nodes=hyper_nodes, edges=hyper_edges)
+
+    snap9 = codec.capture(graph)
+    state9 = codec.load_snapshot(snap9)
+    restored_nodes = state9.roots.get("nodes", M.EmptyList)
+    restored_edges = state9.roots.get("edges", M.EmptyList)
+    nodes_len = _chain_len(restored_nodes)
+    edges_len = _chain_len(restored_edges)
+    edge_named = M.false_value
+    if edges_len == 1:
+        edge_named = M.Compare(M.Head(M.Head(restored_edges)())(), M.Char("lives_in"))()
+
+    if nodes_len == 2 and edges_len == 1 and edge_named is M.truth_value:
+        print("  [PASS] Hypergraph nodes and edges survived capture and load.")
+        passed += 1
+    else:
+        print(
+            f"  [FAIL] Probe 9 failed: nodes={nodes_len} edges={edges_len} "
+            f"edge_named={edge_named is M.truth_value}"
+        )
+
+    # ------------------------------------------------------------
+    # Probe 10: Cold Resume Restores Hypergraph Without Rewriting Its Source
+    # ------------------------------------------------------------
+    print()
+    print("[Probe 10] Cold Resume Restores Hypergraph & Leaves Source Intact")
+    tmp_dir = tempfile.mkdtemp(prefix="hyge_test12_probe10_")
+    tmp_path = os.path.join(tmp_dir, "cold_resume.json")
+    codec.save(graph, tmp_path)
+    with open(tmp_path, "rb") as handle:
+        before_digest = hashlib.sha256(handle.read()).hexdigest()
+
+    state10 = codec.load(tmp_path)
+    codec.activate(state10, graph)
+    resumed_nodes = _chain_len(graph.nodes)
+    resumed_edges = _chain_len(graph.edges)
+
+    with open(tmp_path, "rb") as handle:
+        after_digest = hashlib.sha256(handle.read()).hexdigest()
+    source_intact = before_digest == after_digest
+
+    previous_policy = os.environ.get("HYGE_SNAPSHOT_UPGRADE_RESAVE")
+    os.environ["HYGE_SNAPSHOT_UPGRADE_RESAVE"] = "0"
+    opt_out_honoured = Persist._upgrade_resave_enabled() is False
+    if previous_policy is None:
+        os.environ.pop("HYGE_SNAPSHOT_UPGRADE_RESAVE", None)
+    else:
+        os.environ["HYGE_SNAPSHOT_UPGRADE_RESAVE"] = previous_policy
+    default_still_resaves = Persist._upgrade_resave_enabled() is True
+
+    if (
+        resumed_nodes == 2
+        and resumed_edges == 1
+        and source_intact
+        and opt_out_honoured
+        and default_still_resaves
+    ):
+        print("  [PASS] Cold resume restored nodes/edges and left the source file byte-identical.")
+        passed += 1
+    else:
+        print(
+            f"  [FAIL] Probe 10 failed: nodes={resumed_nodes} edges={resumed_edges} "
+            f"source_intact={source_intact} opt_out={opt_out_honoured} "
+            f"default_resaves={default_still_resaves}"
+        )
 
     # ------------------------------------------------------------
     # Summary
