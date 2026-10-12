@@ -1,0 +1,307 @@
+format: hyge-pack
+version: 1
+
+name: engel-strategies
+description: >
+  W10. The Engel strategy layer, stated once over symbolic problems, measures and
+  move sets. Nothing here names a problem, a board, a number or a move order: every
+  rule is a schema, and each fires only on facts a problem pack or a planner method
+  puts in the knowledge.
+
+  The five principles:
+
+    Invariance        preserves_all_*  +  invariant_obstruction
+    Monovariant       decreases_all_*  +  monovariant_terminates
+    Semi-invariant    semi_invariant_terminates
+    Extremal          extremal_choice
+    Box               box_principle_collision
+
+  Checkerboard colouring is not a sixth principle here: a colouring argument is an
+  invariance argument whose phi is a parity, and invariant_obstruction discharges it
+  without new vocabulary.
+
+  On universality. Termination and preservation are statements about *every* move,
+  and Horn rules cannot quantify. Rather than pretend otherwise, the pack states the
+  universal for the literal move sets it can see -- chains of one, two and three
+  moves -- and derives AllMovesDecrease from the per-move facts it is given. A
+  problem whose move set is a symbolic term gets no such free step: it must supply
+  AllMovesDecrease itself, which is what MonovariantObligations asks for in that
+  case. The schema rules are therefore not a definition of the universal; they are
+  one sound way to reach it.
+
+requires: []
+
+phi:
+  call:
+    head: {sym: TerminatesLabel}
+    args: [{var: p}]
+
+rules:
+  # --- the universal over a literal move set ---------------------------------
+  - id: decreases_all_one
+    premises:
+      - call:
+          head: {sym: MoveSetLabel}
+          args:
+            - {var: p}
+            - pair: [{var: s}, {list: []}]
+      - call:
+          head: {sym: StrictlyDecreasesLabel}
+          args: [{var: s}, {var: m}]
+    replacement:
+      list:
+        - call:
+            head: {sym: AllMovesDecreaseLabel}
+            args: [{var: p}, {var: m}]
+
+  - id: decreases_all_two
+    premises:
+      - call:
+          head: {sym: MoveSetLabel}
+          args:
+            - {var: p}
+            - pair: [{var: s}, {pair: [{var: t}, {list: []}]}]
+      - call:
+          head: {sym: StrictlyDecreasesLabel}
+          args: [{var: s}, {var: m}]
+      - call:
+          head: {sym: StrictlyDecreasesLabel}
+          args: [{var: t}, {var: m}]
+    replacement:
+      list:
+        - call:
+            head: {sym: AllMovesDecreaseLabel}
+            args: [{var: p}, {var: m}]
+
+  - id: decreases_all_three
+    premises:
+      - call:
+          head: {sym: MoveSetLabel}
+          args:
+            - {var: p}
+            - pair: [{var: s}, {pair: [{var: t}, {pair: [{var: u}, {list: []}]}]}]
+      - call:
+          head: {sym: StrictlyDecreasesLabel}
+          args: [{var: s}, {var: m}]
+      - call:
+          head: {sym: StrictlyDecreasesLabel}
+          args: [{var: t}, {var: m}]
+      - call:
+          head: {sym: StrictlyDecreasesLabel}
+          args: [{var: u}, {var: m}]
+    replacement:
+      list:
+        - call:
+            head: {sym: AllMovesDecreaseLabel}
+            args: [{var: p}, {var: m}]
+
+  # --- monovariants and semi-invariants --------------------------------------
+  - id: monovariant_terminates
+    premises:
+      - call:
+          head: {sym: MonovariantLabel}
+          args: [{var: p}, {var: m}]
+      - call:
+          head: {sym: AllMovesDecreaseLabel}
+          args: [{var: p}, {var: m}]
+      - call:
+          head: {sym: BoundedBelowLabel}
+          args: [{var: m}, {var: b}]
+    replacement:
+      list:
+        - call:
+            head: {sym: TerminatesLabel}
+            args: [{var: p}]
+
+  - id: semi_invariant_terminates
+    premises:
+      - call:
+          head: {sym: SemiInvariantLabel}
+          args: [{var: p}, {var: m}, {var: k}]
+      - call:
+          head: {sym: AllMovesDecreaseLabel}
+          args: [{var: p}, {var: m}]
+      - call:
+          head: {sym: BoundedBelowLabel}
+          args: [{var: m}, {var: b}]
+    replacement:
+      list:
+        - call:
+            head: {sym: TerminatesLabel}
+            args: [{var: p}]
+
+  # --- invariance ------------------------------------------------------------
+  - id: preserves_all_one
+    premises:
+      - call:
+          head: {sym: MoveSetLabel}
+          args:
+            - {var: p}
+            - pair: [{var: s}, {list: []}]
+      - call:
+          head: {sym: PreservesLabel}
+          args: [{var: s}, {var: phi}]
+    replacement:
+      list:
+        - call:
+            head: {sym: InvariantLabel}
+            args: [{var: p}, {var: phi}]
+
+  - id: preserves_all_two
+    premises:
+      - call:
+          head: {sym: MoveSetLabel}
+          args:
+            - {var: p}
+            - pair: [{var: s}, {pair: [{var: t}, {list: []}]}]
+      - call:
+          head: {sym: PreservesLabel}
+          args: [{var: s}, {var: phi}]
+      - call:
+          head: {sym: PreservesLabel}
+          args: [{var: t}, {var: phi}]
+    replacement:
+      list:
+        - call:
+            head: {sym: InvariantLabel}
+            args: [{var: p}, {var: phi}]
+
+  - id: preserves_all_three
+    premises:
+      - call:
+          head: {sym: MoveSetLabel}
+          args:
+            - {var: p}
+            - pair: [{var: s}, {pair: [{var: t}, {pair: [{var: u}, {list: []}]}]}]
+      - call:
+          head: {sym: PreservesLabel}
+          args: [{var: s}, {var: phi}]
+      - call:
+          head: {sym: PreservesLabel}
+          args: [{var: t}, {var: phi}]
+      - call:
+          head: {sym: PreservesLabel}
+          args: [{var: u}, {var: phi}]
+    replacement:
+      list:
+        - call:
+            head: {sym: InvariantLabel}
+            args: [{var: p}, {var: phi}]
+
+  - id: invariant_obstruction
+    premises:
+      - call:
+          head: {sym: InvariantLabel}
+          args: [{var: p}, {var: phi}]
+      - call:
+          head: {sym: ReadingLabel}
+          args: [{var: phi}, {var: s0}, {var: v0}]
+      - call:
+          head: {sym: ReadingLabel}
+          args: [{var: phi}, {var: s1}, {var: v1}]
+      - call:
+          head: {sym: ApartLabel}
+          args: [{var: v0}, {var: v1}]
+    replacement:
+      list:
+        - call:
+            head: {sym: UnreachableLabel}
+            args: [{var: p}, {var: s1}]
+
+  # --- extremal principle ----------------------------------------------------
+  - id: extremal_choice
+    premises:
+      - call:
+          head: {sym: FiniteLabel}
+          args: [{var: f}]
+      - call:
+          head: {sym: NonEmptyLabel}
+          args: [{var: f}]
+      - call:
+          head: {sym: MeasureLabel}
+          args: [{var: f}, {var: m}]
+    replacement:
+      list:
+        - call:
+            head: {sym: AttainsLabel}
+            args:
+              - {var: f}
+              - {var: m}
+              - call: {head: {sym: ExtremalMinLabel}, args: []}
+        - call:
+            head: {sym: AttainsLabel}
+            args:
+              - {var: f}
+              - {var: m}
+              - call: {head: {sym: ExtremalMaxLabel}, args: []}
+
+  # --- box principle ---------------------------------------------------------
+  - id: box_principle_collision
+    premises:
+      - call:
+          head: {sym: FiniteLabel}
+          args: [{var: dom}]
+      - call:
+          head: {sym: FiniteLabel}
+          args: [{var: cod}]
+      - call:
+          head: {sym: TotalMapLabel}
+          args: [{var: f}, {var: dom}, {var: cod}]
+      - call:
+          head: {sym: CardinalityLabel}
+          args: [{var: dom}, {var: n}]
+      - call:
+          head: {sym: CardinalityLabel}
+          args: [{var: cod}, {var: k}]
+      - call:
+          head: {sym: NatLessLabel}
+          args: [{var: k}, {var: n}]
+    replacement:
+      list:
+        - call:
+            head: {sym: CollisionLabel}
+            args: [{var: f}]
+
+examples:
+  - id: engel_monovariant_terminates
+    start:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call: {head: {sym: MonovariantLabel}, args: [{char: P}, {char: mu}]}
+              - call:
+                  head: {sym: MoveSetLabel}
+                  args:
+                    - {char: P}
+                    - list: [{char: step}]
+              - call: {head: {sym: StrictlyDecreasesLabel}, args: [{char: step}, {char: mu}]}
+              - call: {head: {sym: BoundedBelowLabel}, args: [{char: mu}, {sym: Zero}]}
+    goal:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call: {head: {sym: TerminatesLabel}, args: [{char: P}]}
+
+  - id: engel_invariant_obstruction
+    start:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call:
+                  head: {sym: MoveSetLabel}
+                  args:
+                    - {char: P}
+                    - list: [{char: step}]
+              - call: {head: {sym: PreservesLabel}, args: [{char: step}, {char: phi}]}
+              - call: {head: {sym: ReadingLabel}, args: [{char: phi}, {char: start}, {char: odd}]}
+              - call: {head: {sym: ReadingLabel}, args: [{char: phi}, {char: target}, {char: even}]}
+              - call: {head: {sym: ApartLabel}, args: [{char: odd}, {char: even}]}
+    goal:
+      call:
+        head: {sym: KnowledgeLabel}
+        args:
+          - list:
+              - call: {head: {sym: UnreachableLabel}, args: [{char: P}, {char: target}]}

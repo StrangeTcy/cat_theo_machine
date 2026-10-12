@@ -1163,6 +1163,46 @@ class InvariantRefutedLabel(ConstructorLabel):
     pass
 
 
+class MonovariantLabel(ConstructorLabel):
+    pass
+
+
+class SemiInvariantLabel(ConstructorLabel):
+    pass
+
+
+class StrictlyDecreasesLabel(ConstructorLabel):
+    pass
+
+
+class AllMovesDecreaseLabel(ConstructorLabel):
+    pass
+
+
+class MoveSetLabel(ConstructorLabel):
+    pass
+
+
+class MonovariantMethodLabel(ConstructorLabel):
+    pass
+
+
+class InvarianceMethodLabel(ConstructorLabel):
+    pass
+
+
+class MeasureLabel(ConstructorLabel):
+    pass
+
+
+class ReadingLabel(ConstructorLabel):
+    pass
+
+
+class TerminatesLabel(ConstructorLabel):
+    pass
+
+
 class PerimeterLabel(ConstructorLabel):
     pass
 
@@ -1267,6 +1307,16 @@ InvariantLabel = InvariantLabel()
 UnreachableLabel = UnreachableLabel()
 InvariantCandidateLabel = InvariantCandidateLabel()
 InvariantRefutedLabel = InvariantRefutedLabel()
+MonovariantLabel = MonovariantLabel()
+SemiInvariantLabel = SemiInvariantLabel()
+StrictlyDecreasesLabel = StrictlyDecreasesLabel()
+AllMovesDecreaseLabel = AllMovesDecreaseLabel()
+MoveSetLabel = MoveSetLabel()
+MonovariantMethodLabel = MonovariantMethodLabel()
+InvarianceMethodLabel = InvarianceMethodLabel()
+MeasureLabel = MeasureLabel()
+ReadingLabel = ReadingLabel()
+TerminatesLabel = TerminatesLabel()
 PerimeterLabel = PerimeterLabel()
 ArccosLabel = ArccosLabel()
 TaoProblem11PerimeterValueLabel = TaoProblem11PerimeterValueLabel()
@@ -1660,6 +1710,16 @@ def sync_from_namespace(namespace):
         "UnreachableLabel",
         "InvariantCandidateLabel",
         "InvariantRefutedLabel",
+        "MonovariantLabel",
+        "SemiInvariantLabel",
+        "StrictlyDecreasesLabel",
+        "AllMovesDecreaseLabel",
+        "MoveSetLabel",
+        "MonovariantMethodLabel",
+        "InvarianceMethodLabel",
+        "MeasureLabel",
+        "ReadingLabel",
+        "TerminatesLabel",
         "PerimeterLabel",
         "ArccosLabel",
         "TaoProblem11PerimeterValueLabel",

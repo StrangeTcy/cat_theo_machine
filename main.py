@@ -60,6 +60,7 @@ PACK_PATHS = [
     os.path.join(PACK_DIR, "engel-coins.pack.yaml"),
     os.path.join(PACK_DIR, "engel-means.pack.yaml"),
     os.path.join(PACK_DIR, "engel-blackboard.pack.yaml"),
+    os.path.join(PACK_DIR, "engel-strategies.pack.yaml"),
 ]
 
 def _latest_snapshot_path():
@@ -401,6 +402,14 @@ def _theorem_agenda(packs, filter_name=None):
         if "engel_e2_final_number_is_odd" in blackboard_pack.examples:
             start, goal = blackboard_pack.examples["engel_e2_final_number_is_odd"]
             cases.append(("engel_e2", start, goal, blackboard_pack.rule_chain, blackboard_pack.phi))
+    if filter_name in ("strategies", "engel-strategies", "w10", "all"):
+        strategies_pack = packs.by_name("engel-strategies")
+        if "engel_monovariant_terminates" in strategies_pack.examples:
+            start, goal = strategies_pack.examples["engel_monovariant_terminates"]
+            cases.append(("engel_monovariant_terminates", start, goal, strategies_pack.rule_chain, strategies_pack.phi))
+        if "engel_invariant_obstruction" in strategies_pack.examples:
+            start, goal = strategies_pack.examples["engel_invariant_obstruction"]
+            cases.append(("engel_invariant_obstruction", start, goal, strategies_pack.rule_chain, strategies_pack.phi))
     if filter_name in ("sqrt", "isreal", "sqrt-real", "real", "isreal_sqrt", "isreal-sqrt", "isreal(sqrt())", "all", "sqrt2", "sqrt3", "sqrt4"):
         sqrt_pack = packs.by_name("sqrt-real")
         for example_id in ("sqrt2_real", "sqrt3_real", "sqrt4_real"):
