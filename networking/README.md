@@ -88,7 +88,11 @@ dependency: it reads back only what this package wrote.
 * **Nothing silently lost.** Every job reaches exactly one terminal record. A peer
   whose heartbeat goes stale or whose socket dies has its leases reclaimed, and its
   jobs are re-dispatched (up to `max_attempts`) or recorded as failed with a
-  reason. `mesh.write_state` dumps each peer's ledger for post-mortem inspection.
+  reason. Both halves are pinned by `validation/test25_rpc_mtls_mesh.py`, including
+  the one that only fires when there is nobody left to re-dispatch to: with
+  `redispatch_on_crash` off, a job orphaned by a dead peer ends as a terminal
+  `failed` record naming `reason="worker-lost"` rather than staying pending forever.
+  `mesh.write_state` dumps each peer's ledger for post-mortem inspection.
 
 ## Work stealing
 

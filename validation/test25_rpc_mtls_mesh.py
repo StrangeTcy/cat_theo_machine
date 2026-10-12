@@ -90,18 +90,31 @@ class Results:
 class StubRunner:
     """Instant, deterministic 'jobs' for testing the protocol without the machine."""
 
-    def __init__(self, delay=0.0, modes=("dfs", "bfs", "astar", "beam", "rewritedfs")):
+    def __init__(self, delay=0.0, modes=("dfs", "bfs", "astar", "beam", "rewritedfs"), hold=None, fuse=10.0):
         self.supported_modes = tuple(modes)
         self.delay = delay
         self.booted = True
         self.calls = []
         self.defer_everything = False  # every job reports STATUS_DEFERRED
+        # `hold` keeps the runner busy while it returns true, so a peer stays a
+        # busy holder for exactly as long as the test needs rather than for a
+        # guessed number of seconds. It is one-shot (armed for the next job the
+        # runner is handed) and bounded by `fuse`, so a condition that never
+        # arrives costs seconds instead of hanging the suite.
+        self.hold = hold
+        self.fuse = fuse
 
     def supports(self, mode):
         return mode in self.supported_modes
 
     def run(self, job):
         self.calls.append(job.job_id)
+        hold = self.hold
+        self.hold = None  # one-shot: only the job this runner was armed for
+        if hold is not None:
+            deadline = time.time() + self.fuse
+            while hold() and time.time() < deadline:
+                time.sleep(0.05)
         if self.delay:
             time.sleep(self.delay)
         directory = os.path.dirname(job.result_ref)
@@ -463,12 +476,17 @@ def phase_protocol(results, directory):
     # dispatcher simply gives the second job to the second worker.)
     busy_one = stub_job("proto-busy-1", directory=directory)
     busy_two = stub_job("proto-busy-2", directory=directory)
-    # The holder has to stay busy long enough for a late joiner to find the
-    # address (the coordinator gossips members on every heartbeat, 0.4 s),
-    # authenticate and ask for the queued job -- a one-second job would simply
-    # finish first. Three seconds is still seven heartbeats of margin (the gossip
-    # interval is 0.4 s) and keeps the suite inside its wall-clock budget.
-    worker_one.runner = StubRunner(delay=3.0)
+    # The holder has to stay busy until the idle peer has actually taken the
+    # queued job -- not for a guessed number of seconds. That peer must find the
+    # holder's address in a heartbeat digest (0.4 s), authenticate a peer-to-peer
+    # mTLS link to it and ask for the work, and on a loaded box that can outlast
+    # any fixed window: with a 3 s sleep this check passed four runs in a row and
+    # then lost the race, and the coordinator simply ran the queued job itself
+    # (both jobs still finished, so nothing downstream noticed). Holding until the
+    # coordinator records the steal removes the race and releases the instant it
+    # lands, so it costs less than the sleep it replaces; the fuse bounds the
+    # damage if a steal ever genuinely fails.
+    worker_one.runner = StubRunner(hold=lambda: coordinator.summary()["steals"] < 1, fuse=10.0)
     coordinator.submit(busy_one)
     coordinator.submit(busy_two)
     results.check(
@@ -502,7 +520,11 @@ def phase_protocol(results, directory):
         "job-result events per job: %s" % result_events,
     )
 
-    # Lease reclamation when a peer's connection dies.
+    # Lease reclamation when a peer's connection dies. Whichever worker the
+    # dispatcher picks has to still be holding the lease when the test kills its
+    # peer, so both get a slow runner: an instant one finishes the job before
+    # there is anything to lose, and the check below reads `owner=None`.
+    worker_one.runner = StubRunner(delay=3.0)
     dying_runner = StubRunner(delay=3.0)
     worker_two.runner = dying_runner
     doomed = stub_job("proto-doomed", directory=directory)
@@ -587,6 +609,52 @@ def phase_protocol(results, directory):
 
     worker_one.shutdown(timeout=1.0)
     worker_two.shutdown(timeout=1.0)
+
+    # The other half of the crash clause. The check above proves a crashed peer's
+    # job is *re-dispatched*; the brief also allows it to be *reported failed*,
+    # and the two are alternatives, not a choice -- what is forbidden is a job
+    # that quietly vanishes. So: a coordinator that will not re-dispatch, and a
+    # job whose only peer dies mid-run. The honest outcome is a terminal failure
+    # record naming the reason; a silent loss would leave no terminal record at
+    # all and the `failed` count untouched. Its own mesh, because this check has
+    # to kill the last worker standing.
+    loss_coordinator_identity = MeshModule.ensure_identity(directory, "proto-loss-coordinator")
+    loss_worker_identity = MeshModule.ensure_identity(directory, "proto-loss-worker")
+    loss_coordinator = start_peer(loss_coordinator_identity, MeshPeer.ROLE_COORDINATOR, None)
+    loss_coordinator.redispatch_on_crash = False  # `build_peer` does not tune this; the test owns it
+    loss_worker = start_peer(loss_worker_identity, MeshPeer.ROLE_WORKER, StubRunner(delay=1.5))
+    loss_worker.join(loss_coordinator.address)
+    lost = stub_job("proto-lost", directory=directory)
+    loss_coordinator.submit(lost)
+    loss_coordinator.wait_for(lambda peer: lost.job_id in peer._job_owner, timeout=10)
+    before_lost = loss_coordinator.summary()
+    loss_worker._coordinator_connection.close()
+    loss_worker._stop.set()
+    reported = loss_coordinator.wait_for(lambda peer: lost.job_id in peer._results, timeout=20)
+    after_lost = loss_coordinator.summary()
+    lost_record = loss_coordinator.outcome(lost.job_id) or {}
+    results.check(
+        "a job that cannot be re-dispatched is reported failed, not lost",
+        reported
+        and lost_record.get("status") == protocol.STATUS_FAILED
+        and lost_record.get("reason") == "worker-lost"
+        and loss_coordinator._job_state.get(lost.job_id) == "failed"
+        and after_lost["failed"] > before_lost["failed"]
+        and not any(
+            event["job_id"] == lost.job_id for event in loss_coordinator.events("job-redispatched")
+        ),
+        "status=%s reason=%s state=%s failed %s->%s redispatches=%d"
+        % (
+            lost_record.get("status"),
+            lost_record.get("reason"),
+            loss_coordinator._job_state.get(lost.job_id),
+            before_lost["failed"],
+            after_lost["failed"],
+            after_lost["redispatches"],
+        ),
+    )
+    loss_coordinator.shutdown(timeout=1.0)
+    loss_worker.shutdown(timeout=1.0)
 
 
 # ----------------------------------------------------------------- phase three

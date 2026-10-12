@@ -21,7 +21,8 @@ Index (open workers only; everything marked `[x]` in the DAG is already done and
 
 Dispatch order that respects the gates: the five Phase-1 briefs (W6–W10) and W15 are
 independent and can all run in parallel. W2 is the only Phase-3 prerequisite and its
-brief is now executed and green (`validation/test25_rpc_mtls_mesh.py`, 44/44), so W16 and
+brief is now executed and green (`validation/test25_rpc_mtls_mesh.py`, 48/48, ~100 s),
+so W16 and
 W17 are unblocked — their `Prereqs` columns still name W2 ⬜ because they were written
 before it landed; read that as W2 ✅.
 
