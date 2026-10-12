@@ -573,6 +573,14 @@ def _search_worker_result_graph(runtime, attempt, performance, worker_stage=None
     graph.rule_order = M.EmptyList
     graph.derivations = M.EmptyList
     graph.derivation_schemata = M.EmptyList
+    # A search-worker result describes one attempt, not the runtime's hypergraph.
+    # These two roots are nonetheless required: SnapshotCodec.capture reads
+    # graph.nodes/graph.edges unconditionally since hypergraph content became
+    # persistable (18cdedf), and this stand-in graph is not a runtime. Leaving
+    # them out made every checkpoint write -- and therefore the whole
+    # `search-worker` mode -- die with AttributeError before it wrote anything.
+    graph.nodes = M.EmptyList
+    graph.edges = M.EmptyList
     graph.search_history = M.Pair(attempt, M.EmptyList)
     graph.search_comparisons = M.Pair(performance, M.EmptyList)
     graph.search_comparison_jobs = M.EmptyList
@@ -758,7 +766,48 @@ def _maybe_set_search_worker_memory_limit():
         pass
 
 
-def run_search_worker_mode(worker_mode: str, result_path: str, timeout_seconds: int = 6000):
+class SearchWorkerBoot:
+    """What `search_worker_boot` produces: a booted runtime plus one job's problem.
+
+    Split out of `run_search_worker_mode` for the mesh (W2). A long-lived worker
+    peer boots once and then executes many jobs on that runtime, which is only
+    possible if the boot and the job execution can be reached separately. Both
+    halves keep their original code; `run_search_worker_mode` remains the
+    composed entry point and behaves exactly as before.
+    """
+
+    __slots__ = (
+        "runtime",
+        "packs",
+        "registry",
+        "label",
+        "start",
+        "goal",
+        "worker_heuristic",
+        "resume_derivation_only",
+    )
+
+    def __init__(self, runtime, packs, registry, label, start, goal, worker_heuristic, resume_derivation_only):
+        self.runtime = runtime
+        self.packs = packs
+        self.registry = registry
+        self.label = label
+        self.start = start
+        self.goal = goal
+        self.worker_heuristic = worker_heuristic
+        self.resume_derivation_only = resume_derivation_only
+
+
+def search_worker_resolve_problem(runtime, packs, worker_mode, result_path, registry):
+    """Resolve one manifest's problem against an already-booted runtime."""
+    worker_heuristic = _search_worker_mode_heuristic(runtime, worker_mode, registry)
+    label, start, goal, _rules, _phi = _search_worker_problem_from_manifest(packs, result_path, worker_heuristic, registry)
+    start = Hmod.HeuristicCanonicalize(start, worker_heuristic, registry)()
+    goal = Hmod.HeuristicCanonicalize(goal, worker_heuristic, registry)()
+    return label, start, goal, worker_heuristic
+
+
+def search_worker_boot(worker_mode: str, result_path: str, timeout_seconds: int = 6000):
     P.SetDebugTrace(M.truth_value)()
     _maybe_set_search_worker_memory_limit()
     resume_derivation_only = os.environ.get("HYGE_SEARCH_WORKER_RESUME_DERIVATION", "") == "1"
@@ -773,13 +822,33 @@ def run_search_worker_mode(worker_mode: str, result_path: str, timeout_seconds: 
         start = P.SearchAttemptStart(attempt)()
         goal = P.SearchAttemptGoal(attempt)()
         label = "resumed derivation checkpoint"
+        packs = None
     else:
         runtime, packs = boot_from_packs(PACK_PATHS, _runtime_namespace())
         registry = M.FromContextGetConstructors(runtime.graph)()
-        worker_heuristic = _search_worker_mode_heuristic(runtime, worker_mode, registry)
-        label, start, goal, _rules, _phi = _search_worker_problem_from_manifest(packs, result_path, worker_heuristic, registry)
-        start = Hmod.HeuristicCanonicalize(start, worker_heuristic, registry)()
-        goal = Hmod.HeuristicCanonicalize(goal, worker_heuristic, registry)()
+        label, start, goal, worker_heuristic = search_worker_resolve_problem(
+            runtime, packs, worker_mode, result_path, registry
+        )
+    return SearchWorkerBoot(
+        runtime,
+        packs,
+        registry,
+        label,
+        start,
+        goal,
+        worker_heuristic,
+        resume_derivation_only,
+    )
+
+
+def search_worker_execute(worker_mode: str, result_path: str, timeout_seconds: int, boot):
+    runtime = boot.runtime
+    registry = boot.registry
+    label = boot.label
+    start = boot.start
+    goal = boot.goal
+    worker_heuristic = boot.worker_heuristic
+    resume_derivation_only = boot.resume_derivation_only
     runtime.graph._search_disable_console = M.truth_value
     runtime.graph._search_disable_progress_ticker = M.false_value
     runtime.graph._search_stop_help_shown = M.truth_value
@@ -1002,6 +1071,33 @@ def run_search_worker_mode(worker_mode: str, result_path: str, timeout_seconds: 
     )
     P._debug(mode_name + ": checkpoint saved stage=success-derivation-built")
     return 0
+
+
+def run_search_worker_mode(worker_mode: str, result_path: str, timeout_seconds: int = 6000):
+    boot = search_worker_boot(worker_mode, result_path, timeout_seconds)
+    return search_worker_execute(worker_mode, result_path, timeout_seconds, boot)
+
+
+def run_mesh_peer_mode(role: str, bind: str, coordinator: str = None, worker_modes: str = None, timeout_seconds: int = 6000, cert_dir: str = None, jobs_file: str = None, run_seconds: float = 0.0, cert_name: str = None):
+    """`python main.py mesh ...` -- a long-lived peer of the W2 RPC/mTLS mesh.
+
+    Boots the machine once (so the ~20 s pack boot is paid once per peer, not
+    once per job) and then serves search jobs over the mesh transport. The job
+    semantics are `search_worker_execute`'s; only the transport is new.
+    """
+    from . import mesh as Meshmod
+    return Meshmod.run_peer_cli(
+        role=role,
+        bind=bind,
+        coordinator=coordinator,
+        worker_modes=worker_modes,
+        timeout_seconds=timeout_seconds,
+        cert_dir=cert_dir,
+        jobs_file=jobs_file,
+        run_seconds=run_seconds,
+        cert_name=cert_name,
+    )
+
 
 def run_cold_mode(debug: bool = False, filter_name: str = "tao"):
     if debug:
@@ -1791,8 +1887,8 @@ def main():
         "mode",
         nargs="?",
         default="cold",
-        choices=["cold", "warm", "test", "inspect", "search-worker", "live"],
-        help="Boot mode: cold (from packs), warm (from snapshot), test, inspect, search-worker, or live",
+        choices=["cold", "warm", "test", "inspect", "search-worker", "live", "mesh"],
+        help="Boot mode: cold (from packs), warm (from snapshot), test, inspect, search-worker, live, or mesh",
     )
     parser.add_argument("arg1", nargs="?", default=None)
     parser.add_argument("arg2", nargs="?", default=None)
@@ -1813,6 +1909,54 @@ def main():
         "--cold-inspector",
         action="store_true",
         help="For inspect mode, boot from packs even if a snapshot exists.",
+    )
+    parser.add_argument(
+        "--role",
+        default="worker",
+        choices=["coordinator", "worker"],
+        help="For mesh mode: whether this peer dispatches jobs or serves them.",
+    )
+    parser.add_argument(
+        "--bind",
+        default="127.0.0.1:0",
+        help="For mesh mode: HOST:PORT to listen on (port 0 picks a free one).",
+    )
+    parser.add_argument(
+        "--coordinator",
+        default=None,
+        help="For mesh mode: HOST:PORT of the coordinator this peer joins.",
+    )
+    parser.add_argument(
+        "--cert-dir",
+        default=None,
+        help="For mesh mode: directory holding (or receiving) the mesh PKI material.",
+    )
+    parser.add_argument(
+        "--modes",
+        default="dfs,bfs,astar,beam,rewritedfs",
+        help="For mesh mode: comma-separated search modes this worker will accept.",
+    )
+    parser.add_argument(
+        "--jobs",
+        default=None,
+        help="For mesh mode: JSON file listing jobs the coordinator dispatches.",
+    )
+    parser.add_argument(
+        "--cert-name",
+        default=None,
+        help="For mesh mode: name of this peer's certificate inside --cert-dir.",
+    )
+    parser.add_argument(
+        "--job-timeout",
+        type=int,
+        default=6000,
+        help="For mesh mode: per-job timeout in seconds.",
+    )
+    parser.add_argument(
+        "--run-seconds",
+        type=float,
+        default=0.0,
+        help="For mesh mode: stop after this many seconds (0 waits for a shutdown frame).",
     )
     args = parser.parse_args()
     debug_enabled = args.arg1 == "debug"
@@ -1840,6 +1984,20 @@ def main():
             if args.arg3 is not None:
                 timeout_seconds = int(args.arg3)
             raise SystemExit(run_search_worker_mode(args.arg1, args.arg2, timeout_seconds))
+        elif args.mode == "mesh":
+            raise SystemExit(
+                run_mesh_peer_mode(
+                    role=args.role,
+                    bind=args.bind,
+                    coordinator=args.coordinator,
+                    worker_modes=args.modes,
+                    timeout_seconds=args.job_timeout,
+                    cert_dir=args.cert_dir,
+                    jobs_file=args.jobs,
+                    run_seconds=args.run_seconds,
+                    cert_name=args.cert_name,
+                )
+            )
         else:
             run_test_mode(debug_enabled)
     except KeyboardInterrupt:
