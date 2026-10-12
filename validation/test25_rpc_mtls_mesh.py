@@ -95,6 +95,7 @@ class StubRunner:
         self.delay = delay
         self.booted = True
         self.calls = []
+        self.defer_everything = False  # every job reports STATUS_DEFERRED
 
     def supports(self, mode):
         return mode in self.supported_modes
@@ -108,9 +109,13 @@ class StubRunner:
             os.makedirs(directory, exist_ok=True)
         with open(job.result_ref, "w", encoding="utf-8") as handle:
             handle.write("stub:%s" % job.job_id)
+        # `deferred` is a real result too (the search concluded and only the
+        # derivation replay was skipped), so both statuses are worth driving
+        # through the ledger -- see the "a deferred result is a result" checks.
+        status = protocol.STATUS_DEFERRED if self.defer_everything else protocol.STATUS_OK
         return MeshJobs.JobOutcome(
             job.job_id,
-            protocol.STATUS_OK,
+            status,
             0,
             job.result_ref,
             job.source_digest,
@@ -461,9 +466,9 @@ def phase_protocol(results, directory):
     # The holder has to stay busy long enough for a late joiner to find the
     # address (the coordinator gossips members on every heartbeat, 0.4 s),
     # authenticate and ask for the queued job -- a one-second job would simply
-    # finish first. Either stall is many heartbeats of margin; the shorter one
-    # keeps the suite inside its wall-clock budget.
-    worker_one.runner = StubRunner(delay=4.0)
+    # finish first. Three seconds is still seven heartbeats of margin (the gossip
+    # interval is 0.4 s) and keeps the suite inside its wall-clock budget.
+    worker_one.runner = StubRunner(delay=3.0)
     coordinator.submit(busy_one)
     coordinator.submit(busy_two)
     results.check(
@@ -529,8 +534,59 @@ def phase_protocol(results, directory):
         "owner=%s terminal=%s" % (owner, doomed.job_id in coordinator._results),
     )
 
+    # A `deferred` result is a result: the search concluded and the snapshot holds
+    # the plan, only the derivation replay was skipped (that is the search worker's
+    # own rc=4 under HYGE_SEARCH_WORKER_DEFER_DERIVATION=1). The ledger must not
+    # turn it into a failure -- `main.py mesh` did exactly that to its exit code.
+    for peer in (worker_one, worker_two):
+        if peer.runner is not None:
+            peer.runner.defer_everything = True
+    before_deferred = coordinator.summary()
+    deferred_job = stub_job("proto-deferred", directory=directory)
+    coordinator.submit(deferred_job)
+    coordinator.wait_for(lambda peer: deferred_job.job_id in peer._results, timeout=15)
+    after_deferred = coordinator.summary()
+    for peer in (worker_one, worker_two):
+        if peer.runner is not None:
+            peer.runner.defer_everything = False
+    results.check(
+        "a deferred result counts as a result, not a failure",
+        (coordinator.outcome(deferred_job.job_id) or {}).get("status") == protocol.STATUS_DEFERRED
+        and coordinator._job_state.get(deferred_job.job_id) == "done"
+        and after_deferred["completed"] > before_deferred["completed"]
+        and after_deferred["failed"] == before_deferred["failed"],
+        "status=%s state=%s completed %s->%s failed %s->%s"
+        % (
+            (coordinator.outcome(deferred_job.job_id) or {}).get("status"),
+            coordinator._job_state.get(deferred_job.job_id),
+            before_deferred["completed"],
+            after_deferred["completed"],
+            before_deferred["failed"],
+            after_deferred["failed"],
+        ),
+    )
+
+    # A coordinator that shuts down must actually tell its members: the notice is
+    # queued on the connection and closing it abandons what the writer still holds,
+    # which is how a CLI worker used to spend the rest of its life reconnecting to
+    # a coordinator that was gone. (The peer the doomed-job check stopped on purpose
+    # cannot hear anything, so the check asks whichever worker is still live.)
+    survivor = worker_two if not worker_two._stop.is_set() else worker_one
+    coordinator.shutdown(timeout=2.0)
+    results.check(
+        "a shutting-down coordinator tells its members, and they stop",
+        survivor.wait_for(lambda peer: peer._stop.is_set(), timeout=5)
+        and bool(survivor.events("shutdown-requested")),
+        "survivor=%s stopped=%s events=%s"
+        % (
+            survivor.peer_id,
+            survivor._stop.is_set(),
+            [event["event"] for event in survivor.events()][-4:],
+        ),
+    )
+
     worker_one.shutdown(timeout=1.0)
-    coordinator.shutdown(timeout=1.0)
+    worker_two.shutdown(timeout=1.0)
 
 
 # ----------------------------------------------------------------- phase three
@@ -946,7 +1002,10 @@ def phase_file_transport(results, directory):
     environment["PYTHONPATH"] = PACKAGE_PARENT
     environment["HYGE_SEARCH_WORKER_DEFER_DERIVATION"] = "1"
     completed = subprocess.run(
-        [sys.executable, "-u", os.path.join(PACKAGE_ROOT, "main.py"), "search-worker", "dfs", result_path, "3"],
+        # One second of search budget: the point is the *transport* still works and
+        # still writes a loadable snapshot, and the pack boot dominates this phase
+        # either way.
+        [sys.executable, "-u", os.path.join(PACKAGE_ROOT, "main.py"), "search-worker", "dfs", result_path, "1"],
         cwd=PACKAGE_ROOT,
         env=environment,
         stdout=subprocess.PIPE,

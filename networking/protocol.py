@@ -59,6 +59,19 @@ STATUS_FAILED = "failed"
 STATUS_TIMED_OUT = "timed-out"
 STATUS_DEFERRED = "deferred"
 
+# Statuses that mean "this job produced its result". `deferred` is one of them:
+# the search ran to a plan and the snapshot holds it; only the derivation replay
+# was skipped (the search worker's own rc=4 under
+# `HYGE_SEARCH_WORKER_DEFER_DERIVATION=1`). Counting it as a failure invents a
+# failure out of a result -- the mesh did exactly that to `main.py mesh`'s exit
+# code until this existed.
+SUCCESS_STATUSES = (STATUS_OK, STATUS_DEFERRED)
+
+
+def status_is_success(status) -> bool:
+    """True when a job's terminal status carries a result."""
+    return status in SUCCESS_STATUSES
+
 
 def message(kind: str, **payload) -> dict:
     payload["protocol_version"] = PROTOCOL_VERSION

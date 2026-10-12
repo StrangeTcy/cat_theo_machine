@@ -51,6 +51,12 @@ class Connection:
         self.peer_id = peer_id
         self.transient = transient  # one-shot connections (steal requests) are not members
         self.outbox = queue.Queue()
+        # Messages accepted by `send` and not yet *written*: queue.Queue.empty() is
+        # not enough, because a writer that has just dequeued a message still has
+        # it in hand. Closing the socket under it loses that message -- which is
+        # how a coordinator's shutdown notice used to never reach its members.
+        self._write_lock = threading.Lock()
+        self._queued = 0
         self.closed = threading.Event()
         self.error = None       # the failure that ended the writer, if any
         self.closed_by = ""     # what closed the connection, for the ledger
@@ -63,8 +69,16 @@ class Connection:
     def send(self, message):
         if self.closed.is_set():
             return False
+        with self._write_lock:
+            self._queued += 1
         self.outbox.put(message)
         return True
+
+    @property
+    def flushed(self):
+        """True when every accepted message has reached the socket."""
+        with self._write_lock:
+            return self._queued == 0
 
     def _write_loop(self):
         while not self.closed.is_set():
@@ -78,8 +92,12 @@ class Connection:
                 framing.send_frame(self.sock, message)
             except OSError as error:
                 self.error = error
+                with self._write_lock:
+                    self._queued -= 1
                 self.close("writer:%s" % error.__class__.__name__)
                 return
+            with self._write_lock:
+                self._queued -= 1
 
     def read(self, timeout=None):
         return framing.recv_frame(self.sock, timeout=timeout)
@@ -229,11 +247,11 @@ class MeshPeer:
             states = {}
             for state in self._job_state.values():
                 states[state] = states.get(state, 0) + 1
-            completed = [record for record in self._results.values() if record["status"] == protocol.STATUS_OK]
+            completed = [
+                record for record in self._results.values() if protocol.status_is_success(record["status"])
+            ]
             failed = [
-                record
-                for record in self._results.values()
-                if record["status"] not in (protocol.STATUS_OK, protocol.STATUS_DEFERRED)
+                record for record in self._results.values() if not protocol.status_is_success(record["status"])
             ]
             return {
                 "peer_id": self.peer_id,
@@ -420,11 +438,18 @@ class MeshPeer:
                 member_ids = list(self._members.keys())
             for peer_id in member_ids:
                 self._send(peer_id, protocol.message(protocol.SHUTDOWN, reason="coordinator shutting down"))
+            # The shutdown notice is *queued*, not yet on the wire, and closing a
+            # connection abandons whatever is still in its outbox -- so a
+            # coordinator that closed immediately after telling its members would
+            # leave them reconnecting to a coordinator that is gone (which is how
+            # a CLI worker used to linger for as long as its caller let it). Wait
+            # for the writers to drain as well as for the jobs to settle.
             deadline = time.time() + min(2.0, timeout)
             while time.time() < deadline:
                 with self._lock:
                     busy = [1 for state in self._job_state.values() if state in ("running", "queued", "dispatched")]
-                if not busy:
+                    pending = [1 for connection in self._connections.values() if not connection.flushed]
+                if not busy and not pending:
                     break
                 time.sleep(0.05)
         elif self._coordinator_connection is not None:
@@ -442,6 +467,13 @@ class MeshPeer:
                 running, status=protocol.STATUS_FAILED, reason="abandoned-on-shutdown", detail="running at shutdown", provisional=True
             )
         self._stop_now("shutdown")
+        deadline = time.time() + min(1.0, timeout)
+        while time.time() < deadline:
+            with self._lock:
+                pending = [1 for connection in self._connections.values() if not connection.flushed]
+            if not pending:
+                break
+            time.sleep(0.02)
         for connection in list(self._connections.values()):
             connection.close()
         if self._coordinator_connection is not None:
@@ -1013,7 +1045,7 @@ class MeshPeer:
                 superseded = True
             self._acknowledged.add(job_id)
             self._offered_at.pop(job_id, None)
-            self._job_state[job_id] = "done" if record["status"] == protocol.STATUS_OK else "failed"
+            self._job_state[job_id] = "done" if protocol.status_is_success(record["status"]) else "failed"
             self._job_owner.pop(job_id, None)
             self._results[job_id] = record
             if job is not None:
@@ -1202,7 +1234,7 @@ class MeshPeer:
             if job_id in self._results:
                 return
             self._results[job_id] = record
-            self._job_state[job_id] = "done" if status == protocol.STATUS_OK else "failed"
+            self._job_state[job_id] = "done" if protocol.status_is_success(status) else "failed"
             self._job_owner.pop(job_id, None)
             self._acknowledged.add(job_id)
             self._offered_at.pop(job_id, None)

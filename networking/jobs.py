@@ -322,6 +322,6 @@ class SearchJobRunner:
             job.result_ref,
             job.source_digest,
             elapsed_seconds=elapsed,
-            reason="" if status == protocol.STATUS_OK else status,
+            reason="" if protocol.status_is_success(status) else status,
             artifact_bytes=os.path.getsize(job.result_ref) if os.path.exists(job.result_ref) else 0,
         )

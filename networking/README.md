@@ -228,6 +228,26 @@ that left quietly. Now only a real EOF is an EOF (`SSLEOFError`,
 `SSLZeroReturnError`, a zero-length read); want-read/want-write are a poll that
 returns `socket.timeout` to the caller, and anything else is raised.
 
+**A `deferred` result was counted as a failure** (`networking/protocol.py`,
+`networking/peer.py`, `mesh.py`). The statuses had three different ideas of success:
+a deferred job (the search concluded, the snapshot holds the plan, only the
+derivation replay was skipped -- the search worker's own rc=4 under
+`HYGE_SEARCH_WORKER_DEFER_DERIVATION=1`) was recorded as `done`? no: as `failed` in
+the job state, invisible in `completed`, and enough to make `main.py mesh` exit 1
+after a *successful* job. There is now one expression of it,
+`protocol.status_is_success`, and the three call sites use it.
+
+**A shutdown notice could be discarded before it was written**
+(`networking/peer.py`). `shutdown()` queues `SHUTDOWN` to every member and then
+closes the connections; a closing connection abandons what its writer still holds,
+and `queue.empty()` is a lying predicate -- a writer that has just dequeued a
+message still has it in hand. So the members were never told (a CLI worker spent the
+rest of its life reconnecting to a coordinator that was gone, and only exited when
+its caller killed it). Connections now track messages accepted-but-not-yet-written
+(`Connection.flushed`) and `shutdown()` waits for the writers, not just the queue,
+before letting the sockets go. `test25` phase 2 asserts a live member sees
+`shutdown-requested` and stops.
+
 **The result projection pretty-printed the proof** (`networking/jobs.py`). Machine
 semantics were meant to be compared through digests of `PrettyTerm` text, but
 pretty-printing a realistic plan rebuilds machine ids per node and does not finish:

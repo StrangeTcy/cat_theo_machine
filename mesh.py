@@ -288,7 +288,11 @@ def run_peer_cli(
     summary = peer.shutdown()
     write_state(directory, name, peer, summary, coordinator=(role == MeshPeer.ROLE_COORDINATOR))
     log("summary: %s" % json.dumps(summary, sort_keys=True))
-    failures = [job_id for job_id in submitted if (peer.outcome(job_id) or {}).get("status") != protocol.STATUS_OK]
+    failures = [
+        job_id
+        for job_id in submitted
+        if not protocol.status_is_success((peer.outcome(job_id) or {}).get("status"))
+    ]
     if failures:
         log("jobs without a successful result: %s" % ", ".join(failures))
         return 1
