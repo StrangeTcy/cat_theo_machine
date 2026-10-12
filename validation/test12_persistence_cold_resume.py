@@ -293,15 +293,28 @@ def run_all_tests():
     print()
     print("[Probe 9] Hypergraph Content (nodes/edges) Round-Trip")
 
-    def _chain_len(x):
-        count = 0
+    def _chain_nat(x):
+        # The length of a machine chain is a machine quantity, so it is counted
+        # with Peano Succ rather than a Python int (DAG 5.2).
+        count = M.Zero
         while (
             M.IdentityCompare(x, M.EmptyList)() is M.false_value
             and M.IsPair(x)() is M.truth_value
         ):
-            count += 1
+            count = M.Head(M.Succ(count, registry)())()
             x = M.Tail(x)()
         return count
+
+    def _nat_from_host(value):
+        # NatFromRep returns Pair(nat, Pair(registry, EmptyList)), the same
+        # wrapper convention as Succ, so the nat is its Head.
+        return M.Head(M.NatFromRep(M.GMPRep(value), registry)())()
+
+    def _nat_text(nat):
+        return M.GMPRepText(M.NatRepOf(nat, registry)())()
+
+    def _nat_eq(a, b):
+        return M.NatEq(a, b, registry)() is M.truth_value
 
     node_house = M.Char("house-1")
     node_person = M.Char("person-1")
@@ -316,19 +329,27 @@ def run_all_tests():
     state9 = codec.load_snapshot(snap9)
     restored_nodes = state9.roots.get("nodes", M.EmptyList)
     restored_edges = state9.roots.get("edges", M.EmptyList)
-    nodes_len = _chain_len(restored_nodes)
-    edges_len = _chain_len(restored_edges)
+    nodes_nat = _chain_nat(restored_nodes)
+    edges_nat = _chain_nat(restored_edges)
     edge_named = M.false_value
-    if edges_len == 1:
+    if _nat_eq(edges_nat, _nat_from_host(1)):
         edge_named = M.Compare(M.Head(M.Head(restored_edges)())(), M.Char("lives_in"))()
 
-    if nodes_len == 2 and edges_len == 1 and edge_named is M.truth_value:
+    if (
+        _nat_eq(nodes_nat, _nat_from_host(2))
+        and _nat_eq(edges_nat, _nat_from_host(1))
+        and edge_named is M.truth_value
+    ):
         print("  [PASS] Hypergraph nodes and edges survived capture and load.")
         passed += 1
     else:
         print(
-            f"  [FAIL] Probe 9 failed: nodes={nodes_len} edges={edges_len} "
-            f"edge_named={edge_named is M.truth_value}"
+            "  [FAIL] Probe 9 failed: nodes="
+            + _nat_text(nodes_nat)
+            + " edges="
+            + _nat_text(edges_nat)
+            + " edge_named="
+            + str(edge_named is M.truth_value)
         )
 
     # ------------------------------------------------------------
@@ -344,25 +365,31 @@ def run_all_tests():
 
     state10 = codec.load(tmp_path)
     codec.activate(state10, graph)
-    resumed_nodes = _chain_len(graph.nodes)
-    resumed_edges = _chain_len(graph.edges)
+    resumed_nodes = _chain_nat(graph.nodes)
+    resumed_edges = _chain_nat(graph.edges)
 
     with open(tmp_path, "rb") as handle:
         after_digest = hashlib.sha256(handle.read()).hexdigest()
     source_intact = before_digest == after_digest
 
+    # try/finally: an exception between setting and restoring the variable would
+    # otherwise leak the opt-out into every later probe in this process.
     previous_policy = os.environ.get("HYGE_SNAPSHOT_UPGRADE_RESAVE")
     os.environ["HYGE_SNAPSHOT_UPGRADE_RESAVE"] = "0"
-    opt_out_honoured = Persist._upgrade_resave_enabled() is False
-    if previous_policy is None:
-        os.environ.pop("HYGE_SNAPSHOT_UPGRADE_RESAVE", None)
-    else:
-        os.environ["HYGE_SNAPSHOT_UPGRADE_RESAVE"] = previous_policy
-    default_still_resaves = Persist._upgrade_resave_enabled() is True
+    try:
+        opt_out_honoured = (
+            Persist._upgrade_resave_enabled() is M.false_value
+        )
+    finally:
+        if previous_policy is None:
+            os.environ.pop("HYGE_SNAPSHOT_UPGRADE_RESAVE", None)
+        else:
+            os.environ["HYGE_SNAPSHOT_UPGRADE_RESAVE"] = previous_policy
+    default_still_resaves = Persist._upgrade_resave_enabled() is M.truth_value
 
     if (
-        resumed_nodes == 2
-        and resumed_edges == 1
+        _nat_eq(resumed_nodes, _nat_from_host(2))
+        and _nat_eq(resumed_edges, _nat_from_host(1))
         and source_intact
         and opt_out_honoured
         and default_still_resaves
@@ -371,9 +398,16 @@ def run_all_tests():
         passed += 1
     else:
         print(
-            f"  [FAIL] Probe 10 failed: nodes={resumed_nodes} edges={resumed_edges} "
-            f"source_intact={source_intact} opt_out={opt_out_honoured} "
-            f"default_resaves={default_still_resaves}"
+            "  [FAIL] Probe 10 failed: nodes="
+            + _nat_text(resumed_nodes)
+            + " edges="
+            + _nat_text(resumed_edges)
+            + " source_intact="
+            + str(source_intact)
+            + " opt_out="
+            + str(opt_out_honoured)
+            + " default_resaves="
+            + str(default_still_resaves)
         )
 
     # ------------------------------------------------------------

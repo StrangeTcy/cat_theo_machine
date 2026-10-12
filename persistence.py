@@ -432,9 +432,14 @@ def _upgrade_resave_enabled():
     committed fixture could change underneath a test run and an inspection boot
     cost a full capture plus write. Set HYGE_SNAPSHOT_UPGRADE_RESAVE=0 to load
     without mutating the source file.
+
+    Returns a machine truth value: this gates control flow inside activate(),
+    which expresses every other decision of this kind as truth_value/false_value.
     """
     value = os.environ.get("HYGE_SNAPSHOT_UPGRADE_RESAVE", "1").strip().lower()
-    return value not in ("0", "false", "no", "off")
+    if value in ("0", "false", "no", "off"):
+        return M.false_value
+    return M.truth_value
 
 
 class SnapshotState:
@@ -560,10 +565,15 @@ class SnapshotCodec:
         # was therefore judged legacy, and every boot rewrote the snapshot it had
         # just loaded. Ask the module directly; IsTree tests Head(tree) against
         # TreeLabel, which a legacy TreeNode (head is a key) fails.
+        # Narrow catch: IsTree calls tree() and takes Head of the result, so the
+        # only expected failures are a root that is not a machine value at all.
+        # A blanket "except Exception" here would report a genuine fault as
+        # "not a tree" and send the boot down the legacy rebuild path, which is
+        # the same silent-misdiagnosis shape as the bug this branch fixes.
         try:
             if T.IsTree(tree)() is M.truth_value:
                 return M.truth_value
-        except Exception:
+        except (AttributeError, TypeError):
             pass
         try:
             if "SearchPatriciaIsTree" in self.namespace:
@@ -1386,7 +1396,7 @@ class SnapshotCodec:
                     needs_upgrade = M.truth_value
                     break
             if needs_upgrade is M.truth_value:
-                if _upgrade_resave_enabled():
+                if _upgrade_resave_enabled() is M.truth_value:
                     print("snapshot upgrade: rewriting in place -> " + snapshot_path, flush=True)
                     if debug is M.truth_value:
                         print("DEBUG: activate: saving upgraded snapshot...", flush=True)
