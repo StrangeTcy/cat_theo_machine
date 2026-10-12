@@ -181,6 +181,28 @@ the protocol invariants with stub runners, then real search jobs over real
 subprocesses with a stolen job, a SIGKILLed worker, and every result compared
 against the single-process run of the same manifest.
 
+## The ledger, and which events are load-bearing
+
+Every peer keeps an ordered event log (`peer.events()`, `report()`), and the
+coordinator writes `ledger.json`. Two kinds of event live there, and the
+difference matters when reading a failing run:
+
+* **Behavioural** — these are what the layer *does*, and a test asserts on them:
+  `member-joined` / `member-lost` / `stale-loss-ignored`, `job-submitted` /
+  `job-dispatched` / `job-started` / `job-queued` / `job-result` /
+  `job-redispatched` / `job-declined`, `lease-released` / `lease-transferred`,
+  `rejoined` / `rejoin-failed`, `hearsay-expired`, `result-superseded`,
+  `reader-stopped`, `handshake-refused`.
+* **Diagnostic** — kept because a transport that fails silently costs hours:
+  the `closed_by` chain on a `connection-closed` (`connection.close()` with no
+  reason records the four frames that did it), the `on_close` callback that
+  guarantees the close is recorded at all, `steal-dialled`, and the
+  `member-lost=… members=… closed=…` detail `test25` prints on failure.
+
+Neither kind carries machine semantics, and no event ever decides behaviour: the
+guards (scopes, sequences, leases, direct-only loss) are what make the transport
+safe, and the events are how a reader checks the guards did their job.
+
 ## What was fixed on the way
 
 **Heartbeats were answered, and the answers were answered** (`networking/peer.py`).
