@@ -1195,6 +1195,38 @@ class MeasureLabel(ConstructorLabel):
     pass
 
 
+class DirectionLabel(ConstructorLabel):
+    pass
+
+
+class MovesDecreasingLabel(ConstructorLabel):
+    pass
+
+
+class MovesPreservingLabel(ConstructorLabel):
+    pass
+
+
+class MovesNonIncreasingLabel(ConstructorLabel):
+    pass
+
+
+class NonIncreasesLabel(ConstructorLabel):
+    pass
+
+
+class AllMovesNonIncreaseLabel(ConstructorLabel):
+    pass
+
+
+class EventuallyDecreasesLabel(ConstructorLabel):
+    pass
+
+
+class SemiInvariantMethodLabel(ConstructorLabel):
+    pass
+
+
 class ReadingLabel(ConstructorLabel):
     pass
 
@@ -1315,6 +1347,14 @@ MoveSetLabel = MoveSetLabel()
 MonovariantMethodLabel = MonovariantMethodLabel()
 InvarianceMethodLabel = InvarianceMethodLabel()
 MeasureLabel = MeasureLabel()
+DirectionLabel = DirectionLabel()
+MovesDecreasingLabel = MovesDecreasingLabel()
+MovesPreservingLabel = MovesPreservingLabel()
+MovesNonIncreasingLabel = MovesNonIncreasingLabel()
+NonIncreasesLabel = NonIncreasesLabel()
+AllMovesNonIncreaseLabel = AllMovesNonIncreaseLabel()
+EventuallyDecreasesLabel = EventuallyDecreasesLabel()
+SemiInvariantMethodLabel = SemiInvariantMethodLabel()
 ReadingLabel = ReadingLabel()
 TerminatesLabel = TerminatesLabel()
 PerimeterLabel = PerimeterLabel()
@@ -1718,6 +1758,14 @@ def sync_from_namespace(namespace):
         "MonovariantMethodLabel",
         "InvarianceMethodLabel",
         "MeasureLabel",
+        "DirectionLabel",
+        "MovesDecreasingLabel",
+        "MovesPreservingLabel",
+        "MovesNonIncreasingLabel",
+        "NonIncreasesLabel",
+        "AllMovesNonIncreaseLabel",
+        "EventuallyDecreasesLabel",
+        "SemiInvariantMethodLabel",
         "ReadingLabel",
         "TerminatesLabel",
         "PerimeterLabel",

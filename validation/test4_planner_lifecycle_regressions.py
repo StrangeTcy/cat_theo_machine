@@ -5,6 +5,8 @@ IMPORT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__
 if IMPORT_ROOT not in sys.path:
     sys.path.insert(0, IMPORT_ROOT)
 
+import _hyge_import  # noqa: F401  (aliases this checkout as `hyge`)
+
 from hyge import labels as L
 from hyge import machine as M
 from hyge import planner as Planner

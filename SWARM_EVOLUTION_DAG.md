@@ -71,7 +71,7 @@ The machine's capabilities and subsystems are partitioned into five core dimensi
 | **W7** | FLT $n=3$ Eisenstein Factorization | Dim 1 | `packs/flt_eisenstein.pack.yaml`| W3 | Eisenstein norm ring $\mathbb{Z}[\omega]$, cubic descent |
 | **W8** | IMO Geometry & Aux Construction | Dim 2 | `packs/imo_geometry.pack.yaml` | W4 | Auxiliary point synthesizers, cyclic quads |
 | **W9** | IMO Combinatorics & Func-Eq | Dim 2 | `packs/imo_algebra.pack.yaml` | W4 | Cauchy/d'Alembert equations, extremal sets |
-| **W10**| Engel Monovariants & Invariants | Dim 3 | `packs/engel-strategies.pack.yaml`, `planner.py` (`Monovariant`, `Invariance`) | W3, W4 | Semi-invariants, coloring partitions, box principle |
+| **W10**| Engel Monovariants & Invariants | Dim 3 | `packs/engel-strategies.pack.yaml`, `planner.py` (`Monovariant`, `SemiInvariant`, `Invariance`) | W3, W4 | Semi-invariants, colouring as invariance, box principle obligationed; suite slot `test23` |
 | **W11**| Invariant Trace Miner & Evaluator| Dim 4 | `invariant_miner.py`, `evaluator.py`| W4 | Trace state extractor, holdout regression gate |
 | **W12**| Dual-Ledger Promotion Loop | Dim 4 | `promotion_ledger.py` | W11, W1 | End-to-end autonomous discovery & rollback ledger |
 | **W13**| Multi-Pass Backward Planner | Dims 1,2,3 | `planner.py`, `graph_task.py` | W6, W8, W9, W10 | Decomposed goal scheduler, auxiliary search |
@@ -114,33 +114,62 @@ These arrived during Phase 0/1 execution and are prerequisites or enablers rathe
 - [ ] **W8 (IMO Geometry & Auxiliary Construction Engine)**: Ready for execution.
 - [ ] **W9 (IMO Combinatorics, Functional Equations & NT)**: Ready for execution.
 - [x] **W10 (Engel Strategies & Monovariants Pack)**: Completed & verified in
-  `validation/test20_engel_strategies.py` (49/49 checks, ~46 s). `packs/engel-strategies.pack.yaml`
-  states the five Engel principles once, over symbolic problems, measures and move sets: invariance
-  (`preserves_all_*`, `invariant_obstruction`), monovariants (`decreases_all_*`,
-  `monovariant_terminates`), semi-invariants (`semi_invariant_terminates`), the extremal principle
-  (`extremal_choice`) and the box principle (`box_principle_collision`). Checkerboard colouring is
-  deliberately not a sixth principle: a colouring argument is an invariance argument whose phi is a
-  parity, and `invariant_obstruction` discharges it without new vocabulary.
-  - *Universality is stated, not assumed.* Termination and preservation quantify over **every** move,
-    and Horn rules cannot. The pack derives the universal for literal move sets of one, two and three
-    moves and refuses it when a single move does not cooperate; a problem whose move set is a symbolic
-    term must supply `AllMovesDecrease` itself. Two tests pin both directions: one decreasing move out
-    of two derives neither `AllMovesDecrease` nor `Terminates`.
-  - *The planner can now decompose with these methods.* `planner.py` gained `Monovariant` and
-    `Invariance` method terms with their obligation and conclusion records; before this only
-    `Pigeonhole` and `Extremal` produced children. A literal move set is obligationed move by move,
-    a symbolic one as a single universal, and `MonovariantObligations` refuses to claim the universal
-    it cannot phrase. The invariant case obligationes `Invariant(problem, phi)` in that situation,
-    which is both the right universal and the fact `invariant_obstruction` already consumes.
-  - *Suite slot 20 is deliberate*: §5's append-only numbering is honoured against the union of all
-    lineages, where 1–19 are already taken, not against the four suites this branch happens to carry.
-  - *New labels*: `Monovariant`, `SemiInvariant`, `StrictlyDecreases`, `AllMovesDecrease`, `MoveSet`,
-    `Reading`, `Terminates`, `Measure`, plus the `MonovariantMethod` / `InvarianceMethod` method heads,
-    registered in `labels.py` and in `SNAPSHOT_SYMBOL_NAMES`. `core.py` untouched.
-  - *Not done*: no domain pack drives these rules yet from a real Engel problem, and no checker
-    verifies a `StrictlyDecreases` claim; both obligations are still discharged by hand in the suite.
-    The strategy rules also do not fire during ordinary search — they are strategy-level, and nothing
-    yet proposes them to the search the way the planner methods do.
+  `validation/test23_engel_strategies.py` (80/80 checks, ~70 s) — slot 23, the one
+  `delegation/README.md` pre-allocates to this worker; slots 20–22 belong to W7/W8/W9.
+  `packs/engel-strategies.pack.yaml` states the strategy principles once, over symbolic problems,
+  measures and move sets: invariance (`thread_preserving_moves` / `preserving_moves_empty` / `step`
+  + `invariant_obstruction`), monovariants (`thread_decreasing_moves` / `decreasing_moves_empty` /
+  `step` + `monovariant_terminates`), semi-invariants (`thread_non_increasing_moves` /
+  `non_increasing_moves_empty` / `step` + `semi_invariant_terminates`) and the extremal principle
+  (`extremal_choice`, whose direction is a supplied fact, never a min/max constant). The pack
+  carries ontology and generic schemas only — no problem instance, no examples block, and no
+  agenda cases in `main.py` (the brief names that style a standing §5.3 violation; the two agenda
+  hooks this worker first added there are gone).
+  - *Universality by fixpoint recursion, not enumeration.* Termination and preservation quantify
+    over **every** move, and Horn rules cannot. The universal is reached the way the machine
+    reaches every other universal: `MoveSet` is threaded into a `MovesDecreasing` /
+    `MovesPreserving` / `MovesNonIncreasing` obligation, one rule peels the head off the list
+    while the head discharges its own premise, and the empty list closes the case. No list length
+    is ever assumed — a five-move problem and a one-move problem run the same three rules, an
+    earlier version that spelled out lengths 1/2/3 was a Python-flavoured enumeration and was
+    replaced by this recursion — and a single move that does not discharge stops the recursion
+    dead. A symbolic move set cannot be peeled and must supply the universal itself.
+  - *The semi-invariant is honestly weaker than a monovariant.* It owes `NonIncreases` per move
+    (not a strict drop) plus the fact `EventuallyDecreases(p, m)` — the "eventually" is a premise,
+    i.e. an obligation, because how a process is seen to drop eventually is arithmetic about that
+    process. An earlier schema consumed `StrictlyDecreases`, which made the term a monovariant
+    with a different name; a schema that counted steps to prove the drop would hardcode the very
+    argument it is meant to licence.
+  - *The box principle is obligationed, not asserted.* From `|D| > |C|` and a total map, "two
+    pigeons share a box" is arithmetic the machine should establish by Peano counting, not a
+    conclusion it should be handed; an earlier `box_principle_collision` rule did exactly that and
+    was withdrawn. The existing `Pigeonhole` planner method already obligationes finiteness,
+    totality, both cardinalities and the strict inequality, and the suite pins that no pack rule
+    concludes a collision and that the facts alone manufacture none.
+  - *Checkerboard colouring is not a sixth principle*: a colouring argument is an invariance
+    argument whose phi is a parity, and `invariant_obstruction` discharges it once the 2-colouring
+    and its parity observable are supplied.
+  - *Planner*: `Monovariant`, `SemiInvariant` and `Invariance` method terms with their obligation
+    and conclusion records (before this only `Pigeonhole` and `Extremal` produced children), all
+    nine edges now exported. A literal move set is obligationed move by move, a symbolic one as a
+    single universal; the obligation records never claim the universal they cannot phrase.
+  - *New labels*: `Monovariant`, `SemiInvariant`, `StrictlyDecreases`, `AllMovesDecrease`,
+    `AllMovesNonIncrease`, `NonIncreases`, `EventuallyDecreases`, `MoveSet`, `MovesDecreasing`,
+    `MovesPreserving`, `MovesNonIncreasing`, `Reading`, `Terminates`, `Measure`, `Direction`, plus
+    the `MonovariantMethod` / `SemiInvariantMethod` / `InvarianceMethod` method heads, registered
+    in `labels.py` (append-only) and in `SNAPSHOT_SYMBOL_NAMES`; the suite round-trips all of them
+    through `SnapshotCodec`. `core.py` untouched.
+  - *Honest scope note*: this branch carries none of the modules the W10 brief's "what already
+    exists" section assumes (`playground.py`, `invariant_miner.py`, `evaluator.py`,
+    `curriculum.py`, `checker_b.py`, `promotion_ledger.py`), so the parts of its done-definition
+    that need discovery, held-out/decoy evidence, ablation or a Checker B receipt are **not met
+    here and are not claimed**; the suites they live in are not on this branch either, so the
+    "existing suites stay green" check covers the four that are.
+  - *Not done*: no domain pack drives these rules from a real Engel problem yet; nothing
+    verifies a `StrictlyDecreases` / `NonIncreases` / `Preserves` claim; the brief's discovery
+    layer (mining a measure or an observable rather than being handed one) is open; and the
+    strategy rules do not fire during ordinary search — nothing yet proposes them to the search
+    the way the planner methods do.
 - [ ] **W15 (Conversational Socratic Tutor & Concept Explorer)**: Ready for execution.
 - [x] **W2 (Distributed RPC & mTLS Mesh)**: Completed & verified in `validation/test25_rpc_mtls_mesh.py` (45/45, ~116 s) — framed RPC over mutual TLS with a certificate authority generated in Python, refusal negatives (unknown CA, untrusted server, expired leaf), membership over loopback, scopes and leases with monotonic sequences, peer-to-peer work stealing (proved once with stub jobs over real mTLS sockets and once with real subprocesses, where a queued search job is stolen from under a busy peer), and real `search` jobs over real `main.py mesh` subprocesses, compared against the same job run alone in a fresh process. The manifest/result contract is the one the file transport already used, so a mesh job is a `search-worker` job by construction (`search-worker` stays selectable and is regression-covered in the same suite). Its own transport defects — a heartbeat that answered itself (an unbounded storm), a frame reader that read a TLS want-read as a clean EOF, and a result projection that pretty-printed proofs instead of reading the snapshot graph — were found and fixed on the way; see `networking/README.md`.
 - [ ] **W16 / W17 (Distributed Prover & Byzantine Consensus)**: Dependent on Phase 2.
