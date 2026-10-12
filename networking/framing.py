@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 import socket
+import ssl
 import struct
 import time
 
@@ -74,17 +75,31 @@ def _read_exactly(sock: socket.socket, count: int, stall_timeout: float = FRAME_
     while len(buffer) < count:
         try:
             chunk = sock.recv(count - len(buffer))
-        except (socket.timeout, TimeoutError):
-            now = time.time()
-            if not buffer:
-                raise  # nothing read yet: the caller polls again
-            if deadline is None:
-                deadline = now + stall_timeout
-            if now >= deadline:
-                raise FrameError("peer stalled mid-frame after %d of %d bytes" % (len(buffer), count))
-            continue
-        except OSError:
-            return None
+        except OSError as error:
+            # "Nothing yet" is not "gone". A poll timeout -- and, on a TLS
+            # socket, the equivalent want-read condition -- means the peer is
+            # merely silent; it must not be reported as a closed connection.
+            if isinstance(error, (socket.timeout, TimeoutError, ssl.SSLWantReadError, ssl.SSLWantWriteError, InterruptedError)):
+                now = time.time()
+                if not buffer:
+                    # Nothing read yet: the caller polls again. Normalise the
+                    # exception so every caller can keep catching one type.
+                    raise socket.timeout("no frame yet") from error
+                if deadline is None:
+                    deadline = now + stall_timeout
+                if now >= deadline:
+                    raise FrameError("peer stalled mid-frame after %d of %d bytes" % (len(buffer), count))
+                continue
+            # A real EOF is the peer saying goodbye, and it is the only thing
+            # that may look like one. The TLS layer reports the two ends of that
+            # politely; a refuse-to-verify alert after a rejected handshake (see
+            # `_serve_connection`'s `handshake-refused`), a bad record, or a
+            # descriptor that was closed underneath us are *failures* -- letting
+            # them return None would make an expired certificate
+            # indistinguishable from a peer that left quietly.
+            if isinstance(error, (ssl.SSLEOFError, ssl.SSLZeroReturnError)):
+                return None
+            raise
         if not chunk:
             return None
         buffer.extend(chunk)

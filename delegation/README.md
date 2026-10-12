@@ -15,13 +15,15 @@ Index (open workers only; everything marked `[x]` in the DAG is already done and
 | `W09-imo-combinatorics-funceq.md` | W9: IMO combinatorics, functional equations, NT | 2 | 1 | W4 ✅ | `test22` |
 | `W10-engel-strategies.md` | W10: Engel monovariants, extremal, box, colouring | 3 | 1 | W3 ✅ W4 ✅ | `test23` |
 | `W15-socratic-tutor.md` | W15: conversational Socratic tutor | 5 | 2 | W5 ✅ W12 ✅ | `test24` |
-| `W02-rpc-mtls-mesh.md` | W2: RPC / mTLS mesh | Infra | 0 (late) | none | `test25` |
+| `W02-rpc-mtls-mesh.md` | W2: RPC / mTLS mesh — **done**, see DAG §4 | Infra | 0 (late) | none | `test25` |
 | `W16-distributed-prover-swarm.md` | W16: distributed prover swarm | Swarm | 3 | W2 ⬜ W13 ✅ | `test27` |
 | `W17-byzantine-ledger-consensus.md` | W17: Byzantine ledger consensus | Swarm | 3 | W2 ⬜ W12 ✅ W1 ✅ | `test28` |
 
 Dispatch order that respects the gates: the five Phase-1 briefs (W6–W10) and W15 are
-independent and can all run in parallel. W2 is the only Phase-3 prerequisite, so start it
-in parallel too but do not start W16/W17 until W2 reports green.
+independent and can all run in parallel. W2 is the only Phase-3 prerequisite and its
+brief is now executed and green (`validation/test25_rpc_mtls_mesh.py`, 44/44), so W16 and
+W17 are unblocked — their `Prereqs` columns still name W2 ⬜ because they were written
+before it landed; read that as W2 ✅.
 
 Suite slots are **append-only** and pre-allocated above. Do not reuse a number: two
 lineages already collided on slots 15 and 16, which is recorded in DAG §6.

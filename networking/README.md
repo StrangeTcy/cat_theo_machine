@@ -120,6 +120,14 @@ first version of this layer got them wrong:
   the peer has already replaced is ignored, so a rejoin is never undone by the
   stale loss of the link it replaced.
 
+* **A heartbeat is not a question.** Each pair of peers has its own periodic
+  sender — the coordinator's loop tells every member it is alive and gossips the
+  member digest, each worker's loop tells the coordinator it is alive — and
+  neither answers what it receives. Replying to a heartbeat is redundant, and it
+  is unbounded: two peers answering each other's heartbeats answer the answers
+  forever, at wire speed, until offers, results and joins queue up behind the
+  storm and the link looks broken while it is only saturated.
+
 The other half is the dispatcher, which is deliberately forgiving:
 
 * **Every pending job is considered**, not just the oldest: a job waiting on a
@@ -159,6 +167,42 @@ subprocesses with a stolen job, a SIGKILLed worker, and every result compared
 against the single-process run of the same manifest.
 
 ## What was fixed on the way
+
+**Heartbeats were answered, and the answers were answered** (`networking/peer.py`).
+`_note_heartbeat` refreshed the sender's record and then sent a heartbeat back.
+Two peers doing that to each other never stop: each message provokes one more, so
+the link carries heartbeats at whatever rate the two threads can manage — measured
+at ~17,000 frames in 10 s, and ~32,000 in 30 s when the link was failing — and the
+frames that matter (offers, results, joins) queue up behind them. That is what the reconnect storms were: the
+connection was not dropping work, it was drowning in liveness traffic, which also
+explains why every hung case had a peer at 100 % CPU. Heartbeats are now
+one-directional and unanswered; the same test phase that used to send 17,000
+frames in 10 s now sends ~106 in 15 s, and `test25`'s wall time went from a bimodal
+10 s/35 s to a flat 16.6 s over seven consecutive green runs.
+
+**The frame reader read *any* socket error as a clean EOF** (`networking/framing.py`).
+The idle poll timeout was already handled, but on a TLS socket the same condition
+also arrives as `ssl.SSLWantReadError` — which is an `OSError` but *not* a
+`TimeoutError` — so it fell into the branch that returns `None`, i.e. "the peer
+closed the connection". A refused handshake alert (`SSLV3_ALERT_CERTIFICATE_EXPIRED`),
+a bad record, or an `EBADF` from a descriptor closed underneath the reader were all
+reported the same way: an expired certificate became indistinguishable from a peer
+that left quietly. Now only a real EOF is an EOF (`SSLEOFError`,
+`SSLZeroReturnError`, a zero-length read); want-read/want-write are a poll that
+returns `socket.timeout` to the caller, and anything else is raised.
+
+**The result projection pretty-printed the proof** (`networking/jobs.py`). Machine
+semantics were meant to be compared through digests of `PrettyTerm` text, but
+pretty-printing a realistic plan rebuilds machine ids per node and does not finish:
+on a 31-object plan that describes the whole proof, `PrettyTerm` was still spinning
+at 100 % CPU after fifteen minutes. The reference run in `test25` phase 3 therefore
+never completed, and the two "hung" phase-3 runs were this, not the transport. The
+projection now reads the snapshot's own persisted object graph — the codec's flat
+object table, whose ids come from the codec's traversal — and digests the closure of
+the roots it cares about (`worker_plan`, `derivations`, `search_history`). It is the
+same evidence, read directly: two independent runs of one job produce byte-identical
+closures and equal digests in ~0.7 s per snapshot, and the status comes from the
+machine's own label singletons rather than a string round trip.
 
 **The frame reader lost bytes on a poll timeout** (`networking/framing.py`).
 Readers poll with a short idle timeout, so `socket.recv` may time out — and it

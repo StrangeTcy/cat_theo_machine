@@ -115,7 +115,7 @@ These arrived during Phase 0/1 execution and are prerequisites or enablers rathe
 - [ ] **W9 (IMO Combinatorics, Functional Equations & NT)**: Ready for execution.
 - [ ] **W10 (Engel Strategies & Monovariants Pack)**: Ready for execution.
 - [ ] **W15 (Conversational Socratic Tutor & Concept Explorer)**: Ready for execution.
-- [ ] **W2 (Distributed RPC & mTLS Mesh)**: Ready for execution.
+- [x] **W2 (Distributed RPC & mTLS Mesh)**: Completed & verified in `validation/test25_rpc_mtls_mesh.py` (44/44, ~104 s) — framed RPC over mutual TLS with a certificate authority generated in Python, refusal negatives (unknown CA, untrusted server, expired leaf), membership over loopback, scopes and leases with monotonic sequences, peer-to-peer work stealing, and real `search` jobs over real `main.py mesh` subprocesses. The manifest/result contract is the one the file transport already used, so a mesh job is a `search-worker` job by construction (`search-worker` stays selectable and is regression-covered in the same suite). Its own transport defects — a heartbeat that answered itself (an unbounded storm), a frame reader that read a TLS want-read as a clean EOF, and a result projection that pretty-printed proofs instead of reading the snapshot graph — were found and fixed on the way; see `networking/README.md`.
 - [ ] **W16 / W17 (Distributed Prover & Byzantine Consensus)**: Dependent on Phase 2.
 
 ---

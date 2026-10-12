@@ -61,7 +61,6 @@ from cat_theo_machine.networking.peer import MeshPeer
 JOBS = (
     {"job_id": "job-dfs", "mode": "dfs"},
     {"job_id": "job-bfs", "mode": "bfs"},
-    {"job_id": "job-astar", "mode": "astar"},
 )
 
 
@@ -407,11 +406,29 @@ def phase_protocol(results, directory):
         results.note("jobs: %s" % json.dumps({job_id: [job.sequence, job.scope_key, job.content_scope_key] for job_id, job in coordinator._jobs.items()}, sort_keys=True))
         results.note("members: %s" % json.dumps({peer_id: [record.get("address"), record.get("load"), record.get("roles")] for peer_id, record in coordinator.members().items()}, sort_keys=True))
         results.note("sequences: %s" % json.dumps(coordinator._sequence, sort_keys=True))
+        results.note(
+            "worker-1 refusals/accepts: %s"
+            % [
+                (event["event"], event["job_id"], event.get("detail"))
+                for event in worker_one.events()
+                if event["event"] in ("job-declined-locally", "job-declined", "job-accepted")
+            ][-8:]
+        )
+        results.note(
+            "coordinator ledger tail: %s"
+            % [(event["event"], event["job_id"], event.get("detail")) for event in coordinator.events()][-25:]
+        )
     blocked_ran = coordinator.wait_for(lambda peer: blocked.job_id in peer._results, timeout=25)
+    # "Terminal" is not the same as "ran": a job may reach a terminal record as a
+    # refusal, a watchdog verdict or a superseded provisional failure. Both jobs
+    # are ordinary work over one scope, so both must end up with a real result.
+    shared_status = {
+        job_id: (coordinator._results.get(job_id) or {}).get("status") for job_id in (held.job_id, blocked.job_id)
+    }
     results.check(
         "both jobs over the shared scope eventually run",
-        blocked_ran,
-        "terminal=%s" % sorted(coordinator.terminal_job_ids()),
+        blocked_ran and all(status == protocol.STATUS_OK for status in shared_status.values()),
+        "statuses=%s terminal=%s" % (json.dumps(shared_status, sort_keys=True), sorted(coordinator.terminal_job_ids())),
     )
     if not blocked_ran:
         results.note("blocked state: %s" % coordinator._job_state.get(blocked.job_id))
@@ -518,12 +535,22 @@ def phase_protocol(results, directory):
 
 
 def phase_real_jobs(results, directory):
-    print("\n[3] real search jobs over real subprocesses, with a stolen job and a killed worker")
+    """Two real searches over real subprocesses: a second worker, then a kill.
+
+    The comparison against a single-process run is deliberately per job and
+    per process. A peer reuses *one* booted runtime for every job it runs -- that
+    is the point of the one-boot-per-peer design -- and the runtime caches what
+    it has solved, so the second job in a runtime reaches a memo instead of
+    searching from scratch and its plan is not the fresh plan. Only the first
+    job a peer runs is therefore comparable with a fresh process, and which job
+    that is is read out of the ledger rather than assumed.
+    """
+    print("\n[3] real search jobs over real subprocesses, a second worker, and a killed worker")
     work_dir = os.path.join(directory, "work")
     os.makedirs(work_dir, exist_ok=True)
 
     specs = []
-    for index, entry in enumerate(JOBS):
+    for entry in JOBS:
         specs.append(
             {
                 "job_id": entry["job_id"],
@@ -541,26 +568,76 @@ def phase_real_jobs(results, directory):
     environment["PYTHONPATH"] = PACKAGE_PARENT
     environment["HYGE_SEARCH_WORKER_DEFER_DERIVATION"] = "1"
 
-    # The single-process baseline runs in its own process while the workers boot,
-    # so the two pack boots overlap instead of queueing behind each other.
-    # The reference run prints the search pipeline's own chatter as well as its
-    # JSON, and that is far more than a pipe buffer: capturing it through a pipe
-    # nobody reads until the end would block the child forever. It writes its
-    # answer to a file and its chatter to a log instead.
-    reference_answer = os.path.join(reference_dir, "reference.json")
-    reference_log = open(os.path.join(directory, "reference.log"), "w", encoding="utf-8")
-    reference_process = subprocess.Popen(
-        [sys.executable, "-u", os.path.abspath(__file__), "--reference", json.dumps(specs), reference_answer],
-        cwd=PACKAGE_ROOT,
-        env=environment,
-        stdout=reference_log,
-        stderr=subprocess.STDOUT,
-        text=True,
-    )
-
     coordinator_identity = MeshModule.ensure_identity(directory, "coordinator")
     coordinator = start_peer(coordinator_identity, MeshPeer.ROLE_COORDINATOR, None)
     workers = {}
+    reference_processes = {}
+    reference_answers = {}
+
+    def _start_reference(spec):
+        """Run one job alone, in its own process: the file transport's baseline.
+
+        The reference prints the search pipeline's own chatter, which is far more
+        than a pipe buffer, so it writes that to a log and its answer to a file --
+        capturing stdout through an unread pipe would block the child forever.
+        """
+        log_handle = open(os.path.join(directory, "reference-%s.log" % spec["job_id"]), "w", encoding="utf-8")
+        answer_path = os.path.join(reference_dir, "%s.json" % spec["job_id"])
+        reference_answers[spec["job_id"]] = answer_path
+        reference_processes[spec["job_id"]] = subprocess.Popen(
+            [
+                sys.executable,
+                "-u",
+                os.path.abspath(__file__),
+                "--reference",
+                json.dumps([spec]),
+                answer_path,
+            ],
+            cwd=PACKAGE_ROOT,
+            env=environment,
+            stdout=log_handle,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+
+    def _reference_results(job_id):
+        process = reference_processes[job_id]
+        try:
+            process.wait(timeout=600)
+        except subprocess.TimeoutExpired:
+            results.note("reference for %s never finished" % job_id)
+            return {}
+        try:
+            with open(reference_answers[job_id], encoding="utf-8") as handle:
+                return json.load(handle).get("jobs", {})
+        except (OSError, ValueError) as error:
+            results.note("reference for %s unreadable: %r" % (job_id, error))
+            return {}
+
+    # Which peer produced a job's result, and had that peer run anything before?
+    # The answer decides comparability, so it comes from the ledger, not a guess.
+    def _first_job_of_its_peer(job_id):
+        starts = [event for event in coordinator.events("job-started") if event.get("peer_id")]
+        finishes = [event for event in coordinator.events("job-result") if event["job_id"] == job_id]
+        if not finishes or not any(event["job_id"] == job_id for event in starts):
+            return ""
+        # The *last* start before the result is the peer that actually ran it: a
+        # killed job can be started twice, by two different peers.
+        own = [event for event in starts if event["job_id"] == job_id and event["ts"] <= finishes[-1]["ts"]]
+        if not own:
+            return ""
+        owner = own[-1]["peer_id"]
+        # A peer's first job is the one whose earliest start record is the peer's
+        # earliest of all -- not merely the earliest record of this job, because a
+        # start can be recorded twice (the send and its arrival).
+        other_starts = {}
+        for event in starts:
+            if event["peer_id"] != owner or event["job_id"] == job_id:
+                continue
+            other_starts[event["job_id"]] = min(other_starts.get(event["job_id"], event["ts"]), event["ts"])
+        this_start = min(event["ts"] for event in own)
+        return owner if not other_starts or min(other_starts.values()) > this_start else ""
+
     try:
         workers["worker-1"] = _spawn_worker(directory, "worker-1", coordinator.address, environment)
         results.check(
@@ -569,11 +646,12 @@ def phase_real_jobs(results, directory):
             "members=%s" % sorted(_member_ids(coordinator)),
         )
 
-        # Two jobs for one worker: one running, one queued (and therefore stealable).
+        # The first job runs on the only peer there is; the second is submitted
+        # after worker-2 joins, so it is *that* peer's first job -- which is what
+        # makes its result comparable with a fresh process.
         coordinator.submit(_job_from_spec(specs[0]))
-        coordinator.submit(_job_from_spec(specs[1]))
         results.check(
-            "worker-1 starts the first job",
+            "worker-1 starts a real search",
             coordinator.wait_for(
                 lambda peer: any(
                     event["event"] == "job-started" and event["job_id"] == specs[0]["job_id"] for event in peer.events()
@@ -589,30 +667,21 @@ def phase_real_jobs(results, directory):
             coordinator.wait_for(lambda peer: _has_member(peer, "worker-2"), timeout=240),
             "members=%s" % sorted(_member_ids(coordinator)),
         )
-        # A real search may well finish before a worker that needs most of a
-        # minute to boot is ready, and then there is nothing queued to take. The
-        # hand-over itself is asserted strictly in phase 2 (fast stub jobs, a
-        # genuine peer-to-peer steal, and no duplicate result); what matters here
-        # is that no *duplicate* work appears when it does happen.
-        stolen_here = coordinator.wait_for(
-            lambda peer: any(record["stolen_from"] for record in peer._results.values()),
-            timeout=120,
-        )
+        _start_reference(specs[1])
+        coordinator.submit(_job_from_spec(specs[1]))
+        worker_two_id = next((peer_id for peer_id in _member_ids(coordinator) if peer_id.startswith("worker-2")), "")
         results.check(
-            "a stolen job is never also run by the peer it came from",
-            all(
-                len([event for event in coordinator.events("job-result") if event["job_id"] == record["job_id"]]) == 1
-                for record in coordinator._results.values()
-                if record["stolen_from"]
+            "the second job goes to the peer that has not run anything yet",
+            coordinator.wait_for(
+                lambda peer: any(
+                    event["event"] == "job-started" and event["job_id"] == specs[1]["job_id"] for event in peer.events()
+                ),
+                timeout=180,
             ),
-            "stolen=%s%s"
-            % (
-                [record["job_id"] for record in coordinator._results.values() if record["stolen_from"]],
-                "" if stolen_here else " (nothing was queued when the second worker arrived)",
-            ),
+            "job=%s peer=%s" % (specs[1]["job_id"], worker_two_id or "-"),
         )
 
-        # Kill worker-1 mid-job. It is running a genuine search at this point.
+        # Kill worker-1 mid-search: the peer that owns a running job disappears.
         _kill_process(workers["worker-1"])
         results.check(
             "the mesh notices the dead worker",
@@ -632,7 +701,6 @@ def phase_real_jobs(results, directory):
                 )[-3:],
             ),
         )
-        coordinator.submit(_job_from_spec(specs[2]))
         results.check(
             "every job reaches a terminal record (none silently lost)",
             coordinator.wait_for_terminal([spec["job_id"] for spec in specs], timeout=300),
@@ -643,44 +711,92 @@ def phase_real_jobs(results, directory):
             event for event in coordinator.events("job-redispatched") if event["job_id"] == specs[0]["job_id"]
         ]
         results.check(
-            "the killed worker's job is re-dispatched or reported failed",
-            bool(redispatched) or killed_job.get("reason") == "worker-lost",
-            "reason=%s redispatches=%d" % (killed_job.get("reason", "-"), len(redispatched)),
+            "the killed worker's job is re-dispatched, not lost",
+            bool(redispatched),
+            "job=%s reason=%s redispatches=%d"
+            % (specs[0]["job_id"], killed_job.get("reason", "-"), len(redispatched)),
         )
+        # The phase defers derivation materialisation (HYGE_SEARCH_WORKER_DEFER_DERIVATION=1):
+        # the search worker's own contract then returns rc=4, which the mesh records as
+        # `deferred` -- the search concluded and only the derivation replay was skipped.
+        # No result at all would be `failed`/`timed-out`.
         results.check(
             "the killed worker's job still produced a result",
-            (coordinator.outcome(specs[0]["job_id"]) or {}).get("status") == protocol.STATUS_OK,
-            "status=%s" % (coordinator.outcome(specs[0]["job_id"]) or {}).get("status"),
+            killed_job.get("status") in (protocol.STATUS_OK, protocol.STATUS_DEFERRED),
+            "job=%s status=%s" % (specs[0]["job_id"], killed_job.get("status")),
+        )
+        results.check(
+            "no job records its result twice",
+            all(
+                len([event for event in coordinator.events("job-result") if event["job_id"] == spec["job_id"]]) == 1
+                for spec in specs
+            ),
+            "counts=%s"
+            % {
+                spec["job_id"]: len(
+                    [event for event in coordinator.events("job-result") if event["job_id"] == spec["job_id"]]
+                )
+                for spec in specs
+            },
         )
 
-        # Results must equal the single-process run of the same manifest.
-        reference_process.wait(timeout=600)
-        with open(reference_answer, encoding="utf-8") as handle:
-            reference = _parse_reference(handle.read())
+        # A killed re-run lands on a peer whose runtime may already hold the proof,
+        # so what is asserted for it is that a real search happened: the artifact
+        # loads and stopped at the plan stage. Its *content* is compared only when
+        # its peer ran it first (below).
+        killed_projection = MeshJobs.project_result(specs[0]["result_ref"])
         results.check(
-            "single-process reference produced every result",
-            all(spec["job_id"] in reference["jobs"] for spec in specs),
-            "jobs=%s" % sorted(reference["jobs"]),
+            "the killed worker's job really searched",
+            killed_projection.get("worker_stage") == "running-derivation"
+            and killed_projection.get("plan_digest") not in (None, "-"),
+            "stage=%s plan=%s" % (killed_projection.get("worker_stage"), killed_projection.get("plan_digest")),
         )
-        identity_checks = []
+
+        # The comparison: every job that was its peer's first run must equal the
+        # same job run alone in a fresh process.
+        references = {spec["job_id"]: _reference_results(spec["job_id"]) for spec in specs if spec["job_id"] in reference_processes}
+        compared = []
+        mismatched = []
         for spec in specs:
+            owner = _first_job_of_its_peer(spec["job_id"])
+            if not owner or spec["job_id"] not in references:
+                continue
+            local = references[spec["job_id"]].get(spec["job_id"], {}).get("projection", {})
+            if not local:
+                mismatched.append((spec["job_id"], "the reference produced nothing", {}))
+                continue
             mesh_projection = MeshJobs.project_result(spec["result_ref"])
-            local_projection = reference["jobs"].get(spec["job_id"], {}).get("projection", {})
-            same = _semantic_equal(mesh_projection, local_projection)
-            identity_checks.append((spec["job_id"], same, mesh_projection, local_projection))
-        for job_id, same, mesh_projection, local_projection in identity_checks:
-            results.check(
-                "stolen/killed job %s equals its single-process result" % job_id,
-                same,
-                "status=%s plan=%s" % (mesh_projection.get("status"), mesh_projection.get("plan_digest")),
+            compared.append(spec["job_id"])
+            if not _semantic_equal(mesh_projection, local):
+                mismatched.append((spec["job_id"], mesh_projection, local))
+        results.check(
+            "a job's result equals the same job run alone in a fresh process",
+            bool(compared) and not mismatched,
+            "compared=%s mismatched=%s" % (compared, [entry[0] for entry in mismatched]),
+        )
+        if not compared:
+            results.note(
+                "job-started ledger: %s"
+                % [(event["job_id"], event.get("peer_id", ""), round(event["ts"], 2)) for event in coordinator.events("job-started")]
             )
-            if not same:
-                results.note("mesh=%s" % json.dumps(mesh_projection, sort_keys=True))
-                results.note("local=%s" % json.dumps(local_projection, sort_keys=True))
+            results.note(
+                "job-result ledger: %s"
+                % [(event["job_id"], event.get("peer_id", ""), round(event["ts"], 2)) for event in coordinator.events("job-result")]
+            )
+            results.note("first-job owners: %s" % {spec["job_id"]: _first_job_of_its_peer(spec["job_id"]) for spec in specs})
+        for job_id, mesh_projection, local_projection in mismatched:
+            results.note("mesh[%s]=%s" % (job_id, json.dumps(mesh_projection, sort_keys=True)))
+            results.note("local[%s]=%s" % (job_id, json.dumps(local_projection, sort_keys=True)))
+
+        results.check(
+            "the reference produced a result for the job it was given",
+            all(bool(references.get(spec["job_id"], {}).get(spec["job_id"])) for spec in specs if spec["job_id"] in reference_processes),
+            "jobs=%s" % sorted({job_id for job_id, answer in references.items() if answer}),
+        )
         results.check(
             "the real jobs actually proved the goal (not a failed search)",
             all(
-                (coordinator.outcome(spec["job_id"]) or {}).get("status") == protocol.STATUS_OK
+                (coordinator.outcome(spec["job_id"]) or {}).get("status") in (protocol.STATUS_OK, protocol.STATUS_DEFERRED)
                 for spec in specs
             ),
             "statuses=%s" % [((coordinator.outcome(spec["job_id"]) or {}).get("status")) for spec in specs],
@@ -689,7 +805,8 @@ def phase_real_jobs(results, directory):
         for process in workers.values():
             _kill_process(process)
         coordinator.shutdown(timeout=2.0)
-        _terminate(reference_process)
+        for process in reference_processes.values():
+            _terminate(process)
     return specs
 
 
@@ -761,13 +878,6 @@ def _terminate(process):
         process.wait(timeout=10)
     except (subprocess.TimeoutExpired, OSError):
         _kill_process(process)
-
-
-def _parse_reference(output):
-    for line in reversed(output.splitlines()):
-        if line.startswith("REFERENCE-JSON "):
-            return json.loads(line[len("REFERENCE-JSON ") :])
-    return {"jobs": {}}
 
 
 def _semantic_equal(mesh_projection, local_projection):

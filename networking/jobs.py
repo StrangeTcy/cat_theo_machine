@@ -19,6 +19,7 @@ result is a reference to a file the snapshot codec wrote.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import time
 
@@ -100,14 +101,117 @@ def artifact_digest(result_ref: str) -> str:
         return ""
 
 
+def _snapshot_object_graph(result_ref):
+    """The snapshot's persisted object table, indexed by object id.
+
+    This is the codec's own on-disk form: a flat table of tagged entries plus a
+    map of root name -> object id. It is read instead of walking the *loaded*
+    terms because it is both cheaper (one JSON parse) and canonical -- the object
+    ids are assigned by the codec's traversal, so the same proof always produces
+    the same table whatever process wrote it.
+    """
+    with open(result_ref, encoding="utf-8") as handle:
+        data = json.load(handle)
+    objects = {entry["id"]: entry for entry in data.get("objects", [])}
+    return data.get("roots", {}), objects
+
+
+def _reference_targets(entry):
+    """Every object id an entry points at, whatever shape the entry has."""
+    for key, value in entry.items():
+        if key == "id":
+            continue
+        if isinstance(value, dict):
+            if value.get("tag") == "ref":
+                yield value["id"]
+            else:
+                yield from _reference_targets(value)
+        elif isinstance(value, list):
+            for item in value:
+                if isinstance(item, dict) and item.get("tag") == "ref":
+                    yield item["id"]
+                elif isinstance(item, (dict, list)):
+                    yield from _reference_targets(item)
+
+
+def _relabel_closure(entry, labels):
+    """Rewrite a closure so it refers to *positions*, not object ids.
+
+    Two snapshots of the same proof assign the same ids, but two snapshots of
+    logically equal proofs need not: the ids depend on how much else the codec
+    captured first. Comparing position within the traversal order instead of raw
+    ids is what makes the digest a property of the proof rather than of the run.
+    """
+    if isinstance(entry, dict):
+        if entry.get("tag") == "ref":
+            return ["@", labels.get(entry["id"], -1)]
+        return {key: _relabel_closure(value, labels) for key, value in entry.items()}
+    if isinstance(entry, list):
+        return [_relabel_closure(item, labels) for item in entry]
+    return entry
+
+
+def _root_digest(roots, objects, root_name):
+    """Canonical digest and size of everything reachable from one snapshot root.
+
+    Nothing about the run enters here -- no pid, no clock, no machine id -- so
+    two runs that proved the same thing produce the same digest, and a run that
+    proved something else cannot.
+    """
+    root_id = roots.get(root_name)
+    if root_id is None:
+        return "-", 0
+    labels = {}
+    order = []
+    stack = [root_id]
+    while stack:
+        object_id = stack.pop()
+        if object_id in labels or object_id not in objects:
+            continue
+        labels[object_id] = len(order)
+        order.append(object_id)
+        stack.extend(_reference_targets(objects[object_id]))
+    canonical = [_relabel_closure({k: v for k, v in objects[object_id].items() if k != "id"}, labels) for object_id in order]
+    text = json.dumps(canonical, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:32], len(text)
+
+
+def _status_text(status):
+    """The machine's own name for an attempt status label.
+
+    The status labels are singletons defined in `labels`, and identity is exactly
+    how the rest of the repository tells them apart (see
+    `search/compare_subprocess.py`), so no string round trip is needed.
+    """
+    from .. import labels as L
+    from .. import machine as M
+
+    for label, text in (
+        ("SearchSuccessLabel", "success-plan-found"),
+        ("SearchFailureLabel", "failure-search"),
+        ("SearchTimedOutLabel", "timed-out"),
+        ("SearchAbortedByUserLabel", "aborted-by-user"),
+    ):
+        candidate = getattr(L, label, None)
+        if candidate is not None and M.IdentityCompare(status, candidate)() is M.truth_value:
+            return text
+    return "unknown"
+
+
 def project_result(result_ref: str, namespace=None):
     """The machine-semantic projection of a result snapshot.
 
     Timing and process identity are deliberately excluded: two runs of the same
     job *should* differ in elapsed milliseconds and pid and must not differ in
     what they proved. Everything in this projection comes out of the snapshot's
-    roots through the machine's own accessors, so comparing two projections
-    compares proofs rather than bytes.
+    roots -- the status and stage through the machine's own accessors, the plan
+    and the attempt through the codec's canonical object graph -- so comparing
+    two projections compares proofs rather than bytes.
+
+    The digests deliberately do *not* go through `PrettyTerm`: pretty-printing a
+    real plan rebuilds machine ids per node and does not terminate on realistic
+    searches (it was measured still spinning after fifteen minutes on a 31-object
+    plan). The snapshot's own graph is the same evidence, read directly.
     """
     from .. import main as MA
     from .. import machine as M
@@ -118,7 +222,7 @@ def project_result(result_ref: str, namespace=None):
         namespace = MA._runtime_namespace()
     state = SnapshotCodec(namespace).load(result_ref)
     roots = state.roots
-    registry = roots.get("constructor_registry", M.EmptyList)
+    graph_roots, objects = _snapshot_object_graph(result_ref)
     projection = {
         "artifact": os.path.basename(result_ref),
         "worker_stage": "",
@@ -137,21 +241,20 @@ def project_result(result_ref: str, namespace=None):
     attempts = roots.get("search_history", M.EmptyList)
     if M.Compare(attempts, M.EmptyList)() is M.false_value:
         attempt = M.Head(attempts)()
-        status = P.SearchAttemptStatus(attempt)()
-        projection["status"] = str(status())
+        projection["status"] = _status_text(P.SearchAttemptStatus(attempt)())
         derivation = P.SearchAttemptDerivation(attempt)()
         if M.Compare(derivation, M.EmptyList)() is M.false_value:
-            text = M.PrettyTerm(derivation, registry)()
-            projection["derivation_digest"] = hashlib.sha256(text.encode("utf-8")).hexdigest()[:32]
-            projection["derivation_bytes"] = len(text)
-        proof_cost = P.SearchAttemptProofCost(attempt)()
-        if M.Compare(proof_cost, M.EmptyList)() is M.false_value:
-            text = M.PrettyTerm(proof_cost, registry)()
-            projection["proof_cost_digest"] = hashlib.sha256(text.encode("utf-8")).hexdigest()[:32]
+            digest, size = _root_digest(graph_roots, objects, "derivations")
+            projection["derivation_digest"] = digest
+            projection["derivation_bytes"] = size
+        if M.Compare(P.SearchAttemptProofCost(attempt)(), M.EmptyList)() is M.false_value:
+            # The proof cost lives inside the attempt, so the attempt root is the
+            # canonical place to read it from -- and it is timing-free: two runs of
+            # the same job persist byte-identical attempt graphs.
+            projection["proof_cost_digest"], _ = _root_digest(graph_roots, objects, "search_history")
     plan = roots.get("worker_plan", M.EmptyList)
     if M.Compare(plan, M.EmptyList)() is M.false_value:
-        text = M.PrettyTerm(plan, registry)()
-        projection["plan_digest"] = hashlib.sha256(text.encode("utf-8")).hexdigest()[:32]
+        projection["plan_digest"], _ = _root_digest(graph_roots, objects, "worker_plan")
     return projection
 
 

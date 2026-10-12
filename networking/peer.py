@@ -634,6 +634,15 @@ class MeshPeer:
         }
 
     def _note_heartbeat(self, message, connection):
+        """Take in a heartbeat: refresh the sender's record, learn nothing else.
+
+        No reply is sent. Heartbeats are periodic and one-directional per pair --
+        the coordinator's loop tells every member it is alive (and gossips the
+        digest), each worker's loop tells the coordinator it is alive -- so an
+        answer would be redundant *and* unbounded: two peers answering each
+        other's heartbeats answer the answers forever, at wire speed, and the
+        offers and results queue up behind that storm.
+        """
         peer_id = message.get("peer_id") or connection.peer_id
         with self._lock:
             record = self._members.get(peer_id)
@@ -666,16 +675,6 @@ class MeshPeer:
                     self._remember_member(item, note="gossiped")
                 elif "load" in item:
                     existing["load"] = item["load"]
-        connection.send(
-            protocol.message(
-                protocol.HEARTBEAT,
-                peer_id=self.peer_id,
-                address=self.address,
-                roles=[self.role],
-                modes=list(self.runner.supported_modes) if self.runner is not None else [],
-                load=self.load(),
-            )
-        )
 
     def _member_lost(self, peer_id, reason, connection=None):
         with self._lock:
