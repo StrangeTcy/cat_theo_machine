@@ -166,7 +166,7 @@ def closure(facts, rules, registry, rounds=8):
     FilterApplicableRules. That filter is a head-index prefilter: it decides
     which rules *cannot* match, not what they derive, and it costs seconds
     per call in this codebase (see "Diagnosing the slow applicability scan"
-    in `08August2026 -- opus 5 answer.md`). Section [10] checks separately
+    in `08August2026 -- opus 5 answer.md`). Section [9] checks separately
     that the production path admits the very rules this loop relies on, so
     bypassing it here costs no coverage.
     """
@@ -560,7 +560,7 @@ print()
 # [10] the production admission path agrees with the join used above
 # ---------------------------------------------------------------------------
 
-print("[10] Production admission path")
+print("[9] Production admission path")
 
 admission_facts = chain([
     fact(L.MonovariantLabel, PROBLEM, MU),
@@ -592,10 +592,10 @@ check("and still refuses the box principle, whose premises are absent",
 print()
 
 # ---------------------------------------------------------------------------
-# [11] the new labels survive a snapshot round-trip
+# [10] the new labels survive a snapshot round-trip
 # ---------------------------------------------------------------------------
 
-print("[11] Snapshot symbol round-trip")
+print("[10] Snapshot symbol round-trip")
 
 NEW_LABEL_NAMES = (
     "MonovariantLabel",
@@ -625,10 +625,10 @@ check("  ... and restores to the live label object",
 print()
 
 # ---------------------------------------------------------------------------
-# [12] representation: everything the pack produced is machine-side
+# [11] representation: everything the pack produced is machine-side
 # ---------------------------------------------------------------------------
 
-print("[12] Representation checks")
+print("[11] Representation checks")
 
 rcursor = pack.rule_chain
 rule_ok = True
