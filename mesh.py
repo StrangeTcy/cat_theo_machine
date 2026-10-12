@@ -157,13 +157,15 @@ def build_peer(role, identity, modes=None, timeout_seconds=6000, steal_enabled=T
     """Construct a peer with the standard search-job runner unless one is given."""
     if runner is None and role == MeshPeer.ROLE_WORKER:
         runner = MeshJobs.SearchJobRunner(timeout_seconds=timeout_seconds, supported_modes=modes, log=log)
+    # Liveness tuning is `MeshPeer`'s business: a peer is silent under load (a
+    # search job holds the interpreter), so the CLI must not shorten the class's
+    # patience with its own default -- that is how a busy peer gets declared lost.
     return MeshPeer(
         identity,
         role=role,
         runner=runner,
         steal_enabled=steal_enabled,
         log=log,
-        peer_timeout=6.0,
         heartbeat_interval=0.4,
     )
 

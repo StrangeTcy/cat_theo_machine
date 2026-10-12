@@ -99,6 +99,15 @@ transfers to the thief when it reports `job-started`. That single rule is what
 keeps a slow-but-alive peer from being robbed of work it is already doing, and it
 is why a killed peer's mid-flight job is attributed to the peer that really lost it.
 
+`test25` proves both halves of that: phase 2 drives the handshake itself (two
+peers, real mTLS sockets, stub jobs so the queue is deterministic), and phase 3
+does it with real subprocesses and real searches — two jobs go to the only peer
+there is, a second worker joins, and the queued one is stolen from under the first
+(`stolen_from=worker-1-…` on its result, `ran_by=worker-2-…`, exactly one terminal
+record for it, and that result still equals the same job run alone in a fresh
+process). A *placement* is never re-offered, so the only way that job can move is
+the thief's own request.
+
 ## Liveness, and what a drop costs
 
 Two rules keep a drop from turning into lost work, and both exist because the
@@ -127,6 +136,12 @@ first version of this layer got them wrong:
   is unbounded: two peers answering each other's heartbeats answer the answers
   forever, at wire speed, until offers, results and joins queue up behind the
   storm and the link looks broken while it is only saturated.
+
+How long a peer may be silent before it is declared lost is `MeshPeer`'s default
+(20 s, against a 0.4 s heartbeat): a busy peer is a silent peer, because running a
+search holds the interpreter, and shortening that fuse is how a healthy worker gets
+declared lost mid-job. The CLI therefore takes the class default rather than
+passing a shorter one of its own.
 
 The other half is the dispatcher, which is deliberately forgiving:
 

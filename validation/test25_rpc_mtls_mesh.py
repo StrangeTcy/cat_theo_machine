@@ -459,9 +459,11 @@ def phase_protocol(results, directory):
     busy_one = stub_job("proto-busy-1", directory=directory)
     busy_two = stub_job("proto-busy-2", directory=directory)
     # The holder has to stay busy long enough for a late joiner to find the
-    # address (the coordinator gossips members in heartbeats), authenticate and
-    # ask for the queued job -- a one-second job would simply finish first.
-    worker_one.runner = StubRunner(delay=8.0)
+    # address (the coordinator gossips members on every heartbeat, 0.4 s),
+    # authenticate and ask for the queued job -- a one-second job would simply
+    # finish first. Either stall is many heartbeats of margin; the shorter one
+    # keeps the suite inside its wall-clock budget.
+    worker_one.runner = StubRunner(delay=4.0)
     coordinator.submit(busy_one)
     coordinator.submit(busy_two)
     results.check(
@@ -646,10 +648,13 @@ def phase_real_jobs(results, directory):
             "members=%s" % sorted(_member_ids(coordinator)),
         )
 
-        # The first job runs on the only peer there is; the second is submitted
-        # after worker-2 joins, so it is *that* peer's first job -- which is what
-        # makes its result comparable with a fresh process.
+        # Both jobs go to the only peer there is: one starts, the other waits in its
+        # queue. worker-2 then has to *take* the queued one -- the coordinator has
+        # already placed it, and a placement is never re-offered -- which is a real
+        # peer-to-peer steal between two real subprocesses. The stolen job is the
+        # thief's first job, so it stays comparable with a fresh process.
         coordinator.submit(_job_from_spec(specs[0]))
+        coordinator.submit(_job_from_spec(specs[1]))
         results.check(
             "worker-1 starts a real search",
             coordinator.wait_for(
@@ -660,6 +665,7 @@ def phase_real_jobs(results, directory):
             ),
             "job=%s" % specs[0]["job_id"],
         )
+        _start_reference(specs[1])
 
         workers["worker-2"] = _spawn_worker(directory, "worker-2", coordinator.address, environment)
         results.check(
@@ -667,18 +673,23 @@ def phase_real_jobs(results, directory):
             coordinator.wait_for(lambda peer: _has_member(peer, "worker-2"), timeout=240),
             "members=%s" % sorted(_member_ids(coordinator)),
         )
-        _start_reference(specs[1])
-        coordinator.submit(_job_from_spec(specs[1]))
         worker_two_id = next((peer_id for peer_id in _member_ids(coordinator) if peer_id.startswith("worker-2")), "")
+
+        def _stolen_by_worker_two(peer):
+            for event in peer.events("job-started"):
+                if event["job_id"] == specs[1]["job_id"] and (event.get("peer_id") or "").startswith("worker-2"):
+                    return True
+            return False
+
         results.check(
-            "the second job goes to the peer that has not run anything yet",
-            coordinator.wait_for(
-                lambda peer: any(
-                    event["event"] == "job-started" and event["job_id"] == specs[1]["job_id"] for event in peer.events()
-                ),
-                timeout=180,
+            "an idle peer steals the queued job from the busy one (real subprocesses)",
+            coordinator.wait_for(_stolen_by_worker_two, timeout=180),
+            "job=%s thief=%s started=%s"
+            % (
+                specs[1]["job_id"],
+                worker_two_id or "-",
+                [(event["job_id"], (event.get("peer_id") or "-"), round(event["ts"], 1)) for event in coordinator.events("job-started")],
             ),
-            "job=%s peer=%s" % (specs[1]["job_id"], worker_two_id or "-"),
         )
 
         # Kill worker-1 mid-search: the peer that owns a running job disappears.
@@ -738,6 +749,14 @@ def phase_real_jobs(results, directory):
                 )
                 for spec in specs
             },
+        )
+        stolen_record = coordinator._results.get(specs[1]["job_id"]) or {}
+        results.check(
+            "the stolen job is recorded as taken from the peer that had it",
+            bool(stolen_record.get("stolen_from"))
+            and stolen_record.get("peer_id", "").startswith("worker-2")
+            and (stolen_record.get("stolen_from") or "").startswith("worker-1"),
+            "stolen_from=%s ran_by=%s" % (stolen_record.get("stolen_from"), stolen_record.get("peer_id")),
         )
 
         # A killed re-run lands on a peer whose runtime may already hold the proof,
@@ -927,7 +946,7 @@ def phase_file_transport(results, directory):
     environment["PYTHONPATH"] = PACKAGE_PARENT
     environment["HYGE_SEARCH_WORKER_DEFER_DERIVATION"] = "1"
     completed = subprocess.run(
-        [sys.executable, "-u", os.path.join(PACKAGE_ROOT, "main.py"), "search-worker", "dfs", result_path, "8"],
+        [sys.executable, "-u", os.path.join(PACKAGE_ROOT, "main.py"), "search-worker", "dfs", result_path, "3"],
         cwd=PACKAGE_ROOT,
         env=environment,
         stdout=subprocess.PIPE,
@@ -1029,16 +1048,17 @@ def main():
     results = Results()
     directory = MeshModule.default_cert_dir()
     pki = IdentityModule.MeshPki.create(directory)
+    timings = []
     try:
-        phase_mtls(results, pki, directory)
-        phase_protocol(results, directory)
-        phase_frame_guard(results, directory)
-        phase_real_jobs(results, directory)
-        phase_file_transport(results, directory)
+        for phase in (phase_mtls, phase_protocol, phase_frame_guard, phase_real_jobs, phase_file_transport):
+            phase_started = time.time()
+            phase(results, pki, directory) if phase is phase_mtls else phase(results, directory)
+            timings.append((phase.__name__, round(time.time() - phase_started, 1)))
     finally:
         shutil.rmtree(directory, ignore_errors=True)
         print("\n  artifacts: %s (removed)" % directory)
     elapsed = time.time() - started
+    print("\n  phase wall clock: %s" % ("  ".join("%s=%.1fs" % item for item in timings)))
     print(
         "\n=== TEST 25 COMPLETE: %d passed, %d failed in %.1fs ===" % (results.passed, results.failed, elapsed)
     )
