@@ -99,6 +99,48 @@ transfers to the thief when it reports `job-started`. That single rule is what
 keeps a slow-but-alive peer from being robbed of work it is already doing, and it
 is why a killed peer's mid-flight job is attributed to the peer that really lost it.
 
+## Liveness, and what a drop costs
+
+Two rules keep a drop from turning into lost work, and both exist because the
+first version of this layer got them wrong:
+
+* **Only a peer we have heard from directly can be "lost".** Membership arrives
+  two ways: from the peer itself (join, heartbeat) and from gossip (the member
+  digest the coordinator sends, and that workers forward). Gossip is a hint, not
+  a liveness signal. A digest that keeps naming a dead worker would otherwise be
+  re-learned on every heartbeat and declared lost again on every liveness pass —
+  a loss storm, each one burning a re-dispatch attempt on work that peer never
+  held. Entries learned from gossip therefore expire quietly (`hearsay-expired`);
+  only a directly-heard peer produces `member-lost`, lease reclamation and job
+  recovery.
+* **A dropped link is repaired, not mourned.** A reader that stops (EOF, a frame
+  error) closes its connection, and a worker watches its coordinator link and
+  re-joins when it dies, re-announcing the jobs it still holds (`job-started` /
+  `job-queued`, which transfer ownership back to it). A `member-lost` for a link
+  the peer has already replaced is ignored, so a rejoin is never undone by the
+  stale loss of the link it replaced.
+
+The other half is the dispatcher, which is deliberately forgiving:
+
+* **Every pending job is considered**, not just the oldest: a job waiting on a
+  live scope must not hold back the queue behind it. Work is only offered to a
+  peer we have a live connection to and whose modes cover it.
+* **An offer is retried if it goes unanswered.** Delivery is best effort, so
+  `_watchdog_loop` re-offers a job whose offer was never acknowledged (bounded by
+  `max_attempts`). This is safe *because of* the guards rather than in spite of
+  them: a peer that already advanced the scope refuses the replay as
+  `refused-stale`, and a peer already holding the scope refuses it as
+  `refused-scope-busy`. A stale refusal is a terminal outcome — re-offering it
+  can only be refused again.
+* **A failed send is not a placement.** If the offer never leaves the
+  coordinator, the job returns to `pending` and its lease is dropped instead of
+  being stranded as `dispatched` forever.
+* **A lease is only released by its owner.** Leases are keyed by scope, and a job
+  declares both the content ids it touches and the result it writes, so two jobs
+  can share one declared scope. Every release (result, decline, hand-over,
+  shutdown) checks the lease's job id first: one job finishing must never drop a
+  lease another job is relying on for mutual exclusion.
+
 ## Running it
 
 ```bash
@@ -118,7 +160,33 @@ against the single-process run of the same manifest.
 
 ## What was fixed on the way
 
-`_SearchWorkerResultGraph` — the stand-in graph `search_worker_store_result` builds
+**The frame reader lost bytes on a poll timeout** (`networking/framing.py`).
+Readers poll with a short idle timeout, so `socket.recv` may time out — and it
+could time out *after* part of a frame had been read. Those bytes were dropped and
+the caller resumed reading at the wrong offset, so the rest of the stream was
+misparsed: the reader stopped, the peer went quiet in one direction while its
+heartbeats kept flowing in the other, and every later job on that link looked
+"dispatched but never answered". A frame that has started arriving is now always
+read to its end (bounded by `FRAME_STALL_SECONDS`), so a poll timeout can only
+mean "nothing to read yet". `test25` phase 5 pins this with a frame split across
+two writes and an idle poll in between.
+
+**Lease releases were matched by scope key alone** (`networking/peer.py`), so a job
+finishing could drop the lease of a *different* job that shared its declared
+scope — exactly the mutual exclusion the lease exists to provide. Releases now
+match the owning job id.
+
+**The dispatcher only ever looked at the oldest pending job**, and treated "that
+one is waiting on a live scope" as "nothing to dispatch", stalling the whole queue
+behind it. It now walks the pending list, skipping jobs whose scope is being
+worked, and never offers work over a link that is not there.
+
+**A connection whose reader stopped was left open**, so a worker that lost its
+link never noticed and never re-joined; and a rejoin could be undone by the stale
+loss of the link it replaced. Both are fixed, with the reconnect and hearsay rules
+above.
+
+**`_SearchWorkerResultGraph`** — the stand-in graph `search_worker_store_result` builds
 for a result — had no `nodes`/`edges` attributes, while `SnapshotCodec.capture` has
 read them unconditionally since hypergraph content became persistable (`18cdedf`).
 Every checkpoint write therefore raised `AttributeError`, which means **the whole

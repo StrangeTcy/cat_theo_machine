@@ -134,7 +134,7 @@ class MeshPeer:
         role=ROLE_WORKER,
         runner=None,
         heartbeat_interval=0.4,
-        peer_timeout=6.0,
+        peer_timeout=20.0,
         max_attempts=2,
         offer_ack_timeout=10.0,
         steal_enabled=True,
@@ -179,6 +179,7 @@ class MeshPeer:
         self._redispatch_count = 0
         self._offered_at = {}           # job_id -> when its offer went out
         self._acknowledged = set()      # job_ids whose last offer was answered
+        self._retry_after = {}          # job_id -> when it may be offered again
         self._coordinator_address = ""  # where a worker rejoins after a drop
 
     # ------------------------------------------------------------------ helpers
@@ -368,16 +369,26 @@ class MeshPeer:
             self._announce_work()
 
     def _announce_work(self):
-        """Tell the coordinator which jobs this worker still holds."""
+        """Tell the coordinator which jobs this worker holds -- and what it finished.
+
+        Re-announcing queued and running work transfers ownership back to this peer.
+        Replaying terminal records closes the other half of a dropped link: a job
+        this worker already completed may have had its result die with the
+        connection, and a result that exists must reach the coordinator (the
+        handler ignores job ids it has already recorded, so a replay is harmless).
+        """
         with self._lock:
             running = self._running
             queued = list(self._queue)
+            finished = list(self._results.values())
         if running is not None:
             self._notify_coordinator(
                 protocol.message(protocol.JOB_STARTED, job_id=running.job_id, peer_id=self.peer_id)
             )
         for job in queued:
             self._notify_coordinator(protocol.message(protocol.JOB_QUEUED, job_id=job.job_id, peer_id=self.peer_id))
+        for record in finished:
+            self._notify_coordinator(protocol.message(protocol.JOB_RESULT, **record))
 
     def _note_connection_closed(self, connection, reason):
         """Record every close: a connection that dies must name its killer."""
@@ -423,9 +434,13 @@ class MeshPeer:
             self._queue = []
             running = self._running
         for job in queued:
-            self._finish_job(job, status=protocol.STATUS_FAILED, reason="abandoned-on-shutdown", detail="queued at shutdown")
+            self._finish_job(
+                job, status=protocol.STATUS_FAILED, reason="abandoned-on-shutdown", detail="queued at shutdown", provisional=True
+            )
         if running is not None:
-            self._finish_job(running, status=protocol.STATUS_FAILED, reason="abandoned-on-shutdown", detail="running at shutdown")
+            self._finish_job(
+                running, status=protocol.STATUS_FAILED, reason="abandoned-on-shutdown", detail="running at shutdown", provisional=True
+            )
         self._stop_now("shutdown")
         for connection in list(self._connections.values()):
             connection.close()
@@ -567,6 +582,7 @@ class MeshPeer:
             "common_name": message.get("common_name", peer_common_name(connection.sock)),
             "roles": message.get("roles", [self.ROLE_WORKER]),
             "modes": message.get("modes", []),
+            "direct": True,
             "last_seen": time.time(),
             "load": message.get("load", {"queued": 0, "running": 0}),
         }
@@ -612,6 +628,7 @@ class MeshPeer:
             "roles": record.get("roles", []),
             "modes": record.get("modes", []),
             "last_seen": time.time(),
+            "direct": bool(record.get("direct", False)),
             "load": record.get("load", {"queued": 0, "running": 0}),
             "note": note,
         }
@@ -627,12 +644,14 @@ class MeshPeer:
                         "address": message.get("address", ""),
                         "roles": message.get("roles", []),
                         "modes": message.get("modes", []),
+                        "direct": True,
                         "load": message.get("load", {}),
                     },
                     note="learned from heartbeat",
                 )
                 record = self._members.get(peer_id)
             if record is not None:
+                record["direct"] = True
                 record["last_seen"] = time.time()
                 if "load" in message:
                     record["load"] = message["load"]
@@ -707,7 +726,9 @@ class MeshPeer:
                     % ("mid-job" if state == "running" else "before start", job.attempt),
                 )
             else:
-                self._finish_job(job, status=protocol.STATUS_FAILED, reason="worker-lost", detail=reason)
+                self._finish_job(
+                    job, status=protocol.STATUS_FAILED, reason="worker-lost", detail=reason, provisional=True
+                )
 
     # ---------------------------------------------------------------- heartbeat
 
@@ -759,7 +780,18 @@ class MeshPeer:
             deadline = time.time() - self.peer_timeout
             with self._lock:
                 stale = [peer_id for peer_id, record in self._members.items() if record["last_seen"] < deadline]
-            for peer_id in stale:
+                direct = {peer_id for peer_id in stale if self._members[peer_id].get("direct")}
+                hearsay = [peer_id for peer_id in stale if peer_id not in direct]
+                for peer_id in hearsay:
+                    # A peer we only ever heard about (gossip) is not a peer we
+                    # lost, and it must not be reported as one: a digest that
+                    # keeps naming a dead worker would otherwise turn into a
+                    # stream of losses, each one burning a re-dispatch attempt
+                    # on work that was never that peer's.
+                    self._members.pop(peer_id, None)
+            for peer_id in hearsay:
+                self._record("hearsay-expired", peer_id=peer_id, detail="never heard from directly")
+            for peer_id in direct:
                 self._member_lost(peer_id, "heartbeat timeout")
 
     # ------------------------------------------------------- coordinator: work
@@ -779,7 +811,7 @@ class MeshPeer:
 
     def _dispatch_loop(self):
         while not self._stop.is_set():
-            time.sleep(0.05)
+            time.sleep(0.1)
             if self._stop.is_set():
                 return
             try:
@@ -803,12 +835,16 @@ class MeshPeer:
                     for record in self._members.values()
                     if self.ROLE_WORKER in record.get("roles", [])
                     and record.get("address")
+                    and self._connections.get(record["peer_id"]) is not None
                     and record["load"].get("queued", 0) + record["load"].get("running", 0) < 2
                 ]
                 if not candidates:
                     return
                 chosen = None
+                now = time.time()
                 for job in pending:
+                    if now < self._retry_after.get(job.job_id, 0.0):
+                        continue  # this job was just refused; give it a moment
                     if any(self._is_scope_busy(key, owner=job.job_id) for key in self._scope_keys(job)):
                         continue  # the scope is being worked; leave this job pending
                     able = [record for record in candidates if not record.get("modes") or job.mode in record["modes"]]
@@ -911,6 +947,7 @@ class MeshPeer:
                         status=protocol.STATUS_FAILED,
                         reason="offer-unanswered",
                         detail="the peer never answered the offer",
+                        provisional=True,
                     )
 
     def _scope_keys(self, job):
@@ -963,10 +1000,18 @@ class MeshPeer:
             "reason": message.get("reason", ""),
             "artifact_bytes": message.get("artifact_bytes", 0),
         }
+        superseded = False
         with self._lock:
             job_id = record["job_id"]
             if job_id in self._results:
-                return  # terminal records are written once
+                existing = self._results[job_id]
+                if existing.get("status") == protocol.STATUS_OK or record["status"] != protocol.STATUS_OK:
+                    return  # terminal records are written once; a real result stands
+                if not existing.get("provisional"):
+                    return
+                # The job was written off as lost with a peer, and that peer (or the
+                # one that took it over) has just handed in the actual result.
+                superseded = True
             self._acknowledged.add(job_id)
             self._offered_at.pop(job_id, None)
             self._job_state[job_id] = "done" if record["status"] == protocol.STATUS_OK else "failed"
@@ -984,6 +1029,13 @@ class MeshPeer:
                 member["load"] = {"queued": 0, "running": 0}
             if record["stolen_from"]:
                 self._steals += 1
+        if superseded:
+            self._record(
+                "result-superseded",
+                job=job,
+                peer_id=record["peer_id"],
+                detail="a real result replaced a presumed failure",
+            )
         self._record(
             "job-result",
             job=job,
@@ -1004,6 +1056,10 @@ class MeshPeer:
             self._offered_at.pop(job_id, None)
             if self._job_state.get(job_id) in ("pending", "dispatched", "queued"):
                 self._job_state[job_id] = "pending"
+            # A refusal means "not now" (the scope is busy, this peer cannot run
+            # it): re-offering it immediately would spin the dispatcher and, worse,
+            # flood the ledger while a peer is already struggling to keep up.
+            self._retry_after[job_id] = time.time() + 0.5
             self._job_owner.pop(job_id, None)
             if job is not None:
                 for key in self._scope_keys(job):
@@ -1119,7 +1175,16 @@ class MeshPeer:
                 with self._lock:
                     self._running = None
 
-    def _finish_job(self, job, status, reason="", detail="", elapsed_seconds=0.0, artifact_bytes=0, exit_code=None):
+    def _finish_job(
+        self, job, status, reason="", detail="", elapsed_seconds=0.0, artifact_bytes=0, exit_code=None, provisional=False
+    ):
+        """Record the one terminal outcome for a job.
+
+        `provisional` marks an outcome this peer only *presumed*: work believed lost
+        with a peer, or abandoned at shutdown. A peer that later turns up with an
+        actual result supersedes it (see `_handle_job_result`), because a finished
+        search is a fact while a missed heartbeat is an inference.
+        """
         job_id = job.job_id if job is not None else ""
         record = {
             "job_id": job_id,
@@ -1132,6 +1197,7 @@ class MeshPeer:
             "exit_code": exit_code,
             "elapsed_seconds": elapsed_seconds,
             "artifact_bytes": artifact_bytes,
+            "provisional": bool(provisional),
         }
         with self._lock:
             if job_id in self._results:
