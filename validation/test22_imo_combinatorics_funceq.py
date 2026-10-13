@@ -88,7 +88,9 @@
 #     (machine-counted in [26]); the certificate covers the Euclid step
 #     only; no division/remainder reasoning exists (the trusted W7
 #     arithmetic primitives only build instance data and classify the
-#     sweep); held-out evidence is sweep-drawn, not curriculum cards.
+#     sweep); held-out evidence is sweep-drawn, not curriculum cards —
+#     [31] verifies that every corpus card is blueprint-only and
+#     unloadable, so curriculum held-out evidence is impossible here.
 #
 # No new labels, no kernel edits, no packs, no curriculum cards
 # encoded: instances below are data built from opaque nodes; the
@@ -552,14 +554,13 @@ print("      fact as input.")
 print("  (b) The arithmetic reading 'same class <=> difference divisible by n'")
 print("      is NOT mechanized: the machine's conclusion is the same-class")
 print("      relation itself; no integer/divisibility constructors are used")
-print("      (the curriculum card lists them as missing).")
+print("      (the corpus cards list them as missing; [31] verifies the absence).")
 print("  (c) The closure engine instantiates the first join per depth step; it")
 print("      does not enumerate all joins ([2] derives one oriented collision).")
 print("  (d) PhiReading is first-match; the unreachability prover is therefore")
 print("      used only in the sound direction ([6]/[7]) — see the note in [7].")
-print("  (e) Family 2 (functional equations) is delivered below in [13]-[20];")
-print("      family 3 (number theory over Peano/GMP residues) is NOT derived")
-print("      here.")
+print("  (e) Families 2 and 3 are delivered below: functional equations in")
+print("      [13]-[20], number theory over Peano/GMP in [21]-[31].")
 print()
 
 # ============================================================
@@ -859,9 +860,10 @@ print("  (c) The invariant miner's first-match preservation semantics does not")
 print("      fit the expansion schema: every candidate is machine-refuted ([18]),")
 print("      so the closure's normal form — not a mined invariant — carries the")
 print("      termination evidence.")
-print("  (d) The curriculum contains no functional-equation cards, so held-out")
-print("      evidence for family 2 is unseen instances and refused decoys ([19]),")
-print("      NOT curriculum held-out cards; no card coverage is claimed.")
+print("  (d) No curriculum card is a functional equation (scanned in [31]), so")
+print("      held-out evidence for family 2 is unseen instances and refused")
+print("      decoys ([19]), NOT curriculum held-out cards; no card coverage is")
+print("      claimed.")
 print("  (e) Family 3 (number theory over Peano/GMP) IS derived below, in")
 print("      sections [21]-[30]; its own boundaries are stated in [30].")
 print()
@@ -1313,7 +1315,106 @@ print("      no Coprime premise, so full-theory preservation fails); the miner")
 print("      is run over [r_euclid] and that scope is stated, not hidden.")
 print("  (e) Held-out evidence for family 3 is drawn from the machine's own sweep")
 print("      over (a,b,c) in 2..8 — unseen instances plus refused decoys — not")
-print("      from curriculum cards (the curriculum has no number-theory cards).")
+print("      from curriculum cards: [31] verifies that every corpus card is")
+print("      blueprint-only and unloadable (including the coprimality card")
+print("      T1-PIG-2, which does exist — the earlier 'no number-theory cards'")
+print("      wording was imprecise and is corrected there).")
+print()
+# --- [31] curriculum-evidence boundary: checked, not assumed -----------------
+print("[31] Curriculum evidence boundary — why held-out evidence is machine-made...")
+print("  The brief's done-definition asks for the curriculum's heldout/ cards as")
+print("  held-out evidence and its decoys/ rejected.  This section CHECKS whether")
+print("  that is possible instead of asserting it either way.")
+print()
+CORPUS = os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "curriculum"
+)
+print("  (a) Corpus inventory (HOST layer: the corpus is markdown prose, not")
+print("      machine state — there is no machine term to inspect):")
+corpus_files = []
+for tier in ("tier0", "tier1"):
+    for kind in ("cards", "heldout", "decoys"):
+        d = os.path.join(CORPUS, tier, kind)
+        if not os.path.isdir(d):
+            continue
+        names = sorted(n for n in os.listdir(d) if n.endswith(".md"))
+        corpus_files.extend(os.path.join(d, n) for n in names)
+        print("      curriculum/%s/%-8s %d files" % (tier, kind, len(names)))
+print()
+print("  (b) Every corpus file's self-declared status, read from the files:")
+blueprint = 0
+for path in corpus_files:
+    with open(path, "r", encoding="utf-8") as fh:
+        if "blueprint-only" in fh.read():
+            blueprint += 1
+print("      %d of %d corpus files declare 'blueprint-only, not training input'"
+      % (blueprint, len(corpus_files)))
+assert blueprint == len(corpus_files), (
+    "every corpus file must be blueprint-only for the claim below to hold"
+)
+print()
+print("  (c) No loader exists in the tree: curriculum.py exposes only the seven")
+print("      rung-task builders and EvaluateCurriculumSuite (what test10")
+print("      exercises), there is no TrainingRecordLoader anywhere, and no module")
+print("      reads the card files.  A blueprint-only card therefore cannot be")
+print("      loaded, compiled, or scored — which is exactly the cards' own")
+print("      promotion gate (constructors present AND a genuine partial match).")
+import cat_theo_machine.curriculum as Curric
+loader_names = [a for a in dir(Curric) if a.endswith("Loader")]
+assert not loader_names, "no card loader may exist for this claim to hold"
+print("      loader classes in curriculum.py: %s" % (loader_names or "none"))
+print()
+print("  (d) The constructors those cards require are absent from labels.py, so")
+print("      their target propositions cannot be stated as machine terms at all:")
+MISSING_CONSTRUCTORS = (
+    "IntegerLabel", "IntegersLabel", "RemainderLabel", "ResidueLabel",
+    "CongruentLabel", "PrefixSumLabel", "SubsetLabel", "ColoringLabel",
+    "DominoLabel", "CheckerboardLabel",
+)
+for name in MISSING_CONSTRUCTORS:
+    assert not hasattr(L, name), "%s must be absent" % name
+print("      absent: " + ", ".join(MISSING_CONSTRUCTORS))
+print()
+print("  (e) Per family, does a matching card exist?  (scanned, not assumed)")
+fe_hits = []
+for path in corpus_files:
+    with open(path, "r", encoding="utf-8") as fh:
+        text = fh.read().lower()
+    if "cauchy" in text or "functional equation" in text or "dalembert" in text:
+        fe_hits.append(os.path.basename(path))
+assert not fe_hits, "no corpus card may be a functional equation"
+print("      family 1 (combinatorics): pigeonhole / extremal / symmetry / divide")
+print("        cards EXIST (tier0 + tier1) — but they are blueprint-only and")
+print("        unloadable, so they cannot serve as held-out evidence.")
+print("      family 2 (functional equations): NO corpus card mentions Cauchy, a")
+print("        functional equation, or d'Alembert (%d hits) — the [20](d) claim is"
+      % len(fe_hits))
+print("        now checked rather than asserted.")
+print("      family 3 (number theory): a coprimality card DOES exist (T1-PIG-2,")
+print("        'two coprime from 1..100'), so the earlier wording 'the curriculum")
+print("        has no number-theory cards' was IMPRECISE.  The correct statement:")
+print("        the card exists but is blueprint-only and unloadable, like the rest.")
+print()
+print("  (f) Machine check: every fact the families derive is headed by a label")
+print("      that exists in labels.py — no residue/integer/congruence vocabulary")
+print("      is used anywhere in the derivations above:")
+family3_labels = (
+    L.DividesLabel, L.CoprimeLabel, L.GcdLabel, L.ExprMulLabel,
+)
+for f in closure:
+    head = M.Head(f)()
+    known = [
+        lbl for lbl in family3_labels
+        if M.Compare(head, lbl)() is M.truth_value
+    ]
+    assert known, "a derived fact head must be an existing label"
+print("      OK: %d family-3 closure facts, every head is Divides/Coprime/Gcd/"
+      "ExprMul." % len(closure))
+print()
+print("  CONSEQUENCE: held-out evidence for all three families is machine-")
+print("  generated (sweep classes and unseen instances) plus refused decoys, NOT")
+print("  curriculum cards — and that is a verified property of the corpus, not a")
+print("  choice made by this suite.  No card coverage is claimed.")
 print()
 print(
     "=== ALL TEST 22 CHECKS PASSED in %.3fs ===" % (time.time() - t0)
