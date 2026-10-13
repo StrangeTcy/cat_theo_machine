@@ -146,6 +146,14 @@ def knowledge(items):
 
 
 def label_name(term):
+    # Host-layer name for a machine label, for human-readable output only.
+    # This is the one Python-native introspection in this suite, and it is
+    # permitted by the conjunctive host exception: this is the host layer,
+    # and the machine has NO analogue for naming a label (PrettyTerm renders
+    # a bare label as '<?>', ConstructorLabel is a name-less Atom, and no
+    # LabelName-style accessor exists).  A hand-written name table would
+    # duplicate label names as strings and could silently drift; type()
+    # cannot.  No machine logic depends on this helper.
     return type(term).__name__
 
 

@@ -11,6 +11,16 @@
 # equation exactly as written (no reduction order is imposed — the
 # orientation is the equation's own), and the closure enumerates every
 # one-step successor at every position of the term.
+#
+# Implementation notes (host-layer Python, no machine analogue needed):
+#   * the walks are Python recursion over the machine's recursive Pair
+#     structure; depth is bounded by term depth (position enumeration),
+#     successor count (closure absorption), and the caller's closure
+#     depth bound.  Truncating a walk silently would make the closure
+#     unsound, so no depth guard is imposed: a pathological term raises
+#     Python's RecursionError loudly instead of losing successors.
+#   * every helper threads the registry it is given; no state is cached
+#     across calls.
 # ============================================================
 from __future__ import annotations
 
@@ -136,6 +146,7 @@ class EnumerateSuccessors(M.Edge):
 
     def __init__(self, term, rules, registry):
         self.registry = registry
+        self._one = M.Head(M.Succ(M.Zero, self.registry)())()
         self.result = self._enumerate(term, rules)
 
     def _enumerate(self, term, rules):
@@ -147,8 +158,7 @@ class EnumerateSuccessors(M.Edge):
         if M.IsPair(term)() is M.truth_value:
             head_path = PathAppend(path, M.Zero)()
             acc = self._positions(M.Head(term)(), head_path, acc)
-            one = M.Head(M.Succ(M.Zero, self.registry)())()
-            tail_path = PathAppend(path, one)()
+            tail_path = PathAppend(path, self._one)()
             acc = self._positions(M.Tail(term)(), tail_path, acc)
         return acc
 
