@@ -190,11 +190,52 @@ def obligation_goal(obligation):
     return M.Head(M.Tail(M.Tail(M.Tail(obligation)())())())()
 
 
-def all_machine(term, registry):
-    """True when `term` is built only from pairs and atoms."""
-    if M.IsPair(term)() is M.truth_value:
-        return all_machine(M.Head(term)(), registry) and all_machine(M.Tail(term)(), registry)
-    return M.IsAtom(term, registry)() is M.truth_value
+def ground_data_atoms(term, acc):
+    """
+    The genericity pin, machine-side. Patterns in this term language are
+    variables (VarTag-headed pairs), calls (label-headed pairs whose tail is
+    the argument chain), structural conses (pair-headed -- e.g. the pair of
+    two variables a split premise matches against), and ground atoms. Heads
+    are relation vocabulary and are never data; a hardcoded point, problem
+    or constant would have to appear as a leaf reached through an argument
+    or cons position, and this walk collects exactly those. It never asks
+    IsAtom: the machine's atomness predicate accepts any non-pair, non-edge
+    host object and never consults the registry it is handed, so it cannot
+    carry this pin. (Observed at machine.py's IsAtom; reported, not worked
+    around.)
+    """
+    if M.IsPair(term)() is M.false_value:
+        return M.Pair(term, acc)
+    head = M.Head(term)()
+    if M.IdentityCompare(head, M.VarTag)() is M.truth_value:
+        return acc
+    if M.IsPair(head)() is M.truth_value:
+        acc = ground_data_atoms(head, acc)
+        return ground_data_atoms(M.Tail(term)(), acc)
+    ccur = M.Tail(term)()
+    while M.IdentityCompare(ccur, EMPTY)() is M.false_value:
+        acc = ground_data_atoms(M.Head(ccur)(), acc)
+        ccur = M.Tail(ccur)()
+    return acc
+
+
+def pattern_var_count(term):
+    """Number of VarTag-headed leaves anywhere in a term."""
+    if M.IsPair(term)() is M.false_value:
+        return 0
+    if M.IdentityCompare(M.Head(term)(), M.VarTag)() is M.truth_value:
+        return 1
+    return pattern_var_count(M.Head(term)()) + pattern_var_count(M.Tail(term)())
+
+
+def only_nil(atoms):
+    """Every collected ground atom is the empty list (the tolerated one)."""
+    cursor = atoms
+    while M.IdentityCompare(cursor, EMPTY)() is M.false_value:
+        if M.IdentityCompare(M.Head(cursor)(), EMPTY)() is M.false_value:
+            return False
+        cursor = M.Tail(cursor)()
+    return True
 
 
 def closure(facts, rules, registry, rounds=24):
@@ -813,13 +854,17 @@ while M.IdentityCompare(rcursor, EMPTY)() is M.false_value:
     rule = M.Head(rcursor)()
     pcursor = P.RulePremises(rule)()
     while M.IdentityCompare(pcursor, EMPTY)() is M.false_value:
-        if not all_machine(M.Head(pcursor)(), registry):
+        if not only_nil(ground_data_atoms(M.Head(pcursor)(), EMPTY)):
             rule_ok = False
         pcursor = M.Tail(pcursor)()
-    if not all_machine(P.RuleReplacement(rule)(), registry):
-        rule_ok = False
+    rcursor2 = P.RuleReplacement(rule)()
+    while M.IdentityCompare(rcursor2, EMPTY)() is M.false_value:
+        if not only_nil(ground_data_atoms(M.Head(rcursor2)(), EMPTY)):
+            rule_ok = False
+        rcursor2 = M.Tail(rcursor2)()
     rcursor = M.Tail(rcursor)()
-check("every pack rule is built from pairs and atoms only", rule_ok)
+check("no rule puts a datum in an argument position (the empty list of the"
+      " recursion base cases is the only tolerated atom)", rule_ok)
 
 check("Terminates(P) is a machine pair, not a host string",
       M.IsPair(terminates)() is M.truth_value
@@ -831,10 +876,13 @@ check("the derived knowledge is a Knowledge term", P.IsKnowledge(derived)() is M
 fact_cursor = P.KnowledgeFacts(derived)()
 facts_ok = True
 while M.IdentityCompare(fact_cursor, EMPTY)() is M.false_value:
-    if not all_machine(M.Head(fact_cursor)(), registry):
+    one = M.Head(fact_cursor)()
+    if M.IsPair(one)() is M.false_value:
+        facts_ok = False
+    if pattern_var_count(one) > 0:
         facts_ok = False
     fact_cursor = M.Tail(fact_cursor)()
-check("  ... whose every fact is machine-side", facts_ok)
+check("  ... whose every fact is a machine pair carrying no pattern variable", facts_ok)
 
 print()
 print("=== TEST 23 RESULTS ===")

@@ -225,24 +225,33 @@ def closure(facts, rules, registry, rounds=24):
     return P.NormalizeKnowledge(state, registry)()
 
 
-def all_machine(term, registry, namespace_atoms):
-    """True when `term` is built only from pairs, pattern variables, and
-    atoms the namespace already knows (labels). Anything else -- in
-    particular a fresh Char constant -- is hardcoded content."""
-    if M.IsPair(term)() is M.truth_value:
-        if M.IdentityCompare(M.Head(term)(), M.VarTag)() is M.truth_value:
-            return True
-        return all_machine(M.Head(term)(), registry, namespace_atoms) and all_machine(
-            M.Tail(term)(), registry, namespace_atoms
-        )
-    if M.IsAtom(term, registry)() is M.false_value:
-        return False
-    cursor = namespace_atoms
-    while M.IdentityCompare(cursor, EMPTY)() is M.false_value:
-        if M.IdentityCompare(M.Head(cursor)(), term)() is M.truth_value:
-            return True
-        cursor = M.Tail(cursor)()
-    return False
+def ground_data_atoms(term, acc):
+    """
+    The genericity pin, machine-side. Patterns in this term language are
+    variables (VarTag-headed pairs), calls (label-headed pairs whose tail is
+    the argument chain), structural conses (pair-headed -- e.g. the pair of
+    two variables a split premise matches against), and ground atoms. Heads
+    are relation vocabulary and are never data; a hardcoded point, problem
+    or constant would have to appear as a leaf reached through an argument
+    or cons position, and this walk collects exactly those. It never asks
+    IsAtom: the machine's atomness predicate accepts any non-pair, non-edge
+    host object and never consults the registry it is handed, so it cannot
+    carry this pin. (Observed at machine.py's IsAtom; reported, not worked
+    around.)
+    """
+    if M.IsPair(term)() is M.false_value:
+        return M.Pair(term, acc)
+    head = M.Head(term)()
+    if M.IdentityCompare(head, M.VarTag)() is M.truth_value:
+        return acc
+    if M.IsPair(head)() is M.truth_value:
+        acc = ground_data_atoms(head, acc)
+        return ground_data_atoms(M.Tail(term)(), acc)
+    ccur = M.Tail(term)()
+    while M.IdentityCompare(ccur, EMPTY)() is M.false_value:
+        acc = ground_data_atoms(M.Head(ccur)(), acc)
+        ccur = M.Tail(ccur)()
+    return acc
 
 
 # ---------------------------------------------------------------------------
@@ -261,52 +270,29 @@ loader = packs.PackLoader(namespace)
 pack = loader.load_pack_file(PACK_PATH, graph)
 rules = P.CompileRuleChain(pack.rule_chain, registry)()
 
-# The pack's declared vocabulary: the only atoms its compiled rules may
-# contain besides pattern variables. An explicit allowlist is the pin -- a
-# Char naming a point or a problem would be neither a variable nor one of
-# these labels. (Reading the namespace to resolve the labels is host work on
-# a host dict; the membership test itself stays machine-side.)
-PACK_VOCABULARY = (
-    L.BisectorFromLabel,
-    L.TriangleLabel,
-    L.LengthLabel,
-    L.SegmentLabel,
-    L.EqualAngleLabel,
-    L.AngleLabel,
-    L.PointOnLabel,
-    L.CircumcircleOfLabel,
-    L.VertexOfLabel,
-    L.OnCircleLabel,
-    M.VarTag,
-    M.EmptyList,
-)
-namespace_atoms = chain(list(PACK_VOCABULARY))
-
 check("pack name is geometry-constructions", pack.name == "geometry-constructions", pack.name)
 check("pack carries 6 generic schema rules", count_list(pack.rule_chain) == 6,
       str(count_list(pack.rule_chain)) + " rules")
 
-# Genericity pin: no leaf constant. Every leaf of every premise and
-# replacement is a pattern variable or a known label -- a Char naming a
-# point, a triangle or a problem would be neither, and would be exactly the
-# hardcoding the W8 brief forbids.
+# Genericity pin, machine-side: no ground atom in any argument position of
+# any premise or replacement. A Char naming a point, a triangle or a problem
+# is a datum, and data can only sit in argument positions.
 rule_ok = True
 rcursor = pack.rule_chain
 while M.IdentityCompare(rcursor, EMPTY)() is M.false_value:
     rule = M.Head(rcursor)()
     pcursor = P.RulePremises(rule)()
     while M.IdentityCompare(pcursor, EMPTY)() is M.false_value:
-        if not all_machine(M.Head(pcursor)(), registry, namespace_atoms):
+        if M.IdentityCompare(ground_data_atoms(M.Head(pcursor)(), EMPTY), EMPTY)() is M.false_value:
             rule_ok = False
         pcursor = M.Tail(pcursor)()
     rcursor2 = P.RuleReplacement(rule)()
     while M.IdentityCompare(rcursor2, EMPTY)() is M.false_value:
-        if not all_machine(M.Head(rcursor2)(), registry, namespace_atoms):
+        if M.IdentityCompare(ground_data_atoms(M.Head(rcursor2)(), EMPTY), EMPTY)() is M.false_value:
             rule_ok = False
         rcursor2 = M.Tail(rcursor2)()
     rcursor = M.Tail(rcursor)()
-check("no rule in the pack contains a hardcoded constant", rule_ok)
-
+check("no rule in the pack puts a ground atom in an argument position", rule_ok)
 print()
 
 # ---------------------------------------------------------------------------
@@ -600,10 +586,20 @@ scursor = schemas
 while M.IdentityCompare(scursor, EMPTY)() is M.false_value:
     schema = M.Head(scursor)()
     scursor = M.Tail(scursor)()
-    for part in (C.SchemaGoalShape(schema), C.SchemaPremises(schema), C.SchemaEffects(schema)):
-        if not all_machine(part, registry, namespace_atoms):
+    # the goal shape is one term; premises and effects are chains of terms
+    if M.IdentityCompare(ground_data_atoms(C.SchemaGoalShape(schema), EMPTY), EMPTY)() is M.false_value:
+        schema_ok = False
+    pcursor = C.SchemaPremises(schema)
+    while M.IdentityCompare(pcursor, EMPTY)() is M.false_value:
+        if M.IdentityCompare(ground_data_atoms(M.Head(pcursor)(), EMPTY), EMPTY)() is M.false_value:
             schema_ok = False
-check("every schema (goal shape, premises, effects) names no constant", schema_ok)
+        pcursor = M.Tail(pcursor)()
+    ecursor = C.SchemaEffects(schema)
+    while M.IdentityCompare(ecursor, EMPTY)() is M.false_value:
+        if M.IdentityCompare(ground_data_atoms(M.Head(ecursor)(), EMPTY), EMPTY)() is M.false_value:
+            schema_ok = False
+        ecursor = M.Tail(ecursor)()
+check("every schema puts no ground atom in an argument position", schema_ok)
 
 check("the minted auxiliary object is anonymous (an atom, not a named Char)",
       M.IsAtom(D_AUX, registry)() is M.truth_value
@@ -620,12 +616,12 @@ fact_cursor = got
 facts_ok = True
 while M.IdentityCompare(fact_cursor, EMPTY)() is M.false_value:
     one = M.Head(fact_cursor)()
-    if M.IsPair(one)() is M.false_value and M.IsAtom(one, registry)() is M.false_value:
+    if M.IsPair(one)() is M.false_value:
         facts_ok = False
     if pattern_var_count(one) > 0:
         facts_ok = False
     fact_cursor = M.Tail(fact_cursor)()
-check("  ... whose every fact is machine-side and variable-free", facts_ok)
+check("  ... whose every fact is a machine pair carrying no pattern variable", facts_ok)
 
 print()
 print("=== TEST 21 RESULTS ===")
