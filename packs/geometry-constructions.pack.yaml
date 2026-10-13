@@ -1,0 +1,160 @@
+format: hyge-pack
+version: 1
+
+name: geometry-constructions
+description: >
+  W8. Generic inference schemas that consume auxiliary constructions. Every
+  rule here is fully variable-typed: no rule names a point, a triangle, a
+  problem, or a known auxiliary object, and no rule concludes anything that
+  was not already asked for by a goal shape the construction generator
+  serves. The schemas they serve are machine terms built by
+  `constructions.py`; a proposal mints the auxiliary object, obligationes the
+  effect facts, and only then do these rules have anything to consume.
+
+    bisector_splits_angle      a constructed apex bisector halves the apex
+                               angle (definitional)
+    sas_self_congruence        two sub-triangles on equal flanks with the
+                               contained angle equal are congruent, so the
+                               corresponding base angles are equal
+    on_segment_unifies_ray     a point on a segment defines the same ray from
+                               the segment's endpoint as the segment itself,
+                               so it does not split the angle there; the apex
+                               comes from a triangle premise, never free
+    equal_angle_symmetric      angle equality is symmetric
+    equal_angle_transitive     angle equality is transitive
+    circumcircle_admits_vertex every vertex of a triangle lies on the
+                               triangle's circumcircle
+
+requires:
+  - geometry-ontology
+
+phi:
+  list: []
+
+rules:
+  - id: bisector_splits_angle
+    premises:
+      - call:
+          head: {sym: BisectorFromLabel}
+          args: [{var: a}, {var: d}, {var: b}, {var: c}]
+    replacement:
+      list:
+        - call:
+            head: {sym: EqualAngleLabel}
+            args:
+              - call:
+                  head: {sym: AngleLabel}
+                  args: [{var: b}, {var: a}, {var: d}]
+              - call:
+                  head: {sym: AngleLabel}
+                  args: [{var: d}, {var: a}, {var: c}]
+
+  - id: sas_self_congruence
+    premises:
+      - call:
+          head: {sym: TriangleLabel}
+          args: [{var: a}, {var: b}, {var: d}]
+      - call:
+          head: {sym: TriangleLabel}
+          args: [{var: a}, {var: c}, {var: d}]
+      - call:
+          head: {sym: LengthLabel}
+          args:
+            - call:
+                head: {sym: SegmentLabel}
+                args: [{var: a}, {var: b}]
+            - {var: x}
+      - call:
+          head: {sym: LengthLabel}
+          args:
+            - call:
+                head: {sym: SegmentLabel}
+                args: [{var: a}, {var: c}]
+            - {var: x}
+      - call:
+          head: {sym: EqualAngleLabel}
+          args:
+            - call:
+                head: {sym: AngleLabel}
+                args: [{var: b}, {var: a}, {var: d}]
+            - call:
+                head: {sym: AngleLabel}
+                args: [{var: d}, {var: a}, {var: c}]
+    replacement:
+      list:
+        - call:
+            head: {sym: EqualAngleLabel}
+            args:
+              - call:
+                  head: {sym: AngleLabel}
+                  args: [{var: a}, {var: b}, {var: d}]
+              - call:
+                  head: {sym: AngleLabel}
+                  args: [{var: a}, {var: c}, {var: d}]
+
+  - id: on_segment_unifies_ray
+    # A point on a segment defines the same ray from the segment's endpoint
+    # as the segment itself, so it does not split the angle there. The apex
+    # is bound by a triangle premise: a replacement may never introduce a
+    # variable no premise bound.
+    premises:
+      - call:
+          head: {sym: PointOnLabel}
+          args:
+            - {var: d}
+            - call:
+                head: {sym: SegmentLabel}
+                args: [{var: v}, {var: w}]
+      - call:
+          head: {sym: TriangleLabel}
+          args: [{var: u}, {var: v}, {var: d}]
+    replacement:
+      list:
+        - call:
+            head: {sym: EqualAngleLabel}
+            args:
+              - call:
+                  head: {sym: AngleLabel}
+                  args: [{var: u}, {var: v}, {var: d}]
+              - call:
+                  head: {sym: AngleLabel}
+                  args: [{var: u}, {var: v}, {var: w}]
+
+  - id: equal_angle_symmetric
+    premises:
+      - call:
+          head: {sym: EqualAngleLabel}
+          args: [{var: p}, {var: q}]
+    replacement:
+      list:
+        - call:
+            head: {sym: EqualAngleLabel}
+            args: [{var: q}, {var: p}]
+
+  - id: equal_angle_transitive
+    premises:
+      - call:
+          head: {sym: EqualAngleLabel}
+          args: [{var: p}, {var: q}]
+      - call:
+          head: {sym: EqualAngleLabel}
+          args: [{var: q}, {var: r}]
+    replacement:
+      list:
+        - call:
+            head: {sym: EqualAngleLabel}
+            args: [{var: p}, {var: r}]
+
+  - id: circumcircle_admits_vertex
+    premises:
+      - call:
+          head: {sym: CircumcircleOfLabel}
+          args: [{var: k}, {var: t}]
+      - call:
+          head: {sym: VertexOfLabel}
+          args: [{var: t}, {var: v}]
+    replacement:
+      list:
+        - call:
+            head: {sym: OnCircleLabel}
+            args: [{var: v}, {var: k}]

@@ -61,6 +61,7 @@ PACK_PATHS = [
     os.path.join(PACK_DIR, "engel-means.pack.yaml"),
     os.path.join(PACK_DIR, "engel-blackboard.pack.yaml"),
     os.path.join(PACK_DIR, "engel-strategies.pack.yaml"),
+    os.path.join(PACK_DIR, "geometry-constructions.pack.yaml"),
 ]
 
 def _latest_snapshot_path():

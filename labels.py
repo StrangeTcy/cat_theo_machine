@@ -855,6 +855,34 @@ class SideOfLabel(ConstructorLabel):
     pass
 
 
+class EqualAngleLabel(ConstructorLabel):
+    pass
+
+
+class BisectorFromLabel(ConstructorLabel):
+    pass
+
+
+class PointOnLabel(ConstructorLabel):
+    pass
+
+
+class CircumcircleOfLabel(ConstructorLabel):
+    pass
+
+
+class OnCircleLabel(ConstructorLabel):
+    pass
+
+
+class ConstructionSchemaLabel(ConstructorLabel):
+    pass
+
+
+class ConstructionMethodLabel(ConstructorLabel):
+    pass
+
+
 class AngleOfLabel(ConstructorLabel):
     pass
 
@@ -1265,6 +1293,13 @@ SideOfLabel = SideOfLabel()
 AngleOfLabel = AngleOfLabel()
 OppositeLabel = OppositeLabel()
 AngleMeasureLabel = AngleMeasureLabel()
+EqualAngleLabel = EqualAngleLabel()
+BisectorFromLabel = BisectorFromLabel()
+PointOnLabel = PointOnLabel()
+CircumcircleOfLabel = CircumcircleOfLabel()
+OnCircleLabel = OnCircleLabel()
+ConstructionSchemaLabel = ConstructionSchemaLabel()
+ConstructionMethodLabel = ConstructionMethodLabel()
 APNameLabel = APNameLabel()
 ApplyLabel = ApplyLabel()
 DefinesLabel = DefinesLabel()
@@ -1678,6 +1713,13 @@ def sync_from_namespace(namespace):
         "AngleOfLabel",
         "OppositeLabel",
         "AngleMeasureLabel",
+        "EqualAngleLabel",
+        "BisectorFromLabel",
+        "PointOnLabel",
+        "CircumcircleOfLabel",
+        "OnCircleLabel",
+        "ConstructionSchemaLabel",
+        "ConstructionMethodLabel",
         "APNameLabel",
         "ApplyLabel",
         "DefinesLabel",

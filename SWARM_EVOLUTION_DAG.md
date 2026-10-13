@@ -69,7 +69,7 @@ The machine's capabilities and subsystems are partitioned into five core dimensi
 | **W5** | Surface Grammar & Lexicon | Dim 5 | `surface_bridge.py` | `graph_task.py`, `labels.py` | Declarative parser, render engine, concept defs |
 | **W6** | FLT $n=4$ Residue Discovery | Dim 1 | `validation/test18_flt_residue_discovery.py` | W3 | Modulo 4 obstruction discovered live; parametrization descent open |
 | **W7** | FLT $n=3$ Eisenstein Factorization | Dim 1 | `packs/flt_eisenstein.pack.yaml`| W3 | Eisenstein norm ring $\mathbb{Z}[\omega]$, cubic descent |
-| **W8** | IMO Geometry & Aux Construction | Dim 2 | `packs/imo_geometry.pack.yaml` | W4 | Auxiliary point synthesizers, cyclic quads |
+| **W8** | IMO Geometry & Aux Construction | Dim 2 | `constructions.py`, `packs/geometry-constructions.pack.yaml`, `planner.py` (`Construction`) | W4 | Goal-directed auxiliary-point schemas, slot `test21` |
 | **W9** | IMO Combinatorics & Func-Eq | Dim 2 | `packs/imo_algebra.pack.yaml` | W4 | Cauchy/d'Alembert equations, extremal sets |
 | **W10**| Engel Monovariants & Invariants | Dim 3 | `packs/engel-strategies.pack.yaml`, `planner.py` (`Monovariant`, `SemiInvariant`, `Invariance`) | W3, W4 | Semi-invariants, colouring as invariance, box principle obligationed; suite slot `test23` |
 | **W11**| Invariant Trace Miner & Evaluator| Dim 4 | `invariant_miner.py`, `evaluator.py`| W4 | Trace state extractor, holdout regression gate |
@@ -111,7 +111,43 @@ These arrived during Phase 0/1 execution and are prerequisites or enablers rathe
 - [x] **W13 (Multi-Pass Backward Planning Engine)**: Completed & verified in `test15_multi_pass_planner.py`.
 - [~] **W6 (FLT $n=4$)**: The hand-authored `flt-quartic` pack was withdrawn as a hardcoding violation. What remains is machine-derived and verified in `validation/test18_flt_residue_discovery.py`: the Cartesian sweep discovers modulus 4, the machine's own arithmetic runs the complete residue case analysis (fourth powers are $\{0,1\}$ mod 4, two odd fourth powers give 2), the discovered obstruction names its own candidate lemma, and the promotion ledger refuses to ledger it without a Checker B receipt. The Pythagorean parametrization descent needed for the full theorem is not derivable by the current machinery and stays open.
 - [ ] **W7 (FLT $n=3$ Eisenstein UFD Factorization)**: Ready for execution.
-- [ ] **W8 (IMO Geometry & Auxiliary Construction Engine)**: Ready for execution.
+- [x] **W8 (IMO Geometry & Auxiliary Construction Engine)**: Completed & verified in
+  `validation/test21_imo_geometry_constructions.py` (36/36 checks, ~152 s) — slot 21, the one
+  `delegation/README.md` pre-allocates to this worker.
+  - *The generator is goal-directed but problem-free.* `constructions.py` carries construction
+    schemas as machine terms — a goal shape, soundness premises, effect facts — and
+    `ConstructionProposals` instantiates them through the machine's own matching (`Match`,
+    `JoinPremises` seeded with the goal's bindings, `MergeBindings`), minting one anonymous
+    `Thingy` per proposal as the auxiliary object. There is no table of problems and no named
+    auxiliary point; the pack's vocabulary is pinned by an explicit allowlist (a rule leaf is a
+    pattern variable or one of the ten declared labels, nothing else), and the same pin runs over
+    the schemas themselves. Two schemas ship: bisector completion (an `EqualAngle` goal over a
+    corner-symmetric angle pair, sound only when both flanks carry the same length quantity) and
+    circumcircle completion (an `OnCircle` goal over a triangle vertex).
+  - *End to end, without the auxiliary object being named.* Base angles of an isosceles triangle:
+    the figure carries `Triangle(P,Q,R)` and two flanks sharing one length quantity; the goal
+    `EqualAngle(Angle(P,Q,R), Angle(P,R,Q))` draws exactly one proposal; the minted foot induces
+    `PointOn` (both segment orientations), `BisectorFrom` and two sub-triangles; and the generic
+    schema pack closes the goal through the bisector definition, SAS self-congruence, the ray
+    identity on the constructed foot, and equality symmetry/transitivity. Withhold the proposal
+    and the goal does not close; scalene the figure and nothing is proposed; aim the goal
+    elsewhere (a length) and no schema fires.
+  - *Through the planner, not around it.* Proposals become `Construction` method terms
+    (`planner.py`, dispatched beside the other method heads); their effects are the obligations,
+    the goal is the conclusion, and `PlannerRun` records one alternative per proposal with one
+    child per obligation. With no generator there is no construction alternative.
+  - *New labels* (append-only, snapshot-registered): `EqualAngle`, `BisectorFrom`, `PointOn`,
+    `CircumcircleOf`, `OnCircle`, `ConstructionSchema`, `ConstructionMethod`.
+    `packs/geometry-constructions.pack.yaml` registered in `main.py:PACK_PATHS` (path only, no
+    agenda case). `core.py` untouched.
+  - *Honest scope note*: this branch carries no `checker_b.py`, no ledger, no `evaluator.py`, no
+    `graph_task.py` and no `playground.py`, so the done-definition's Checker-B receipt, ledger
+    record, evaluator ablation and figure sweeps are **not met here and are not claimed**. The
+    brief's wider construction classes (angle chasing beyond the bisector, projective
+    collineations, cyclic quadrilateral conclusions) are open: the two shipped schemas are the
+    proof that the pipeline works, not the catalogue.
+  - *Not done*: no cyclic-quadrilateral conclusion schema yet; the circumcircle schema stops at
+    vertex incidence and does not yet feed chord/angle facts back into goals.
 - [ ] **W9 (IMO Combinatorics, Functional Equations & NT)**: Ready for execution.
 - [x] **W10 (Engel Strategies & Monovariants Pack)**: Completed & verified in
   `validation/test23_engel_strategies.py` (80/80 checks, ~70 s) — slot 23, the one
