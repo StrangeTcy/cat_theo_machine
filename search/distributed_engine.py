@@ -42,6 +42,36 @@ re-imports the `__main__` module. A driver script without an
 registry shard worker, each of which dies before writing its output, and
 `boot_from_snapshot` fails with "registry shard 1/2 failed: no output produced".
 That message reads like a corrupt snapshot; it is not. Guard the entry point.
+
+Measured, on `engel_e2` from the `engel-blackboard` pack (a 3-step expansion, so
+a frontier of 4 nodes, then each run taken to a terminal status in its own
+process -- one process per run, because a second search inside a booted runtime
+is memoised and is not a fresh one):
+
+    baseline, whole frontier    success   plan 124d4980ae0799f6  cost cda29f2b48da3570   33.6 s
+    unit 0 (5fd41873a2)         success   plan 124d4980ae0799f6  cost cda29f2b48da3570   32.4 s
+    unit 1 (52f14d226f)         failure   no plan                                          2.5 s
+    unit 2 (ede2a5cb0b)         failure   no plan                                          2.2 s
+    unit 3 (2bf577cc28)         failure   no plan                                          1.7 s
+
+The merge picks unit 0 -- the lowest index that succeeded -- and its plan and
+proof cost are byte-for-byte the baseline's. That is the claim this module
+exists to make, measured rather than argued: partitioning the frontier and
+merging by frontier index reproduces the unpartitioned proof exactly.
+
+It also fixes the honest speedup number, which is not flattering. The proof
+lives entirely in one branch, so a four-way partition does not shorten the
+critical path (32.4 s against 33.6 s) and the partitioned run does *more* total
+work (38.8 s of unit time against 33.6 s), because each unit re-expands from the
+root. What parallelism buys here is that the three dead branches are retired
+concurrently in about two seconds each instead of in sequence. Record that as
+the finding; do not tune it until it looks better.
+
+Survey of the rest of the agenda, since the choice of problem is not free: Tao
+1.1 and sqrt2/3/4_real are settled by a root fast path in a single step and
+leave no frontier at all, the two Engel coin cases fail immediately, and
+`engel_e1` expands to a frontier of 4 but exhausts at 7 expanded nodes without a
+proof. `engel_e2` is the only case that both partitions and proves.
 """
 
 from __future__ import annotations
