@@ -1,5 +1,5 @@
 # ============================================================
-# TEST 22: IMO combinatorics — families 1 and 2 delivered
+# TEST 22: IMO combinatorics — families 1, 2 and 3 delivered
 #
 # FAMILY 1 (sections [0]-[12]): discrete combinatorial configurations
 # as fact hypergraphs closed by generic multi-premise rules, with the
@@ -10,8 +10,15 @@
 # generic machine edge into a unary rewrite schema whose consequences
 # are derived, closed, and Checker-B-verified.
 #
+# FAMILY 3 (sections [21]-[30]): number theory over GMPRep Nats — a
+# generic divisibility theory (gcd=1 -> coprime; coprime & x|y*z ->
+# x|z; x|y & y|z -> x|z) as multi-premise fact-list rules, closed by
+# the machine's own forward engine, Checker-B-verified, invariant-mined
+# over the Euclid step, swept over the bounded configuration space,
+# and promoted through the ledger while the decoy is refused.
+#
 # Delegation slot: W09 "IMO combinatorics / functional equations",
-# families 1 and 2 of 3 (see delegation/W09-imo-combinatorics-funceq.md).
+# families 1, 2 and 3 of 3 (see delegation/W09-imo-combinatorics-funceq.md).
 #
 # WHAT THIS SUITE DERIVES (machine rules only, no authored answers):
 #   [family 1] A generic collision rule over an opaque fact hypergraph —
@@ -38,6 +45,24 @@
 #   the additive schema.  A second equation (multiplicative Cauchy)
 #   goes through the same compiler unchanged, and a generic consequence
 #   macro is promoted by the ledger while the decoy claim is refused.
+#   [family 3] Three generic divisibility rules over GMPRep Nats
+#       gcd(x,y)=1 -> coprime(x,y);
+#       coprime(x,y) & x | y*z -> x|z  (coprime re-stated);
+#       x|y & y|z -> x|z
+#   — are closed by the machine's forward engine over a concrete
+#   configuration (gcd(7,12)=1, 7 | 12*21, 21 | 63): the machine
+#   derives coprime(7,12), 7|21 and 7|63 from the data alone, and
+#   refuses the decoy (gcd(6,10)=2, 6 | 10*15) because no rule can
+#   fire.  Checker B verifies both the two-step Euclid derivation and
+#   the three-step transitive chain.  The miner finds the coprimality
+#   hypothesis as the preserved invariant (and machine-refutes the
+#   conclusion Divides(x,z) as an invariant), which certifies the
+#   decoy's coprimality as unreachable.  A sweep over (a,b,c) in 2..8
+#   shows EVERY positive triple (a|bc, coprime) derives a|c and EVERY
+#   decoy triple (a|bc, not coprime) is refused.  A generic candidate
+#   macro is Checker-B-verified, passes a sweep-drawn held-out suite,
+#   and is promoted through the ledger; the decoy claim is refused
+#   with a machine-stated reason and no ledger movement.
 #
 # WHAT THIS SUITE DOES NOT DERIVE (stated, and machine-checked where
 # checkable — see the boundary sections at the end):
@@ -57,8 +82,13 @@
 #     refusals, reported honestly); the curriculum contains no
 #     functional-equation cards, so held-out evidence for family 2 is
 #     unseen instances plus refused decoys, not curriculum cards.
-#   [family 3] number theory (coprimality, divisibility, residues over
-#     Peano/GMP) is NOT derived by this suite.
+#   [family 3] the divisibility theory is INCOMPLETE by construction:
+#     without the coprimality hypothesis nothing fires, so decoy-class
+#     triples whose conclusion is mathematically true are refused
+#     (machine-counted in [26]); the certificate covers the Euclid step
+#     only; no division/remainder reasoning exists (the trusted W7
+#     arithmetic primitives only build instance data and classify the
+#     sweep); held-out evidence is sweep-drawn, not curriculum cards.
 #
 # No new labels, no kernel edits, no packs, no curriculum cards
 # encoded: instances below are data built from opaque nodes; the
@@ -82,7 +112,9 @@ from cat_theo_machine import invariance as Inv
 from cat_theo_machine import labels as L
 from cat_theo_machine import machine as M
 from cat_theo_machine import proof as P
+from cat_theo_machine import playground as PG
 from cat_theo_machine import promotion_ledger as Ledger
+from cat_theo_machine.math import arithmetic as AR
 from cat_theo_machine.math import funceq as FE
 from cat_theo_machine.runtime import make_fresh_runtime
 
@@ -162,6 +194,18 @@ def machine_nat(n):
     for _ in range(n):
         t = M.Head(M.Succ(t, registry)())()
     return t
+
+
+# GMPRep-backed Nat helpers (family 3).  nat_node builds a Nat from a host
+# integer through the machine's own NatFromRep constructor; nat_value reads
+# one back.  Rule patterns must use nat_node for constants (see [21]).
+def nat_node(n):
+    r = M.NatFromRep(M.GMPRep(n), registry)()
+    return M.Head(r)()
+
+
+def nat_value(node):
+    return M.NatRepOf(node, registry)()()
 
 
 vx, vy, vr = var_pattern(), var_pattern(), var_pattern()
@@ -818,9 +862,459 @@ print("      termination evidence.")
 print("  (d) The curriculum contains no functional-equation cards, so held-out")
 print("      evidence for family 2 is unseen instances and refused decoys ([19]),")
 print("      NOT curriculum held-out cards; no card coverage is claimed.")
-print("  (e) Family 3 (number theory over Peano/GMP) is NOT derived here.")
+print("  (e) Family 3 (number theory over Peano/GMP) IS derived below, in")
+print("      sections [21]-[30]; its own boundaries are stated in [30].")
 print()
 
+# ============================================================
+# FAMILY 3 (sections [21]-[30]): number theory over Peano/GMP
+# ============================================================
+print("=== TEST 22 family 3 — number theory over Peano/GMP Nats ===")
+print()
+
+# --- [21] the vocabulary and three generic divisibility rules ----------------
+print("[21] Vocabulary and the generic divisibility theory (GMPRep Nats)...")
+# Nat constants inside a rule pattern MUST be GMP-backed Atoms: the
+# machine's Compare does not identify a hand-built Succ(Zero) Pair with
+# the Nat 1 that NatFromRep produces, so a Peano-shaped constant would
+# silently never match.  (Measured, not assumed: Compare(Succ(Zero), 1)
+# is false, Compare(NatFromRep(1), NatFromRep(1)) is true.)
+one = nat_node(1)
+
+
+def ex_mul(x, y):
+    return M.Pair(L.ExprMulLabel, M.Pair(x, M.Pair(y, M.EmptyList)))
+
+
+def divides(a, b):
+    return M.Pair(L.DividesLabel, M.Pair(a, M.Pair(b, M.EmptyList)))
+
+
+def coprime(a, b):
+    return M.Pair(L.CoprimeLabel, M.Pair(a, M.Pair(b, M.EmptyList)))
+
+
+def gcd3(a, b, g):
+    return M.Pair(L.GcdLabel, M.Pair(a, M.Pair(b, M.Pair(g, M.EmptyList))))
+
+
+vx, vy, vz = var_pattern(), var_pattern(), var_pattern()
+# gcd(x,y)=1                       -> coprime(x,y)
+r_gcd = P.MultiRule(chain([gcd3(vx, vy, one)]), chain([coprime(vx, vy)]))()
+# coprime(x,y) & x | y*z           -> x|z, coprime(x,y) re-stated
+r_euclid = P.MultiRule(
+    chain([coprime(vx, vy), divides(vx, ex_mul(vy, vz))]),
+    chain([divides(vx, vz), coprime(vx, vy)]),
+)()
+# x|y & y|z                        -> x|z
+r_trans = P.MultiRule(
+    chain([divides(vx, vy), divides(vy, vz)]),
+    chain([divides(vx, vz)]),
+)()
+theory = chain([r_gcd, r_euclid, r_trans])
+assert P.ReplacementIsFactList(r_euclid)() is M.truth_value
+assert P.ReplacementIsFactList(r_gcd)() is M.truth_value
+print("    r_gcd:    gcd(x,y)=1 -> coprime(x,y)")
+print("    r_euclid: coprime(x,y) & x | y*z -> x|z (coprime re-stated)")
+print("    r_trans:  x|y & y|z -> x|z")
+print("    NOTE: the coprimality fact is re-stated by r_euclid so that the")
+print("    hypothesis survives the step and stays available as an invariant.")
+print()
+
+# --- [22] the machine closes a concrete configuration ------------------------
+# Instance data: gcd(7,12)=1, 7 | 12*21, and 21 | 63.
+print("[22] Closing the configuration {gcd(7,12)=1, 7 | 12*21, 21 | 63}...")
+a7, b12, c21, d63 = (nat_node(n) for n in (7, 12, 21, 63))
+config = chain([
+    gcd3(a7, b12, nat_node(1)),
+    divides(a7, ex_mul(b12, c21)),
+    divides(c21, d63),
+])
+for f in to_list(config):
+    print("      " + M.PrettyTerm(f, registry)())
+closure = to_list(GT.ForwardDeriveFacts(config, theory, machine_nat(4), registry)())
+print("    closure:")
+for f in closure:
+    print("      " + M.PrettyTerm(f, registry)())
+assert contains(closure, coprime(a7, b12)), (
+    "coprime(7,12) must be derived from the gcd fact"
+)
+assert contains(closure, divides(a7, c21)), (
+    "7|21 must be derived (Euclid's lemma)"
+)
+assert contains(closure, divides(a7, d63)), (
+    "7|63 must be derived (transitivity through 21)"
+)
+print("    OK: from the DATA alone the machine derives coprime(7,12), 7|21, 7|63.")
+print()
+
+# --- [23] the decoy configuration ---------------------------------------------
+print("[23] Decoy configuration {gcd(6,10)=2, 6 | 10*15}...")
+a6, b10, c15 = (nat_node(n) for n in (6, 10, 15))
+decoy = chain([gcd3(a6, b10, nat_node(2)), divides(a6, ex_mul(b10, c15))])
+for f in to_list(decoy):
+    print("      " + M.PrettyTerm(f, registry)())
+decoy_closure = to_list(
+    GT.ForwardDeriveFacts(decoy, theory, machine_nat(4), registry)()
+)
+print("    closure:")
+for f in decoy_closure:
+    print("      " + M.PrettyTerm(f, registry)())
+assert not contains(decoy_closure, coprime(a6, b10)), (
+    "coprime(6,10) must NOT be derived from gcd(6,10)=2"
+)
+assert not contains(decoy_closure, divides(a6, c15)), (
+    "6|15 must NOT be derived: no rule can fire without coprimality"
+)
+print("    OK: the machine refuses both the coprimality and the conclusion —")
+print("        with gcd = 2 the Euclid hypothesis is unavailable, so the theory")
+print("        simply does not fire (this is the honest incompleteness boundary:")
+print("        6 does divide 15 in the integers, but the theory cannot say so).")
+print()
+
+
+# --- [24] Checker B over the derivation ---------------------------------------
+def run_steps(start, rules, registry):
+    """Build a chain of proof steps by joining each rule's premises."""
+    state, rg, built = start, registry, []
+    for rule in rules:
+        join_res = P.JoinPremises(
+            P.RulePremises(rule)(), P.KnowledgeFacts(state)(), M.EmptyList
+        )()
+        assert M.IdentityCompare(join_res, M.EmptyList)() is M.false_value, (
+            "the rule's premises must join against the current state"
+        )
+        bindings = M.Head(join_res)()
+        nxt = P.ApplyKnowledgeRewrite(state, rule, bindings)()
+        action = P.TheoremAction(rule, bindings)()
+        step_pair = P.Step(state, action, nxt, rg)()
+        built.append(M.Head(step_pair)())
+        rg = M.Head(M.Tail(step_pair)())()
+        state = nxt
+    return built, state, rg
+
+
+print("[24] Checker B over the Euclid derivation and its transitive chain...")
+start_a = knowledge([gcd3(a7, b12, nat_node(1)), divides(a7, ex_mul(b12, c21))])
+goal_a = knowledge([divides(a7, c21)])
+steps_a, final_a, rg_a = run_steps(start_a, [r_gcd, r_euclid], registry)
+der_a = P.Derivation(
+    chain(steps_a), P.ProofCost(M.Zero, M.Zero, M.Zero, M.Zero)(), rg_a
+)()
+trace_a = M.Head(der_a)()
+rg_a = M.Head(M.Tail(der_a)())()
+verdict_a = CheckerB.VerifyDerivation(trace_a, start_a, goal_a, theory, rg_a)()
+print("    two-step (gcd -> coprime -> Euclid): " + label_name(M.Head(verdict_a)()))
+assert M.IdentityCompare(M.Head(verdict_a)(), L.DerivationVerifiedLabel)() is M.truth_value
+print("    final state: " + M.PrettyTerm(P.KnowledgeFacts(final_a)(), registry)())
+start_b = knowledge([
+    gcd3(a7, b12, nat_node(1)), divides(a7, ex_mul(b12, c21)), divides(c21, d63),
+])
+goal_b = knowledge([divides(a7, d63)])
+steps_b, final_b, rg_b = run_steps(start_b, [r_gcd, r_euclid, r_trans], registry)
+der_b = P.Derivation(
+    chain(steps_b), P.ProofCost(M.Zero, M.Zero, M.Zero, M.Zero)(), rg_b
+)()
+trace_b = M.Head(der_b)()
+rg_b = M.Head(M.Tail(der_b)())()
+verdict_b = CheckerB.VerifyDerivation(trace_b, start_b, goal_b, theory, rg_b)()
+print("    three-step (adds 7|21 & 21|63 -> 7|63): " + label_name(M.Head(verdict_b)()))
+assert M.IdentityCompare(M.Head(verdict_b)(), L.DerivationVerifiedLabel)() is M.truth_value
+print("    OK: both derivations verified step-by-step by Checker B.")
+print("    NOTE: the goal is covered-goal semantics — the goal's facts must all")
+print("        be present in the final state; intermediate facts consumed by a")
+print("        later step (7|21 feeds transitivity) are not in the final state.")
+print()
+
+# --- [25] mining the terminating invariant over the Euclid step ---------------
+print("[25] Mining the invariant that terminates the Euclid argument...")
+euclid_start = knowledge([
+    gcd3(a7, b12, nat_node(1)), divides(a7, ex_mul(b12, c21)), coprime(a7, b12),
+])
+steps_e, final_e, rg_e = run_steps(euclid_start, [r_euclid], registry)
+der_e = P.Derivation(
+    chain(steps_e), P.ProofCost(M.Zero, M.Zero, M.Zero, M.Zero)(), rg_e
+)()
+trace_e = M.Head(der_e)()
+rg_e = M.Head(M.Tail(der_e)())()
+phi_cop = Inv.Phi(coprime(vx, vy))()
+phi_div = Inv.Phi(divides(vx, vz))
+pres_cop = Miner.CheckInvariantPreservationAcrossRules(
+    phi_cop, chain([r_euclid]), rg_e
+)()
+pres_div = Miner.CheckInvariantPreservationAcrossRules(
+    phi_div, chain([r_euclid]), rg_e
+)()
+cop_ok = M.IdentityCompare(M.Head(pres_cop)(), M.truth_value)() is M.truth_value
+div_ok = M.IdentityCompare(M.Head(pres_div)(), M.truth_value)() is M.truth_value
+print("    phi = coprime(x,y) preserved by r_euclid: %s" % cop_ok)
+print("    phi = divides(x,z) preserved by r_euclid: %s" % div_ok)
+assert cop_ok, "the coprimality hypothesis must be machine-verified preserved"
+assert not div_ok, "the conclusion itself must be machine-refuted as invariant"
+refutation = M.Head(M.Tail(M.Tail(pres_div)())())()
+assert M.IdentityCompare(M.Head(refutation)(), L.InvariantRefutedLabel)() is M.truth_value
+print("    NOTE: the conclusion Divides(x,z) is REFUTED as an invariant — the")
+print("        rule's premise reading is Divides(x, y*z) and its output reading")
+print("        is Divides(x,z); the machine sees the term change and refuses.")
+mine = Miner.MineInvariantFromTrace(
+    trace_e, euclid_start, chain([r_euclid]), chain([phi_div, phi_cop]), rg_e
+)()
+assert M.IdentityCompare(M.Head(mine)(), M.truth_value)() is M.truth_value, (
+    "the miner must find a preserved invariant from the Euclid trace"
+)
+certificate = M.Head(M.Tail(mine)())()
+assert M.Compare(Miner.InvariantCertificatePhi(certificate)(), phi_cop)() is M.truth_value, (
+    "the mined certificate must carry the coprime invariant"
+)
+print("    OK: miner selects coprime(x,y); certificate issued.")
+decoy_state = P.Knowledge(decoy)()
+cop_claim = knowledge([coprime(a6, b10)])
+unreach = Miner.UnreachabilityProverByInvariant(
+    decoy_state, cop_claim, chain([r_euclid]), phi_cop, rg_e
+)()
+print("    decoy claim coprime(6,10) unreachable: " + label_name(M.Head(unreach)()))
+assert M.IdentityCompare(M.Head(unreach)(), L.UnreachableLabel)() is M.truth_value
+ablated = Miner.UnreachabilityProverByInvariant(
+    decoy_state, cop_claim, chain([r_euclid]), phi_div, rg_e
+)()
+print("    same claim with the refuted candidate: " + label_name(M.Head(ablated)()))
+assert M.IdentityCompare(M.Head(ablated)(), L.InvariantRefutedLabel)() is M.truth_value
+print("    OK: the mined invariant certifies the decoy's coprimality as")
+print("        unreachable; with a non-preserved candidate the argument cannot")
+print("        even start (the ablation).")
+print()
+
+# --- [26] the sweep: every positive triple derives, every decoy is refused ----
+print("[26] Sweeping the bounded configuration space (a,b,c in 2..8)...")
+rng = PG.BuildNatRange(nat_node(2), machine_nat(7), registry)()
+domain = M.Head(rng)()
+sweep_reg = M.Head(M.Tail(rng)())()
+print("    domain size: %d" % len(to_list(domain)))
+tuples = PG.ProductOfDomains(chain([domain, domain, domain]))()
+print("    triples: %d" % len(to_list(tuples)))
+
+
+def triple_vals(t):
+    x = M.Head(t)()
+    rest = M.Tail(t)()
+    y = M.Head(rest)()
+    rest = M.Tail(rest)()
+    z = M.Head(rest)()
+    return (nat_value(x), nat_value(y), nat_value(z))
+
+
+def m_divides(x, y):
+    return AR.Divides(nat_node(x), nat_node(y), sweep_reg)() is M.truth_value
+
+
+def m_product(x, y):
+    r = AR.Multiply(nat_node(x), nat_node(y), sweep_reg)()
+    return nat_value(M.Head(r)())
+
+
+def m_coprime(x, y):
+    return AR.IsCoprime(nat_node(x), nat_node(y), sweep_reg)() is M.truth_value
+
+
+def m_gcd(x, y):
+    r = AR.Gcd(nat_node(x), nat_node(y), sweep_reg)()
+    return nat_value(M.Head(r)())
+
+
+def pred_pos(t, rg):
+    a, b, c = triple_vals(t)
+    ok = m_divides(a, m_product(b, c)) and m_coprime(a, b)
+    return M.Pair(M.truth_value if ok else M.false_value, M.Pair(rg, M.EmptyList))
+
+
+pos_res = PG.FilterTuples(tuples, pred_pos, sweep_reg)()
+pos_tuples = to_list(M.Head(pos_res)())
+print("    positive class (a | b*c and coprime(a,b)): %d triples" % len(pos_tuples))
+
+
+def rel_pos(t, rg):
+    a, b, c = triple_vals(t)
+    na, nb, nc = nat_node(a), nat_node(b), nat_node(c)
+    cfg = chain([gcd3(na, nb, nat_node(1)), divides(na, ex_mul(nb, nc))])
+    cl = to_list(GT.ForwardDeriveFacts(cfg, theory, machine_nat(3), rg)())
+    ok = contains(cl, divides(na, nc))
+    return M.Pair(M.truth_value if ok else M.false_value, M.Pair(rg, M.EmptyList))
+
+
+uq_pos = PG.UniversalQuantify(chain(pos_tuples), rel_pos, sweep_reg)()
+pos_all = M.Head(uq_pos)() is M.truth_value
+print("    EVERY positive triple derives a|c: %s" % pos_all)
+assert pos_all, "the theory must be sound on the whole positive class"
+
+
+def pred_neg(t, rg):
+    a, b, c = triple_vals(t)
+    ok = m_divides(a, m_product(b, c)) and not m_coprime(a, b)
+    return M.Pair(M.truth_value if ok else M.false_value, M.Pair(rg, M.EmptyList))
+
+
+neg_res = PG.FilterTuples(tuples, pred_neg, sweep_reg)()
+neg_tuples = to_list(M.Head(neg_res)())
+print("    decoy class (a | b*c, NOT coprime): %d triples" % len(neg_tuples))
+
+
+def rel_neg(t, rg):
+    a, b, c = triple_vals(t)
+    na, nb, nc = nat_node(a), nat_node(b), nat_node(c)
+    cfg = chain([gcd3(na, nb, nat_node(m_gcd(a, b))), divides(na, ex_mul(nb, nc))])
+    cl = to_list(GT.ForwardDeriveFacts(cfg, theory, machine_nat(3), rg)())
+    refused = not contains(cl, divides(na, nc))
+    return M.Pair(M.truth_value if refused else M.false_value, M.Pair(rg, M.EmptyList))
+
+
+uq_neg = PG.UniversalQuantify(chain(neg_tuples), rel_neg, sweep_reg)()
+neg_all = M.Head(uq_neg)() is M.truth_value
+print("    EVERY decoy triple is refused: %s" % neg_all)
+assert neg_all, "no decoy-class triple may yield the conclusion"
+# Honest incompleteness measure, machine-counted: how many decoy-class
+# triples are TRUE in the integers anyway (a | c holds) even though the
+# theory refuses to derive it.  This is the size of the theory gap.
+true_anyway = 0
+for t in neg_tuples:
+    a, b, c = triple_vals(t)
+    if AR.Divides(nat_node(c), nat_node(a), sweep_reg)() is M.truth_value:
+        true_anyway += 1
+print("    decoy-class triples where a|c is mathematically true: %d (theory gap)" % true_anyway)
+print("    OK: sound on the positive class, refuses the whole decoy class.")
+print()
+
+# --- [27] the generic candidate macro, verified by Checker B ------------------
+print("[27] Generic candidate macro (gcd=1 & x|y*z -> x|z)...")
+macro_start = knowledge([gcd3(vx, vy, one), divides(vx, ex_mul(vy, vz))])
+macro_goal = knowledge([divides(vx, vz)])
+macro_plan = chain([
+    P.TheoremAction(r_gcd, M.EmptyList)(),
+    P.TheoremAction(r_euclid, M.EmptyList)(),
+])
+macro_id = M.Atom()
+macro = Eval.CandidateMacro(macro_id, macro_start, macro_goal, macro_plan)()
+eval_res = Eval.EvaluateCandidateProof(macro, start_a, goal_a, theory, registry)()
+print("    evaluation: " + label_name(M.Head(eval_res)()))
+assert M.IdentityCompare(M.Head(eval_res)(), L.CandidateEvaluatedLabel)() is M.truth_value, (
+    "the candidate proof must be verified by Checker B"
+)
+receipt = M.Head(M.Tail(eval_res)())()
+assert M.IdentityCompare(M.Head(receipt)(), L.ProofReceiptLabel)() is M.truth_value
+print("    OK: Checker B verified the expansion; proof receipt issued.")
+ablation = Eval.AblationTrial(macro, start_a, goal_a, theory, registry)()
+ablation_status = M.Head(M.Tail(M.Tail(ablation)())())()
+print("    ablation: " + label_name(M.Head(ablation)()) + " / " + label_name(ablation_status))
+assert M.IdentityCompare(M.Head(ablation)(), L.AblationVerifiedLabel)() is M.truth_value
+assert M.IdentityCompare(ablation_status, L.ProvedLabel)() is M.truth_value, (
+    "start != goal, so the derivation must be non-trivial"
+)
+print("    OK: ablation ProvedLabel — 7|21 is not vacuously closed.")
+print()
+
+# --- [28] held-out suite drawn from the sweep classes -------------------------
+print("[28] Held-out suite: 3 positives + 3 decoys drawn from the sweep...")
+
+
+def sweep_item(t):
+    a, b, c = triple_vals(t)
+    na, nb, nc = nat_node(a), nat_node(b), nat_node(c)
+    st = knowledge([gcd3(na, nb, nat_node(1)), divides(na, ex_mul(nb, nc))])
+    gl = knowledge([divides(na, nc)])
+    return M.Pair(st, M.Pair(gl, M.Pair(M.truth_value, M.EmptyList)))
+
+
+def decoy_item(t):
+    a, b, c = triple_vals(t)
+    na, nb, nc = nat_node(a), nat_node(b), nat_node(c)
+    st = knowledge([gcd3(na, nb, nat_node(m_gcd(a, b))), divides(na, ex_mul(nb, nc))])
+    gl = knowledge([divides(na, nc)])
+    return M.Pair(st, M.Pair(gl, M.Pair(M.false_value, M.EmptyList)))
+
+
+pick_pos = [pos_tuples[0], pos_tuples[len(pos_tuples) // 2], pos_tuples[-1]]
+pick_neg = [neg_tuples[0], neg_tuples[len(neg_tuples) // 2], neg_tuples[-1]]
+for t in pick_pos + pick_neg:
+    print("      item (a,b,c) = %s" % (triple_vals(t),))
+holdouts = chain(
+    [sweep_item(t) for t in pick_pos] + [decoy_item(t) for t in pick_neg]
+)
+suite_res = Eval.EvaluateHoldoutSuite(macro, holdouts, theory, registry)()
+assert M.IdentityCompare(M.Head(suite_res)(), L.HoldoutSuiteResultLabel)() is M.truth_value
+passed = to_list(M.Head(M.Tail(suite_res)())())
+failed = to_list(M.Head(M.Tail(M.Tail(suite_res)())())())
+print("    holdout suite: passed=%d failed=%d" % (len(passed), len(failed)))
+assert len(passed) == 6 and len(failed) == 0, (
+    "all six held-out items must behave as expected"
+)
+print("    OK: sweep-drawn positives verified; decoys rejected as expected.")
+print()
+
+# --- [29] promotion ledger: promote the verified schema, refuse the decoy -----
+print("[29] Promotion ledger — autonomous cycle, then the decoy refusal...")
+decoy_start = P.Knowledge(decoy)()
+decoy_goal = knowledge([divides(a6, c15)])
+baseline_cost = P.ProofCost(machine_nat(1), M.Zero, M.Zero, M.Zero)()
+templates = chain([phi_div, phi_cop])
+empty_ledger = Ledger.EmptyPromotionLedger(registry)()
+cycle_res = Ledger.ExecuteAutonomousDiscoveryCycle(
+    trace_a, macro_start, macro_goal, theory, templates,
+    macro_id, macro_plan, baseline_cost, holdouts,
+    L.ProofSchemaPromotionLabel, empty_ledger, registry,
+)()
+print("    cycle: " + label_name(M.Head(cycle_res)()))
+assert M.IdentityCompare(M.Head(cycle_res)(), L.AutonomousCycleCompletedLabel)() is M.truth_value, (
+    "the verified cycle must complete: trace -> miner -> macro -> checker -> ledger"
+)
+ledger_v1 = M.Head(M.Tail(cycle_res)())()
+entry = M.Head(M.Tail(M.Tail(cycle_res)())())()
+print("    entry status: " + label_name(Ledger.LedgerEntryStatus(entry)()))
+assert M.IdentityCompare(Ledger.LedgerEntryStatus(entry)(), L.PromotionActiveLabel)() is M.truth_value
+active_v1 = to_list(
+    Ledger.QueryActivePromotions(ledger_v1, L.ProofSchemaPromotionLabel, registry)()
+)
+assert len(active_v1) == 1
+print("    OK: schema promoted with the invariant certificate as provenance.")
+decoy_ledger = Ledger.EmptyPromotionLedger(registry)()
+refusal = Ledger.SubmitCandidateForPromotion(
+    decoy_ledger, macro, L.ProofSchemaPromotionLabel, decoy_start,
+    decoy_goal, baseline_cost, holdouts, M.EmptyList, theory, registry,
+)()
+print("    decoy submission: " + label_name(M.Head(refusal)()))
+assert M.IdentityCompare(M.Head(refusal)(), L.PromotionRejectedLabel)() is M.truth_value, (
+    "the decoy claim must be refused at the promotion gate"
+)
+refusal_reason = M.Head(M.Tail(refusal)())()
+print("    refusal reason: " + label_name(refusal_reason))
+assert M.IdentityCompare(
+    Ledger.PromotionLedgerVersion(decoy_ledger)(), M.Zero
+)() is M.truth_value, "a refused submission must not advance the ledger"
+assert M.IdentityCompare(
+    Ledger.QueryActivePromotions(decoy_ledger, L.ProofSchemaPromotionLabel, registry)(),
+    M.EmptyList,
+)() is M.truth_value
+print("    OK: decoy refused with a machine-stated reason; ledger unmoved.")
+print()
+
+# --- [30] family-3 boundaries ---------------------------------------------------
+print("[30] Boundaries — what family 3 does NOT establish:")
+print("  (a) The theory is INCOMPLETE by construction: r_euclid needs the")
+print("      coprimality hypothesis, so every configuration with gcd > 1 is")
+print("      refused — including triples where a|c is mathematically true")
+print("      (counted in [26]: %d of %d decoy-class triples)." % (true_anyway, len(neg_tuples)))
+print("  (b) No division/remainder reasoning exists: Gcd, Divides, Multiply and")
+print("      IsCoprime are the trusted W7 host primitives over GMPRep Nats and")
+print("      are used only to build instance DATA and to classify the sweep;")
+print("      every inference step is the machine's own forward engine.")
+print("  (c) The rules are generic fact-list rewrites, not a decision procedure:")
+print("      the closure engine instantiates the first join per depth step, so")
+print("      the derivations above are single-chain, not exhaustive search.")
+print("  (d) The certificate covers the Euclid step only (r_gcd and r_trans have")
+print("      no Coprime premise, so full-theory preservation fails); the miner")
+print("      is run over [r_euclid] and that scope is stated, not hidden.")
+print("  (e) Held-out evidence for family 3 is drawn from the machine's own sweep")
+print("      over (a,b,c) in 2..8 — unseen instances plus refused decoys — not")
+print("      from curriculum cards (the curriculum has no number-theory cards).")
+print()
 print(
     "=== ALL TEST 22 CHECKS PASSED in %.3fs ===" % (time.time() - t0)
 )

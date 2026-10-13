@@ -371,6 +371,32 @@ class ForwardDeriveFacts(M.Edge):
 
         return rest
 
+    def _apply_unary_factlist_rec(self, premise, replacement, cur_facts, existing_facts):
+        # A single-premise rule whose replacement is a list of facts: each
+        # matching fact spawns the whole instantiated fact list.  Facts are
+        # filtered against the pre-existing facts and against everything
+        # already derived in this pass, so no fact is ever repeated.
+        if M.IdentityCompare(cur_facts, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+
+        f = M.Head(cur_facts)()
+        rest = self._apply_unary_factlist_rec(
+            premise, replacement, M.Tail(cur_facts)(), existing_facts
+        )
+        match_res = M.Match(premise, f)()
+
+        if (
+            M.IdentityCompare(M.Head(match_res)(), M.truth_value)()
+            is M.truth_value
+        ):
+            bindings = M.Tail(match_res)()
+            inst_res = P.InstantiateFactList(replacement, bindings)()
+            fresh = self._filter_new_facts_rec(inst_res, existing_facts)
+            fresh = self._filter_new_facts_rec(fresh, rest)
+            return self._merge_facts_rec(fresh, rest, M.EmptyList)
+
+        return rest
+
     def _apply_all_rules_rec(self, cur_rules, current_facts):
         if M.IdentityCompare(cur_rules, M.EmptyList)() is M.truth_value:
             return M.EmptyList
@@ -381,9 +407,18 @@ class ForwardDeriveFacts(M.Edge):
 
         if is_unary is M.truth_value:
             premise = P.RulePattern(r)()
-            new_from_r = self._apply_rule_to_facts_rec(
-                premise, replacement, current_facts, current_facts
-            )
+            if P.ReplacementIsFactList(r)() is M.truth_value:
+                # Unary in PREMISE COUNT does not mean unary in RESULT: a
+                # one-premise rule may still replace its single matched fact
+                # with several facts.  Instantiate the fact list; a plain
+                # Instantiate would embed the whole list as one bogus term.
+                new_from_r = self._apply_unary_factlist_rec(
+                    premise, replacement, current_facts, current_facts
+                )
+            else:
+                new_from_r = self._apply_rule_to_facts_rec(
+                    premise, replacement, current_facts, current_facts
+                )
         else:
             premises = P.RulePremises(r)()
             match_res = MatchQueryConjunction(
