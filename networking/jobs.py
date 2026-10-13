@@ -325,3 +325,75 @@ class SearchJobRunner:
             reason="" if protocol.status_is_success(status) else status,
             artifact_bytes=os.path.getsize(job.result_ref) if os.path.exists(job.result_ref) else 0,
         )
+
+
+class SwarmJobRunner:
+    """Runs W16 work units over the mesh: one unit per job, one snapshot each.
+
+    A `SearchJobRunner` boots one runtime per peer and reuses it across jobs,
+    which is what makes the ~20 s pack boot affordable. A swarm unit cannot be
+    served that way, because the unit *is* the state -- a frontier of one node
+    inside a snapshot -- so every job pays a snapshot load instead. Measured,
+    that is 8.8 s against a 20 s pack boot plus an 18 s expansion, which is the
+    whole trade the partition buys: more, cheaper jobs.
+
+    The unit's path arrives in the job's manifest, which `mesh.load_jobs` passes
+    through untouched, so nothing about the unit crosses the wire except a
+    reference to machine state.
+
+    Status follows the runner's contract, not the theorem's: a unit that searched
+    to a terminal status reports `ok` whether or not it found a proof, because
+    "this branch does not prove the goal" is a result the swarm needs in order to
+    merge. Whether the goal was proved is in the result snapshot, where
+    `project_result` reads it.
+    """
+
+    def __init__(self, namespace=None, timeout_seconds: int = 600, supported_modes=None, log=None):
+        self.namespace = namespace
+        self.timeout_seconds = timeout_seconds
+        self.supported_modes = tuple(supported_modes) if supported_modes else ("dfs", "bfs", "astar", "beam", "rewritedfs")
+        self._log = log or (lambda text: None)
+        self.units_run = 0
+
+    @property
+    def booted(self) -> bool:
+        """True once this peer has loaded at least one unit.
+
+        There is no single boot to report: each unit loads its own snapshot. The
+        peer only asks whether the runner is usable, and it is from the start.
+        """
+        return self.units_run > 0
+
+    def supports(self, mode: str) -> bool:
+        return mode in self.supported_modes
+
+    def run(self, job) -> JobOutcome:
+        from .. import main as MA
+
+        unit_path = (job.manifest or {}).get("unit_path")
+        started = time.time()
+        if not unit_path:
+            return JobOutcome(
+                job.job_id,
+                protocol.STATUS_FAILED,
+                3,
+                job.result_ref,
+                job.source_digest,
+                elapsed_seconds=time.time() - started,
+                reason="unit-path-missing",
+            )
+        self._log("running unit " + str(unit_path))
+        exit_code = MA.run_swarm_worker_mode(unit_path, job.result_ref, self.timeout_seconds)
+        self.units_run += 1
+        elapsed = time.time() - started
+        status = exit_code_to_status(exit_code)
+        return JobOutcome(
+            job.job_id,
+            status,
+            exit_code,
+            job.result_ref,
+            job.source_digest,
+            elapsed_seconds=elapsed,
+            reason="" if protocol.status_is_success(status) else status,
+            artifact_bytes=os.path.getsize(job.result_ref) if os.path.exists(job.result_ref) else 0,
+        )

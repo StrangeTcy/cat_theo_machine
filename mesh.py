@@ -239,8 +239,15 @@ def run_peer_cli(
     jobs_file=None,
     run_seconds=0.0,
     cert_name=None,
+    swarm=False,
 ):
-    """Entry point for `python main.py mesh ...`. Returns a process exit code."""
+    """Entry point for `python main.py mesh ...`. Returns a process exit code.
+
+    `swarm` swaps the worker's runner: W16 work units are snapshots rather than
+    agenda problems, so they are served by `SwarmJobRunner` instead of the search
+    worker. The transport, membership, leases and stealing are unchanged -- that
+    is the point of consuming W2 rather than reimplementing it.
+    """
     directory = cert_dir or default_cert_dir()
     modes = [mode.strip() for mode in (worker_modes or "dfs,bfs,astar,beam,rewritedfs").split(",") if mode.strip()]
     name = cert_name or role
@@ -252,7 +259,10 @@ def run_peer_cli(
     def log(text):
         print("[mesh:%s] %s" % (name, text), flush=True)
 
-    peer = build_peer(role, identity, modes=modes, timeout_seconds=timeout_seconds, log=log)
+    runner = None
+    if swarm:
+        runner = MeshJobs.SwarmJobRunner(timeout_seconds=timeout_seconds, supported_modes=modes, log=log)
+    peer = build_peer(role, identity, modes=modes, timeout_seconds=timeout_seconds, log=log, runner=runner)
     address = peer.start(host, port)
     log("listening on %s (mTLS, mutual authentication required)" % address)
 

@@ -1078,7 +1078,7 @@ def run_search_worker_mode(worker_mode: str, result_path: str, timeout_seconds: 
     return search_worker_execute(worker_mode, result_path, timeout_seconds, boot)
 
 
-def run_mesh_peer_mode(role: str, bind: str, coordinator: str = None, worker_modes: str = None, timeout_seconds: int = 6000, cert_dir: str = None, jobs_file: str = None, run_seconds: float = 0.0, cert_name: str = None):
+def run_mesh_peer_mode(role: str, bind: str, coordinator: str = None, worker_modes: str = None, timeout_seconds: int = 6000, cert_dir: str = None, jobs_file: str = None, run_seconds: float = 0.0, cert_name: str = None, swarm: bool = False):
     """`python main.py mesh ...` -- a long-lived peer of the W2 RPC/mTLS mesh.
 
     Boots the machine once (so the ~20 s pack boot is paid once per peer, not
@@ -1096,6 +1096,7 @@ def run_mesh_peer_mode(role: str, bind: str, coordinator: str = None, worker_mod
         jobs_file=jobs_file,
         run_seconds=run_seconds,
         cert_name=cert_name,
+        swarm=swarm,
     )
 
 
@@ -2099,6 +2100,11 @@ def main():
         help="For swarm plan: how many shards to offer the units across.",
     )
     parser.add_argument(
+        "--swarm",
+        action="store_true",
+        help="For mesh mode: serve W16 work units (snapshots) instead of agenda search jobs.",
+    )
+    parser.add_argument(
         "--bind",
         default="127.0.0.1:0",
         help="For mesh mode: HOST:PORT to listen on (port 0 picks a free one).",
@@ -2196,6 +2202,7 @@ def main():
                     jobs_file=args.jobs,
                     run_seconds=args.run_seconds,
                     cert_name=args.cert_name,
+                    swarm=args.swarm,
                 )
             )
         else:
