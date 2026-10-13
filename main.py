@@ -1099,6 +1099,166 @@ def run_mesh_peer_mode(role: str, bind: str, coordinator: str = None, worker_mod
     )
 
 
+SWARM_UNIT_STEP_BUDGET = 60
+
+
+def run_swarm_worker_mode(unit_path: str, result_path: str, timeout_seconds: int = 600):
+    """`python main.py swarm --role worker UNIT RESULT` -- run one work unit.
+
+    A unit is a snapshot holding exactly one search job whose frontier is a
+    single node; see `search/distributed_engine.py` for why a unit is one node
+    and not a shard. Booting it measured 8.8 s against a 20 s pack boot plus an
+    18 s expansion, which is what makes a partitioned swarm affordable at all.
+
+    The result goes out through the same checkpoint helper the search worker
+    uses, so `networking.jobs.project_result` reads a unit's result exactly as it
+    reads any other search result -- which is how the suite compares proofs
+    rather than bytes.
+
+    Exit status follows the W2 rule that a *result* is not a failure: a unit that
+    searched to a terminal status and wrote its result exits 0 whether or not it
+    found a proof, because "this branch does not prove the goal" is an answer the
+    swarm needs. Only infrastructure breakage -- an unreadable unit, a job that
+    never reached a terminal status -- exits non-zero.
+    """
+    from .search import distributed_engine as swarm
+
+    P.SetDebugTrace(M.truth_value)()
+    _maybe_set_search_worker_memory_limit()
+    started_at = time.time()
+    runtime, graph, registry, job = swarm.read_unit(unit_path, _runtime_namespace())
+    graph._search_disable_console = M.truth_value
+    graph._search_disable_progress_ticker = M.false_value
+    graph._search_stop_help_shown = M.truth_value
+    graph._search_worker_timeout_seconds = float(timeout_seconds)
+    P.DERIVATION_REPLAY_DEBUG_SUPPRESS_STATE.value = M.truth_value
+    budget, registry = swarm.nat(SWARM_UNIT_STEP_BUDGET, registry)
+    pair = Smod.SearchBurst(graph, job, budget, registry)()
+    job = M.Head(pair)()
+    registry = M.Head(M.Tail(pair)())()
+    graph._replace_context(constructors=registry)
+    status = M.SearchJobStatus(job)()
+    plan = M.SearchJobResultPlan(job)()
+    terminal = M.IdentityCompare(status, M.SearchRunningLabel)() is M.false_value
+    proof_cost = P.ProofCost(M.Zero, M.Zero, M.Zero, M.Zero)()
+    search_cost_pair = Smod.BuildSearchCost(
+        M.EmptyList, M.Zero, M.Zero, M.Zero, M.SearchRunningLabel, registry
+    )()
+    search_cost = M.Head(search_cost_pair)()
+    _search_worker_checkpoint(
+        runtime,
+        result_path,
+        M.SearchJobStart(job)(),
+        M.SearchJobGoal(job)(),
+        M.SearchJobHeuristic(job)(),
+        status,
+        M.EmptyList,
+        proof_cost,
+        search_cost,
+        int((time.time() - started_at) * 1000),
+        "swarm-unit",
+        worker_plan=plan,
+    )
+    proved = M.IdentityCompare(status, M.SearchSuccessLabel)() is M.truth_value
+    print(
+        "[swarm:worker] unit=%s proved=%s terminal=%s elapsed=%.1fs result=%s"
+        % (os.path.basename(unit_path), proved, terminal, time.time() - started_at, result_path),
+        flush=True,
+    )
+    return 0 if terminal else 1
+
+
+def run_swarm_plan_mode(problem: str, out_dir: str, burst_steps: int = 3, shard_count: int = 2, mode_text: str = "dfs"):
+    """`python main.py swarm --role plan` -- expand once, then ship units.
+
+    The expansion is the expensive part of a swarm run and it is identical in
+    every worker, so it happens here, once: the frontier is partitioned into
+    single-node units, each is written as a snapshot, and a job file is written
+    for the mesh. `unit_path` rides in each job's manifest, which `mesh.load_jobs`
+    passes through untouched, so the units cross the W2 transport as references
+    to machine state rather than as serialised terms.
+    """
+    from .search import distributed_engine as swarm
+
+    os.makedirs(out_dir, exist_ok=True)
+    runtime, packs = boot_from_packs(PACK_PATHS, _runtime_namespace())
+    graph = runtime.graph
+    graph._search_disable_console = M.truth_value
+    graph._search_disable_progress_ticker = M.false_value
+    graph._search_stop_help_shown = M.truth_value
+    graph._search_probe_disable_applicable_cache = M.false_value
+    graph._search_probe_disable_applicable_shards = M.truth_value
+    registry = M.FromContextGetConstructors(graph)()
+    matches = [case for case in _theorem_agenda(packs, "all") if problem.lower() in case[0].lower()]
+    if not matches:
+        raise RuntimeError("no agenda problem matches " + repr(problem))
+    label, start, goal, _rules, _phi = matches[0]
+    heuristic = _search_worker_mode_heuristic(runtime, mode_text, registry)
+    # NormalizeKnowledge, not the heuristic canonicalization the search worker
+    # applies: these are the exact terms the partition function was measured
+    # against, and the suite compares a baseline and its units produced by this
+    # one code path, so what matters is that both arms agree.
+    start = P.NormalizeKnowledge(start, registry)()
+    goal = P.NormalizeKnowledge(goal, registry)()
+    rules = runtime.ordered_rules()
+    job = swarm.root_job(start, goal, rules, heuristic, swarm.step_limit(graph, rules, registry))
+    job, registry, units, size = swarm.expand_frontier(
+        graph, job, registry, burst_steps, shard_count=shard_count
+    )
+    graph._replace_context(constructors=registry)
+    if not size:
+        raise RuntimeError(
+            "problem " + label + " left no frontier to partition; pick one that is not settled by a root fast path"
+        )
+    frontier = M.SearchJobFrontier(job)()
+    baseline_path = os.path.join(out_dir, "baseline.json")
+    swarm.write_unit(runtime, baseline_path, _runtime_namespace(), job)
+    entries = []
+    for unit in units:
+        unit_path = os.path.join(out_dir, "unit-%03d.json" % unit.frontier_index)
+        node = swarm.only_node(frontier, unit.frontier_index)
+        swarm.write_unit(runtime, unit_path, _runtime_namespace(), swarm.rebuild_job(job, node))
+        entries.append(
+            {
+                "job_id": unit.unit_id,
+                "mode": mode_text,
+                "result_ref": os.path.join(out_dir, "result-%03d.json" % unit.frontier_index),
+                "manifest": {
+                    "unit_path": unit_path,
+                    "frontier_index": unit.frontier_index,
+                    "digest": unit.digest,
+                    "shard": unit.shard,
+                    "problem": label,
+                },
+                "scope_ids": ["swarm-" + unit.digest[:16]],
+            }
+        )
+    plan_path = os.path.join(out_dir, "plan.json")
+    with open(plan_path, "w", encoding="utf-8") as handle:
+        json.dump(
+            {
+                "problem": label,
+                "mode": mode_text,
+                "burst_steps": burst_steps,
+                "shard_count": shard_count,
+                "frontier_size": size,
+                "shard_sizes": swarm.shard_sizes(units, shard_count),
+                "exact": swarm.partition_is_exact(units, size),
+                "baseline": baseline_path,
+                "jobs": entries,
+            },
+            handle,
+            indent=2,
+            sort_keys=True,
+        )
+    print(
+        "[swarm:plan] problem=%s nodes=%d shards=%s exact=%s plan=%s"
+        % (label, size, swarm.shard_sizes(units, shard_count), swarm.partition_is_exact(units, size), plan_path),
+        flush=True,
+    )
+    return 0
+
+
 def run_cold_mode(debug: bool = False, filter_name: str = "tao"):
     if debug:
         P.SetDebugTrace(M.truth_value)()
@@ -1887,8 +2047,8 @@ def main():
         "mode",
         nargs="?",
         default="cold",
-        choices=["cold", "warm", "test", "inspect", "search-worker", "live", "mesh"],
-        help="Boot mode: cold (from packs), warm (from snapshot), test, inspect, search-worker, live, or mesh",
+        choices=["cold", "warm", "test", "inspect", "search-worker", "live", "mesh", "swarm"],
+        help="Boot mode: cold (from packs), warm (from snapshot), test, inspect, search-worker, live, mesh, or swarm",
     )
     parser.add_argument("arg1", nargs="?", default=None)
     parser.add_argument("arg2", nargs="?", default=None)
@@ -1913,8 +2073,30 @@ def main():
     parser.add_argument(
         "--role",
         default="worker",
-        choices=["coordinator", "worker"],
-        help="For mesh mode: whether this peer dispatches jobs or serves them.",
+        choices=["coordinator", "worker", "plan"],
+        help="For mesh mode: whether this peer dispatches jobs or serves them. For swarm mode: plan units, or run one.",
+    )
+    parser.add_argument(
+        "--out",
+        default=None,
+        help="For swarm plan: directory to write unit snapshots and the job file into.",
+    )
+    parser.add_argument(
+        "--problem",
+        default="engel_e2",
+        help="For swarm plan: which agenda problem to partition (substring match).",
+    )
+    parser.add_argument(
+        "--burst",
+        type=int,
+        default=3,
+        help="For swarm plan: search steps to expand the root before partitioning.",
+    )
+    parser.add_argument(
+        "--shards",
+        type=int,
+        default=2,
+        help="For swarm plan: how many shards to offer the units across.",
     )
     parser.add_argument(
         "--bind",
@@ -1984,6 +2166,24 @@ def main():
             if args.arg3 is not None:
                 timeout_seconds = int(args.arg3)
             raise SystemExit(run_search_worker_mode(args.arg1, args.arg2, timeout_seconds))
+        elif args.mode == "swarm":
+            if args.role == "worker":
+                if args.arg1 is None or args.arg2 is None:
+                    raise RuntimeError("swarm worker requires UNIT_PATH and RESULT_PATH")
+                swarm_timeout = 600
+                if args.arg3 is not None:
+                    swarm_timeout = int(args.arg3)
+                raise SystemExit(run_swarm_worker_mode(args.arg1, args.arg2, swarm_timeout))
+            if args.out is None:
+                raise RuntimeError("swarm plan requires --out DIR")
+            raise SystemExit(
+                run_swarm_plan_mode(
+                    problem=args.problem,
+                    out_dir=args.out,
+                    burst_steps=args.burst,
+                    shard_count=args.shards,
+                )
+            )
         elif args.mode == "mesh":
             raise SystemExit(
                 run_mesh_peer_mode(

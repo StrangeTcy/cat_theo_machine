@@ -574,9 +574,17 @@ def phase_protocol(results, directory):
     results.check(
         "a deferred result counts as a result, not a failure",
         (coordinator.outcome(deferred_job.job_id) or {}).get("status") == protocol.STATUS_DEFERRED
+        # The invariant is about *this* job: `status_is_success` accepts it and the
+        # ledger files it under `done`. The summary counters are only a proxy for
+        # that, and they are not this check's to read -- several jobs are in
+        # flight, so an unrelated one finishing or failing inside the window moves
+        # both counters. That is why `completed` is a `>` and not a `+1`, and why
+        # the `failed` counter is not compared at all: it caught a run where an
+        # unrelated job failed while this one was being recorded, and reported a
+        # defect in a check that had found none.
+        and protocol.status_is_success((coordinator.outcome(deferred_job.job_id) or {}).get("status"))
         and coordinator._job_state.get(deferred_job.job_id) == "done"
-        and after_deferred["completed"] > before_deferred["completed"]
-        and after_deferred["failed"] == before_deferred["failed"],
+        and after_deferred["completed"] > before_deferred["completed"],
         "status=%s state=%s completed %s->%s failed %s->%s"
         % (
             (coordinator.outcome(deferred_job.job_id) or {}).get("status"),
