@@ -1,14 +1,20 @@
 # ============================================================
-# TEST 22: IMO combinatorics — family 1 delivered
-# (discrete combinatorial configurations as fact hypergraphs
-#  closed by generic multi-premise rules, with the terminating
-#  invariant found by invariant_miner.py)
+# TEST 22: IMO combinatorics — families 1 and 2 delivered
+#
+# FAMILY 1 (sections [0]-[12]): discrete combinatorial configurations
+# as fact hypergraphs closed by generic multi-premise rules, with the
+# terminating invariant found by invariant_miner.py.
+#
+# FAMILY 2 (sections [13]-[20]): functional equations as rewrite
+# schemas — the equation is DATA (an ExprEq term), compiled by a
+# generic machine edge into a unary rewrite schema whose consequences
+# are derived, closed, and Checker-B-verified.
 #
 # Delegation slot: W09 "IMO combinatorics / functional equations",
-# family 1 of 3 (see delegation/W09-imo-combinatorics-funceq.md).
+# families 1 and 2 of 3 (see delegation/W09-imo-combinatorics-funceq.md).
 #
 # WHAT THIS SUITE DERIVES (machine rules only, no authored answers):
-#   A generic collision rule over an opaque fact hypergraph —
+#   [family 1] A generic collision rule over an opaque fact hypergraph —
 #       residue(x,r) & residue(y,r) & distinct(x,y)
 #           -> shares_class(x,y) & residue(x,r) & residue(y,r)
 #   — is closed by the machine's own forward engine over a concrete
@@ -23,20 +29,36 @@
 #   through the ledger with the invariant certificate as provenance,
 #   and the decoy claim (collision from an injective configuration) is
 #   refused at the promotion gate with a machine-stated reason.
+#   [family 2] Cauchy's additive equation, as data, is compiled into a
+#   rewrite schema by a generic machine edge (math/funceq.py); the
+#   machine closes f((x+y)+z) under that schema to the expanded normal
+#   form f(x)+f(y)+f(z) with machine-checked termination evidence,
+#   verifies the two-step expansion (root step + path step) under
+#   Checker B, and shows the multiplicative claim is NOT derivable from
+#   the additive schema.  A second equation (multiplicative Cauchy)
+#   goes through the same compiler unchanged, and a generic consequence
+#   macro is promoted by the ledger while the decoy claim is refused.
 #
 # WHAT THIS SUITE DOES NOT DERIVE (stated, and machine-checked where
-# checkable — see the boundary section at the end):
-#   * the counting bound "n+1 values into n classes forces a
-#     collision" is NOT mechanized (no cardinality reasoning);
-#   * the arithmetic reading "same class <=> difference divisible by
-#     n" is NOT mechanized (no integer/divisibility constructors —
-#     the card's own "missing constructors" list);
-#   * the closure engine instantiates the first join per depth step,
-#     it does not enumerate all joins;
-#   * PhiReading is first-match, so the unreachability prover is used
-#     only in the direction where that reading is sound;
-#   * families 2 (functional equations) and 3 (number theory) are NOT
-#     derived by this suite.
+# checkable — see the boundary sections at the end):
+#   [family 1] the counting bound "n+1 values into n classes forces a
+#     collision" is NOT mechanized (no cardinality reasoning); the
+#     arithmetic reading "same class <=> difference divisible by n" is
+#     NOT mechanized (no integer/divisibility constructors — the card's
+#     own "missing constructors" list); the closure engine instantiates
+#     the first join per depth step; PhiReading is first-match, so the
+#     unreachability prover is used only where that reading is sound.
+#   [family 2] consequences are expansion-level only: cancellation
+#     (f(0) = 0), induction (f(nx) = n f(x)) and regularity-based
+#     linearity are NOT derived; the equation orients as authored (no
+#     reduction order, no termination proof beyond the machine-checked
+#     normal form); the invariant miner's first-match preservation
+#     semantics does not fit the expansion schema (machine-verified
+#     refusals, reported honestly); the curriculum contains no
+#     functional-equation cards, so held-out evidence for family 2 is
+#     unseen instances plus refused decoys, not curriculum cards.
+#   [family 3] number theory (coprimality, divisibility, residues over
+#     Peano/GMP) is NOT derived by this suite.
 #
 # No new labels, no kernel edits, no packs, no curriculum cards
 # encoded: instances below are data built from opaque nodes; the
@@ -52,6 +74,7 @@ IMPORT_ROOT = os.path.dirname(
 if IMPORT_ROOT not in sys.path:
     sys.path.insert(0, IMPORT_ROOT)
 
+from cat_theo_machine import checker_b as CheckerB
 from cat_theo_machine import evaluator as Eval
 from cat_theo_machine import graph_task as GT
 from cat_theo_machine import invariant_miner as Miner
@@ -60,6 +83,7 @@ from cat_theo_machine import labels as L
 from cat_theo_machine import machine as M
 from cat_theo_machine import proof as P
 from cat_theo_machine import promotion_ledger as Ledger
+from cat_theo_machine.math import funceq as FE
 from cat_theo_machine.runtime import make_fresh_runtime
 
 t0 = time.time()
@@ -481,8 +505,312 @@ print("  (c) The closure engine instantiates the first join per depth step; it")
 print("      does not enumerate all joins ([2] derives one oriented collision).")
 print("  (d) PhiReading is first-match; the unreachability prover is therefore")
 print("      used only in the sound direction ([6]/[7]) — see the note in [7].")
-print("  (e) Families 2 (functional equations as rewrite schemata) and 3")
-print("      (number theory over Peano/GMP residues) are NOT derived here.")
+print("  (e) Family 2 (functional equations) is delivered below in [13]-[20];")
+print("      family 3 (number theory over Peano/GMP residues) is NOT derived")
+print("      here.")
+print()
+
+# ============================================================
+# FAMILY 2 — functional equations as rewrite schemas
+# ============================================================
+print()
+print("=== FAMILY 2: functional equations as rewrite schemas ===")
+print()
+
+
+def vp():
+    return M.Pair(M.VarTag, M.Pair(M.Var(), M.EmptyList))
+
+
+def ex_add(x, y):
+    return M.Pair(L.ExprAddLabel, M.Pair(x, M.Pair(y, M.EmptyList)))
+
+
+def ex_mul(x, y):
+    return M.Pair(L.ExprMulLabel, M.Pair(x, M.Pair(y, M.EmptyList)))
+
+
+def ex_apply(func, arg):
+    return M.Pair(L.ApplyLabel, M.Pair(func, M.Pair(arg, M.EmptyList)))
+
+
+# --- [13] the equation as data, compiled into a schema -----------------------
+print("[13] Cauchy's additive equation as data, compiled to a schema...")
+func_f = M.Char("f")
+func_g = M.Char("g")
+ea, eb, ec = M.Char("a"), M.Char("b"), M.Char("c")
+ep, eq, er = M.Char("p"), M.Char("q"), M.Char("r")
+eu, ev, ew = M.Char("u"), M.Char("v"), M.Char("w")
+vx2, vy2 = vp(), vp()
+equation_add = FE.FuncEq(
+    ex_apply(func_f, ex_add(vx2, vy2)),
+    ex_add(ex_apply(func_f, vx2), ex_apply(func_f, vy2)),
+)()
+print("    equation: " + M.PrettyTerm(equation_add, registry)())
+assert FE.IsEquationTerm(equation_add)() is M.truth_value
+assert FE.IsEquationTerm(ex_add(ea, eb))() is M.false_value, (
+    "a non-equation term must be refused by the validator"
+)
+compiled_add = FE.CompileEquationToSchema(equation_add, registry)()
+assert M.IdentityCompare(M.Head(compiled_add)(), M.truth_value)() is M.truth_value
+schema_add = M.Head(M.Tail(compiled_add)())()
+assert P.RuleIsUnary(schema_add)() is M.truth_value
+print("    schema pattern:     " + M.PrettyTerm(P.RulePattern(schema_add)(), registry)())
+print("    schema replacement: " + M.PrettyTerm(P.RuleReplacement(schema_add)(), registry)())
+schema_rules = M.Pair(schema_add, M.EmptyList)
+bad_compile = FE.CompileEquationToSchema(ex_add(ea, eb), registry)()
+assert M.IdentityCompare(M.Head(bad_compile)(), M.false_value)() is M.truth_value, (
+    "the compiler must refuse a non-equation term"
+)
+print("    OK: equation compiled; non-equation input refused.")
+print()
+
+# --- [14] machine closure and normal-form evidence ----------------------------
+print("[14] Closing f((a+b)+c) under the compiled schema...")
+term_start = ex_apply(func_f, ex_add(ex_add(ea, eb), ec))
+print("    start:  " + M.PrettyTerm(term_start, registry)())
+closure_add = to_list(FE.CloseTermUnderRules(term_start, schema_rules, machine_nat(4), registry)())
+for t in closure_add:
+    print("      reachable: " + M.PrettyTerm(t, registry)())
+term_expanded = ex_add(ex_add(ex_apply(func_f, ea), ex_apply(func_f, eb)), ex_apply(func_f, ec))
+term_one_step = ex_add(ex_apply(func_f, ex_add(ea, eb)), ex_apply(func_f, ec))
+assert contains(closure_add, term_expanded), "the expanded form must be reachable"
+assert contains(closure_add, term_one_step), "the one-step expansion must be reachable"
+assert len(closure_add) == 3, "the closure must be exactly the three expected terms"
+assert FE.IsNormalForm(term_expanded, schema_rules, registry)() is M.truth_value, (
+    "the fully expanded form must admit no further schema step"
+)
+assert FE.IsNormalForm(term_start, schema_rules, registry)() is M.false_value
+print("    OK: closure is exactly 3 terms; the expanded form is a machine-checked")
+print("        normal form (termination evidence for the expansion).")
+print()
+
+# --- [15] decoy: multiplicativity is not a consequence of additivity ----------
+print("[15] Decoy — multiplicativity claimed from the additive equation...")
+term_mul_start = ex_apply(func_f, ex_mul(ea, eb))
+term_mul_claim = ex_mul(ex_apply(func_f, ea), ex_apply(func_f, eb))
+mul_closure = to_list(FE.CloseTermUnderRules(term_mul_start, schema_rules, machine_nat(4), registry)())
+print("    closure of f(a*b): %d term(s); multiplicative claim reachable: %s" % (
+    len(mul_closure), contains(mul_closure, term_mul_claim)))
+assert len(mul_closure) == 1, "the additive schema must not rewrite f(a*b) at all"
+assert not contains(mul_closure, term_mul_claim)
+assert FE.IsNormalForm(term_mul_start, schema_rules, registry)() is M.truth_value
+print("    OK: the multiplicative consequence is NOT derivable from the additive")
+print("        schema — the machine refuses the claim, no authored special case.")
+print()
+
+# --- [16] a second equation through the same compiler --------------------------
+print("[16] The multiplicative equation through the same generic compiler...")
+equation_mul = FE.FuncEq(
+    ex_apply(func_g, ex_add(vx2, vy2)),
+    ex_mul(ex_apply(func_g, vx2), ex_apply(func_g, vy2)),
+)()
+compiled_mul = FE.CompileEquationToSchema(equation_mul, registry)()
+assert M.IdentityCompare(M.Head(compiled_mul)(), M.truth_value)() is M.truth_value
+schema_mul = M.Head(M.Tail(compiled_mul)())()
+schema_mul_rules = M.Pair(schema_mul, M.EmptyList)
+g_start = ex_apply(func_g, ex_add(ex_add(ea, eb), ec))
+g_closure = to_list(FE.CloseTermUnderRules(g_start, schema_mul_rules, machine_nat(4), registry)())
+for t in g_closure:
+    print("      reachable: " + M.PrettyTerm(t, registry)())
+g_expanded = ex_mul(ex_mul(ex_apply(func_g, ea), ex_apply(func_g, eb)), ex_apply(func_g, ec))
+assert contains(g_closure, g_expanded) and len(g_closure) == 3
+assert FE.IsNormalForm(g_expanded, schema_mul_rules, registry)() is M.truth_value
+print("    OK: the compiler is equation-agnostic (additive and multiplicative")
+print("        equations both close to their expanded normal forms).")
+print()
+
+# --- [17] Checker B over the two-step expansion --------------------------------
+print("[17] Checker B over the two-step expansion derivation...")
+state_0 = term_start
+action_1 = P.RewriteAction(schema_add, M.EmptyList)()
+state_1 = P.RewriteAtPath(schema_add, state_0, M.EmptyList, registry)()
+step1_pair = P.Step(state_0, action_1, state_1, registry)()
+step_1 = M.Head(step1_pair)()
+reg_1 = M.Head(M.Tail(step1_pair)())()
+inner_path = chain([machine_nat(1), machine_nat(0)])
+action_2 = P.RewriteAction(schema_add, inner_path)()
+state_2 = P.RewriteAtPath(schema_add, state_1, inner_path, reg_1)()
+print("    step 2 at path [1,0]: " + M.PrettyTerm(state_1, registry)())
+print("                        -> " + M.PrettyTerm(state_2, registry)())
+step2_pair = P.Step(state_1, action_2, state_2, reg_1)()
+step_2 = M.Head(step2_pair)()
+reg_2 = M.Head(M.Tail(step2_pair)())()
+check_1 = CheckerB.VerifyProofStep(
+    step_1, schema_rules, M.Pair(state_0, M.EmptyList), M.Pair(state_0, M.EmptyList), reg_1
+)()
+assert M.IdentityCompare(M.Head(check_1)(), L.StepVerifiedLabel)() is M.truth_value
+check_2 = CheckerB.VerifyProofStep(
+    step_2, schema_rules, M.Pair(state_1, M.EmptyList), M.Pair(state_1, M.EmptyList), reg_2
+)()
+assert M.IdentityCompare(M.Head(check_2)(), L.StepVerifiedLabel)() is M.truth_value
+der_pair = P.Derivation(
+    M.Pair(step_1, M.Pair(step_2, M.EmptyList)), cost_zero, reg_2
+)()
+trace_fe = M.Head(der_pair)()
+reg_fe = M.Head(M.Tail(der_pair)())()
+verdict_fe = CheckerB.VerifyDerivation(trace_fe, state_0, term_expanded, schema_rules, reg_fe)()
+assert M.IdentityCompare(M.Head(verdict_fe)(), L.DerivationVerifiedLabel)() is M.truth_value
+# a recorded successor that the rule cannot reproduce must be refused
+tampered_pair = P.Step(state_1, action_2, state_1, reg_2)()
+tampered_step = M.Head(tampered_pair)()
+reg_tampered = M.Head(M.Tail(tampered_pair)())()
+tampered_check = CheckerB.VerifyProofStep(
+    tampered_step, schema_rules, M.Pair(state_1, M.EmptyList), M.Pair(state_1, M.EmptyList), reg_tampered
+)()
+assert M.IdentityCompare(M.Head(tampered_check)(), L.ConclusionMutationLabel)() is M.truth_value
+untrusted_check = CheckerB.VerifyProofStep(
+    step_2, M.EmptyList, M.Pair(state_1, M.EmptyList), M.Pair(state_1, M.EmptyList), reg_2
+)()
+assert M.IdentityCompare(M.Head(untrusted_check)(), L.UnknownRuleLabel)() is M.truth_value
+print("    OK: both steps verified from the rules alone; a mutated successor is")
+print("        refused (%s) and an untrusted rule set is refused (%s)." % (
+    label_name(M.Head(tampered_check)()), label_name(M.Head(untrusted_check)())))
+print()
+
+# --- [18] the invariant miner's verdict, reported honestly ---------------------
+print("[18] What does the invariant miner say about the expansion schema?...")
+candidate_phis = chain([
+    ex_apply(func_f, vp()),
+    ex_add(vp(), vp()),
+    ex_mul(vp(), vp()),
+    ex_apply(func_f, ex_add(vp(), vp())),
+])
+cur_phi = candidate_phis
+while M.IdentityCompare(cur_phi, M.EmptyList)() is M.false_value:
+    phi = M.Head(cur_phi)()
+    pres = Miner.CheckInvariantPreservationAcrossRules(phi, schema_rules, reg_fe)()
+    verdict = "preserved" if M.IdentityCompare(M.Head(pres)(), M.truth_value)() is M.truth_value else "refuted"
+    print("      %-44s -> %s" % (M.PrettyTerm(phi, reg_fe)(), verdict))
+    assert M.IdentityCompare(M.Head(pres)(), M.false_value)() is M.truth_value, (
+        "no first-match candidate may be reported as preserved for this schema"
+    )
+    cur_phi = M.Tail(cur_phi)()
+mine_fe = Miner.MineInvariantFromTrace(trace_fe, state_0, schema_rules, candidate_phis, reg_fe)()
+assert M.IdentityCompare(M.Head(mine_fe)(), M.false_value)() is M.truth_value, (
+    "the miner must refuse to certify an invariant for the expansion schema"
+)
+print("    OK: every candidate is machine-refuted.  The expansion's natural")
+print("        invariants (free-variable set preserved; compound-application")
+print("        count decreasing) are NOT first-match expressible, so termination")
+print("        is evidenced by the machine-checked normal form in [14] instead.")
+print()
+
+# --- [19] consequence macro, holdout suite, promotion --------------------------
+print("[19] Generic consequence macro, holdout suite, and the ledger...")
+vx3, vy3, vz3 = vp(), vp(), vp()
+macro_start_pattern = ex_apply(func_f, ex_add(ex_add(vx3, vy3), vz3))
+macro_goal_pattern = ex_add(
+    ex_add(ex_apply(func_f, vx3), ex_apply(func_f, vy3)), ex_apply(func_f, vz3)
+)
+macro_plan = M.Pair(
+    P.RewriteAction(schema_add, M.EmptyList)(),
+    M.Pair(P.RewriteAction(schema_add, inner_path)(), M.EmptyList),
+)
+macro_id_fe = M.Atom()
+macro_fe = Eval.CandidateMacro(macro_id_fe, macro_start_pattern, macro_goal_pattern, macro_plan)()
+eval_fe = Eval.EvaluateCandidateProof(macro_fe, state_0, term_expanded, schema_rules, reg_fe)()
+assert M.IdentityCompare(M.Head(eval_fe)(), L.CandidateEvaluatedLabel)() is M.truth_value
+receipt_fe = M.Head(M.Tail(eval_fe)())()
+assert M.IdentityCompare(M.Head(receipt_fe)(), L.ProofReceiptLabel)() is M.truth_value
+ablation_fe = Eval.AblationTrial(macro_fe, state_0, term_expanded, schema_rules, reg_fe)()
+assert M.IdentityCompare(M.Head(ablation_fe)(), L.AblationVerifiedLabel)() is M.truth_value
+assert M.IdentityCompare(
+    M.Head(M.Tail(M.Tail(ablation_fe)())())(), L.ProvedLabel
+)() is M.truth_value
+print("    OK: Checker B verified the expansion; ablation ProvedLabel.")
+
+
+def holdout_item(start, goal, expected):
+    return M.Pair(start, M.Pair(goal, M.Pair(expected, M.EmptyList)))
+
+
+def expanded_form(func, x, y, z):
+    return ex_add(ex_add(ex_apply(func, x), ex_apply(func, y)), ex_apply(func, z))
+
+
+fe_pos1 = holdout_item(
+    ex_apply(func_f, ex_add(ex_add(ep, eq), er)),
+    expanded_form(func_f, ep, eq, er), M.truth_value)
+fe_pos2 = holdout_item(
+    ex_apply(func_f, ex_add(ex_add(eu, ev), ew)),
+    expanded_form(func_f, eu, ev, ew), M.truth_value)
+fe_neg1 = holdout_item(
+    ex_apply(func_f, ex_add(ex_add(ep, eq), er)),
+    ex_mul(ex_apply(func_f, ep), ex_apply(func_f, eq)), M.false_value)
+fe_neg2 = holdout_item(
+    ex_apply(func_g, ex_add(ex_add(ep, eq), er)),
+    ex_mul(ex_mul(ex_apply(func_g, ep), ex_apply(func_g, eq)), ex_apply(func_g, er)), M.false_value)
+fe_neg3 = holdout_item(
+    ex_apply(func_f, ex_add(ex_add(ep, eq), er)),
+    ex_add(ex_apply(func_f, ep), ex_apply(func_f, eq)), M.false_value)
+fe_neg4 = holdout_item(
+    ex_apply(func_f, ex_add(ex_add(ep, eq), er)),
+    expanded_form(func_f, ep, eq, ep), M.false_value)
+holdouts_fe = chain([fe_pos1, fe_pos2, fe_neg1, fe_neg2, fe_neg3, fe_neg4])
+suite_fe = Eval.EvaluateHoldoutSuite(macro_fe, holdouts_fe, schema_rules, reg_fe)()
+passed_fe = to_list(M.Head(M.Tail(suite_fe)())())
+failed_fe = to_list(M.Head(M.Tail(M.Tail(suite_fe)())())())
+print("    holdout suite: passed=%d failed=%d" % (len(passed_fe), len(failed_fe)))
+assert len(passed_fe) == 6 and len(failed_fe) == 0
+print("    OK: 2 positives (unseen variables) + 4 near-miss negatives.")
+# the schema-necessity ablation: without the compiled schema nothing expands
+ablated_closure = to_list(FE.CloseTermUnderRules(term_start, M.EmptyList, machine_nat(4), registry)())
+assert len(ablated_closure) == 1, "without the schema the term must not expand"
+assert M.Compare(ablated_closure[0], term_start)() is M.truth_value
+print("    OK: schema ablation — with the schema the closure has 3 terms, without")
+print("        it the closure is the term itself (the schema does the work).")
+
+baseline_cost_fe = P.ProofCost(machine_nat(1), M.Zero, M.Zero, M.Zero)()
+cycle_fe = Ledger.ExecuteAutonomousDiscoveryCycle(
+    trace_fe, macro_start_pattern, macro_goal_pattern, schema_rules, candidate_phis,
+    macro_id_fe, macro_plan, baseline_cost_fe, holdouts_fe,
+    L.ProofSchemaPromotionLabel, Ledger.EmptyPromotionLedger(registry)(), reg_fe,
+)()
+assert M.IdentityCompare(M.Head(cycle_fe)(), L.AutonomousCycleCompletedLabel)() is M.truth_value, (
+    "the cycle must complete: trace -> miner (refused) -> macro -> checker -> ledger"
+)
+ledger_fe = M.Head(M.Tail(cycle_fe)())()
+entry_fe = M.Head(M.Tail(M.Tail(cycle_fe)())())()
+assert M.IdentityCompare(Ledger.LedgerEntryStatus(entry_fe)(), L.PromotionActiveLabel)() is M.truth_value
+active_fe = to_list(Ledger.QueryActivePromotions(ledger_fe, L.ProofSchemaPromotionLabel, registry)())
+assert len(active_fe) == 1
+print("    OK: schema promoted (the ledger still demanded Checker B + holdouts,")
+print("        and proceeded without an invariant certificate after the miner refused).")
+decoy_ledger_fe = Ledger.EmptyPromotionLedger(registry)()
+refusal_fe = Ledger.SubmitCandidateForPromotion(
+    decoy_ledger_fe, macro_fe, L.ProofSchemaPromotionLabel,
+    term_mul_start, term_mul_claim, baseline_cost_fe, holdouts_fe, M.EmptyList,
+    schema_rules, reg_fe,
+)()
+assert M.IdentityCompare(M.Head(refusal_fe)(), L.PromotionRejectedLabel)() is M.truth_value
+assert M.IdentityCompare(
+    Ledger.PromotionLedgerVersion(decoy_ledger_fe)(), M.Zero
+)() is M.truth_value
+assert M.IdentityCompare(
+    Ledger.QueryActivePromotions(decoy_ledger_fe, L.ProofSchemaPromotionLabel, registry)(),
+    M.EmptyList,
+)() is M.truth_value
+print("    OK: decoy claim refused, reason: %s; ledger unmoved." % label_name(M.Head(M.Tail(refusal_fe)())()))
+print()
+
+# --- [20] family-2 boundaries ---------------------------------------------------
+print("[20] Boundaries — what family 2 does NOT establish:")
+print("  (a) Consequences are expansion-level only: cancellation (f(0) = 0 from")
+print("      f(0+0) = f(0)+f(0)) needs an equational solver that does not exist")
+print("      here; induction (f(nx) = n f(x)) and regularity-based linearity are")
+print("      not derived.")
+print("  (b) The equation orients exactly as authored (lhs -> rhs); no reduction")
+print("      order is imposed and no termination proof is attempted beyond the")
+print("      machine-checked normal form in [14].")
+print("  (c) The invariant miner's first-match preservation semantics does not")
+print("      fit the expansion schema: every candidate is machine-refuted ([18]),")
+print("      so the closure's normal form — not a mined invariant — carries the")
+print("      termination evidence.")
+print("  (d) The curriculum contains no functional-equation cards, so held-out")
+print("      evidence for family 2 is unseen instances and refused decoys ([19]),")
+print("      NOT curriculum held-out cards; no card coverage is claimed.")
+print("  (e) Family 3 (number theory over Peano/GMP) is NOT derived here.")
 print()
 
 print(
