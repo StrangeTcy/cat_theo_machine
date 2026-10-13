@@ -555,8 +555,13 @@ print("  (b) The arithmetic reading 'same class <=> difference divisible by n'")
 print("      is NOT mechanized: the machine's conclusion is the same-class")
 print("      relation itself; no integer/divisibility constructors are used")
 print("      (the corpus cards list them as missing; [31] verifies the absence).")
-print("  (c) The closure engine instantiates the first join per depth step; it")
-print("      does not enumerate all joins ([2] derives one oriented collision).")
+print("  (c) The closure engine is a single-chain saturator, not a search: it")
+print("      instantiates the FIRST join of each multi-premise rule, once.  This")
+print("      is MEASURED in [32] — four values in one class yield 1 of the 12")
+print("      derivable oriented pairs at every depth, and a configuration with")
+print("      two independent collisions yields 1 of 2.  [2] therefore derives one")
+print("      oriented collision, and a second collision in the same configuration")
+print("      stays invisible to this engine.")
 print("  (d) PhiReading is first-match; the unreachability prover is therefore")
 print("      used only in the sound direction ([6]/[7]) — see the note in [7].")
 print("  (e) Families 2 and 3 are delivered below: functional equations in")
@@ -1308,8 +1313,11 @@ print("      IsCoprime are the trusted W7 host primitives over GMPRep Nats and")
 print("      are used only to build instance DATA and to classify the sweep;")
 print("      every inference step is the machine's own forward engine.")
 print("  (c) The rules are generic fact-list rewrites, not a decision procedure:")
-print("      the closure engine instantiates the first join per depth step, so")
-print("      the derivations above are single-chain, not exhaustive search.")
+print("      the closure engine is a single-chain saturator (measured in [32] —")
+print("      it derives the first join of each rule once and then halts), so the")
+print("      derivations above are single-chain, not exhaustive search.  The [26]")
+print("      sweep is unaffected because each swept configuration has exactly one")
+print("      applicable join per rule; it is a soundness check, not completeness.")
 print("  (d) The certificate covers the Euclid step only (r_gcd and r_trans have")
 print("      no Coprime premise, so full-theory preservation fails); the miner")
 print("      is run over [r_euclid] and that scope is stated, not hidden.")
@@ -1415,6 +1423,86 @@ print("  CONSEQUENCE: held-out evidence for all three families is machine-")
 print("  generated (sweep classes and unseen instances) plus refused decoys, NOT")
 print("  curriculum cards — and that is a verified property of the corpus, not a")
 print("  choice made by this suite.  No card coverage is claimed.")
+print()
+# --- [32] measured engine limitation: first-join saturation ------------------
+print("[32] Measuring the closure engine's join enumeration — not arguing it...")
+print("  [12](c) and [30](c) state that the engine 'instantiates the first join")
+print("  per depth step' and does not enumerate all joins.  That was read off the")
+print("  code; this section MEASURES it, because the measurement is stronger than")
+print("  the prose.")
+print()
+
+
+def count_head_local(facts, rel):
+    n = 0
+    for f in facts:
+        if M.IdentityCompare(M.Head(f)(), rel)() is M.truth_value:
+            n += 1
+    return n
+
+
+# (a) four values assigned to ONE class: 4*3 = 12 oriented pairs are derivable.
+q0, q1, q2, q3 = M.Char("q0"), M.Char("q1"), M.Char("q2"), M.Char("q3")
+r_one = M.Char("r_one")
+four_in_one = [q0, q1, q2, q3]
+config_a = chain(
+    [fact(rel_residue, v, r_one) for v in four_in_one]
+    + [fact(rel_distinct, a, b) for a in four_in_one for b in four_in_one if a is not b]
+)
+possible_a = len(four_in_one) * (len(four_in_one) - 1)
+print("  (a) %d values in one class -> %d oriented pairs are derivable in principle"
+      % (len(four_in_one), possible_a))
+measured_a = []
+for d in (1, 2, 4, 8):
+    cl = to_list(
+        GT.ForwardDeriveFacts(config_a, trusted_rules, machine_nat(d), registry)()
+    )
+    n = count_head_local(cl, rel_shares)
+    measured_a.append((d, n))
+    print("      depth %d -> %d shares_class facts" % (d, n))
+assert all(n == 1 for _, n in measured_a), (
+    "the engine must derive exactly one oriented pair at every depth"
+)
+cl_a = to_list(
+    GT.ForwardDeriveFacts(config_a, trusted_rules, machine_nat(4), registry)()
+)
+derived_a = [f for f in cl_a if M.IdentityCompare(M.Head(f)(), rel_shares)() is M.truth_value]
+print("      the one derived fact: " + M.PrettyTerm(derived_a[0], registry)())
+print("      MEASURED: 1 of %d, at every depth — extra depth does NOT enumerate" % possible_a)
+print("      the remaining joins: the first join reproduces an already-present")
+print("      fact, so the saturation halts instead of searching.")
+print()
+
+# (b) two INDEPENDENT collisions in two different classes: 2 unordered pairs.
+u0, u1, u2, u3 = M.Char("u0"), M.Char("u1"), M.Char("u2"), M.Char("u3")
+rA, rB = M.Char("rA"), M.Char("rB")
+two_pairs = [u0, u1, u2, u3]
+config_b = chain(
+    [fact(rel_residue, u0, rA), fact(rel_residue, u1, rA),
+     fact(rel_residue, u2, rB), fact(rel_residue, u3, rB)]
+    + [fact(rel_distinct, a, b) for a in two_pairs for b in two_pairs if a is not b]
+)
+print("  (b) 2+2 values in two classes -> 2 unordered collisions exist")
+measured_b = []
+for d in (1, 2, 4, 8):
+    cl = to_list(
+        GT.ForwardDeriveFacts(config_b, trusted_rules, machine_nat(d), registry)()
+    )
+    n = count_head_local(cl, rel_shares)
+    measured_b.append((d, n))
+    print("      depth %d -> %d shares_class facts" % (d, n))
+assert all(n == 1 for _, n in measured_b), (
+    "a configuration with two independent collisions must still yield one"
+)
+print("      MEASURED: 1 of 2, at every depth — this engine reports ONE collision")
+print("      and is blind to the second one in the same configuration.")
+print()
+print("  CONSEQUENCE (now measured, not asserted): the closure is a single-chain")
+print("  saturator, not a search.  Every derivation in this suite is a chain in")
+print("  which each multi-premise rule contributes its FIRST join once.  The")
+print("  family-3 sweep in [26] is unaffected because each swept configuration")
+print("  has exactly one applicable join per rule — which is why that sweep is a")
+print("  sound soundness check over its classes and NOT a completeness claim.")
 print()
 print(
     "=== ALL TEST 22 CHECKS PASSED in %.3fs ===" % (time.time() - t0)
