@@ -855,6 +855,58 @@ class SideOfLabel(ConstructorLabel):
     pass
 
 
+class EqualAngleLabel(ConstructorLabel):
+    pass
+
+
+class BisectorFromLabel(ConstructorLabel):
+    pass
+
+
+class PointOnLabel(ConstructorLabel):
+    pass
+
+
+class CircumcircleOfLabel(ConstructorLabel):
+    pass
+
+
+class OnCircleLabel(ConstructorLabel):
+    pass
+
+
+class ConstructionSchemaLabel(ConstructorLabel):
+    pass
+
+
+class ConstructionMethodLabel(ConstructorLabel):
+    pass
+
+
+class CauchyAddLabel(ConstructorLabel):
+    pass
+
+
+class CauchyMulLabel(ConstructorLabel):
+    pass
+
+
+class NonTrivialLabel(ConstructorLabel):
+    pass
+
+
+class ValueLabel(ConstructorLabel):
+    pass
+
+
+class NatSumLabel(ConstructorLabel):
+    pass
+
+
+class NatProductLabel(ConstructorLabel):
+    pass
+
+
 class AngleOfLabel(ConstructorLabel):
     pass
 
@@ -1160,6 +1212,78 @@ class InvariantCandidateLabel(ConstructorLabel):
 
 
 class InvariantRefutedLabel(ConstructorLabel):
+    pass
+
+
+class MonovariantLabel(ConstructorLabel):
+    pass
+
+
+class SemiInvariantLabel(ConstructorLabel):
+    pass
+
+
+class StrictlyDecreasesLabel(ConstructorLabel):
+    pass
+
+
+class AllMovesDecreaseLabel(ConstructorLabel):
+    pass
+
+
+class MoveSetLabel(ConstructorLabel):
+    pass
+
+
+class MonovariantMethodLabel(ConstructorLabel):
+    pass
+
+
+class InvarianceMethodLabel(ConstructorLabel):
+    pass
+
+
+class MeasureLabel(ConstructorLabel):
+    pass
+
+
+class DirectionLabel(ConstructorLabel):
+    pass
+
+
+class MovesDecreasingLabel(ConstructorLabel):
+    pass
+
+
+class MovesPreservingLabel(ConstructorLabel):
+    pass
+
+
+class MovesNonIncreasingLabel(ConstructorLabel):
+    pass
+
+
+class NonIncreasesLabel(ConstructorLabel):
+    pass
+
+
+class AllMovesNonIncreaseLabel(ConstructorLabel):
+    pass
+
+
+class EventuallyDecreasesLabel(ConstructorLabel):
+    pass
+
+
+class SemiInvariantMethodLabel(ConstructorLabel):
+    pass
+
+
+class ReadingLabel(ConstructorLabel):
+    pass
+
+
+class TerminatesLabel(ConstructorLabel):
     pass
 
 
@@ -1551,6 +1675,19 @@ SideOfLabel = SideOfLabel()
 AngleOfLabel = AngleOfLabel()
 OppositeLabel = OppositeLabel()
 AngleMeasureLabel = AngleMeasureLabel()
+EqualAngleLabel = EqualAngleLabel()
+BisectorFromLabel = BisectorFromLabel()
+PointOnLabel = PointOnLabel()
+CircumcircleOfLabel = CircumcircleOfLabel()
+OnCircleLabel = OnCircleLabel()
+ConstructionSchemaLabel = ConstructionSchemaLabel()
+ConstructionMethodLabel = ConstructionMethodLabel()
+CauchyAddLabel = CauchyAddLabel()
+CauchyMulLabel = CauchyMulLabel()
+NonTrivialLabel = NonTrivialLabel()
+ValueLabel = ValueLabel()
+NatSumLabel = NatSumLabel()
+NatProductLabel = NatProductLabel()
 APNameLabel = APNameLabel()
 ApplyLabel = ApplyLabel()
 DefinesLabel = DefinesLabel()
@@ -1626,6 +1763,24 @@ UnreachableLabel = UnreachableLabel()
 InvariantCandidateLabel = InvariantCandidateLabel()
 InvariantRefutedLabel = InvariantRefutedLabel()
 InvariantCertificateLabel = InvariantCertificateLabel()
+MonovariantLabel = MonovariantLabel()
+SemiInvariantLabel = SemiInvariantLabel()
+StrictlyDecreasesLabel = StrictlyDecreasesLabel()
+AllMovesDecreaseLabel = AllMovesDecreaseLabel()
+MoveSetLabel = MoveSetLabel()
+MonovariantMethodLabel = MonovariantMethodLabel()
+InvarianceMethodLabel = InvarianceMethodLabel()
+MeasureLabel = MeasureLabel()
+DirectionLabel = DirectionLabel()
+MovesDecreasingLabel = MovesDecreasingLabel()
+MovesPreservingLabel = MovesPreservingLabel()
+MovesNonIncreasingLabel = MovesNonIncreasingLabel()
+NonIncreasesLabel = NonIncreasesLabel()
+AllMovesNonIncreaseLabel = AllMovesNonIncreaseLabel()
+EventuallyDecreasesLabel = EventuallyDecreasesLabel()
+SemiInvariantMethodLabel = SemiInvariantMethodLabel()
+ReadingLabel = ReadingLabel()
+TerminatesLabel = TerminatesLabel()
 PerimeterLabel = PerimeterLabel()
 ArccosLabel = ArccosLabel()
 TaoProblem11PerimeterValueLabel = TaoProblem11PerimeterValueLabel()
@@ -2036,6 +2191,19 @@ def sync_from_namespace(namespace):
         "AngleOfLabel",
         "OppositeLabel",
         "AngleMeasureLabel",
+        "EqualAngleLabel",
+        "BisectorFromLabel",
+        "PointOnLabel",
+        "CircumcircleOfLabel",
+        "OnCircleLabel",
+        "ConstructionSchemaLabel",
+        "ConstructionMethodLabel",
+        "CauchyAddLabel",
+        "CauchyMulLabel",
+        "NonTrivialLabel",
+        "ValueLabel",
+        "NatSumLabel",
+        "NatProductLabel",
         "APNameLabel",
         "ApplyLabel",
         "DefinesLabel",
@@ -2109,6 +2277,24 @@ def sync_from_namespace(namespace):
         "InvariantCandidateLabel",
         "InvariantRefutedLabel",
         "InvariantCertificateLabel",
+        "MonovariantLabel",
+        "SemiInvariantLabel",
+        "StrictlyDecreasesLabel",
+        "AllMovesDecreaseLabel",
+        "MoveSetLabel",
+        "MonovariantMethodLabel",
+        "InvarianceMethodLabel",
+        "MeasureLabel",
+        "DirectionLabel",
+        "MovesDecreasingLabel",
+        "MovesPreservingLabel",
+        "MovesNonIncreasingLabel",
+        "NonIncreasesLabel",
+        "AllMovesNonIncreaseLabel",
+        "EventuallyDecreasesLabel",
+        "SemiInvariantMethodLabel",
+        "ReadingLabel",
+        "TerminatesLabel",
         "PerimeterLabel",
         "ArccosLabel",
         "TaoProblem11PerimeterValueLabel",
