@@ -1107,7 +1107,11 @@ SWARM_UNIT_STEP_BUDGET = 60
 
 
 def run_swarm_worker_mode(unit_path: str, result_path: str, timeout_seconds: int = 600):
-    """`python main.py swarm --role worker UNIT RESULT` -- run one work unit.
+    """`python main.py --role worker swarm UNIT RESULT [TIMEOUT]` -- run one work unit.
+
+    The option comes first: argparse stops matching the optional positionals
+    (`arg1`..`arg3`) once an option follows the mode word, so
+    `swarm --role worker UNIT RESULT` is rejected as "unrecognized arguments".
 
     A unit is a snapshot holding exactly one search job whose frontier is a
     single node; see `search/distributed_engine.py` for why a unit is one node

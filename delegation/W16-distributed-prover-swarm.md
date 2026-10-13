@@ -1,6 +1,10 @@
 # W16 — Distributed heuristic search & partitioned prover swarm
 
-**Swarm · Phase 3 · Suite slot `test27` · Prereqs: W2 ⬜ (open — do not start until it lands) · W13 ✅ (done)**
+**Swarm · Phase 3 · Suite slot `test27` · Prereqs: W2 ✅ (landed, `test25`) · W13 ✅ (done)**
+
+> **Status: done.** `validation/test27_distributed_prover_swarm.py` is green (51/51, ~340 s on
+> 2 vCPU); what it measures, the 0.84× speedup and the restore defect it exposed are recorded in
+> `SWARM_EVOLUTION_DAG.md` §4 (W16) and §6.3. Do not re-execute this brief.
 
 Read `delegation/README.md` first — shared invariants, environment facts and pitfalls are
 binding here.

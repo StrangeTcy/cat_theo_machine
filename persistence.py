@@ -6,6 +6,7 @@ import os
 import pickle
 import sys
 import tempfile
+import threading
 import time
 try:
     import gmpy2
@@ -1517,13 +1518,68 @@ def _restore_tree_root_from_snapshot_file(snapshot_path: str, root_name: str):
     return codec._restore_tree_root(state, root_name, rebuilt_registry)
 
 
+# The handoff from a spawned restore worker back to the parent is a pickle, and
+# `pickle` serialises nesting recursively: a cons-list pickles at a Python depth
+# proportional to its length.  `all_rules` is such a list, its length is the
+# rule count, and the rule count grows with every pack.  A spawned worker starts
+# at the interpreter's default limit (1000 frames), which a full pack boot's rule
+# list outgrew once the integrated packs were merged: the rebuild itself
+# succeeded and the worker then died with "maximum recursion depth exceeded"
+# while writing the answer, so every unit snapshot a swarm plan wrote became
+# unbootable.  The handoff therefore runs on a thread with a generous stack and
+# raises the recursion limit only as far as the payload demands (doubling on
+# demand up to a cap that is still an error, never a hang).  Unpickling in the
+# parent keeps its own value stack and is unaffected.
+_HANDOFF_THREAD_STACK_BYTES = 512 * 1024 * 1024
+_HANDOFF_RECURSION_CAP = 1 << 18
+
+
+def _write_handoff(output_path: str, payload):
+    """Atomically pickle `payload` to `output_path`, however deeply it nests."""
+    temp_path = output_path + ".tmp"
+    outcome = {}
+
+    def run():
+        limit = sys.getrecursionlimit()
+        while True:
+            try:
+                with open(temp_path, "wb") as f:
+                    pickle.dump(payload, f)
+                outcome["ok"] = True
+                return
+            except RecursionError:
+                if limit >= _HANDOFF_RECURSION_CAP:
+                    outcome["error"] = "handoff payload nests deeper than %d frames" % limit
+                    return
+                limit = limit * 2
+                sys.setrecursionlimit(limit)
+
+    previous_stack = threading.stack_size()
+    started = False
+    try:
+        threading.stack_size(_HANDOFF_THREAD_STACK_BYTES)
+        worker = threading.Thread(target=run, name="hyge-restore-handoff")
+        worker.start()
+        started = True
+        worker.join()
+    except (RuntimeError, ValueError):
+        # No room for a big-stack thread (or the platform refuses the size):
+        # the limit-doubling loop on the current stack is still better than the
+        # bare default, and a failure is reported through the same payload.
+        if not started:
+            run()
+    finally:
+        threading.stack_size(previous_stack)
+    if "ok" not in outcome:
+        with open(temp_path, "wb") as f:
+            pickle.dump(("err", outcome.get("error", "handoff failed")), f)
+    os.replace(temp_path, output_path)
+
+
 def _restore_tree_root_from_snapshot_file_worker(snapshot_path: str, root_name: str, output_path: str):
     try:
         result = _restore_tree_root_from_snapshot_file(snapshot_path, root_name)
-        temp_path = output_path + ".tmp"
-        with open(temp_path, "wb") as f:
-            pickle.dump(("ok", result), f)
-        os.replace(temp_path, output_path)
+        _write_handoff(output_path, ("ok", result))
     except Exception as exc:
         temp_path = output_path + ".tmp"
         with open(temp_path, "wb") as f:

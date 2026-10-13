@@ -8,3 +8,7 @@ __pycache__/
 # Generated run artifacts from search comparisons and swarm workers
 snapshots/search_compare/run-*/
 logs/*.log
+
+# Scratch directories a snapshot restore leaves behind if its process is killed mid-boot
+hyge-root-restore-*/
+hyge-registry-restore-*/

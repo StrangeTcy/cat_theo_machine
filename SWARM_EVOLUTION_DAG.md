@@ -77,7 +77,7 @@ The machine's capabilities and subsystems are partitioned into five core dimensi
 | **W13**| Multi-Pass Backward Planner | Dims 1,2,3 | `planner.py`, `graph_task.py` | W6, W8, W9, W10 | Decomposed goal scheduler, auxiliary search |
 | **W14**| Proof Storyteller & Narratives | Dim 5 | `story_renderer.py` | W5, W4 | Formal receipt $\to$ LaTeX/Markdown mathematical story |
 | **W15**| Socratic Dialogue & Tutor | Dim 5 | `dialogue.py`, `main.py` | W5, W12 | Interactive concept inspection, counterexample REPL |
-| **W16**| Distributed Prover Swarm | Swarm | `search/distributed_engine.py`, `networking/jobs.py`, `main.py` (`swarm`, `mesh --swarm`) | W2, W13 | Partitioned frontier worker mesh, work-stealing; slot `test27` (not yet written) |
+| **W16**| Distributed Prover Swarm | Swarm | `search/distributed_engine.py`, `networking/jobs.py`, `main.py` (`swarm`, `mesh --swarm`) | W2, W13 | Partitioned frontier worker mesh, work-stealing; `validation/test27_distributed_prover_swarm.py` (51/51, ~340 s) |
 | **W17**| Byzantine Ledger Consensus | Swarm | `consensus/ledger_sync.py` | W2, W12, W1 | Raft/BFT rule sync, monotonic version broadcast |
 
 ### 3.1 Substrate extensions added after this DAG was first published
@@ -289,25 +289,34 @@ These arrived during Phase 0/1 execution and are prerequisites or enablers rathe
     the way the planner methods do.
 - [ ] **W15 (Conversational Socratic Tutor & Concept Explorer)**: Ready for execution.
 - [x] **W2 (Distributed RPC & mTLS Mesh)**: Completed & verified in `validation/test25_rpc_mtls_mesh.py` (48/48, ~97 s, phases: mTLS 1.4 s, protocol 15.7 s, guards 0.5 s, real jobs 47 s, file transport 33 s) — framed RPC over mutual TLS with a certificate authority generated in Python, refusal negatives (unknown CA, untrusted server, expired leaf), membership over loopback, scopes and leases with monotonic sequences, peer-to-peer work stealing (proved once with stub jobs over real mTLS sockets and once with real subprocesses, where a queued search job is stolen from under a busy peer), and real `search` jobs over real `main.py mesh` subprocesses, compared against the same job run alone in a fresh process. The manifest/result contract is the one the file transport already used, so a mesh job is a `search-worker` job by construction (`search-worker` stays selectable and is regression-covered in the same suite). Clean shutdown is covered too: a closing connection no longer discards a queued goodbye, and a `deferred` result counts as a result rather than a failure. The crash clause is pinned from both sides — a killed peer's job is re-dispatched, and where nothing is left to re-dispatch to it ends as a terminal `failed` record naming `reason="worker-lost"`, so a job is either recovered or reported and never quietly dropped. Its own transport defects — a heartbeat that answered itself (an unbounded storm), a frame reader that read a TLS want-read as a clean EOF, and a result projection that pretty-printed proofs instead of reading the snapshot graph — were found and fixed on the way; see `networking/README.md`.
-- [~] **W16 (Distributed Heuristic Search & Partitioned Prover Swarm)**: In progress on
-  `arena/abf4a212-cat-theo-machine` (`532ef41`…`223a023`), integrated here; **no `test27` yet**,
-  so this stays `[~]` by rule 4. What exists and was measured: `partition_frontier` emits one
-  work unit per frontier node of a paused `SearchJob` (index, sha256 of canonical text, shard),
-  `partition_is_exact` states coverage/disjointness as a predicate over the units, and `merge`
-  picks the lowest-index success — arrival-order independent by construction. A unit travels as a
-  snapshot (`main.py swarm --role plan` boots once, expands the root, writes one snapshot per
-  unit plus a job file; `swarm UNIT RESULT --role worker` boots a unit in ~8.8 s against a 20 s
-  pack boot plus 18 s expansion); `SwarmJobRunner` serves units on the W2 transport
-  (`mesh --swarm`), and a two-worker run over real mTLS completed 4 units with 2 steals and
-  reproduced the single-process plan digest `2ad79637693297dd`. *Findings recorded rather than
-  tuned away*: on `engel_e2` the proof lives in one branch, so partitioning does not shorten the
-  critical path (swarm ~110–120 s wall vs 55.8 s single-process on 2 vCPU); a snapshot-restored
-  unit finds a different equal-cost plan than the same unit booted from packs (plan equality holds
-  within one transport, proof-cost equality across; why the codec restores a state that searches
-  differently is W12's question); `engel_e2` is the only agenda case that both partitions and
-  proves (Tao 1.1 and the `sqrt` cases are settled by a root fast path, both Engel coin cases fail
-  immediately, `engel_e1` exhausts). *Open*: `validation/test27_*.py`, k-way scaling beyond one
-  problem, and the unit-boot cost.
+- [x] **W16 (Distributed Heuristic Search & Partitioned Prover Swarm)**: Completed & verified in
+  `validation/test27_distributed_prover_swarm.py` (51/51 checks, ~340 s on 2 vCPU; phases: plan
+  81 s, in-process partition 12 s, baseline 82 s, swarm 98 s, kill 52 s). Engine and CLI came from
+  `arena/abf4a212-cat-theo-machine` (`532ef41`…`223a023`); the suite was written on the integrated
+  tree. What the suite measures: `main.py swarm --role plan` expands `engel_e2` once and writes one
+  unit snapshot per frontier node (4); disjointness and coverage are asserted from the plan's own
+  data (distinct digests, indices 0..n-1, shard sizes summing to the frontier, resharding k=1..4 a
+  bijection onto the same units) and then *reproduced in a different process* — the baseline
+  snapshot is booted in the suite and `partition_frontier` returns the same digests, shards and
+  ids. The whole-frontier baseline runs alone; two `mesh --swarm` workers over real mTLS run the
+  four units; `merge` crowns unit 0 and its plan digest (`2ad79637693297dd`) and proof-cost digest
+  (`cda29f2b48da3570`) equal the baseline's on every semantic key — equality of the proof, not
+  merely success; the other three units report `failure-search`, not silence. One unit was
+  stolen in the healthy run and its result is identical to the same unit run locally in the kill
+  run (stolen work == local work, measured). Kill test: a worker is SIGKILLed 3 s into a unit; the
+  coordinator records `member-lost`, `job-redispatched` (“worker lost mid-job, attempt 2”), the
+  survivor hands in a real (non-provisional) result, and each unit's result equals the same unit's
+  result in the healthy run. *Findings, reported not tuned*: speedup **0.84×** (baseline 82 s vs
+  swarm 98 s — on `engel_e2` the proof lives in one branch, so the critical path is one unit's
+  boot plus search, and a second worker only adds contention on 2 vCPU); memory high-water
+  ~235 MiB per worker, 259 MiB largest child. Machine purity pinned: frontier nodes and states
+  stay machine terms, unit records hold only str/int. **Defect found and fixed on the way** (see
+  §6.3): on the integrated tree every unit snapshot was unbootable — the spawned restore worker
+  in `persistence.py` died with “maximum recursion depth exceeded” while *pickling* `all_rules`
+  back to the parent, because the merged packs made the rule list longer than the default
+  1000-frame pickler recursion allows. *Open*: k-way scaling beyond one problem and the unit-boot
+  cost (~12–30 s per unit, which is what makes the speedup negative); the brief's ~180 s suite
+  budget is not attainable at this boot cost and the suite prints per-phase timings instead.
 - [ ] **W17 (Byzantine Ledger Consensus & Monotonic Snapshot Broadcast)**: Dependent on Phase 2;
   W2 ✅, W12 ✅, W1 ✅ — unblocked, not started.
 
@@ -334,7 +343,7 @@ Every Arena agent working on this repository must strictly adhere to the followi
 
    **The exception is conjunctive: both halves must hold.** The code is host-layer, *and* there is no machine analogue for what it does. Being in a harness or a probe is not by itself a licence — if the machine can already answer the question (`Compare`, `IsAtom`, `IsPair`, `IsTree`), then reaching into a payload with `getattr`, `type`, or `.symbol` is a violation wherever it sits. The identity index passes both halves. A probe that read `.symbol` to find an edge by name and `type(x).__name__` to report what came back passed only the first; it was fixed to use `Compare` and `IsAtom`. An earlier draft of this section stated the test as "whether the value crosses into a machine term", which made layer the only condition and would have excused that probe. Do not spend a session on an unscoped purity refactor of host code, and do not cite this rule to reject working host-layer code — but do not cite the host layer to excuse bypassing a predicate the machine already provides.
 3. **No Domain-Specific Hardcoding**: Do not hardcode problem targets or fixed heuristics in search or mining modules.
-4. **Verification Requirement**: Every new worker module or pack must include an automated verification suite in `validation/` with $100\%$ green test results before promotion. There are currently **25** suites — `test1`–`test23`, `test25`, `test29` (slots 24, 26, 27, 28 are pre-allocated to W15, W6-remainder, W16, W17 and still open) — each a standalone script. Run one with `PYTHONPATH=<repo-parent> python -u validation/testN_*.py` (the suites insert the package parent onto `sys.path` themselves and import as `cat_theo_machine.*`).
+4. **Verification Requirement**: Every new worker module or pack must include an automated verification suite in `validation/` with $100\%$ green test results before promotion. There are currently **26** suites — `test1`–`test23`, `test25`, `test27`, `test29` (slots 24, 26, 28 are pre-allocated to W15, W6-remainder, W17 and still open) — each a standalone script. Run one with `PYTHONPATH=<repo-parent> python -u validation/testN_*.py` (the suites insert the package parent onto `sys.path` themselves and import as `cat_theo_machine.*`).
 5. **Snapshot Root Invariant**: any new machine state that must survive a cold resume has to be registered as a root in `SnapshotCodec.capture()` and restored in `activate()`. Content added through the graph's `nodes`/`edges` context is now covered; state kept only in Python attributes is not, and silently evaporates on reload.
 6. **Suite Slot Discipline**: `validation/` numbering is append-only. Two lineages independently claimed slots 15 and 16 for unrelated suites; the reconciliation below is what happened, and new work must take the next free number rather than reusing a taken one.
 
@@ -399,3 +408,30 @@ The three older DAG-era branches (`arena/01a108cd`, `arena/d09a2974`, `arena/861
 - Pre-existing and untouched: `audit_pack_check.py` does not parse (BOM + a Windows path, from `master`); `__pycache__`/`*.pyc` files committed on `master` are still tracked (a `.gitignore` now prevents new ones; removing the tracked ones is a separate housekeeping commit).
 
 **Gate.** Full `validation/` run on the integrated tree (2 vCPU, `.venv` with `gmpy2` 2.3.2 / `pyyaml` 6.0.3, Python 3.11): **25/25 green**, ~16.7 min wall. Per suite: `test1`–`test19` all pass (`test12` 10/10 probes; `test3` passes — its `master`-era Windows-path failure was fixed on the code line); `test20` all checks in 94.9 s; `test21` 36/36 in 72 s; `test22` all checks in 211 s; `test23` 80/80 in 68 s; `test25` 48/48 in 171 s; `test29` 26/26 in 165 s. No tracked snapshot was rewritten by the run (`git status snapshots/` clean). Baselines for attribution: `arena/87d8295b` tip 22/22 green before the merge; `arena/500df21f` tip green except its own `test3` (the `master` failure). Note for anyone re-running the gate: do **not** export `HYGE_SNAPSHOT_UPGRADE_RESAVE=0` globally — `test12` probe 10 checks that the *default* policy still resaves and fails under a blanket opt-out; that is the harness, not the codec.
+
+### 6.3 Post-integration: W16 suite and a restore defect (2026-10-14)
+
+`validation/test27_distributed_prover_swarm.py` (slot 27, W16's) landed on the integrated branch;
+see §4 W16 for what it measures. Writing it exposed a defect that the 25-suite gate had not:
+`persistence._restore_tree_roots_parallel` hands each restored root back from a spawned worker
+as a pickle, and `pickle` serialises a cons-list recursively, so `all_rules` pickles at a depth
+proportional to the rule count. After the merge the full-pack rule list crossed the interpreter's
+default 1000-frame limit *inside the spawned worker* (which starts at the default): the rebuild
+succeeded, the handoff died, and every snapshot saved from a full pack boot — i.e. every swarm
+unit — failed to boot with “restore worker failed for all_rules: maximum recursion depth
+exceeded”. The tracked snapshots (`hyge_snapshot_current.json`, 268 KB of pickled rules against
+791 KB for a unit) were still under the limit, which is why the gate stayed green. Fix: the
+handoff (`_write_handoff`) runs on a thread with a generous stack and raises the recursion limit
+only as far as the payload demands, doubling to a cap that fails loudly rather than hanging;
+unpickling in the parent is iterative and unchanged. `core.py` untouched; the change is host-layer
+codec plumbing. Also added to `.gitignore`: the `hyge-*-restore-*` scratch directories a worker
+killed mid-boot leaves in the package root (the kill phase of `test27` sweeps its own).
+
+Regression run after the change: `test1`, `test4`, `test12`, `test15`, `test25` (the W16 risk
+list) and `test27` green; `git status snapshots/` clean. Suite count is now **26** (§5 rule 4).
+
+Stale note corrected: the W9 (b) entry above says “the machine has no modulo, subtraction or
+division” — true on the bare-`master` branch it was written on, not on the integrated tree, which
+carries `Divides`, `Gcd`, `Modulo`, `IsCoprime` (`math/arithmetic.py`, from `91dd5f7`) and the
+signed `Whole*`/`Ring*` edges (W7). Residues beyond parity and divisibility chains are therefore a
+wiring task for the functional-equation schemas, not a missing substrate.
