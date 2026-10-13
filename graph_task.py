@@ -339,6 +339,16 @@ class ForwardDeriveFacts(M.Edge):
             return M.truth_value
         return self._has_fact_rec(M.Tail(cur)(), target)
 
+    def _filter_new_facts_rec(self, derived_facts, existing_facts):
+        if M.IdentityCompare(derived_facts, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        f = M.Head(derived_facts)()
+        if self._has_fact_rec(existing_facts, f) is M.false_value:
+            return M.Pair(
+                f, self._filter_new_facts_rec(M.Tail(derived_facts)(), existing_facts)
+            )
+        return self._filter_new_facts_rec(M.Tail(derived_facts)(), existing_facts)
+
     def _apply_rule_to_facts_rec(self, premise, replacement, cur_facts, existing_facts):
         if M.IdentityCompare(cur_facts, M.EmptyList)() is M.truth_value:
             return M.EmptyList
@@ -384,12 +394,16 @@ class ForwardDeriveFacts(M.Edge):
                 is M.truth_value
             ):
                 bindings = M.Tail(match_res)()
-                inst_res = M.Instantiate(replacement, bindings)()
-                derived = M.Head(inst_res)()
-                if self._has_fact_rec(current_facts, derived) is M.false_value:
-                    new_from_r = M.Pair(derived, M.EmptyList)
+                if P.ReplacementIsFactList(r)() is M.truth_value:
+                    inst_res = P.InstantiateFactList(replacement, bindings)()
+                    new_from_r = self._filter_new_facts_rec(inst_res, current_facts)
                 else:
-                    new_from_r = M.EmptyList
+                    inst_res = M.Instantiate(replacement, bindings)()
+                    derived = M.Head(inst_res)()
+                    if self._has_fact_rec(current_facts, derived) is M.false_value:
+                        new_from_r = M.Pair(derived, M.EmptyList)
+                    else:
+                        new_from_r = M.EmptyList
             else:
                 new_from_r = M.EmptyList
 
