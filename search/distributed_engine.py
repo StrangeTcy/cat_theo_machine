@@ -72,6 +72,25 @@ Survey of the rest of the agenda, since the choice of problem is not free: Tao
 leave no frontier at all, the two Engel coin cases fail immediately, and
 `engel_e1` expands to a frontier of 4 but exhausts at 7 expanded nodes without a
 proof. `engel_e2` is the only case that both partitions and proves.
+
+One caveat on the snapshot transport, measured rather than assumed. Round-tripping
+the expanded state through `save_runtime` / `boot_from_snapshot` changes the plan
+the search goes on to find, though not what the proof costs:
+
+    baseline, booted from packs       plan 124d4980ae0799f6  cost cda29f2b48da3570
+    unit 0,   booted from packs       plan 124d4980ae0799f6  cost cda29f2b48da3570
+    baseline, booted from a snapshot  plan 2ad79637693297dd  cost cda29f2b48da3570
+    unit 0,   booted from a snapshot  plan 2ad79637693297dd  cost cda29f2b48da3570
+
+So the partition-and-merge equality holds inside either world -- a unit and the
+unpartitioned run agree exactly, whichever way both were started -- but a
+snapshot-restored swarm reproduces a proof of the same cost rather than the
+byte-identical plan a pack-booted search finds. Same expanded count (5), same
+proof cost, different plan: the restored state leads the search to a different
+branch of equal cost. Chasing that is the snapshot codec's business (W12), not
+this layer's, so it is recorded here as a boundary condition and the suite
+asserts what is actually true: plan equality within one transport, and proof-cost
+equality across transports and worker counts.
 """
 
 from __future__ import annotations
@@ -197,3 +216,163 @@ def merge(results):
             winner = record
             break
     return winner, ordered
+
+
+# --------------------------------------------------------------------- planning
+#
+# The expansion below is the expensive part of a swarm run -- measured at 17 s
+# against a 20 s pack boot -- and it is *identical* in every worker, because
+# every worker would otherwise repeat it from the root. So it happens once, in
+# the coordinator, and each unit travels as a snapshot that boots in 7.6 s. That
+# is the difference between a suite that fits its wall-clock budget and one that
+# costs 330 s.
+
+
+def nat(count, registry):
+    """A machine natural number, built the only way counting is allowed here."""
+    value = M.Zero
+    for _ in range(count):
+        pair = M.Succ(value, registry)()
+        value = M.Head(pair)()
+        registry = M.Head(M.Tail(pair)())()
+    return value, registry
+
+
+def step_limit(graph, rules, registry):
+    """The engine's own bound on steps, as the search worker derives it."""
+    limit = graph.next_rule_index
+    empty = M.IdentityCompare(limit, M.EmptyList)() is M.truth_value
+    if empty or M.NatEq(limit, M.Zero, registry)() is M.truth_value:
+        representation = M.CountRep(rules)()
+        limit = M.Atom()
+        limit.value = representation
+    return limit
+
+
+def root_job(start, goal, rules, heuristic, limit):
+    """A search job at the root: one frontier node, nothing expanded yet."""
+    return M.SearchJob(
+        start,
+        goal,
+        rules,
+        heuristic,
+        M.SearchRunningLabel,
+        M.Pair(M.SearchState(start, M.EmptyList, M.EmptyList, limit)(), M.EmptyList),
+        M.Zero,
+        M.Zero,
+        M.Zero,
+        M.EmptyList,
+        M.EmptyList,
+        M.EmptyList,
+        M.EmptyList,
+        M.one,
+    )()
+
+
+def rebuild_job(job, frontier, status=None):
+    """The same job with a different frontier -- that is all a work unit is.
+
+    Everything the search accumulated on the way to this frontier (the visited
+    set, the theorem-rule cache, the rewrite rules, the counters) is carried
+    across unchanged, so a unit resumes the search rather than restarting it.
+    """
+    return M.SearchJob(
+        M.SearchJobStart(job)(),
+        M.SearchJobGoal(job)(),
+        M.SearchJobRules(job)(),
+        M.SearchJobHeuristic(job)(),
+        M.SearchRunningLabel if status is None else status,
+        frontier,
+        M.SearchJobExpanded(job)(),
+        M.SearchJobGenerated(job)(),
+        M.SearchJobFrontierPeak(job)(),
+        M.EmptyList,
+        M.SearchJobVisited(job)(),
+        M.SearchJobTheoremRuleCache(job)(),
+        M.SearchJobRewriteRules(job)(),
+        None,
+    )()
+
+
+def expand_frontier(graph, job, registry, burst_steps, shard_count=1):
+    """Run `burst_steps` of search and return the frontier it leaves behind.
+
+    Returns `(job, registry, units, size)`. The caller owns the runtime; this
+    only advances the job, which is what makes the expansion shareable -- the
+    coordinator does it once and every unit inherits the result. `shard_count`
+    only decides which worker is *offered* each unit first; it never changes the
+    set of units.
+    """
+    from . import engine as _engine
+
+    budget, registry = nat(burst_steps, registry)
+    pair = _engine.SearchBurst(graph, job, budget, registry)()
+    job = M.Head(pair)()
+    registry = M.Head(M.Tail(pair)())()
+    graph._replace_context(constructors=registry)
+    frontier = M.SearchJobFrontier(job)()
+    units, size = partition_frontier(frontier, registry, shard_count)
+    return job, registry, units, size
+
+
+def size_of(frontier):
+    """How many nodes a machine frontier holds."""
+    count = 0
+    rest = frontier
+    while M.IdentityCompare(rest, M.EmptyList)() is M.false_value:
+        rest = M.Tail(rest)()
+        count += 1
+    return count
+
+
+def only_node(frontier, index):
+    """A frontier holding exactly the node at `index`, and nothing else."""
+    chosen = M.EmptyList
+    rest = frontier
+    position = 0
+    while M.IdentityCompare(rest, M.EmptyList)() is M.false_value:
+        if position == index:
+            chosen = M.Pair(M.Head(rest)(), M.EmptyList)
+        rest = M.Tail(rest)()
+        position += 1
+    return chosen
+
+
+def write_unit(runtime, path, namespace, job):
+    """Save a runtime holding exactly one search job: that is a work unit.
+
+    The context is set to this job alone rather than going through
+    `store_search_job`, which prepends. In practice that prepend is harmless
+    here -- `store_search_job` first removes any job with the same start, goal
+    and heuristic, and every unit of one problem shares all three, so the list
+    never grows past one. But that is a side effect of a deduplication rule, not
+    a guarantee, and a swarm over several problems would not get it. `read_unit`
+    refuses a snapshot holding more than one job, so the writer states the
+    invariant instead of inheriting it.
+    """
+    from ..runtime import save_runtime
+
+    runtime.graph._replace_context(search_jobs=M.Pair(job, M.EmptyList))
+    save_runtime(runtime, path, namespace)
+    return path
+
+
+def read_unit(path, namespace):
+    """Boot a unit snapshot and return `(runtime, graph, registry, job)`.
+
+    The unit is the single job the coordinator stored. A snapshot with more than
+    one job in it is a bug in the writer, not something to guess about.
+    """
+    from ..runtime import boot_from_snapshot
+
+    runtime = boot_from_snapshot(path, namespace)
+    graph = runtime.graph
+    registry = M.FromContextGetConstructors(graph)()
+    jobs = M.FromContextGetSearchJobs(graph)()
+    if M.IdentityCompare(jobs, M.EmptyList)() is M.truth_value:
+        raise RuntimeError("unit snapshot holds no search job: " + str(path))
+    job = M.Head(jobs)()
+    if M.IdentityCompare(M.Tail(jobs)(), M.EmptyList)() is M.false_value:
+        raise RuntimeError("unit snapshot holds more than one search job: " + str(path))
+    return runtime, graph, registry, job
+
