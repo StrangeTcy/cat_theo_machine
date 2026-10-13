@@ -678,6 +678,204 @@ def run_playground_interactive(graph):
     return "\n".join(lines)
 
 
+class RunPlaygroundFilteredPowerSweep(M.Edge):
+    """
+    Parameterized Cartesian sweep, generalizing RunPlaygroundCartesianSweep.
+
+    The original sweep is fixed to squares over an odd-pair filter. This one
+    takes the exponent and both domain filters as parameters, so one piece of
+    machinery runs any power-image / filtered-sum-image disjointness test:
+
+        unary image    = { x^k mod m : x in domain, unary_pred(x) }
+        pair-sum image = { (x^k + y^k) mod m : x, y in domain, pair_pred(x, y) }
+
+    Predicates are host-layer callables over machine values and return a
+    machine truth value directly: unary_pred(x_nat, registry) and
+    pair_pred(x_nat, y_nat, registry). The exponent enters only as a loop
+    count; every arithmetic step stays a machine operation.
+
+    The record has the same shape as RunPlaygroundCartesianSweep's:
+        Pair(DiscoveredInvariantLabel,
+             Pair(modulus,
+                  Pair(unary_image,
+                       Pair(pair_sum_image, Pair(disjoint, EmptyList)))))
+    """
+
+    def __init__(self, bound_nat, mod_nat, power_nat, unary_pred, pair_pred, registry):
+        self.registry = registry
+        self.result = self._run(bound_nat, mod_nat, power_nat, unary_pred, pair_pred, registry)
+        super().__init__(
+            inputs=M.Pair(
+                bound_nat,
+                M.Pair(
+                    mod_nat,
+                    M.Pair(
+                        power_nat,
+                        M.Pair(unary_pred, M.Pair(pair_pred, M.Pair(registry, M.EmptyList))),
+                    ),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def _run(self, bound_nat, mod_nat, power_nat, unary_pred, pair_pred, registry):
+        # The exponent is read once, as a loop count only.
+        power_rep = M.NatRepOf(power_nat, registry)()
+        if M.IdentityCompare(power_rep, M.EmptyList)() is M.truth_value:
+            raise TypeError("FilteredPowerSweep expects a Nat exponent")
+        power_count = power_rep()
+
+        # 1. Base domain: Zero for bound_nat steps.
+        range_res = BuildNatRange(M.Zero, bound_nat, registry)()
+        domain = M.Head(range_res)()
+        reg1 = M.Head(M.Tail(range_res)())()
+
+        one_res = M.NatFromRep(M.GMPRep(1), reg1)()
+        one_nat = M.Head(one_res)()
+        reg2 = M.Head(M.Tail(one_res)())()
+
+        # Host-level memo of machine power computations, keyed on the element's
+        # rep value: the same pattern as the kernel's NatValueIndex. Every
+        # arithmetic step below is still a machine operation; only repeated
+        # evaluation of x^k for a repeated x is avoided.
+        power_memo = {}
+
+        def power_value(x, reg):
+            rep = M.NatRepOf(x, reg)()
+            memo_key = None
+            if M.IdentityCompare(rep, M.EmptyList)() is M.false_value:
+                memo_key = rep()
+            if memo_key is not None and memo_key in power_memo:
+                return M.Pair(power_memo[memo_key], M.Pair(reg, M.EmptyList))
+            # x^k by generic repeated multiplication, k a machine quantity.
+            acc = one_nat
+            cur_reg = reg
+            for _ in range(power_count):
+                mul_pair = A.Multiply(acc, x, cur_reg)()
+                acc = M.Head(mul_pair)()
+                cur_reg = M.Head(M.Tail(mul_pair)())()
+            if memo_key is not None:
+                power_memo[memo_key] = acc
+            return M.Pair(acc, M.Pair(cur_reg, M.EmptyList))
+
+        def power_of_head(tuple_args, reg):
+            x = M.Head(tuple_args)()
+            return power_value(x, reg)
+
+        def power_sum(tuple_args, reg):
+            x = M.Head(tuple_args)()
+            y = M.Head(M.Tail(tuple_args)())()
+            px_pair = power_value(x, reg)
+            px = M.Head(px_pair)()
+            r1 = M.Head(M.Tail(px_pair)())()
+            py_pair = power_value(y, r1)
+            py = M.Head(py_pair)()
+            r2 = M.Head(M.Tail(py_pair)())()
+            add_pair = A.Add(px, py, r2)()
+            return M.Pair(M.Head(add_pair)(), M.Pair(M.Head(M.Tail(add_pair)())(), M.EmptyList))
+
+        def unary_wrapper(tuple_args, reg):
+            x = M.Head(tuple_args)()
+            holds = unary_pred(x, reg)
+            return M.Pair(holds, M.Pair(reg, M.EmptyList))
+
+        def pair_wrapper(tuple_args, reg):
+            x = M.Head(tuple_args)()
+            y = M.Head(M.Tail(tuple_args)())()
+            holds = pair_pred(x, y, reg)
+            return M.Pair(holds, M.Pair(reg, M.EmptyList))
+
+        # 2. Unary image over the filtered 1-ary domain.
+        dom1 = ProductOfDomains(M.Pair(domain, M.EmptyList))()
+        unary_tuples_res = FilterTuples(dom1, unary_wrapper, reg2)()
+        unary_tuples = M.Head(unary_tuples_res)()
+        reg3 = M.Head(M.Tail(unary_tuples_res)())()
+        unary_map_res = MapDomain(unary_tuples, power_of_head, reg3)()
+        unary_vals = M.Head(unary_map_res)()
+        reg4 = M.Head(M.Tail(M.Tail(unary_map_res)())())()
+        unary_proj_res = ProjectCongruence(unary_vals, mod_nat, reg4)()
+        unary_image = M.Head(unary_proj_res)()
+        reg5 = M.Head(M.Tail(unary_proj_res)())()
+
+        # 3. Pair-sum image over the filtered 2-ary domain.
+        dom2 = ProductOfDomains(M.Pair(domain, M.Pair(domain, M.EmptyList)))()
+        pair_tuples_res = FilterTuples(dom2, pair_wrapper, reg5)()
+        pair_tuples = M.Head(pair_tuples_res)()
+        reg6 = M.Head(M.Tail(pair_tuples_res)())()
+        pair_map_res = MapDomain(pair_tuples, power_sum, reg6)()
+        pair_vals = M.Head(pair_map_res)()
+        reg7 = M.Head(M.Tail(M.Tail(pair_map_res)())())()
+        pair_proj_res = ProjectCongruence(pair_vals, mod_nat, reg7)()
+        pair_image = M.Head(pair_proj_res)()
+        reg8 = M.Head(M.Tail(pair_proj_res)())()
+
+        # 4. Disjointness of the two images.
+        disjoint_res = EvaluateSetRelation(unary_image, pair_image, reg8)()
+        is_disjoint = M.Head(disjoint_res)()
+        reg9 = M.Head(M.Tail(M.Tail(disjoint_res)())())()
+
+        sweep_record = M.Pair(
+            L.DiscoveredInvariantLabel,
+            M.Pair(
+                mod_nat,
+                M.Pair(
+                    unary_image,
+                    M.Pair(pair_image, M.Pair(is_disjoint, M.EmptyList)),
+                ),
+            ),
+        )
+        return M.Pair(sweep_record, M.Pair(reg9, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class DiscoverSeparatingModulus(M.Edge):
+    """
+    Run RunPlaygroundFilteredPowerSweep over an ordered chain of candidate
+    moduli and return the record of the FIRST modulus whose unary and
+    pair-sum images are disjoint, or EmptyList when none separates. The
+    separating modulus is therefore a sweep result, never a constant a
+    caller chose. Returns Pair(record_or_EmptyList, Pair(registry, EmptyList)).
+    """
+
+    def __init__(self, bound_nat, power_nat, unary_pred, pair_pred, moduli_chain, registry):
+        self.registry = registry
+        self.result = self._search(bound_nat, power_nat, unary_pred, pair_pred, moduli_chain, registry)
+        super().__init__(
+            inputs=M.Pair(
+                bound_nat,
+                M.Pair(
+                    power_nat,
+                    M.Pair(
+                        unary_pred,
+                        M.Pair(pair_pred, M.Pair(moduli_chain, M.Pair(registry, M.EmptyList))),
+                    ),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def _search(self, bound_nat, power_nat, unary_pred, pair_pred, moduli_chain, registry):
+        if M.IdentityCompare(moduli_chain, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+        candidate = M.Head(moduli_chain)()
+        sweep_res = RunPlaygroundFilteredPowerSweep(
+            bound_nat, candidate, power_nat, unary_pred, pair_pred, registry
+        )()
+        record = M.Head(sweep_res)()
+        reg1 = M.Head(M.Tail(sweep_res)())()
+        disjoint = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(record)())())())())()
+        if disjoint is M.truth_value:
+            return M.Pair(record, M.Pair(reg1, M.EmptyList))
+        return self._search(
+            bound_nat, power_nat, unary_pred, pair_pred, M.Tail(moduli_chain)(), reg1
+        )
+
+    def __call__(self):
+        return self.result
+
+
 __all__ = (
     "ChainLength",
     "ChainContains",
@@ -693,6 +891,8 @@ __all__ = (
     "ProjectCongruence",
     "EvaluateSetRelation",
     "RunPlaygroundCartesianSweep",
+    "RunPlaygroundFilteredPowerSweep",
+    "DiscoverSeparatingModulus",
     "EvaluateOperationTensor",
     "run_playground_interactive",
 )
