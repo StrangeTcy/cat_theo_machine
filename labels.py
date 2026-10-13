@@ -883,6 +883,30 @@ class ConstructionMethodLabel(ConstructorLabel):
     pass
 
 
+class CauchyAddLabel(ConstructorLabel):
+    pass
+
+
+class CauchyMulLabel(ConstructorLabel):
+    pass
+
+
+class NonTrivialLabel(ConstructorLabel):
+    pass
+
+
+class ValueLabel(ConstructorLabel):
+    pass
+
+
+class NatSumLabel(ConstructorLabel):
+    pass
+
+
+class NatProductLabel(ConstructorLabel):
+    pass
+
+
 class AngleOfLabel(ConstructorLabel):
     pass
 
@@ -1300,6 +1324,12 @@ CircumcircleOfLabel = CircumcircleOfLabel()
 OnCircleLabel = OnCircleLabel()
 ConstructionSchemaLabel = ConstructionSchemaLabel()
 ConstructionMethodLabel = ConstructionMethodLabel()
+CauchyAddLabel = CauchyAddLabel()
+CauchyMulLabel = CauchyMulLabel()
+NonTrivialLabel = NonTrivialLabel()
+ValueLabel = ValueLabel()
+NatSumLabel = NatSumLabel()
+NatProductLabel = NatProductLabel()
 APNameLabel = APNameLabel()
 ApplyLabel = ApplyLabel()
 DefinesLabel = DefinesLabel()
@@ -1720,6 +1750,12 @@ def sync_from_namespace(namespace):
         "OnCircleLabel",
         "ConstructionSchemaLabel",
         "ConstructionMethodLabel",
+        "CauchyAddLabel",
+        "CauchyMulLabel",
+        "NonTrivialLabel",
+        "ValueLabel",
+        "NatSumLabel",
+        "NatProductLabel",
         "APNameLabel",
         "ApplyLabel",
         "DefinesLabel",

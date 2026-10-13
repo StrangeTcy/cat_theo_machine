@@ -70,7 +70,7 @@ The machine's capabilities and subsystems are partitioned into five core dimensi
 | **W6** | FLT $n=4$ Residue Discovery | Dim 1 | `validation/test18_flt_residue_discovery.py` | W3 | Modulo 4 obstruction discovered live; parametrization descent open |
 | **W7** | FLT $n=3$ Eisenstein Factorization | Dim 1 | `packs/flt_eisenstein.pack.yaml`| W3 | Eisenstein norm ring $\mathbb{Z}[\omega]$, cubic descent |
 | **W8** | IMO Geometry & Aux Construction | Dim 2 | `constructions.py`, `packs/geometry-constructions.pack.yaml`, `planner.py` (`Construction`) | W4 | Goal-directed auxiliary-point schemas, slot `test21` |
-| **W9** | IMO Combinatorics & Func-Eq | Dim 2 | `packs/imo_algebra.pack.yaml` | W4 | Cauchy/d'Alembert equations, extremal sets |
+| **W9** | IMO Combinatorics & Func-Eq | Dim 2 | `packs/funceq-nt.pack.yaml` | W4 | Cauchy consequences derived, parity algebra on machine naturals; slot `test22` |
 | **W10**| Engel Monovariants & Invariants | Dim 3 | `packs/engel-strategies.pack.yaml`, `planner.py` (`Monovariant`, `SemiInvariant`, `Invariance`) | W3, W4 | Semi-invariants, colouring as invariance, box principle obligationed; suite slot `test23` |
 | **W11**| Invariant Trace Miner & Evaluator| Dim 4 | `invariant_miner.py`, `evaluator.py`| W4 | Trace state extractor, holdout regression gate |
 | **W12**| Dual-Ledger Promotion Loop | Dim 4 | `promotion_ledger.py` | W11, W1 | End-to-end autonomous discovery & rollback ledger |
@@ -148,7 +148,40 @@ These arrived during Phase 0/1 execution and are prerequisites or enablers rathe
     proof that the pipeline works, not the catalogue.
   - *Not done*: no cyclic-quadrilateral conclusion schema yet; the circumcircle schema stops at
     vertex incidence and does not yet feed chord/angle facts back into goals.
-- [ ] **W9 (IMO Combinatorics, Functional Equations & NT)**: Ready for execution.
+- [x] **W9 (IMO Combinatorics, Functional Equations & NT)**: Completed as a partial,
+  honest slice, verified in `validation/test22_imo_combinatorics_funceq.py` (26/26 checks,
+  ~125 s) — slot 22, the one `delegation/README.md` pre-allocates to this worker.
+  - *Family 2 (functional equations) delivered.* The equation is an input fact — `CauchyAdd(f)`
+    / `CauchyMul(f)` — and `packs/funceq-nt.pack.yaml` (25 rules, registered in
+    `main.py:PACK_PATHS`) derives the consequences: additive Cauchy down to $f(0)=0$ (the free
+    $(0,0)$ instance, then the shared-term cancel — the one classical lemma the slice assumes as
+    a schema, exactly as a geometric worker assumes SAS), instances at whatever values the
+    instance supplies and never at values it does not, multiplicative Cauchy down to $f(1)=1$
+    under a **visible** `NonTrivial(f)` input — without it the zero function is a counterexample
+    and the schema refuses, which the suite pins as a negative control. The unit chain needs
+    argument-position normalisation ($1\cdot 1$ inside $f(\cdot)$), which is its own schema pair.
+  - *Family 3 delivered as a parity-algebra slice.* The machine's own `Add` / `Multiply` edges
+    compute the naturals (their constructor chains were verified: $2+3$ walks five successors
+    onto a nullary Zero), the sum/product is recorded as a `NatSum` / `NatProduct` fact, and the
+    schemas derive the parity the computation must carry — and the suite verifies the machine's
+    sum against its own `Count`. The wrong parities are pinned unreachable. The machine has no
+    modulo, subtraction or division, so residues beyond mod 2 and divisibility chains are open.
+  - *Family 1 out of scope, declared.* `graph_task.py`, `invariant_miner.py`, `evaluator.py` and
+    `curriculum.py` do not exist on this branch, so the combinatorial-configurations family, the
+    held-out/decoy evidence, the ablation and the Checker-B/ledger items of the done-definition
+    are **not met here and are not claimed** (the brief's partial-coverage clause).
+  - *New labels* (append-only, snapshot-registered): `CauchyAdd`, `CauchyMul`, `NonTrivial`,
+    `Value`, `NatSum`, `NatProduct`. `core.py` untouched.
+  - *Machine finding recorded during this worker's session*: no machine predicate answers
+    atomness — `IsAtom` accepts any non-pair, non-edge host object and never consults the
+    registry it is handed, and `GetConstructor` returns the empty constructor for every
+    non-pair object, machine or host alike. Consequences: structural genericity pins must walk
+    argument/cons positions with `IsPair`/`IdentityCompare` (as this suite and `test21`/`test23`
+    now do), and `packs.py`'s `sym` resolution would admit a host callable named in a pack —
+    coordinator's attention drawn; kernel off-limits to workers.
+  - *Not done*: d'Alembert-type equations (they need a minus/subtraction term the machine's
+    arithmetic does not carry), residues beyond parity, divisibility, extremal sets, and
+    everything catalogued under the family-1 scope note above.
 - [x] **W10 (Engel Strategies & Monovariants Pack)**: Completed & verified in
   `validation/test23_engel_strategies.py` (80/80 checks, ~70 s) — slot 23, the one
   `delegation/README.md` pre-allocates to this worker; slots 20–22 belong to W7/W8/W9.
