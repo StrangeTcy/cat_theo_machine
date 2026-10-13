@@ -1,0 +1,10 @@
+# Byte-compiled / cache
+__pycache__/
+*.py[cod]
+
+# Local virtualenv (recreate: python3 -m venv .venv && .venv/bin/pip install gmpy2 pyyaml)
+.venv/
+
+# Generated run artifacts from search comparisons and swarm workers
+snapshots/search_compare/run-*/
+logs/*.log
