@@ -26,6 +26,22 @@ canonical rendering; it is a printer over term structure, so two structurally
 equal states print alike. `validation/test27_distributed_prover_swarm.py` pins
 that, including across processes, because a partition function that is not
 reproducible in a fresh runtime is not a partition function.
+
+Transport: a work unit travels as a **snapshot**, not as text and not as
+pickle. The coordinator builds a job whose frontier is exactly the unit's node,
+stores it with `graph.store_search_job`, and saves the runtime; the worker calls
+`boot_from_snapshot` and finds its job, node for node. Measured on a real unit:
+the node's digest is identical on both sides of the round trip, and booting from
+a unit snapshot took 7.6 s against 17 s to boot the same runtime from packs -- so
+the faithful transport is also the cheaper one.
+
+One trap, because it cost a diagnosis: `persistence` restores the constructor
+registry through `multiprocessing.get_context("spawn")`, and a spawned child
+re-imports the `__main__` module. A driver script without an
+`if __name__ == "__main__"` guard therefore re-executes itself inside every
+registry shard worker, each of which dies before writing its output, and
+`boot_from_snapshot` fails with "registry shard 1/2 failed: no output produced".
+That message reads like a corrupt snapshot; it is not. Guard the entry point.
 """
 
 from __future__ import annotations
