@@ -49,6 +49,90 @@ def read_rows(path):
         handle.close()
 
 
+# Header names accepted for each role. apoc.export.csv.all emits the `_id:ID` /
+# `_labels` / `_start:START_ID` / `_end:END_ID` / `_type` family; the plain
+# `id` / `label` / `src` / `rel` / `dst` names are kept because they are what a
+# hand-rolled or cypher-shell-derived export uses, and because guessing one
+# convention silently breaks the other. Comparison is case-insensitive: apoc
+# writes the `:ID` and `:START_ID` qualifiers in upper case.
+IDENTITY_HEADERS = ("id", "_id", "_id:id", "id:id", "_id:rel", "id:rel")
+LABEL_HEADERS = ("label", "labels", "_labels", "_label", "_labels:label")
+START_HEADERS = ("src", "start", "_start", "_start:start_id", "start_id", "from")
+END_HEADERS = ("dst", "end", "_end", "_end:end_id", "end_id", "to")
+TYPE_HEADERS = ("rel", "type", "_type", "rel_type", "_type:type", "relationship")
+
+
+def role_of(name, wanted):
+    lowered = name.lower()
+    for candidate in wanted:
+        if lowered == candidate:
+            return True
+    return False
+
+
+def read_node_rows(path):
+    """Node rows with the identity and label columns canonicalised.
+
+    Every remaining column becomes a property edge, so apoc's payload columns
+    arrive as content rather than being dropped.
+    """
+    rows = read_rows(path)
+    canonical = []
+    for row in rows:
+        entry = {}
+        for key in row:
+            value = row[key]
+            if role_of(key, IDENTITY_HEADERS):
+                entry["id"] = value
+                continue
+            if role_of(key, LABEL_HEADERS):
+                entry["label"] = value
+                continue
+            entry[key] = value
+        canonical.append(entry)
+    return canonical
+
+
+def read_edge_rows(path):
+    """Relationship rows canonicalised, with property columns expanded.
+
+    A relationship property column becomes its own hyperedge keyed
+    `TYPE:column`, which is the same representation the cypher importer uses for
+    `[:LIVES_IN {since: 1843}]`, so both decoded shapes land identically.
+    """
+    rows = read_rows(path)
+    canonical = []
+    for row in rows:
+        entry = {}
+        properties = []
+        for key in row:
+            value = row[key]
+            if role_of(key, START_HEADERS):
+                entry["src"] = value
+                continue
+            if role_of(key, END_HEADERS):
+                entry["dst"] = value
+                continue
+            if role_of(key, TYPE_HEADERS):
+                entry["rel"] = value
+                continue
+            if role_of(key, IDENTITY_HEADERS):
+                continue
+            properties.append((key, value))
+        canonical.append(entry)
+        for key, value in properties:
+            if value is None:
+                continue
+            if value == "":
+                continue
+            canonical.append({
+                "src": entry["src"],
+                "rel": entry["rel"] + ":" + key,
+                "dst": value,
+            })
+    return canonical
+
+
 def build_terms(node_rows, edge_rows):
     """Fold CSV rows into the nodes chain and the edges chain."""
     nodes = M.EmptyList
@@ -91,8 +175,8 @@ def main():
     if len(argv) != 4:
         print("usage: csv_to_hypergraph NODES.csv EDGES.csv OUT.json")
         return 1
-    node_rows = read_rows(argv[1])
-    edge_rows = read_rows(argv[2])
+    node_rows = read_node_rows(argv[1])
+    edge_rows = read_edge_rows(argv[2])
     started = time.monotonic()
     runtime, _packs = _Runtime.boot_from_packs(
         _Main.PACK_PATHS, _Main._runtime_namespace()

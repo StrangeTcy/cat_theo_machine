@@ -21,6 +21,7 @@ sys.path.insert(0, os.path.dirname(_ROOT))
 from cat_theo_machine import machine as M
 from cat_theo_machine import main as _Main
 from cat_theo_machine import runtime as _Runtime
+from cat_theo_machine.importers import csv_to_hypergraph as _Importer
 
 IMPORTER = os.path.join(_ROOT, "importers", "csv_to_hypergraph.py")
 
@@ -59,6 +60,41 @@ def main():
         edge_rows.append("n%d,lives_in,n%d\n" % (index % nodes, (index * 7) % nodes))
 
     work = tempfile.mkdtemp(prefix="importer-probe-")
+    failures = 0
+
+    # Both header conventions must canonicalise to the same roles, and this is
+    # checked before the expensive part: apoc.export.csv.all writes _id:ID,
+    # _labels, _start:START_ID, _end:END_ID and _type, while a hand-rolled export
+    # writes id, label, src, rel and dst. Guessing one convention silently breaks
+    # the other -- and a header mismatch does not fail loudly, it imports a graph
+    # whose edges name nodes that were never registered.
+    apoc_nodes = os.path.join(work, "apoc_nodes.csv")
+    apoc_edges = os.path.join(work, "apoc_edges.csv")
+    write_csv(apoc_nodes, "_id:ID,_labels,name\n", ["7,:Person:Author,Ada\n"])
+    write_csv(
+        apoc_edges,
+        "_id:REL,_start:START_ID,_end:END_ID,_type,since\n",
+        ["99,7,3,LIVES_IN,1843\n"],
+    )
+    mapped_nodes = _Importer.read_node_rows(apoc_nodes)
+    mapped_edges = _Importer.read_edge_rows(apoc_edges)
+    header_checks = (
+        ("node_identity", mapped_nodes[0].get("id"), "7"),
+        ("node_label", mapped_nodes[0].get("label"), ":Person:Author"),
+        ("node_property_kept", mapped_nodes[0].get("name"), "Ada"),
+        ("edge_start", mapped_edges[0].get("src"), "7"),
+        ("edge_end", mapped_edges[0].get("dst"), "3"),
+        ("edge_type", mapped_edges[0].get("rel"), "LIVES_IN"),
+        ("edge_property_expanded", mapped_edges[1].get("rel"), "LIVES_IN:since"),
+        ("edge_property_value", mapped_edges[1].get("dst"), "1843"),
+    )
+    for name, actual, expected in header_checks:
+        if actual == expected:
+            print("PASS header_%s" % name)
+        else:
+            failures += 1
+            print("FAIL header_%s expected %s got %s" % (name, expected, actual))
+
     node_csv = os.path.join(work, "nodes.csv")
     edge_csv = os.path.join(work, "edges.csv")
     snapshot = os.path.join(work, "imported.json")
@@ -106,7 +142,6 @@ def main():
         ("lives_in", count_of(relations_found, registry), relations),
         ("label_props", count_of(properties_found, registry), nodes),
     )
-    failures = 0
     for name, counted, expected in checks:
         agreed = M.NatEq(counted, nat_from_host(expected, registry), registry)()
         if agreed is M.truth_value:
