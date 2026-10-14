@@ -2,6 +2,11 @@
 
 **Dimension 5 · Phase 2 · Suite slot `test24` · Prereqs W5 ✅ W12 ✅ (done)**
 
+> **Status: done.** `dialogue.py` and `validation/test24_socratic_dialogue.py` are on the
+> integrated branch (85/85, ~45 s); what the suite pins, the REPL wiring (`main.py live`
+> fall-through, `load pack <name>`) and the known limits are recorded in
+> `SWARM_EVOLUTION_DAG.md` §4 (W15) and §6.4. Do not re-execute this brief.
+
 Read `delegation/README.md` first — shared invariants, environment facts and pitfalls are
 binding here. This is the only Phase-2 worker still open, and both of its prerequisites are
 done, so it can start immediately.

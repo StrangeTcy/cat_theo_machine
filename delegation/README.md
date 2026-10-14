@@ -14,13 +14,13 @@ Index (open workers only; everything marked `[x]` in the DAG is already done and
 | `W08-imo-geometry.md` | W8: IMO geometry & auxiliary construction — **done**, see DAG §4 | 2 | 1 | W4 ✅ | `test21` ✅ |
 | `W09-imo-combinatorics-funceq.md` | W9: IMO combinatorics, functional equations, NT — **done**, see DAG §4 (two deliverables) | 2 | 1 | W4 ✅ | `test22` ✅, `test29` ✅ |
 | `W10-engel-strategies.md` | W10: Engel monovariants, extremal, box, colouring — **done**, see DAG §4 | 3 | 1 | W3 ✅ W4 ✅ | `test23` ✅ |
-| `W15-socratic-tutor.md` | W15: conversational Socratic tutor | 5 | 2 | W5 ✅ W12 ✅ | `test24` |
+| `W15-socratic-tutor.md` | W15: conversational Socratic tutor — **done**, see DAG §4 and §6.4 | 5 | 2 | W5 ✅ W12 ✅ | `test24` ✅ |
 | `W02-rpc-mtls-mesh.md` | W2: RPC / mTLS mesh — **done**, see DAG §4 | Infra | 0 (late) | none | `test25` |
 | `W16-distributed-prover-swarm.md` | W16: distributed prover swarm — **done**, see DAG §4 and §6.3 (speedup 0.84× on 2 vCPU, reported not tuned) | Swarm | 3 | W2 ✅ W13 ✅ | `test27` ✅ |
 | `W17-byzantine-ledger-consensus.md` | W17: Byzantine ledger consensus | Swarm | 3 | W2 ✅ W12 ✅ W1 ✅ | `test28` |
 
 Dispatch order that respects the gates: the five Phase-1 briefs (W6–W10) and W15 are
-independent and can all run in parallel. W2 is the only Phase-3 prerequisite and its
+independent and can all run in parallel (W15 is now done). W2 is the only Phase-3 prerequisite and its
 brief is now executed and green (`validation/test25_rpc_mtls_mesh.py`, 48/48, ~100 s),
 so W16 (now done) and
 W17 are unblocked — their `Prereqs` columns still name W2 ⬜ because they were written

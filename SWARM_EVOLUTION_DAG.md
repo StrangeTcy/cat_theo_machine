@@ -76,7 +76,7 @@ The machine's capabilities and subsystems are partitioned into five core dimensi
 | **W12**| Dual-Ledger Promotion Loop | Dim 4 | `promotion_ledger.py` | W11, W1 | End-to-end autonomous discovery & rollback ledger |
 | **W13**| Multi-Pass Backward Planner | Dims 1,2,3 | `planner.py`, `graph_task.py` | W6, W8, W9, W10 | Decomposed goal scheduler, auxiliary search |
 | **W14**| Proof Storyteller & Narratives | Dim 5 | `story_renderer.py` | W5, W4 | Formal receipt $\to$ LaTeX/Markdown mathematical story |
-| **W15**| Socratic Dialogue & Tutor | Dim 5 | `dialogue.py`, `main.py` | W5, W12 | Interactive concept inspection, counterexample REPL |
+| **W15**| Socratic Dialogue & Tutor | Dim 5 | `dialogue.py`, `main.py` (`live` fall-through, `load pack`), `labels.py` (+11) | W5, W12 | Concept inspection from loaded rules/definitions/ledger, claim REPL (Checker B / counterexample / undecided), structure-generated Socratic questions, ledger transparency; `validation/test24_socratic_dialogue.py` (85/85, ~45 s) |
 | **W16**| Distributed Prover Swarm | Swarm | `search/distributed_engine.py`, `networking/jobs.py`, `main.py` (`swarm`, `mesh --swarm`) | W2, W13 | Partitioned frontier worker mesh, work-stealing; `validation/test27_distributed_prover_swarm.py` (51/51, ~340 s) |
 | **W17**| Byzantine Ledger Consensus | Swarm | `consensus/ledger_sync.py` | W2, W12, W1 | Raft/BFT rule sync, monotonic version broadcast |
 
@@ -287,7 +287,43 @@ These arrived during Phase 0/1 execution and are prerequisites or enablers rathe
     layer (mining a measure or an observable rather than being handed one) is open; and the
     strategy rules do not fire during ordinary search — nothing yet proposes them to the search
     the way the planner methods do.
-- [ ] **W15 (Conversational Socratic Tutor & Concept Explorer)**: Ready for execution.
+- [x] **W15 (Conversational Socratic Tutor & Concept Explorer)**: Completed & verified in
+  `validation/test24_socratic_dialogue.py` (85/85 checks, ~45 s; a scripted deterministic
+  conversation). `dialogue.py` is a *reader* of the machine, not a second knowledge base: no
+  per-concept prose lives in it (pinned by the suite — the probe vocabulary and the bridge's
+  definition sentences appear nowhere in its source). **Concept inspection** builds an index
+  from the loaded packs' `rule_map` (rule id → rule, premises/replacement walked structurally;
+  label class names split into words, Char symbols), the packs' `phi`, the bridge's
+  `SurfaceDefinition` records (via `QueryConceptDefinition`) and `promotion_ledger` entries;
+  `SemiInvariant` — defined nowhere in prose — is explained from `engel-strategies`'
+  `semi_invariant_terminates`/`thread_non_increasing_moves`, `parity` from its definition record
+  with (honestly) no rule, `quaternion` as not represented, and a tutor over fewer packs knows
+  less. **Claims** (a small grammar over naturals: `+`, `*`, even/odd/divides/coprime, `if … then`,
+  `implies`, `whenever`, `for every n ,`; paraphrases meet in one machine record via
+  `proof.SameKnowledge` + `Compare`, and the rendering re-parses to an equivalent record) are
+  judged three ways, distinguishably: **verified** only when a derivation found by a bounded
+  iterative-deepening search over `proof.KnowledgeRewriteSuccessors` is accepted by
+  `checker_b.VerifyDerivation` (the suite re-runs the checker itself and shows it rejecting the
+  same derivation against the wrong goal); **refuted** by a counterexample found by sweeping
+  `playground.BuildNatRange`/`ProductOfDomains` with `math/arithmetic` edges (re-evaluated in the
+  suite); **undecided** with both pieces of evidence attached — a true claim no loaded rule proves
+  (`Even(a) ⇒ Odd(a+1)`; divisibility transitivity) stays undecided and bounded evidence is never
+  upgraded to a proof. **Socratic questions** come from `BackwardObligations` (rules whose
+  replacement matches the goal, premises bound through the goal and the known facts, the
+  JoinPremises discipline), ranked by open premises and tagged with the curriculum rungs
+  (`Rung2Join` choose a rule → `Rung1Retrieval` one missing premise at a time, no repetition →
+  `Rung4Derivation` apply and `check`; `Rung6Negative` when no rule concludes the goal); the same
+  machinery runs over an Engel-pack goal (`Terminates(p)` from `Monovariant(p,m)`, with `assume
+  Name(args)` in the rules' own vocabulary) and ends in a Checker-B verified
+  `monovariant_terminates` step. **Ledger**: each proposal's status (receipt present / refuted
+  with witness / lacks a receipt and the premise that would earn one, e.g. `Odd(1)`), and real
+  `PromotionLedger` entries with status and receipt presence. REPL: `main.py live` routes its
+  fall-through through the tutor before the pre-existing bridge path (explicit fall-through keeps
+  “no, I can't prove that”), plus a `load pack <name>` command. Boundary: a label is named by its
+  class name and a Char read by calling it, in two helpers (`_label_name`, `_char_text`) — the
+  suite counts the `type()` calls. Known limits: the claim grammar is arithmetic-only (other
+  goals enter through `Tutor.set_focus_goal` / `assume`); the ledger's ablation/holdout gates are
+  reported as not run, not simulated; search depth 4, sweep bound 12 (≤ 2000 assignments).
 - [x] **W2 (Distributed RPC & mTLS Mesh)**: Completed & verified in `validation/test25_rpc_mtls_mesh.py` (48/48, ~97 s, phases: mTLS 1.4 s, protocol 15.7 s, guards 0.5 s, real jobs 47 s, file transport 33 s) — framed RPC over mutual TLS with a certificate authority generated in Python, refusal negatives (unknown CA, untrusted server, expired leaf), membership over loopback, scopes and leases with monotonic sequences, peer-to-peer work stealing (proved once with stub jobs over real mTLS sockets and once with real subprocesses, where a queued search job is stolen from under a busy peer), and real `search` jobs over real `main.py mesh` subprocesses, compared against the same job run alone in a fresh process. The manifest/result contract is the one the file transport already used, so a mesh job is a `search-worker` job by construction (`search-worker` stays selectable and is regression-covered in the same suite). Clean shutdown is covered too: a closing connection no longer discards a queued goodbye, and a `deferred` result counts as a result rather than a failure. The crash clause is pinned from both sides — a killed peer's job is re-dispatched, and where nothing is left to re-dispatch to it ends as a terminal `failed` record naming `reason="worker-lost"`, so a job is either recovered or reported and never quietly dropped. Its own transport defects — a heartbeat that answered itself (an unbounded storm), a frame reader that read a TLS want-read as a clean EOF, and a result projection that pretty-printed proofs instead of reading the snapshot graph — were found and fixed on the way; see `networking/README.md`.
 - [x] **W16 (Distributed Heuristic Search & Partitioned Prover Swarm)**: Completed & verified in
   `validation/test27_distributed_prover_swarm.py` (51/51 checks, ~340 s on 2 vCPU; phases: plan
@@ -343,7 +379,7 @@ Every Arena agent working on this repository must strictly adhere to the followi
 
    **The exception is conjunctive: both halves must hold.** The code is host-layer, *and* there is no machine analogue for what it does. Being in a harness or a probe is not by itself a licence — if the machine can already answer the question (`Compare`, `IsAtom`, `IsPair`, `IsTree`), then reaching into a payload with `getattr`, `type`, or `.symbol` is a violation wherever it sits. The identity index passes both halves. A probe that read `.symbol` to find an edge by name and `type(x).__name__` to report what came back passed only the first; it was fixed to use `Compare` and `IsAtom`. An earlier draft of this section stated the test as "whether the value crosses into a machine term", which made layer the only condition and would have excused that probe. Do not spend a session on an unscoped purity refactor of host code, and do not cite this rule to reject working host-layer code — but do not cite the host layer to excuse bypassing a predicate the machine already provides.
 3. **No Domain-Specific Hardcoding**: Do not hardcode problem targets or fixed heuristics in search or mining modules.
-4. **Verification Requirement**: Every new worker module or pack must include an automated verification suite in `validation/` with $100\%$ green test results before promotion. There are currently **26** suites — `test1`–`test23`, `test25`, `test27`, `test29` (slots 24, 26, 28 are pre-allocated to W15, W6-remainder, W17 and still open) — each a standalone script. Run one with `PYTHONPATH=<repo-parent> python -u validation/testN_*.py` (the suites insert the package parent onto `sys.path` themselves and import as `cat_theo_machine.*`).
+4. **Verification Requirement**: Every new worker module or pack must include an automated verification suite in `validation/` with $100\%$ green test results before promotion. There are currently **27** suites — `test1`–`test25`, `test27`, `test29` (slots 26, 28 are pre-allocated to W6-remainder, W17 and still open) — each a standalone script. Run one with `PYTHONPATH=<repo-parent> python -u validation/testN_*.py` (the suites insert the package parent onto `sys.path` themselves and import as `cat_theo_machine.*`).
 5. **Snapshot Root Invariant**: any new machine state that must survive a cold resume has to be registered as a root in `SnapshotCodec.capture()` and restored in `activate()`. Content added through the graph's `nodes`/`edges` context is now covered; state kept only in Python attributes is not, and silently evaporates on reload.
 6. **Suite Slot Discipline**: `validation/` numbering is append-only. Two lineages independently claimed slots 15 and 16 for unrelated suites; the reconciliation below is what happened, and new work must take the next free number rather than reusing a taken one.
 
@@ -428,10 +464,29 @@ codec plumbing. Also added to `.gitignore`: the `hyge-*-restore-*` scratch direc
 killed mid-boot leaves in the package root (the kill phase of `test27` sweeps its own).
 
 Regression run after the change: `test1`, `test4`, `test12`, `test15`, `test25` (the W16 risk
-list) and `test27` green; `git status snapshots/` clean. Suite count is now **26** (§5 rule 4).
+list) and `test27` green; `git status snapshots/` clean. Suite count became **26** (§5 rule 4; 27 with W15's `test24`, §6.4).
 
 Stale note corrected: the W9 (b) entry above says “the machine has no modulo, subtraction or
 division” — true on the bare-`master` branch it was written on, not on the integrated tree, which
 carries `Divides`, `Gcd`, `Modulo`, `IsCoprime` (`math/arithmetic.py`, from `91dd5f7`) and the
 signed `Whole*`/`Ring*` edges (W7). Residues beyond parity and divisibility chains are therefore a
 wiring task for the functional-equation schemas, not a missing substrate.
+
+### 6.4 Post-integration: W15 tutor (2026-10-14)
+
+`dialogue.py` + `validation/test24_socratic_dialogue.py` (slot 24, W15's) landed on the
+integrated branch; see §4 W15. Two machine facts the work turned up, for the next worker:
+
+- **Bindings are identity-keyed and data atoms join by identity.** `Match` binds the pattern
+  variable *object* (`FindBinding` uses `IdentityCompare`), and `MergeBindings` reconciles values
+  with `TermEqual`, which treats two constructor-less atoms as unequal unless they are the same
+  object — so a fresh `M.Char("p")` never joins a premise bound to another `Char("p")`, and a
+  premise copied by `Instantiate` before matching loses its bindings. `dialogue.py` therefore
+  interns every Char per session (`Tutor.intern`, the same discipline `packs.py` applies with
+  `_char_atom`) and matches the *original* premise patterns (the `JoinPremises` discipline).
+- **`RuleIsUnary` means single-premise, not pattern-rule.** Filtering on it drops 16 of the 38
+  pack theorem rules (`even_ss`, `eq_symmetric`, the `thread_*` rules); the shape
+  `KnowledgeRewriteSuccessors` rewrites is `ReplacementIsFactList`.
+
+Regression run with the new labels and the `main.py` change: `test1`, `test4`, `test11`,
+`test12`, `test14`, `test19`, `test22`, `test23` green; `git status snapshots/` clean.

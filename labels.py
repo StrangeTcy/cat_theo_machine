@@ -1657,6 +1657,50 @@ class SharedInvariantBridgeLabel(ConstructorLabel):
 
 class AnalogyMatchLabel(ConstructorLabel):
     pass
+
+
+class DialogueClaimLabel(ConstructorLabel):
+    pass
+
+
+class ClaimVerifiedLabel(ConstructorLabel):
+    pass
+
+
+class ClaimRefutedLabel(ConstructorLabel):
+    pass
+
+
+class ClaimUndecidedLabel(ConstructorLabel):
+    pass
+
+
+class CounterexampleLabel(ConstructorLabel):
+    pass
+
+
+class SweepReportLabel(ConstructorLabel):
+    pass
+
+
+class SocraticQuestionLabel(ConstructorLabel):
+    pass
+
+
+class ConceptReportLabel(ConstructorLabel):
+    pass
+
+
+class ConceptNotRepresentedLabel(ConstructorLabel):
+    pass
+
+
+class DialogueTurnLabel(ConstructorLabel):
+    pass
+
+
+class DialogueFallthroughLabel(ConstructorLabel):
+    pass
 TreeLabel = TreeLabel()
 ZeroLabel = ZeroLabel()
 SuccLabel = SuccLabel()
@@ -2070,6 +2114,17 @@ TaoProblem11AlphaValueLabel = TaoProblem11AlphaValueLabel()
 TaoProblem11BetaValueLabel = TaoProblem11BetaValueLabel()
 TaoProblem11GammaValueLabel = TaoProblem11GammaValueLabel()
 DistinctLabel = DistinctLabel()
+DialogueClaimLabel = DialogueClaimLabel()
+ClaimVerifiedLabel = ClaimVerifiedLabel()
+ClaimRefutedLabel = ClaimRefutedLabel()
+ClaimUndecidedLabel = ClaimUndecidedLabel()
+CounterexampleLabel = CounterexampleLabel()
+SweepReportLabel = SweepReportLabel()
+SocraticQuestionLabel = SocraticQuestionLabel()
+ConceptReportLabel = ConceptReportLabel()
+ConceptNotRepresentedLabel = ConceptNotRepresentedLabel()
+DialogueTurnLabel = DialogueTurnLabel()
+DialogueFallthroughLabel = DialogueFallthroughLabel()
 
 
 def sync_from_namespace(namespace):
@@ -2487,6 +2542,17 @@ def sync_from_namespace(namespace):
         "EmbeddingMatchLabel",
         "SharedInvariantBridgeLabel",
         "AnalogyMatchLabel",
+        "DialogueClaimLabel",
+        "ClaimVerifiedLabel",
+        "ClaimRefutedLabel",
+        "ClaimUndecidedLabel",
+        "CounterexampleLabel",
+        "SweepReportLabel",
+        "SocraticQuestionLabel",
+        "ConceptReportLabel",
+        "ConceptNotRepresentedLabel",
+        "DialogueTurnLabel",
+        "DialogueFallthroughLabel",
     ):
         if name in namespace:
             globals()[name] = namespace[name]

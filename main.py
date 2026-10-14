@@ -45,6 +45,7 @@ else:
     from . import promotion_ledger as PL
     from . import playground as PG
     from . import story_renderer as SR
+    from . import dialogue as Dlg
     from .packs import PackLoader
     from .testsuite import install_default_tests
 
@@ -1657,16 +1658,34 @@ def run_live_mode(debug: bool = False):
             return int(cleaned)
         return None
 
+    session_packs = []
+    tutor_holder = [None]
+
+    def _remember_pack(pack):
+        if not any(p is pack for p in session_packs):
+            session_packs.append(pack)
+            if tutor_holder[0] is not None:
+                tutor_holder[0].add_pack(pack)
+        return pack
+
     def _get_pack(pack_name):
         nonlocal packs
         if packs is not None:
             try:
-                return packs.by_name(pack_name)
+                return _remember_pack(packs.by_name(pack_name))
             except Exception:
                 pass
         loader = PackLoader(runtime_namespace)
         path = os.path.join(PACK_DIR, f"{pack_name}.pack.yaml")
-        return loader.load_pack_file(path, runtime.graph)
+        return _remember_pack(loader.load_pack_file(path, runtime.graph))
+
+    def _get_tutor():
+        # W15: the Socratic tutor reads the runtime's rules, packs, definitions
+        # and ledger; it is built once, on first use, and learns of packs the
+        # session loads later through _remember_pack.
+        if tutor_holder[0] is None:
+            tutor_holder[0] = Dlg.Tutor(runtime, packs=session_packs)
+        return tutor_holder[0]
 
     std_correspondences = SB.BuildStandardCorrespondences(M.FromContextGetConstructors(runtime.graph)())()
     std_definitions = SB.BuildStandardDefinitions(M.FromContextGetConstructors(runtime.graph)())()
@@ -2014,14 +2033,31 @@ def run_live_mode(debug: bool = False):
                     _print_ledger_lemmas(schemata, 1)
             else:
                 print("[machine] Active verified lemmas in promotion ledger: (none yet; run autonomous promotion)")
+        elif cmd.startswith("load pack "):
+            pack_name = cmd[len("load pack "):].strip()
+            pack_path = os.path.join(PACK_DIR, f"{pack_name}.pack.yaml")
+            if not os.path.exists(pack_path):
+                print(f"[machine] no pack named '{pack_name}' in {PACK_DIR}")
+            else:
+                loaded = _get_pack(pack_name)
+                print(f"[machine] loaded pack {loaded.name} ({len(loaded.rule_map.entries)} rules); the tutor now reads it too")
         else:
             arith_val = _eval_arithmetic_expr(raw)
             if arith_val is not None:
                 print(f"[machine] {arith_val}")
                 continue
 
-            # Check if query is a conceptual inquiry for native hypergraph definitions
+            # W15 Socratic tutor: concept inspection over the loaded rules and
+            # definitions, claims judged by Checker B / playground sweeps,
+            # focus + Socratic questions, ledger transparency.  Its explicit
+            # fall-through keeps the pre-existing behaviour below.
             clean_cmd = cmd.strip().rstrip("?.!")
+            tutor_answer = _get_tutor().ask(clean_cmd)
+            if tutor_answer.kind != "fallthrough":
+                print(tutor_answer.text)
+                continue
+
+            # Check if query is a conceptual inquiry for native hypergraph definitions
             if _check_concept_definition_query(clean_cmd.split(), std_definitions) is M.truth_value:
                 continue
 
