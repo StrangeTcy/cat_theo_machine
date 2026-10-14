@@ -1001,20 +1001,45 @@ class MeshPeer:
         with self._lock:
             if job_id not in self._job_state:
                 return
-            self._acknowledged.add(job_id)
-            self._job_owner[job_id] = peer_id
-            self._job_state[job_id] = "running" if started else "queued"
-            for key, lease in list(self._foreign_leases.items()):
-                if lease.job_id == job_id and lease.peer_id != peer_id:
-                    self._foreign_leases[key] = protocol.Lease(job_id, peer_id, key, lease.sequence, lease.lease_id)
-                    self._record("lease-transferred", job=self._jobs.get(job_id), peer_id=peer_id, detail="now held by %s" % peer_id)
-            record = self._members.get(peer_id)
-            if record is not None and started:
-                load = record.get("load", {})
-                record["load"] = {
-                    "queued": max(0, int(load.get("queued", 1)) - 1),
-                    "running": 1,
-                }
+            if job_id in self._results:
+                # This job is already finished. A peer reporting progress for it is
+                # working from a queue it never emptied -- which happens when the
+                # job was orphaned by a loss, recorded as failed, and then run
+                # anyway by a peer that still held it. Accepting the report would
+                # put the state back to running/queued beside a terminal record
+                # that `_finish_job` refuses to overwrite, so the ledger would
+                # claim a job is running that has already been accounted for, and
+                # whatever the second run produced would be dropped on the floor.
+                # Found by the W16 kill test: killing a worker mid-unit left
+                # job_states {done: 3, running: 1} next to terminal: 4.
+                finished_status = self._results[job_id].get("status", "")
+                finished = True
+            else:
+                finished_status = ""
+                finished = False
+            if not finished:
+                self._acknowledged.add(job_id)
+                self._job_owner[job_id] = peer_id
+                self._job_state[job_id] = "running" if started else "queued"
+                for key, lease in list(self._foreign_leases.items()):
+                    if lease.job_id == job_id and lease.peer_id != peer_id:
+                        self._foreign_leases[key] = protocol.Lease(job_id, peer_id, key, lease.sequence, lease.lease_id)
+                        self._record("lease-transferred", job=self._jobs.get(job_id), peer_id=peer_id, detail="now held by %s" % peer_id)
+                record = self._members.get(peer_id)
+                if record is not None and started:
+                    load = record.get("load", {})
+                    record["load"] = {
+                        "queued": max(0, int(load.get("queued", 1)) - 1),
+                        "running": 1,
+                    }
+        if finished:
+            self._record(
+                "progress-after-terminal-ignored",
+                job=self._jobs.get(job_id),
+                peer_id=peer_id,
+                detail="already recorded %s" % finished_status,
+            )
+            return
         self._record("job-" + ("started" if started else "queued"), job=self._jobs.get(job_id), peer_id=peer_id)
 
     def _handle_job_result(self, message):

@@ -299,3 +299,17 @@ Every checkpoint write therefore raised `AttributeError`, which means **the whol
 none of the 19 exercised that mode end to end. The two roots are now set to
 `EmptyList` (a result describes an attempt, not a runtime's hypergraph), and
 `test25` phase 4 keeps the file transport honest by running the CLI path for real.
+
+**A finished job could be resurrected by a late progress report** (`networking/peer.py`,
+found by the W16 kill test). `_note_job_progress` checked that a job was *known*
+before moving it back to `running`/`queued`, but not that it was *finished*. Kill a
+worker mid-job and the sequence is reachable: the job is orphaned, re-dispatched,
+lost again past `max_attempts`, recorded `failed` — and then run anyway by a peer
+that still had it queued, whose `job-started` the coordinator accepted. Because
+`_finish_job` never overwrites a terminal record, the ledger ended up claiming
+`job_states {done: 3, running: 1}` beside `terminal: 4`, and whatever the second
+run produced was dropped. The swarm still reported the loss instead of losing it
+silently, so the crash clause held; the ledger simply could not be trusted. A
+progress report for a job that already has a terminal record is now ignored and
+recorded as `progress-after-terminal-ignored`, which is a diagnostic and not
+behaviour — nothing depends on it except the check that pins the guard.

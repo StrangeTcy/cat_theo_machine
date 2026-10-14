@@ -596,6 +596,38 @@ def phase_protocol(results, directory):
         ),
     )
 
+    # A job that is already finished must not be resurrected by a late progress
+    # report. Found by the W16 kill test: a unit orphaned by a lost peer was
+    # recorded as failed and then run anyway by a peer that still held it in its
+    # queue, and the coordinator accepted the report -- leaving job_states
+    # {done: 3, running: 1} beside terminal: 4, with the second run's result
+    # dropped, because a terminal record is never overwritten. The swarm still
+    # reported the loss rather than losing it silently, but a ledger that says a
+    # finished job is running cannot be trusted by anything reading it.
+    finished_job = stub_job("proto-finished", directory=directory)
+    coordinator.submit(finished_job)
+    coordinator.wait_for(lambda peer: finished_job.job_id in peer._results, timeout=15)
+    finished_state = coordinator._job_state.get(finished_job.job_id)
+    ignored_before = len(coordinator.events("progress-after-terminal-ignored"))
+    coordinator._note_job_progress(
+        protocol.message(protocol.JOB_STARTED, job_id=finished_job.job_id, peer_id="ghost-peer")
+    )
+    coordinator._note_job_progress(
+        protocol.message(protocol.JOB_QUEUED, job_id=finished_job.job_id, peer_id="ghost-peer")
+    )
+    results.check(
+        "a finished job is not resurrected by a late progress report",
+        coordinator._job_state.get(finished_job.job_id) == finished_state
+        and coordinator._job_owner.get(finished_job.job_id) != "ghost-peer"
+        and len(coordinator.events("progress-after-terminal-ignored")) == ignored_before + 2,
+        "state=%s owner=%s ignored=%d"
+        % (
+            coordinator._job_state.get(finished_job.job_id),
+            coordinator._job_owner.get(finished_job.job_id),
+            len(coordinator.events("progress-after-terminal-ignored")) - ignored_before,
+        ),
+    )
+
     # A coordinator that shuts down must actually tell its members: the notice is
     # queued on the connection and closing it abandons what the writer still holds,
     # which is how a CLI worker used to spend the rest of its life reconnecting to
