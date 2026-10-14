@@ -32,7 +32,7 @@ else:
     from . import matching as X
     from . import proof as P
     from . import rewrite_rules as R
-    from .runtime import boot_from_packs, boot_from_snapshot, save_runtime
+    from .runtime import boot_from_packs, boot_from_snapshot, make_fresh_runtime, save_runtime
     from .persistence import SnapshotCodec
     from . import invariance as Imod
     from . import search as Smod
@@ -46,6 +46,15 @@ else:
     from . import playground as PG
     from . import story_renderer as SR
     from . import dialogue as Dlg
+    from .consensus import (
+        AcceptEntryDelivery,
+        ConsensusPeer,
+        EntryReceiptVerdict,
+        FreshPeer,
+        OfferLedgerSnapshot,
+        PeerLedger,
+        PeersAgree,
+    )
     from .packs import PackLoader
     from .testsuite import install_default_tests
 
@@ -2085,14 +2094,188 @@ def run_live_mode(debug: bool = False):
                 print("[machine] no, I can't prove that")
 
 
+def _consensus_scenario(runtime):
+    """One honestly promoted entry plus its forged twin, for consensus mode.
+
+    Builds the smallest end-to-end material: a two-step derivation over the
+    runtime's own vocabulary, one autonomous promotion cycle on the origin,
+    and a forged entry whose derivation licenses itself with a rule no peer
+    trusts. All values are machine terms; this is the same construction the
+    validation suite uses, at one entry instead of two.
+    """
+    graph = runtime.graph
+    registry = M.FromContextGetConstructors(graph)()
+
+    term_a, term_b, term_c, term_bad = M.Atom(), M.Atom(), M.Atom(), M.Atom()
+    rule_ab = P.Rule(term_a, term_b)()
+    rule_bc = P.Rule(term_b, term_c)()
+    rule_bad = P.Rule(term_a, term_bad)()
+    trusted = M.Pair(rule_ab, M.Pair(rule_bc, M.EmptyList))
+
+    act_ab = P.RewriteAction(rule_ab, M.EmptyList)()
+    act_bc = P.RewriteAction(rule_bc, M.EmptyList)()
+    honest_plan = M.Pair(act_ab, M.Pair(act_bc, M.EmptyList))
+
+    s1 = P.Step(term_a, act_ab, term_b, registry)()
+    step_1 = M.Head(s1)()
+    registry = M.Head(M.Tail(s1)())()
+    s2 = P.Step(term_b, act_bc, term_c, registry)()
+    step_2 = M.Head(s2)()
+    registry = M.Head(M.Tail(s2)())()
+    der = P.Derivation(
+        M.Pair(step_1, M.Pair(step_2, M.EmptyList)),
+        P.ProofCost(M.Zero, M.Zero, M.Zero, M.Zero)(),
+        registry,
+    )()
+    training_trace = M.Head(der)()
+    registry = M.Head(M.Tail(der)())()
+
+    version, registry = M.Zero, registry
+    for _ in range(4):
+        pr = M.Succ(version, registry)()
+        version = M.Head(pr)()
+        registry = M.Head(M.Tail(pr)())()
+    baseline_cost = P.ProofCost(version, M.Zero, M.Zero, M.Zero)()
+
+    holdout = M.Pair(
+        M.Pair(term_a, M.Pair(term_c, M.Pair(M.truth_value, M.EmptyList))), M.EmptyList
+    )
+    templates = M.Pair(Imod.Phi(term_a)(), M.EmptyList)
+
+    empty = PL.EmptyPromotionLedger(registry)()
+    cycle = PL.ExecuteAutonomousDiscoveryCycle(
+        training_trace, term_a, term_c, trusted, templates, M.Atom(), honest_plan,
+        baseline_cost, holdout, Lmod.ProofSchemaPromotionLabel, empty, registry,
+    )()
+    if M.IdentityCompare(M.Head(cycle)(), Lmod.AutonomousCycleCompletedLabel)() is M.false_value:
+        raise RuntimeError(
+            "consensus scenario: the discovery cycle did not complete (tag: {})".format(
+                type(M.Head(cycle)()).__name__
+            )
+        )
+    ledger_v1 = M.Head(M.Tail(cycle)())()
+    entry = M.Head(M.Tail(M.Tail(cycle)())())()
+
+    fst = P.Step(term_a, P.RewriteAction(rule_bad, M.EmptyList)(), term_bad, registry)()
+    forged_step = M.Head(fst)()
+    registry = M.Head(M.Tail(fst)())()
+    fder = P.Derivation(
+        M.Pair(forged_step, M.EmptyList), P.ProofCost(M.Zero, M.Zero, M.Zero, M.Zero)(), registry
+    )()
+    forged_derivation = M.Head(fder)()
+    registry = M.Head(M.Tail(fder)())()
+
+    receipt_fields = M.Tail(PL.LedgerEntryReceipt(entry)())()
+    session = M.Head(receipt_fields)()
+    forged_receipt = M.Pair(
+        Lmod.ProofReceiptLabel,
+        M.Pair(session, M.Pair(term_a, M.Pair(term_c, M.Pair(forged_derivation, M.Pair(trusted, M.EmptyList))))),
+    )
+    forged_entry = PL.LedgerEntry(
+        M.Atom(), Lmod.ProofSchemaPromotionLabel, M.Pair(Lmod.CandidateMacroLabel, M.EmptyList),
+        forged_receipt, M.EmptyList, PL.LedgerEntryVersion(entry)(), Lmod.PromotionActiveLabel,
+    )()
+
+    return {
+        "registry": registry,
+        "ledger_v1": ledger_v1,
+        "entry": entry,
+        "forged_entry": forged_entry,
+        "trusted": trusted,
+    }
+
+
+def run_consensus_mode(peer_count: int = 3) -> int:
+    """consensus mode: the W17 protocol end to end, in one process.
+
+    Boots one origin plus a small peer set, runs an adversarial delivery
+    schedule (duplicate, forged, stale snapshot, rollback tombstone), prints
+    every delivery report, and exits 0 only when the honest peers finish in
+    agreement at the same version with the forgery rejected everywhere.
+    """
+    runtime = make_fresh_runtime()
+    scenario = _consensus_scenario(runtime)
+    registry = scenario["registry"]
+
+    peers = [FreshPeer(M.EmptyList, scenario["trusted"], registry) for _ in range(max(2, peer_count))]
+
+    def tag(value):
+        return type(value).__name__
+
+    def deliver(name, peer, entry):
+        report = AcceptEntryDelivery(peer, entry, registry)()
+        verdict = M.Head(M.Tail(report)())()
+        reason = M.Head(M.Tail(M.Tail(report)())())()
+        new_peer = M.Head(M.Tail(M.Tail(M.Tail(report)())())())()
+        new_registry = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(report)())())())())()
+        print("  {:<6} -> {:<22} {}".format(name, tag(verdict), tag(reason)))
+        return new_peer, new_registry
+
+    print("consensus: adversarial schedule over {} peers".format(len(peers)))
+    p2, p3 = peers[0], peers[1]
+    p2, registry = deliver("P2/forged", p2, scenario["forged_entry"])
+    p2, registry = deliver("P2/entry", p2, scenario["entry"])
+    p2, registry = deliver("P2/dup", p2, scenario["entry"])
+    p3, registry = deliver("P3/forged", p3, scenario["forged_entry"])
+    p3, registry = deliver("P3/entry", p3, scenario["entry"])
+
+    print("snapshot: offering a fresh peer the origin's ledger")
+    solo = FreshPeer(M.EmptyList, scenario["trusted"], registry)
+    offer = OfferLedgerSnapshot(solo, scenario["ledger_v1"], registry)()
+    print("  solo   -> {}".format(tag(M.Head(M.Tail(offer)())())))
+    solo = M.Head(M.Tail(M.Tail(M.Tail(offer)())())())()
+    registry = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(offer)())())())())()
+
+    rollback = PL.RollbackPromotion(
+        scenario["ledger_v1"], PL.LedgerEntryId(scenario["entry"])(), M.Char("consensus-cli"), registry
+    )()
+    if M.IdentityCompare(M.Head(rollback)(), Lmod.PromotionRevokedLabel)() is M.false_value:
+        print("consensus: rollback did not produce a tombstone")
+        return 1
+    tomb_ledger = M.Head(M.Tail(rollback)())()
+    tombstone = None
+    cursor = PL.PromotionLedgerProofSchemata(tomb_ledger)()
+    while M.IdentityCompare(cursor, M.EmptyList)() is M.false_value:
+        candidate_entry = M.Head(cursor)()
+        if (
+            M.IdentityCompare(
+                PL.LedgerEntryStatus(candidate_entry)(), Lmod.PromotionRevokedLabel
+            )()
+            is M.truth_value
+        ):
+            tombstone = candidate_entry
+        cursor = M.Tail(cursor)()
+    if tombstone is None:
+        print("consensus: no revoked entry found on the rolled-back ledger")
+        return 1
+
+    print("rollback: broadcasting the tombstone")
+    p2, registry = deliver("P2/tomb", p2, tombstone)
+    p3, registry = deliver("P3/tomb", p3, tombstone)
+    offer = OfferLedgerSnapshot(solo, tomb_ledger, registry)()
+    print("  solo   -> {}".format(tag(M.Head(M.Tail(offer)())())))
+    solo = M.Head(M.Tail(M.Tail(M.Tail(offer)())())())()
+    registry = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(offer)())())())())()
+
+    origin = ConsensusPeer(tomb_ledger, M.EmptyList, M.EmptyList, scenario["trusted"])()
+    agreed = (
+        PeersAgree(origin, p2)() is M.truth_value
+        and PeersAgree(origin, p3)() is M.truth_value
+        and PeersAgree(origin, solo)() is M.truth_value
+    )
+    print("agreement: origin/P2/P3/solo structurally identical: {}".format(agreed))
+    print("done.")
+    return 0 if agreed else 1
+
+
 def main():
     parser = argparse.ArgumentParser(description="HYGE runtime modes")
     parser.add_argument(
         "mode",
         nargs="?",
         default="cold",
-        choices=["cold", "warm", "test", "inspect", "search-worker", "live", "mesh", "swarm"],
-        help="Boot mode: cold (from packs), warm (from snapshot), test, inspect, search-worker, live, mesh, or swarm",
+        choices=["cold", "warm", "test", "inspect", "search-worker", "live", "mesh", "swarm", "consensus"],
+        help="Boot mode: cold (from packs), warm (from snapshot), test, inspect, search-worker, live, mesh, swarm, or consensus",
     )
     parser.add_argument("arg1", nargs="?", default=None)
     parser.add_argument("arg2", nargs="?", default=None)
@@ -2248,6 +2431,8 @@ def main():
                     swarm=args.swarm,
                 )
             )
+        elif args.mode == "consensus":
+            raise SystemExit(run_consensus_mode())
         else:
             run_test_mode(debug_enabled)
     except KeyboardInterrupt:

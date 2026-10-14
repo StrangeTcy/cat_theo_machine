@@ -907,6 +907,46 @@ class NatProductLabel(ConstructorLabel):
     pass
 
 
+class ConsensusPeerLabel(ConstructorLabel):
+    pass
+
+
+class DeliveryReportLabel(ConstructorLabel):
+    pass
+
+
+class AdmissionAdmittedLabel(ConstructorLabel):
+    pass
+
+
+class AdmissionRejectedLabel(ConstructorLabel):
+    pass
+
+
+class ReceiptFailedLocallyLabel(ConstructorLabel):
+    pass
+
+
+class DuplicateEntryLabel(ConstructorLabel):
+    pass
+
+
+class VersionGapLabel(ConstructorLabel):
+    pass
+
+
+class StaleSnapshotLabel(ConstructorLabel):
+    pass
+
+
+class SnapshotAdoptedLabel(ConstructorLabel):
+    pass
+
+
+class UnknownTargetLabel(ConstructorLabel):
+    pass
+
+
 class AngleOfLabel(ConstructorLabel):
     pass
 
@@ -1732,6 +1772,16 @@ NonTrivialLabel = NonTrivialLabel()
 ValueLabel = ValueLabel()
 NatSumLabel = NatSumLabel()
 NatProductLabel = NatProductLabel()
+ConsensusPeerLabel = ConsensusPeerLabel()
+DeliveryReportLabel = DeliveryReportLabel()
+AdmissionAdmittedLabel = AdmissionAdmittedLabel()
+AdmissionRejectedLabel = AdmissionRejectedLabel()
+ReceiptFailedLocallyLabel = ReceiptFailedLocallyLabel()
+DuplicateEntryLabel = DuplicateEntryLabel()
+VersionGapLabel = VersionGapLabel()
+StaleSnapshotLabel = StaleSnapshotLabel()
+SnapshotAdoptedLabel = SnapshotAdoptedLabel()
+UnknownTargetLabel = UnknownTargetLabel()
 APNameLabel = APNameLabel()
 ApplyLabel = ApplyLabel()
 DefinesLabel = DefinesLabel()
@@ -2259,6 +2309,16 @@ def sync_from_namespace(namespace):
         "ValueLabel",
         "NatSumLabel",
         "NatProductLabel",
+        "ConsensusPeerLabel",
+        "DeliveryReportLabel",
+        "AdmissionAdmittedLabel",
+        "AdmissionRejectedLabel",
+        "ReceiptFailedLocallyLabel",
+        "DuplicateEntryLabel",
+        "VersionGapLabel",
+        "StaleSnapshotLabel",
+        "SnapshotAdoptedLabel",
+        "UnknownTargetLabel",
         "APNameLabel",
         "ApplyLabel",
         "DefinesLabel",
