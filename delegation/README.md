@@ -9,7 +9,7 @@ Index (open workers only; everything marked `[x]` in the DAG is already done and
 
 | Brief | Worker | Dimension | Phase | Prereqs (all met?) | Suite slot |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| `W06-flt-n4-descent.md` | W6 remainder: Pythagorean parametrization descent | 1 | 1 | W3 ✅ | `test26` |
+| `W06-flt-n4-descent.md` | W6 remainder: descent — **closed as partial**, see DAG §4 W6 and §6.5 (each step derived / evidenced / authored / missing) | 1 | 1 | W3 ✅ | `test26` ✅ |
 | `W07-flt-n3-eisenstein.md` | W7: FLT $n=3$ Eisenstein UFD factorization — **partial `[~]`**, see DAG §4 (obstruction + norm landed; UFD/descent open) | 1 | 1 | W3 ✅ | `test20` ✅ |
 | `W08-imo-geometry.md` | W8: IMO geometry & auxiliary construction — **done**, see DAG §4 | 2 | 1 | W4 ✅ | `test21` ✅ |
 | `W09-imo-combinatorics-funceq.md` | W9: IMO combinatorics, functional equations, NT — **done**, see DAG §4 (two deliverables) | 2 | 1 | W4 ✅ | `test22` ✅, `test29` ✅ |
