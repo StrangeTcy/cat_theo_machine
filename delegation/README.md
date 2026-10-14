@@ -18,6 +18,7 @@ Index (open workers only; everything marked `[x]` in the DAG is already done and
 | `W02-rpc-mtls-mesh.md` | W2: RPC / mTLS mesh — **done**, see DAG §4 | Infra | 0 (late) | none | `test25` |
 | `W16-distributed-prover-swarm.md` | W16: distributed prover swarm — **done**, see DAG §4 and §6.3 (speedup 0.84× on 2 vCPU, reported not tuned) | Swarm | 3 | W2 ✅ W13 ✅ | `test27` ✅ |
 | `W17-byzantine-ledger-consensus.md` | W17: Byzantine ledger consensus | Swarm | 3 | W2 ✅ W12 ✅ W1 ✅ | `test28` |
+| `W18-nat-index-lookup-cost.md` | W18: kernel — `NatValueIndex` lookup cost (every arithmetic op ~0.1–1 s and growing; sweeps are quadratic). **Kernel file (`trees.py`): coordinator sign-off before starting** | Infra | 0 | none | `test30` |
 
 Dispatch order that respects the gates: the five Phase-1 briefs (W6–W10) and W15 are
 independent and can all run in parallel (W15 is now done). W2 is the only Phase-3 prerequisite and its
@@ -29,7 +30,7 @@ before it landed; read that as W2 ✅.
 Suite slots are **append-only** and pre-allocated above. Do not reuse a number: two
 lineages already collided on slots 15 and 16, which is recorded in DAG §6, and two W9
 sessions then collided on slot 22 (DAG §6.2) — the second suite now lives at `test29`,
-so **the next free slot is `test30`**.
+and W18 (kernel lookup cost) holds `test30`, so **the next free slot is `test31`**.
 
 ---
 
@@ -92,6 +93,16 @@ From `SWARM_EVOLUTION_DAG.md` §5, restated so no brief has to repeat them:
 - 2 vCPU, ~3.8 GiB RAM, ~20 GB disk. Large snapshots are RAM-bound at ~1–2 M objects.
 - Recreate the venv if `.venv/` is missing (it is not committed):
   `python3 -m venv .venv && .venv/bin/pip install -q gmpy2 pyyaml`.
+- **Machine arithmetic is slow and gets slower as a process runs.** One `Add` / `Multiply`
+  / `Modulo` costs ~0.2 s on a fresh runtime and ~0.6 s after a couple of hundred more
+  nats have been interned (~75 ms even for a value already interned), because every
+  result goes through `NatFromRep` → `trees.TreeLookup(NatValueIndex)`, which on a miss
+  scans every entry. A sweep of `n` operations costs `Θ(n²)`: 300 operations ≈ 1–2
+  minutes. Budget sweeps accordingly (compute a table of squares once and test by
+  membership; keep bounds in the tens, not hundreds), and do not “fix” it locally with a
+  host-side cache — the fix is a kernel task, `delegation/W18-nat-index-lookup-cost.md`,
+  with the profile and the measurements. (`core.py`'s `uuid4()` per allocation is the
+  constant factor under it and is out of scope.)
 - Run a suite: `PYTHONPATH=/home/user .venv/bin/python -u validation/testNN_name.py`.
   Suites are standalone scripts, not pytest. Run them with `-u` or you lose output on a
   timeout.

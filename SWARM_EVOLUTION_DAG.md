@@ -54,6 +54,8 @@ The machine's capabilities and subsystems are partitioned into five core dimensi
 [PHASE 3: Swarm Distributed Proving Mesh] (SYSTEM DEPLOYMENT — 2 WORKERS)
  ├── W16: [Distributed Heuristic Search & Partitioned Prover Swarm] ◄───── W2, W13
  └── W17: [Byzantine Ledger Consensus & Monotonic Snapshot Broadcast] ◄── W2, W12, W1
+
+[UNPHASED, KERNEL — coordinator sign-off] W18: [NatValueIndex lookup cost, trees.py] ◄── none (opened by W6, §6.5)
 ```
 
 ---
@@ -79,6 +81,7 @@ The machine's capabilities and subsystems are partitioned into five core dimensi
 | **W15**| Socratic Dialogue & Tutor | Dim 5 | `dialogue.py`, `main.py` (`live` fall-through, `load pack`), `labels.py` (+11) | W5, W12 | Concept inspection from loaded rules/definitions/ledger, claim REPL (Checker B / counterexample / undecided), structure-generated Socratic questions, ledger transparency; `validation/test24_socratic_dialogue.py` (85/85, ~45 s) |
 | **W16**| Distributed Prover Swarm | Swarm | `search/distributed_engine.py`, `networking/jobs.py`, `main.py` (`swarm`, `mesh --swarm`) | W2, W13 | Partitioned frontier worker mesh, work-stealing; `validation/test27_distributed_prover_swarm.py` (51/51, ~340 s) |
 | **W17**| Byzantine Ledger Consensus | Swarm | `consensus/ledger_sync.py` | W2, W12, W1 | Raft/BFT rule sync, monotonic version broadcast |
+| **W18**| Kernel: `NatValueIndex` lookup cost | Infra | `trees.py` (`TreeLookup`, `TreePatriciaLookup`, `TreeInsert`), `math/peano.py` (`NatFromRep`) | none (kernel; coordinator sign-off) | `TreeLookup` miss in `O(key)`, not `O(entries)`; `validation/test30_nat_index_lookup_cost.py`; `test22`/`test26` wall clocks before/after. Brief: `delegation/W18-nat-index-lookup-cost.md` |
 
 ### 3.1 Substrate extensions added after this DAG was first published
 
@@ -394,6 +397,16 @@ These arrived during Phase 0/1 execution and are prerequisites or enablers rathe
   budget is not attainable at this boot cost and the suite prints per-phase timings instead.
 - [ ] **W17 (Byzantine Ledger Consensus & Monotonic Snapshot Broadcast)**: Dependent on Phase 2;
   W2 ✅, W12 ✅, W1 ✅ — unblocked, not started.
+- [ ] **W18 (Kernel: `NatValueIndex` lookup cost)**: Opened 2026-10-14 from the W6 remainder's
+  measurements (§6.5): one arithmetic operation costs ~0.2 s on a fresh runtime and ~0.6 s
+  after two hundred more nats are interned, because `trees.TreeLookup._lookup_tree` falls
+  back to a linear scan of every entry (`_lookup_entries`, `ExactKey` recomputed per entry)
+  whenever the Patricia lookup misses — and for `NatFromRep` a miss is every new value. Every
+  arithmetic sweep in the tree is therefore quadratic (`test22` ~215 s, `test26` ~85 s of
+  sweeps, the tutor's counterexample bound of 12). Kernel file: the fix needs coordinator
+  sign-off and must keep `trees.py` free of forbidden constructs; `core.py`'s per-allocation
+  `uuid4()` (57 % of the profile) is the floor under it and is out of scope. Brief:
+  `delegation/W18-nat-index-lookup-cost.md`; slot `test30`.
 
 ---
 
@@ -539,13 +552,19 @@ the pack is registered in `main.py:PACK_PATHS`. See §4 W6 for what is and is no
 Two facts for the next worker:
 
 - **Machine arithmetic is slow and gets slower.** Every `Add`/`Multiply`/`Modulo` result goes
-  through `NatFromRep`, whose `TreeLookup` on `NatValueIndex` walks the whole index
-  (`trees.TreeLookup._is_bucketed_root` recurses over every branch before the Patricia path
-  is tried) and then inserts. Measured on a fresh runtime: ~0.2 s per operation on new values
-  around 1000, ~0.6 s after two hundred more nats are interned, ~75 ms even for a hit. A
-  sweep's cost is therefore quadratic in its size; `test26` keeps its bounds small for that
-  reason and says so, and `test22`'s 215 s is mostly this. The fix is kernel-adjacent
-  (`trees.py`) and was not made here.
+  through `NatFromRep`, whose `TreeLookup` on `NatValueIndex` falls back to a linear scan of
+  every entry (`trees.TreeLookup._lookup_entries`, `ExactKey` recomputed per entry) whenever
+  the Patricia lookup misses — and for a new value it always misses — then inserts. Measured
+  on a fresh runtime: ~0.2 s per operation on new values around 1000, ~0.6 s after two
+  hundred more nats are interned, ~75 ms even for a hit. Profiled at 300 entries (20 hits +
+  20 misses, 61 s): the miss fallback 27 s, the Patricia bucket scans 15 s, `TreeInsert`
+  ~0.7 s per new value; `_is_bucketed_root`, suspected first, is 9 ms per lookup and not
+  the cause; `core.py`'s `uuid4()` per allocation is 35 s of the 61 and is the untouchable
+  floor. A sweep's cost is therefore quadratic in its size; `test26` keeps its bounds small
+  for that reason and says so, and `test22`'s 215 s is mostly this. The fix is in the kernel
+  (`trees.py`) and was **not** made here: it is opened as **W18** (§3, §4, slot `test30`;
+  brief `delegation/W18-nat-index-lookup-cost.md` with the profile and a fix sketch) and
+  needs coordinator sign-off because the file is kernel.
 - **The identity procedure is reusable where symbolic algebra is not.** W7's norm
   multiplicativity and the IMO algebra schemas need identities the rewrite walker cannot
   reach; `PolynomialIdentityByGrid` decides any identity in the admitted fragment
