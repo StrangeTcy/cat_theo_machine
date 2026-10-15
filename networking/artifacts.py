@@ -204,6 +204,10 @@ class IncomingTransfer:
         if self.expected_sha256 and actual != self.expected_sha256:
             self.discard()
             raise TransferError("sha256 %s does not match the declared %s" % (actual[:12], self.expected_sha256[:12]))
+        try:
+            os.chmod(self.temp_path, 0o644)  # mkstemp made it private; a result is not a secret
+        except OSError:
+            pass
         os.replace(self.temp_path, self.destination)
         return actual
 

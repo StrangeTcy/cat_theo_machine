@@ -60,6 +60,9 @@ class Connection:
 
     def __init__(self, sock, peer_id, on_eof=None, log=None, transient=False):
         self.sock = sock
+        # One thread reads this socket while another writes it; a TLS socket
+        # survives that only through `framing.Duplex` (see its docstring).
+        self._duplex = framing.Duplex(sock)
         self.peer_id = peer_id
         self.transient = transient  # one-shot connections (steal requests) are not members
         self.outbox = queue.Queue()
@@ -101,8 +104,8 @@ class Connection:
             if message is None:
                 break
             try:
-                framing.send_frame(self.sock, message)
-            except OSError as error:
+                self._duplex.send(message)
+            except (OSError, framing.FrameError) as error:
                 self.error = error
                 with self._write_lock:
                     self._queued -= 1
@@ -112,7 +115,7 @@ class Connection:
                 self._queued -= 1
 
     def read(self, timeout=None):
-        return framing.recv_frame(self.sock, timeout=timeout)
+        return self._duplex.recv(timeout=timeout)
 
     def close(self, reason=""):
         if self.closed.is_set():
@@ -243,6 +246,7 @@ class MeshPeer:
         self._awaited = {}              # local path -> threading.Event (worker, wire mode)
         self._fetch_failures = {}       # local path -> reason reported by the coordinator
         self._received_sha256 = {}      # destination path -> sha256 of the last complete transfer
+        self._manifests = {}            # worker, wire mode: job_id -> the coordinator's manifest
         self._steal_backoff = {}        # peer_id -> time before which it is not dialled again
 
     # ------------------------------------------------------------------ helpers
@@ -733,7 +737,9 @@ class MeshPeer:
             "address": message.get("address", "") if message.get("reachable", True) else "",
             "reachable": bool(message.get("reachable", True)) and bool(message.get("address", "")),
             "artifacts": message.get("artifacts", protocol.ARTIFACTS_SHARED),
-            "common_name": message.get("common_name", peer_common_name(connection.sock)),
+            # The name the certificate proved, not the one the frame claims: the
+            # steal path checks a peer's identity against this record.
+            "common_name": peer_common_name(connection.sock) or message.get("common_name", ""),
             "roles": message.get("roles", [self.ROLE_WORKER]),
             "modes": message.get("modes", []),
             "direct": True,
@@ -896,6 +902,7 @@ class MeshPeer:
                         {
                             "peer_id": record["peer_id"],
                             "address": record.get("address", ""),
+                            "common_name": record.get("common_name", ""),
                             "roles": record.get("roles", []),
                             "modes": record.get("modes", []),
                             "load": record.get("load", {}),
@@ -1365,7 +1372,9 @@ class MeshPeer:
                 outcome = self.runner.run(local_job)
                 artifact_sha256 = ""
                 if self.artifacts == protocol.ARTIFACTS_WIRE and protocol.status_is_success(outcome.status):
-                    artifact_sha256 = self._upload_result(job.job_id, job.result_ref, local_path=local_job.result_ref)
+                    with self._lock:
+                        self._manifests[job.job_id] = dict(job.manifest)  # for replays after a dropped link
+                    artifact_sha256 = self._upload_result(job.job_id, job.result_ref, local_path=local_job.result_ref, manifest=job.manifest)
                 self._finish_job(
                     job,
                     status=outcome.status,
@@ -1488,8 +1497,13 @@ class MeshPeer:
             return "input-fetch-timeout"
         return ""
 
-    def _upload_result(self, job_id, ref, local_path=None):
-        """Push a finished result (and its sidecar) to the coordinator. Returns its sha256."""
+    def _upload_result(self, job_id, ref, local_path=None, manifest=None):
+        """Push a finished result (and its sidecar) to the coordinator. Returns its sha256.
+
+        The sidecar the coordinator keeps is written from `manifest` -- the job
+        as the coordinator stated it -- not copied from this peer's disk, whose
+        sidecar names the localised input paths that mean nothing anywhere else.
+        """
         connection = self._coordinator_connection
         if connection is None or connection.closed.is_set():
             self._record("artifact-upload-deferred", peer_id=self.peer_id, detail="%s: no coordinator link" % ref)
@@ -1505,9 +1519,19 @@ class MeshPeer:
             detail="%s (%d bytes, %d chunks, sha256 %s)" % (ref, header["size"], header["chunks"], header["sha256"][:12]),
             job_id=job_id,
         )
-        sidecar_local = Artifacts.sidecar_of(local)
-        if os.path.exists(sidecar_local):
-            Artifacts.send_file(connection, sidecar_local, Artifacts.sidecar_of(ref), job_id, Artifacts.KIND_SIDECAR)
+        if manifest is None:
+            manifest = self._manifests.get(job_id)
+        if manifest is not None:
+            staged = protocol.write_manifest_sidecar(manifest, local + ".coordinator-view")
+            try:
+                Artifacts.send_file(connection, staged, Artifacts.sidecar_of(ref), job_id, Artifacts.KIND_SIDECAR)
+            finally:
+                try:
+                    os.unlink(staged)
+                except OSError:
+                    pass
+        elif os.path.exists(Artifacts.sidecar_of(local)):
+            Artifacts.send_file(connection, Artifacts.sidecar_of(local), Artifacts.sidecar_of(ref), job_id, Artifacts.KIND_SIDECAR)
         return header["sha256"]
 
     def _result_artifact_problem(self, job, declared_sha256):
