@@ -1057,17 +1057,24 @@ class MeshPeer:
             "artifact_bytes": message.get("artifact_bytes", 0),
         }
         superseded = False
+        presumed = False
         with self._lock:
             job_id = record["job_id"]
             if job_id in self._results:
                 existing = self._results[job_id]
                 if existing.get("status") == protocol.STATUS_OK or record["status"] != protocol.STATUS_OK:
-                    return  # terminal records are written once; a real result stands
-                if not existing.get("provisional"):
-                    return
-                # The job was written off as lost with a peer, and that peer (or the
-                # one that took it over) has just handed in the actual result.
+                    return  # a recorded success stands, and a second failure adds nothing
+                # Any recorded failure gives way to a real success, presumed or not.
+                # The provisional case is the one the docstring describes: work
+                # written off as lost with a peer that has now turned up with the
+                # result. The non-provisional case is the one the W16 kill test
+                # found -- a job that ran out of attempts and was recorded failed
+                # while a peer that still held it queued went on to prove it.
+                # "Attempts exhausted" is bookkeeping; a finished search is a fact.
+                # The line above already refuses to replace a success and to record
+                # a second failure, so at most one supersession per job: no flapping.
                 superseded = True
+                presumed = bool(existing.get("provisional"))
             self._acknowledged.add(job_id)
             self._offered_at.pop(job_id, None)
             self._job_state[job_id] = "done" if protocol.status_is_success(record["status"]) else "failed"
@@ -1090,7 +1097,7 @@ class MeshPeer:
                 "result-superseded",
                 job=job,
                 peer_id=record["peer_id"],
-                detail="a real result replaced a presumed failure",
+                detail="a real result replaced a %s failure" % ("presumed" if presumed else "recorded"),
             )
         self._record(
             "job-result",
@@ -1256,8 +1263,13 @@ class MeshPeer:
             "provisional": bool(provisional),
         }
         with self._lock:
-            if job_id in self._results:
-                return
+            existing = self._results.get(job_id)
+            if existing is not None:
+                if existing.get("status") == protocol.STATUS_OK or not protocol.status_is_success(status):
+                    return  # a recorded success stands, and a second failure adds nothing
+                # The same rule as `_handle_job_result`, on the local path: a real
+                # success replaces a recorded failure. `provisional` outcomes are
+                # presumptions and never overwrite anything that is already there.
             self._results[job_id] = record
             self._job_state[job_id] = "done" if protocol.status_is_success(status) else "failed"
             self._job_owner.pop(job_id, None)

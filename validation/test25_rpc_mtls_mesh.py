@@ -628,6 +628,64 @@ def phase_protocol(results, directory):
         ),
     )
 
+    # The other half of what the W16 kill test found. Stopping the ledger from
+    # claiming a finished job is running is not enough: the job that ran out of
+    # attempts was still being *run* by a peer that held it in its queue, and
+    # when that run came back with a proof, `_handle_job_result` refused it --
+    # a recorded failure was final unless it had been provisional. So the proof
+    # was computed and thrown away while the swarm reported a failure. Any
+    # recorded failure now gives way to a real success, in both directions of
+    # the transport, while a recorded success stays final.
+    written_off = stub_job("proto-written-off", directory=directory)
+    coordinator._finish_job(written_off, protocol.STATUS_FAILED, reason="attempts-exhausted")
+    superseded_before = len(coordinator.events("result-superseded"))
+    coordinator._handle_job_result(
+        protocol.message(
+            protocol.JOB_RESULT,
+            job_id=written_off.job_id,
+            peer_id="late-peer",
+            status=protocol.STATUS_OK,
+            result_ref=written_off.result_ref,
+            artifact_bytes=1234,
+        )
+    )
+    late_record = coordinator.outcome(written_off.job_id) or {}
+    results.check(
+        "a recorded failure gives way to a real success",
+        late_record.get("status") == protocol.STATUS_OK
+        and coordinator._job_state.get(written_off.job_id) == "done"
+        and len(coordinator.events("result-superseded")) == superseded_before + 1,
+        "status=%s state=%s superseded=%d"
+        % (
+            late_record.get("status"),
+            coordinator._job_state.get(written_off.job_id),
+            len(coordinator.events("result-superseded")) - superseded_before,
+        ),
+    )
+    contradict_before = len(coordinator.events("result-superseded"))
+    coordinator._handle_job_result(
+        protocol.message(
+            protocol.JOB_RESULT,
+            job_id=written_off.job_id,
+            peer_id="other-peer",
+            status=protocol.STATUS_FAILED,
+            result_ref=written_off.result_ref,
+        )
+    )
+    final_record = coordinator.outcome(written_off.job_id) or {}
+    results.check(
+        "a recorded success stays final",
+        final_record.get("status") == protocol.STATUS_OK
+        and coordinator._job_state.get(written_off.job_id) == "done"
+        and len(coordinator.events("result-superseded")) == contradict_before,
+        "status=%s state=%s superseded=%d"
+        % (
+            final_record.get("status"),
+            coordinator._job_state.get(written_off.job_id),
+            len(coordinator.events("result-superseded")) - contradict_before,
+        ),
+    )
+
     # A coordinator that shuts down must actually tell its members: the notice is
     # queued on the connection and closing it abandons what the writer still holds,
     # which is how a CLI worker used to spend the rest of its life reconnecting to

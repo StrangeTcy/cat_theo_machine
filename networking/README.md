@@ -313,3 +313,16 @@ silently, so the crash clause held; the ledger simply could not be trusted. A
 progress report for a job that already has a terminal record is now ignored and
 recorded as `progress-after-terminal-ignored`, which is a diagnostic and not
 behaviour — nothing depends on it except the check that pins the guard.
+
+**The other half of that: a computed proof was being thrown away.** Stopping the
+ledger from claiming a finished job is running does not stop the job from being
+run. The job that ran out of attempts was still queued on a peer, which proved it
+and handed the result back — and `_handle_job_result` refused it, because a
+recorded failure was final unless it had been *provisional*. The swarm then
+reported a failure while a proof sat on a worker's disk. Any recorded failure now
+gives way to a real success, on both the inbound and the local path, and a
+recorded success stays final, so at most one supersession can happen per job.
+The ordering that makes that safe is the one that was already there: never replace
+a success, never record a second failure. `result-superseded` now says which kind
+of failure it replaced — `presumed` or `recorded` — because the second is the one
+that means the attempt budget raced a peer, which is worth seeing.
