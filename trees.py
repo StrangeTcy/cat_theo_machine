@@ -272,8 +272,26 @@ class ExactKeyOf(Edge):
 
 class IndexAtomKey(Edge):
     def __init__(self, exact_key):
-        self.result = Pair(IndexAtomKeyLabel, EmptyList)
+        # The atom itself rides along as the payload. Collapsing it to
+        # EmptyList (the pre-W18 encoding) made every atom position of every
+        # key emit the identical token, so all keys of equal cons shape --
+        # for NatValueKey, all values with the same digit count -- shared one
+        # Patricia leaf, and every bucket scan was linear in the entries of
+        # that shape. Carrying the atom keeps lookup completeness: atoms are
+        # TreeTermEqual only when they are the same object, so equal exact
+        # keys still produce equal index keys and land in the same bucket,
+        # while distinct values now diverge in the path at their first
+        # differing digit.
+        self.result = Pair(IndexAtomKeyLabel, Pair(self._payload(exact_key), EmptyList))
         super().__init__(inputs=Pair(exact_key, EmptyList), results=self.result)
+
+    def _payload(self, exact_key):
+        if IsPair(exact_key)() is false_value:
+            return exact_key
+        tail = Tail(exact_key)()
+        if IsPair(tail)() is false_value:
+            return exact_key
+        return Head(tail)()
 
     def __call__(self):
         return self.result
@@ -513,6 +531,15 @@ class TreePatriciaLookup(Edge):
     def _branch_prefix(self, branch):
         return Head(Tail(branch)())()
 
+    def _choice_token(self, choice):
+        return Head(Tail(choice)())()
+
+    def _branch_prefix(self, branch):
+        return Head(Tail(branch)())()
+
+    def _choice_token(self, choice):
+        return Head(Tail(choice)())()
+
     def _branch_choices(self, branch):
         return Head(Tail(Tail(branch)())())()
 
@@ -630,6 +657,15 @@ class TreePatriciaInsert(Edge):
 
     def _branch_prefix(self, branch):
         return Head(Tail(branch)())()
+
+    def _choice_token(self, choice):
+        return Head(Tail(choice)())()
+
+    def _branch_prefix(self, branch):
+        return Head(Tail(branch)())()
+
+    def _choice_token(self, choice):
+        return Head(Tail(choice)())()
 
     def _branch_choices(self, branch):
         return Head(Tail(Tail(branch)())())()
@@ -805,6 +841,12 @@ class TreeEntries(Edge):
     def _leaf_fact(self, leaf):
         return Head(Tail(Tail(Tail(Tail(leaf)())())())())()
 
+    def _branch_prefix(self, branch):
+        return Head(Tail(branch)())()
+
+    def _choice_token(self, choice):
+        return Head(Tail(choice)())()
+
     def _branch_choices(self, branch):
         return Head(Tail(Tail(branch)())())()
 
@@ -881,6 +923,15 @@ class TreeInsert(Edge):
             return false_value
         return IdentityCompare(Head(payload)(), TreeBucketLabel)()
 
+    def _leaf_suffix(self, leaf):
+        return Head(Tail(leaf)())()
+
+    def _branch_prefix(self, branch):
+        return Head(Tail(branch)())()
+
+    def _choice_token(self, choice):
+        return Head(Tail(choice)())()
+
     def _branch_choices(self, branch):
         return Head(Tail(Tail(branch)())())()
 
@@ -928,13 +979,67 @@ class TreeInsert(Edge):
         next_store = TreePatriciaInsert(key_store, path, exact_key, exact_key, exact_key)()
         return exact_key, next_store
 
+    def _root_is_patricia(self, root):
+        # See TreeLookup._root_is_patricia: a Patricia root is bucketed by
+        # construction, so the label check replaces the full bucketed walk.
+        if self._is_leaf(root) is truth_value:
+            return truth_value
+        return self._is_branch(root)
+
+    def _layout_probe(self, root):
+        # Walk to the first leaf and reassemble the stored path of that leaf
+        # -- branch prefixes, choice tokens, leaf suffix -- as one token
+        # stream. A current-layout path carries the indexed atom itself after
+        # every IndexAtomKeyLabel token; a legacy path carries EmptyList
+        # there, because the old IndexAtomKey collapsed every atom. Paths
+        # whose atom blocks are inconclusive (no IndexAtomKeyLabel at all, or
+        # only EmptyList atoms -- both layouts agree there) report legacy,
+        # which keeps the fallback path: slower, never wrong.
+        current = root
+        segments = []
+        while self._is_branch(current) is truth_value:
+            choices = self._branch_choices(current)
+            if IdentityCompare(choices, EmptyList)() is truth_value:
+                return false_value
+            choice = Head(choices)()
+            segments.append(self._branch_prefix(current))
+            segments.append(Pair(TreePatriciaToken(self._choice_token(choice))(), EmptyList))
+            current = self._choice_subtree(choice)
+        if self._is_leaf(current) is false_value:
+            return false_value
+        segments.append(self._leaf_suffix(current))
+
+        saw_atom_label = False
+        saw_pair_after_label = False
+        for segment in segments:
+            cursor = segment
+            while IdentityCompare(cursor, EmptyList)() is false_value:
+                token = Head(cursor)()
+                if IsPair(token)() is truth_value:
+                    payload = Head(Tail(token)())()
+                    if saw_atom_label and saw_pair_after_label:
+                        if IdentityCompare(payload, EmptyList)() is false_value:
+                            return truth_value
+                        saw_atom_label = False
+                        saw_pair_after_label = False
+                    elif saw_atom_label:
+                        if IdentityCompare(payload, TreePatriciaPairTokenLabel)() is truth_value:
+                            saw_pair_after_label = True
+                        else:
+                            saw_atom_label = False
+                    else:
+                        if IdentityCompare(payload, IndexAtomKeyLabel)() is truth_value:
+                            saw_atom_label = True
+                cursor = Tail(cursor)()
+        return false_value
     def _insert_tree(self, tree, key, fact):
         root = TreeStoredRoot(tree)()
         self._key_store = TreeKeyStore(tree)()
         if IdentityCompare(root, EmptyList)() is truth_value:
             return self._insert_root(EmptyList, key, fact)
-        if self._is_bucketed_root(root) is truth_value:
-            return self._insert_root(root, key, fact)
+        if self._root_is_patricia(root) is truth_value:
+            if self._layout_probe(root) is truth_value:
+                return self._insert_root(root, key, fact)
         migrated = self._insert_entries(TreeEntries(tree)(), EmptyList)
         return self._insert_root(migrated, key, fact)
 
@@ -978,6 +1083,12 @@ class TreeLookup(Edge):
             return false_value
         return IdentityCompare(Head(payload)(), TreeBucketLabel)()
 
+    def _branch_prefix(self, branch):
+        return Head(Tail(branch)())()
+
+    def _choice_token(self, choice):
+        return Head(Tail(choice)())()
+
     def _branch_choices(self, branch):
         return Head(Tail(Tail(branch)())())()
 
@@ -1012,13 +1123,112 @@ class TreeLookup(Edge):
             return Head(Tail(entry)())()
         return self._lookup_entries(Tail(entries)(), exact_key)
 
+    def _root_is_patricia(self, root):
+        # O(1) instead of the old full _is_bucketed_root walk: a Patricia
+        # root is bucketed by construction, because TreePatriciaInsert only
+        # ever produces bucketed leaves and re-inserts preserve bucketing.
+        if self._is_leaf(root) is truth_value:
+            return truth_value
+        return self._is_branch(root)
+
+    def _leaf_suffix(self, leaf):
+        return Head(Tail(leaf)())()
+
+    def _layout_probe(self, root):
+        # Walk to the first leaf and reassemble the stored path of that leaf
+        # -- branch prefixes, choice tokens, leaf suffix -- as one token
+        # stream. A current-layout path carries the indexed atom itself after
+        # every IndexAtomKeyLabel token; a legacy path carries EmptyList
+        # there, because the old IndexAtomKey collapsed every atom. Paths
+        # whose atom blocks are inconclusive (no IndexAtomKeyLabel at all, or
+        # only EmptyList atoms -- both layouts agree there) report legacy,
+        # which keeps the fallback path: slower, never wrong.
+        current = root
+        segments = []
+        while self._is_branch(current) is truth_value:
+            choices = self._branch_choices(current)
+            if IdentityCompare(choices, EmptyList)() is truth_value:
+                return false_value
+            choice = Head(choices)()
+            segments.append(self._branch_prefix(current))
+            segments.append(Pair(TreePatriciaToken(self._choice_token(choice))(), EmptyList))
+            current = self._choice_subtree(choice)
+        if self._is_leaf(current) is false_value:
+            return false_value
+        segments.append(self._leaf_suffix(current))
+
+        saw_atom_label = False
+        saw_pair_after_label = False
+        for segment in segments:
+            cursor = segment
+            while IdentityCompare(cursor, EmptyList)() is false_value:
+                token = Head(cursor)()
+                if IsPair(token)() is truth_value:
+                    payload = Head(Tail(token)())()
+                    if saw_atom_label and saw_pair_after_label:
+                        if IdentityCompare(payload, EmptyList)() is false_value:
+                            return truth_value
+                        saw_atom_label = False
+                        saw_pair_after_label = False
+                    elif saw_atom_label:
+                        if IdentityCompare(payload, TreePatriciaPairTokenLabel)() is truth_value:
+                            saw_pair_after_label = True
+                        else:
+                            saw_atom_label = False
+                    else:
+                        if IdentityCompare(payload, IndexAtomKeyLabel)() is truth_value:
+                            saw_atom_label = True
+                cursor = Tail(cursor)()
+        return false_value
+    def _payload_head(self, term):
+        return Head(Tail(term)())()
+
+    def _payload_tail_head(self, term):
+        return Head(Tail(Tail(term)())())()
+
+    def _legacy_index_key(self, exact_key):
+        # The pre-W18 index key: atoms collapse to EmptyList. Kept so that
+        # trees stored by earlier versions -- whose paths were built this way
+        # -- stay reachable until their first insert migrates them. Returns
+        # the index-key term itself, never an unpeeled Edge.
+        if IsPair(exact_key)() is false_value:
+            return Pair(IndexAtomKeyLabel, EmptyList)
+        label = Head(exact_key)()
+        if IdentityCompare(label, ExactAtomKeyLabel)() is truth_value:
+            return Pair(IndexAtomKeyLabel, EmptyList)
+        if IdentityCompare(label, ExactPairKeyLabel)() is truth_value:
+            head_key = self._legacy_index_key(self._payload_head(exact_key))
+            tail_key = self._legacy_index_key(self._payload_tail_head(exact_key))
+            return IndexPairKey(head_key, tail_key).result
+        if IdentityCompare(label, ExactCtorKeyLabel)() is truth_value:
+            ctor_label = self._payload_head(exact_key)
+            arg_keys = self._legacy_index_key_args(self._payload_tail_head(exact_key))
+            return IndexCtorKey(ctor_label, arg_keys).result
+        return Pair(IndexAtomKeyLabel, EmptyList)
+
+    def _legacy_index_key_args(self, args):
+        if IdentityCompare(args, EmptyList)() is truth_value:
+            return EmptyList
+        head_key = self._legacy_index_key(Head(args)())
+        tail_keys = self._legacy_index_key_args(Tail(args)())
+        return Pair(head_key, tail_keys)
+
     def _lookup_tree(self, tree, key):
         exact_key = self._interned_key(tree, key)
         root = TreeStoredRoot(tree)()
         if IdentityCompare(root, EmptyList)() is truth_value:
             return EmptyList
-        if self._is_bucketed_root(root) is truth_value:
-            path = TreePatriciaPath(IndexKey(exact_key)())()
+        if self._root_is_patricia(root) is truth_value:
+            if self._layout_probe(root) is truth_value:
+                path = TreePatriciaPath(IndexKey(exact_key)())()
+                found = TreePatriciaLookup(root, path, exact_key)()
+                if IdentityCompare(found, EmptyList)() is false_value:
+                    return found
+                # Current-layout bucketed root: the Patricia walk is exact,
+                # so a miss is absence. The old linear fallback is what made
+                # every lookup quadratic in the interned entries.
+                return EmptyList
+            path = TreePatriciaPath(self._legacy_index_key(exact_key))()
             found = TreePatriciaLookup(root, path, exact_key)()
             if IdentityCompare(found, EmptyList)() is false_value:
                 return found
