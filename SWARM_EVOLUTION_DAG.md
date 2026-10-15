@@ -397,7 +397,7 @@ These arrived during Phase 0/1 execution and are prerequisites or enablers rathe
   budget is not attainable at this boot cost and the suite prints per-phase timings instead.
 - [x] **W17 (Byzantine Ledger Consensus & Monotonic Snapshot Broadcast)**: Dependent on Phase 2;
   W2 ✅, W12 ✅, W1 ✅ — landed (see §6.6).
-- [ ] **W18 (Kernel: `NatValueIndex` lookup cost)**: Opened 2026-10-14 from the W6 remainder's
+- [x] **W18 (Kernel: `NatValueIndex` lookup cost)**: Opened 2026-10-14 from the W6 remainder's
   measurements (§6.5): one arithmetic operation costs ~0.2 s on a fresh runtime and ~0.6 s
   after two hundred more nats are interned, because `trees.TreeLookup._lookup_tree` falls
   back to a linear scan of every entry (`_lookup_entries`, `ExactKey` recomputed per entry)
@@ -406,7 +406,8 @@ These arrived during Phase 0/1 execution and are prerequisites or enablers rathe
   sweeps, the tutor's counterexample bound of 12). Kernel file: the fix needs coordinator
   sign-off and must keep `trees.py` free of forbidden constructs; `core.py`'s per-allocation
   `uuid4()` (57 % of the profile) is the floor under it and is out of scope. Brief:
-  `delegation/W18-nat-index-lookup-cost.md`; slot `test30`.
+  `delegation/W18-nat-index-lookup-cost.md`; slot `test30`. Landed 2026-10-15 with the
+  coordinator's sign-off (see §6.7).
 
 ---
 
@@ -431,7 +432,7 @@ Every Arena agent working on this repository must strictly adhere to the followi
 
    **The exception is conjunctive: both halves must hold.** The code is host-layer, *and* there is no machine analogue for what it does. Being in a harness or a probe is not by itself a licence — if the machine can already answer the question (`Compare`, `IsAtom`, `IsPair`, `IsTree`), then reaching into a payload with `getattr`, `type`, or `.symbol` is a violation wherever it sits. The identity index passes both halves. A probe that read `.symbol` to find an edge by name and `type(x).__name__` to report what came back passed only the first; it was fixed to use `Compare` and `IsAtom`. An earlier draft of this section stated the test as "whether the value crosses into a machine term", which made layer the only condition and would have excused that probe. Do not spend a session on an unscoped purity refactor of host code, and do not cite this rule to reject working host-layer code — but do not cite the host layer to excuse bypassing a predicate the machine already provides.
 3. **No Domain-Specific Hardcoding**: Do not hardcode problem targets or fixed heuristics in search or mining modules.
-4. **Verification Requirement**: Every new worker module or pack must include an automated verification suite in `validation/` with $100\%$ green test results before promotion. There are currently **29** suites — `test1`–`test29` (slot 30 is pre-allocated to W18 and still open) — each a standalone script. Run one with `PYTHONPATH=<repo-parent> python -u validation/testN_*.py` (the suites insert the package parent onto `sys.path` themselves and import as `cat_theo_machine.*`).
+4. **Verification Requirement**: Every new worker module or pack must include an automated verification suite in `validation/` with $100\%$ green test results before promotion. There are currently **30** suites — `test1`–`test30` (no open slots; the next free number is `test31`) — each a standalone script. Run one with `PYTHONPATH=<repo-parent> python -u validation/testN_*.py` (the suites insert the package parent onto `sys.path` themselves and import as `cat_theo_machine.*`).
 5. **Snapshot Root Invariant**: any new machine state that must survive a cold resume has to be registered as a root in `SnapshotCodec.capture()` and restored in `activate()`. Content added through the graph's `nodes`/`edges` context is now covered; state kept only in Python attributes is not, and silently evaporates on reload.
 6. **Suite Slot Discipline**: `validation/` numbering is append-only. Two lineages independently claimed slots 15 and 16 for unrelated suites; the reconciliation below is what happened, and new work must take the next free number rather than reusing a taken one.
 
@@ -627,3 +628,67 @@ Two facts for the next worker:
 Regression run: `test1`, `test3`, `test4`, `test5`, `test9`, `test12`, `test13`, `test18`,
 `test19`, `test23`, `test24` green, `test27` green on rerun (above); `git status snapshots/`
 clean.
+
+### 6.7 Post-integration: W18 kernel lookup cost (2026-10-15)
+
+`trees.py` + `validation/test30_nat_index_lookup_cost.py` (slot 30) landed under the
+coordinator's kernel sign-off. Root causes, both in `trees.py`:
+
+1. **`IndexAtomKey` collapsed every indexed atom to EmptyList.** All keys of equal cons
+   shape — for `NatValueKey`, every value with the same digit count — tokenized to the
+   same Patricia path and shared one leaf bucket, so every bucket scan was linear in the
+   same-length population. Now the atom rides along as the payload. That is
+   completeness-preserving: atoms are `TreeTermEqual` only when they are the same object,
+   so equal exact keys still produce equal index keys and collide into one bucket, while
+   distinct values diverge at their first differing digit. Buckets shrink to same-value
+   duplicates, of which the bucket upsert keeps at most one.
+2. **`TreeLookup._lookup_tree` scanned every interned entry on a Patricia miss.** For
+   `NatFromRep` a miss is every new value, so interning was `Θ(entries)`. Now a
+   current-layout bucketed root trusts the Patricia verdict (miss = absent); the O(entries)
+   `_is_bucketed_root` validation walk is replaced by an O(1) root-label check (Patricia
+   roots are bucketed by construction — `TreePatriciaInsert` only produces bucketed
+   leaves). The linear fallback remains only where it is still needed: legacy-layout roots.
+
+**Snapshot compatibility.** Old-layout trees (every existing snapshot) keep working: a
+layout probe reassembles the first leaf's stored path (branch prefixes, choice tokens,
+leaf suffix) and looks for an `IndexAtomKeyLabel` block whose payload is not EmptyList —
+legacy paths never have one. Legacy roots take the old collapsed index key plus the
+linear fallback (correct; taken only until the first insert), and that first insert
+rebuilds the whole tree entry-by-entry under the current index keys, exactly like the
+pre-existing legacy-BST migration. The key store is untouched by all of this — its paths
+were always built from exact keys with real atoms, which is why interning already worked
+across restores. `test12` (persistence) is green.
+
+Measured on the same 2-vCPU box as the W6 numbers, fresh `make_fresh_runtime()`:
+
+| situation | before | after |
+| :--- | :--- | :--- |
+| `NatFromRep`, 50 new values, fresh runtime | 0.22 s/call | 0.064 s/call |
+| the same 50 again (index hits) | 0.086 s/call | 0.044 s/call |
+| after 200 more nats interned, new values | 0.87 s/call | 0.088 s/call |
+| 50 new values at ~300 interned | 1.47 s/call | 0.072 s/call |
+| 20 hits at ~300 interned | 0.087 s/call | 0.036 s/call |
+
+Per-call cost is flat in the number of interned entries (0.064 / 0.072 / 0.065 s at
+50 / 350 / 900 entries — test30 asserts the ≤1.5× bound and measured 1.10). Wall clocks:
+`test26` 121 → 60 s, `test22` 212 → 191 s, `test20` 100 → 78 s, cold boot
+`make_fresh_runtime()` 12.8 → 2.5 s (the boot-time registry inserts were quadratic too).
+`test27` ran 329 s vs 296 s before and `test29` 164 s vs 135 s — both within the
+run-to-run variance those suites have shown (mesh kill-phase timing; pack search), both
+green. Full gate after the change: **30/30** (`test1`–`test30`).
+
+Machine facts for the next worker:
+
+- **`Pair(...)` terms and `Edge` results peel differently.** `IndexPairKey(h, t)()` is an
+  Edge call returning the term, but `Pair(h, t)` *is* the term and calling it returns
+  `Atom.value` — `None`. A helper that returns raw terms from some branches and peeled
+  Edge results from others will poison every uniform peel site with `None`s (this bit
+  twice while building the layout probe). Pick one contract per helper; `.result` is the
+  honest way to get an Edge's term raw.
+- **The Patricia leaf suffix is the path *remainder*.** Anything inspecting stored paths
+  from a leaf alone must also walk the branch prefixes and choice tokens above it — the
+  discriminating tokens are often absorbed into a shared prefix.
+- `math.peano`'s import-time `one`/`two`/`three` never pass through `NatFromRep`, so
+  `nat(1) is peano.one` is and stays `False`; the index unifies only values that arrive
+  through `NatFromRep`. Same value, different atom — do not assert node identity across
+  those two worlds.
