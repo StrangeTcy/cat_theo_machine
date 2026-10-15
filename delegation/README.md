@@ -16,7 +16,7 @@ Index (open workers only; everything marked `[x]` in the DAG is already done and
 | `W10-engel-strategies.md` | W10: Engel monovariants, extremal, box, colouring | 3 | 1 | W3 ✅ W4 ✅ | `test23` |
 | `W15-socratic-tutor.md` | W15: conversational Socratic tutor | 5 | 2 | W5 ✅ W12 ✅ | `test24` |
 | `W02-rpc-mtls-mesh.md` | W2: RPC / mTLS mesh — **done**, see DAG §4 | Infra | 0 (late) | none | `test25` |
-| `W16-distributed-prover-swarm.md` | W16: distributed prover swarm | Swarm | 3 | W2 ⬜ W13 ✅ | `test27` |
+| `W16-distributed-prover-swarm.md` | W16: distributed prover swarm — **done**, see DAG §4 | Swarm | 3 | W2 ✅ W13 ✅ | `test27` |
 | `W17-byzantine-ledger-consensus.md` | W17: Byzantine ledger consensus | Swarm | 3 | W2 ⬜ W12 ✅ W1 ✅ | `test28` |
 
 Dispatch order that respects the gates: the five Phase-1 briefs (W6–W10) and W15 are
