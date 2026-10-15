@@ -98,8 +98,8 @@ def main():
     registry = M.FromContextGetConstructors(graph)()
     booted = time.monotonic()
 
-    node_rows_read = _Importer.read_rows(node_csv)
-    edge_rows_read = _Importer.read_rows(edge_csv)
+    node_rows_read = _Importer.read_node_rows(node_csv)
+    edge_rows_read = _Importer.read_edge_rows(edge_csv)
     imported_nodes, imported_edges = _Importer.build_terms(
         node_rows_read, edge_rows_read
     )
