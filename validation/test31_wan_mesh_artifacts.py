@@ -673,7 +673,7 @@ def phase_cli(results, directory):
         names = [event["event"] for event in ledger.get("events", [])]
         results.check(
             "the ledger shows the result arriving in frames before the job-result",
-            record.get("status") == protocol.STATUS_OK and "artifact-received" in names and names.index("artifact-received") < names.index("job-result") if "job-result" in names and "artifact-received" in names else False,
+            protocol.status_is_success(record.get("status")) and "artifact-received" in names and names.index("artifact-received") < names.index("job-result") if "job-result" in names and "artifact-received" in names else False,
             "status=%s peer=%s" % (record.get("status"), record.get("peer_id")),
         )
         results.check(
