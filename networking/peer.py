@@ -27,6 +27,17 @@ Threads per peer: one accept loop, one reader and one writer per connection, one
 heartbeat loop, plus (coordinator) a dispatch loop and a liveness loop, and
 (worker) a job loop and a steal loop. Shared state sits behind one lock; no loop
 blocks on I/O while holding it.
+
+Beyond one filesystem (W20). Three switches let a peer sit behind a NAT, a
+tunnel or a notebook with no inbound port, without changing any of the above:
+`artifacts="wire"` moves job files over the coordinator link as digest-named
+bytes instead of paths on a shared mount (`networking/artifacts.py`);
+`inbound=False` runs a worker with no listener at all -- it dials the
+coordinator and can still steal from reachable peers, and nobody ever dials it;
+`verify="identity"` checks the dialled peer's certificate by common name under
+the same CA pin rather than by hostname, which is what an address like
+`0.tcp.ngrok.io:12345` or a tailnet IP needs. Every one of them is observable in
+the ledger, and the loopback defaults are unchanged.
 """
 
 from __future__ import annotations
@@ -39,6 +50,7 @@ import sys
 import threading
 import time
 
+from . import artifacts as Artifacts
 from . import framing, protocol
 from .identity import bind_listener, parse_address, peer_common_name
 
@@ -159,10 +171,28 @@ class MeshPeer:
         redispatch_on_crash=True,
         log=None,
         peer_id=None,
+        artifacts=protocol.ARTIFACTS_SHARED,
+        artifact_dir=None,
+        inbound=True,
+        verify=protocol.VERIFY_HOSTNAME,
+        expect_coordinator=None,
+        fetch_timeout=180.0,
     ):
         self.identity = identity
         self.role = role
         self.runner = runner
+        if artifacts not in (protocol.ARTIFACTS_SHARED, protocol.ARTIFACTS_WIRE):
+            raise ValueError("artifacts must be %r or %r" % (protocol.ARTIFACTS_SHARED, protocol.ARTIFACTS_WIRE))
+        if verify not in (protocol.VERIFY_HOSTNAME, protocol.VERIFY_IDENTITY):
+            raise ValueError("verify must be %r or %r" % (protocol.VERIFY_HOSTNAME, protocol.VERIFY_IDENTITY))
+        self.artifacts = artifacts
+        self.artifact_dir = artifact_dir
+        if artifacts == protocol.ARTIFACTS_WIRE and role == self.ROLE_WORKER and not artifact_dir:
+            raise ValueError("a wire-mode worker needs an artifact_dir of its own")
+        self.inbound = bool(inbound)
+        self.verify = verify
+        self.expect_coordinator = expect_coordinator
+        self.fetch_timeout = fetch_timeout
         self.heartbeat_interval = heartbeat_interval
         self.peer_timeout = peer_timeout
         self.max_attempts = max_attempts
@@ -199,6 +229,16 @@ class MeshPeer:
         self._acknowledged = set()      # job_ids whose last offer was answered
         self._retry_after = {}          # job_id -> when it may be offered again
         self._coordinator_address = ""  # where a worker rejoins after a drop
+        # W20: artifact transfers in flight (either role), what a worker is
+        # waiting to receive, which fetches came back empty, and when an
+        # unreachable peer may be dialled again for a steal.
+        self._receiver = Artifacts.ArtifactReceiver()
+        self._result_authority = Artifacts.ResultAuthority(self._jobs)
+        self._input_authority = Artifacts.InputAuthority(self._jobs)
+        self._awaited = {}              # local path -> threading.Event (worker, wire mode)
+        self._fetch_failures = {}       # local path -> reason reported by the coordinator
+        self._received_sha256 = {}      # destination path -> sha256 of the last complete transfer
+        self._steal_backoff = {}        # peer_id -> time before which it is not dialled again
 
     # ------------------------------------------------------------------ helpers
 
@@ -271,10 +311,20 @@ class MeshPeer:
     # --------------------------------------------------------------- lifecycle
 
     def start(self, host="127.0.0.1", port=0):
-        self._listener = bind_listener(host, port)
-        bound_host, bound_port = self._listener.getsockname()
-        self.address = "%s:%d" % (bound_host, bound_port)
-        self._spawn(self._accept_loop, "mesh-accept")
+        if self.inbound:
+            self._listener = bind_listener(host, port)
+            bound_host, bound_port = self._listener.getsockname()
+            self.address = "%s:%d" % (bound_host, bound_port)
+            self._spawn(self._accept_loop, "mesh-accept")
+        else:
+            if self.role == self.ROLE_COORDINATOR:
+                raise ValueError("a coordinator must accept connections; inbound=False is for workers")
+            # No listener, no address: nobody can dial this peer, and the member
+            # record it announces says so (an empty address is what the steal
+            # loop already skips). It can still dial out -- to join, and to steal.
+            self._listener = None
+            self.address = ""
+            self._record("inbound-disabled", peer_id=self.peer_id, detail="no listener; outbound connections only")
         self._spawn(self._heartbeat_loop, "mesh-heartbeat")
         if self.role == self.ROLE_COORDINATOR:
             self._spawn(self._dispatch_loop, "mesh-dispatch")
@@ -311,10 +361,7 @@ class MeshPeer:
     def join(self, coordinator_address, timeout=15.0):
         """Dial the coordinator, authenticate, register, and stay connected."""
         host, port = parse_address(coordinator_address)
-        context = self.identity.client_context()
-        raw = socket.create_connection((host, port), timeout=timeout)
-        raw.settimeout(timeout)
-        sock = context.wrap_socket(raw, server_hostname=host)
+        sock = self._dial(host, port, timeout, expected_name=self.expect_coordinator, purpose="join")
         sock.settimeout(None)
         connection = Connection(sock, self.peer_id, on_eof=self._on_coordinator_eof, log=self._log)
         connection.on_close = self._note_connection_closed
@@ -328,10 +375,12 @@ class MeshPeer:
                 protocol.JOIN,
                 peer_id=self.peer_id,
                 address=self.address,
+                reachable=bool(self.address),
                 common_name=self.identity.common_name,
                 roles=[self.role],
                 modes=list(self.runner.supported_modes) if self.runner is not None else [],
                 load=self.load(),
+                artifacts=self.artifacts,
             )
         )
         welcome = connection.read(timeout=timeout)
@@ -356,6 +405,43 @@ class MeshPeer:
         self._record("joined", peer_id=self.peer_id, detail=coordinator_address)
         self._spawn(self._reader_loop, "mesh-coord-reader", connection)
         return welcome
+
+    def _dial(self, host, port, timeout, expected_name=None, purpose="dial"):
+        """Open and authenticate an outbound mTLS connection.
+
+        Under `verify="hostname"` the certificate must name the address dialled
+        (loopback certificates carry 127.0.0.1 / localhost). Under
+        `verify="identity"` the CA pin is unchanged -- a certificate from any
+        other CA still fails the handshake -- but the name checked is the
+        certificate's common name against `expected_name`, because a tunnel
+        endpoint or a tailnet address is not something a leaf can be issued for
+        in advance. A mismatch closes the socket and is reported as an
+        `identity-mismatch` event rather than a TLS error, so the ledger says
+        which peer answered.
+        """
+        identity_mode = self.verify == protocol.VERIFY_IDENTITY
+        context = self.identity.client_context(check_hostname=not identity_mode)
+        raw = socket.create_connection((host, port), timeout=timeout)
+        raw.settimeout(timeout)
+        try:
+            sock = context.wrap_socket(raw, server_hostname=host)
+        except (ssl.SSLError, OSError):
+            raw.close()
+            raise
+        if identity_mode and expected_name:
+            actual = peer_common_name(sock)
+            if actual != expected_name:
+                self._record(
+                    "identity-mismatch",
+                    peer_id=self.peer_id,
+                    detail="%s: expected %s, certificate says %s" % (purpose, expected_name, actual or "-"),
+                )
+                try:
+                    sock.close()
+                except OSError:
+                    pass
+                raise RuntimeError("peer identity mismatch on %s: expected %s, got %s" % (purpose, expected_name, actual or "-"))
+        return sock
 
     def _on_coordinator_eof(self, connection):
         self._record("coordinator-lost", peer_id=self.peer_id, detail="connection closed")
@@ -406,6 +492,11 @@ class MeshPeer:
         for job in queued:
             self._notify_coordinator(protocol.message(protocol.JOB_QUEUED, job_id=job.job_id, peer_id=self.peer_id))
         for record in finished:
+            if self.artifacts == protocol.ARTIFACTS_WIRE and protocol.status_is_success(record.get("status", "")):
+                # The bytes may have died with the link too: send them again
+                # ahead of the replayed record. The coordinator overwrites with
+                # identical bytes or, if it already has them, skips the write.
+                self._upload_result(record.get("job_id", ""), record.get("result_ref", ""))
             self._notify_coordinator(protocol.message(protocol.JOB_RESULT, **record))
 
     def _note_connection_closed(self, connection, reason):
@@ -433,6 +524,7 @@ class MeshPeer:
 
     def shutdown(self, timeout=10.0):
         """Stop cleanly: tell peers, release leases, leave no job unrecorded."""
+        self._receiver.abandon_all()  # half-received files are never left in place
         if self.role == self.ROLE_COORDINATOR:
             with self._lock:
                 member_ids = list(self._members.keys())
@@ -591,6 +683,22 @@ class MeshPeer:
             self._handle_job_declined(message)
         elif kind == protocol.STEAL_REQUEST:
             self._handle_steal_request(message, connection)
+        elif kind == protocol.ARTIFACT_FETCH:
+            self._handle_artifact_fetch(message, connection)
+        elif kind == protocol.ARTIFACT_BEGIN:
+            self._handle_artifact_begin(message, connection)
+        elif kind == protocol.ARTIFACT_CHUNK:
+            self._handle_artifact_chunk(message, connection)
+        elif kind == protocol.ARTIFACT_END:
+            self._handle_artifact_end(message, connection)
+        elif kind == protocol.ARTIFACT_MISSING:
+            self._handle_artifact_missing(message)
+        elif kind == protocol.ARTIFACT_REFUSED:
+            self._record(
+                "artifact-refused-by-peer",
+                peer_id=connection.peer_id,
+                detail="%s: %s" % (message.get("ref", "") or message.get("transfer_id", ""), message.get("reason", "")),
+            )
         elif kind == protocol.SHUTDOWN:
             self._record("shutdown-requested", peer_id=connection.peer_id)
             self._stop_now("shutdown-requested")
@@ -610,7 +718,9 @@ class MeshPeer:
         peer_id = message.get("peer_id") or peer_common_name(connection.sock)
         record = {
             "peer_id": peer_id,
-            "address": message.get("address", ""),
+            "address": message.get("address", "") if message.get("reachable", True) else "",
+            "reachable": bool(message.get("reachable", True)) and bool(message.get("address", "")),
+            "artifacts": message.get("artifacts", protocol.ARTIFACTS_SHARED),
             "common_name": message.get("common_name", peer_common_name(connection.sock)),
             "roles": message.get("roles", [self.ROLE_WORKER]),
             "modes": message.get("modes", []),
@@ -865,7 +975,7 @@ class MeshPeer:
                     record
                     for record in self._members.values()
                     if self.ROLE_WORKER in record.get("roles", [])
-                    and record.get("address")
+                    and (record.get("address") or record.get("direct"))
                     and self._connections.get(record["peer_id"]) is not None
                     and record["load"].get("queued", 0) + record["load"].get("running", 0) < 2
                 ]
@@ -1055,7 +1165,21 @@ class MeshPeer:
             "elapsed_seconds": message.get("elapsed_seconds", 0.0),
             "reason": message.get("reason", ""),
             "artifact_bytes": message.get("artifact_bytes", 0),
+            "artifact_sha256": message.get("artifact_sha256", ""),
         }
+        if (
+            self.artifacts == protocol.ARTIFACTS_WIRE
+            and job is not None
+            and protocol.status_is_success(record["status"])
+        ):
+            # In wire mode a success is only a success once its bytes are here.
+            # The transfer precedes the result on the same ordered link, so a
+            # missing or mismatched file is a real defect, not a race.
+            problem = self._result_artifact_problem(job, record.get("artifact_sha256", ""))
+            if problem:
+                self._record("result-without-artifact", job=job, peer_id=record["peer_id"], detail=problem)
+                record["status"] = protocol.STATUS_FAILED
+                record["reason"] = "artifact-" + problem.split(":")[0]
         superseded = False
         presumed = False
         with self._lock:
@@ -1222,7 +1346,14 @@ class MeshPeer:
                 detail=("stolen from %s" % job.stolen_from) if job.stolen_from else "local",
             )
             try:
-                outcome = self.runner.run(job)
+                local_job, problem = self._prepare_job(job)
+                if problem:
+                    self._finish_job(job, status=protocol.STATUS_FAILED, reason=problem, detail="before the runner started")
+                    continue
+                outcome = self.runner.run(local_job)
+                artifact_sha256 = ""
+                if self.artifacts == protocol.ARTIFACTS_WIRE and protocol.status_is_success(outcome.status):
+                    artifact_sha256 = self._upload_result(job.job_id, job.result_ref, local_path=local_job.result_ref)
                 self._finish_job(
                     job,
                     status=outcome.status,
@@ -1231,6 +1362,7 @@ class MeshPeer:
                     elapsed_seconds=outcome.elapsed_seconds,
                     artifact_bytes=outcome.artifact_bytes,
                     exit_code=outcome.exit_code,
+                    artifact_sha256=artifact_sha256,
                 )
             except Exception as error:
                 self._finish_job(job, status=protocol.STATUS_FAILED, reason="runner-error", detail=repr(error))
@@ -1239,7 +1371,16 @@ class MeshPeer:
                     self._running = None
 
     def _finish_job(
-        self, job, status, reason="", detail="", elapsed_seconds=0.0, artifact_bytes=0, exit_code=None, provisional=False
+        self,
+        job,
+        status,
+        reason="",
+        detail="",
+        elapsed_seconds=0.0,
+        artifact_bytes=0,
+        exit_code=None,
+        provisional=False,
+        artifact_sha256="",
     ):
         """Record the one terminal outcome for a job.
 
@@ -1260,6 +1401,7 @@ class MeshPeer:
             "exit_code": exit_code,
             "elapsed_seconds": elapsed_seconds,
             "artifact_bytes": artifact_bytes,
+            "artifact_sha256": artifact_sha256,
             "provisional": bool(provisional),
         }
         with self._lock:
@@ -1289,6 +1431,224 @@ class MeshPeer:
         self._notify_coordinator(protocol.message(protocol.JOB_RESULT, **record))
         self._record("job-result-local", job=job, peer_id=self.peer_id, detail=status, reason=reason)
 
+    # ------------------------------------------------- artifacts over the wire (W20)
+
+    def _prepare_job(self, job):
+        """The job this peer will actually run, with its inputs on local disk.
+
+        Shared mode: the job itself. Wire mode: a copy whose references live under
+        this peer's artifact root, every input fetched from the coordinator first.
+        Returns `(job_to_run, "")` or `(None, reason)` when an input could not be
+        had -- which is a terminal failure for this attempt, with the reason on
+        the record, never a hang.
+        """
+        if self.artifacts != protocol.ARTIFACTS_WIRE:
+            return job, ""
+        local_job = Artifacts.localised(job, self.artifact_dir)
+        os.makedirs(os.path.dirname(os.path.abspath(local_job.result_ref)) or ".", exist_ok=True)
+        for ref, local_ref in zip(Artifacts.input_refs(job), Artifacts.input_refs(local_job)):
+            if os.path.exists(local_ref):
+                self._record("artifact-cached", job=job, peer_id=self.peer_id, detail=ref)
+                continue
+            problem = self._fetch_input(job, ref, local_ref)
+            if problem:
+                return None, problem
+        return local_job, ""
+
+    def _fetch_input(self, job, ref, local_ref):
+        event = threading.Event()
+        with self._lock:
+            self._awaited[local_ref] = event
+            self._fetch_failures.pop(local_ref, None)
+        sent = self._notify_coordinator(
+            protocol.message(protocol.ARTIFACT_FETCH, job_id=job.job_id, ref=ref, peer_id=self.peer_id)
+        )
+        self._record("artifact-fetch-requested", job=job, peer_id=self.peer_id, detail=ref if sent else ref + " (no coordinator link)")
+        arrived = event.wait(self.fetch_timeout) if sent else False
+        with self._lock:
+            self._awaited.pop(local_ref, None)
+            failure = self._fetch_failures.pop(local_ref, None)
+        if failure:
+            return "input-missing:" + failure
+        if not sent:
+            return "input-fetch-no-link"
+        if not arrived or not os.path.exists(local_ref):
+            return "input-fetch-timeout"
+        return ""
+
+    def _upload_result(self, job_id, ref, local_path=None):
+        """Push a finished result (and its sidecar) to the coordinator. Returns its sha256."""
+        connection = self._coordinator_connection
+        if connection is None or connection.closed.is_set():
+            self._record("artifact-upload-deferred", peer_id=self.peer_id, detail="%s: no coordinator link" % ref)
+            return ""
+        local = local_path or Artifacts.local_path_for(ref, self.artifact_dir)
+        if not os.path.exists(local):
+            self._record("artifact-upload-skipped", peer_id=self.peer_id, detail="%s: nothing on disk" % ref)
+            return ""
+        header = Artifacts.send_file(connection, local, ref, job_id, Artifacts.KIND_RESULT)
+        self._record(
+            "artifact-sent",
+            peer_id=self.peer_id,
+            detail="%s (%d bytes, %d chunks, sha256 %s)" % (ref, header["size"], header["chunks"], header["sha256"][:12]),
+            job_id=job_id,
+        )
+        sidecar_local = Artifacts.sidecar_of(local)
+        if os.path.exists(sidecar_local):
+            Artifacts.send_file(connection, sidecar_local, Artifacts.sidecar_of(ref), job_id, Artifacts.KIND_SIDECAR)
+        return header["sha256"]
+
+    def _result_artifact_problem(self, job, declared_sha256):
+        """Why a wire-mode success cannot be accepted yet. Empty string means it can."""
+        if not os.path.exists(job.result_ref):
+            return "missing: no file at the job's result_ref"
+        if declared_sha256:
+            known = self._received_sha256.get(job.result_ref)
+            actual = known if known else Artifacts.sha256_of(job.result_ref)
+            if actual != declared_sha256:
+                return "mismatch: on disk %s, result says %s" % (actual[:12], declared_sha256[:12])
+        return ""
+
+    def _handle_artifact_fetch(self, message, connection):
+        job_id = message.get("job_id", "")
+        ref = message.get("ref", "")
+        if self.role != self.ROLE_COORDINATOR:
+            connection.send(protocol.message(protocol.ARTIFACT_MISSING, job_id=job_id, ref=ref, reason="not-a-coordinator"))
+            return
+        path, reason = self._input_authority.path_for(job_id, ref)
+        if path is None:
+            self._record("artifact-fetch-refused", peer_id=connection.peer_id, detail="%s: %s" % (ref, reason), job_id=job_id)
+            connection.send(protocol.message(protocol.ARTIFACT_MISSING, job_id=job_id, ref=ref, reason=reason))
+            return
+        header = Artifacts.send_file(connection, path, ref, job_id, Artifacts.KIND_INPUT)
+        self._record(
+            "artifact-served",
+            peer_id=connection.peer_id,
+            detail="%s (%d bytes, %d chunks)" % (ref, header["size"], header["chunks"]),
+            job_id=job_id,
+        )
+
+    def _artifact_destination(self, message):
+        """Where an announced transfer may land here, or why it may not."""
+        kind = message.get("artifact_kind", "")
+        if self.role == self.ROLE_COORDINATOR:
+            if kind not in (Artifacts.KIND_RESULT, Artifacts.KIND_SIDECAR):
+                return None, "coordinator-accepts-results-only"
+            return self._result_authority.destination_for(message)
+        if kind != Artifacts.KIND_INPUT:
+            return None, "worker-accepts-inputs-only"
+        if not self.artifact_dir:
+            return None, "no-artifact-dir"
+        local = Artifacts.local_path_for(message.get("ref", ""), self.artifact_dir)
+        with self._lock:
+            awaited = local in self._awaited
+        if not awaited:
+            return None, "not-awaited"
+        return local, ""
+
+    def _handle_artifact_begin(self, message, connection):
+        transfer_id = message.get("transfer_id", "")
+        destination, reason = self._artifact_destination(message)
+        if destination is None:
+            self._record(
+                "artifact-refused",
+                peer_id=connection.peer_id,
+                detail="%s: %s" % (message.get("ref", ""), reason),
+                job_id=message.get("job_id", ""),
+            )
+            self._refused_transfer(transfer_id)
+            connection.send(
+                protocol.message(protocol.ARTIFACT_REFUSED, transfer_id=transfer_id, ref=message.get("ref", ""), reason=reason)
+            )
+            return
+        try:
+            self._receiver.begin(message, destination)
+        except (Artifacts.TransferError, OSError) as error:
+            self._record("artifact-refused", peer_id=connection.peer_id, detail="%s: %s" % (message.get("ref", ""), error))
+            self._refused_transfer(transfer_id)
+            connection.send(protocol.message(protocol.ARTIFACT_REFUSED, transfer_id=transfer_id, ref=message.get("ref", ""), reason=str(error)))
+            return
+        self._record(
+            "artifact-incoming",
+            peer_id=connection.peer_id,
+            detail="%s -> %s (%d bytes, %d chunks)" % (message.get("ref", ""), destination, int(message.get("size", 0)), int(message.get("chunks", 0))),
+            job_id=message.get("job_id", ""),
+        )
+
+    def _refused_transfer(self, transfer_id):
+        refused = getattr(self, "_refused_transfers", None)
+        if refused is None:
+            refused = self._refused_transfers = set()
+        if transfer_id:
+            refused.add(transfer_id)
+
+    def _is_refused_transfer(self, transfer_id):
+        return transfer_id in getattr(self, "_refused_transfers", ())
+
+    def _handle_artifact_chunk(self, message, connection):
+        transfer_id = message.get("transfer_id", "")
+        if self._is_refused_transfer(transfer_id):
+            return
+        pending = self._receiver.peek(transfer_id)
+        try:
+            self._receiver.chunk(transfer_id, int(message.get("index", -1)), message.get("data_b64", ""))
+        except (Artifacts.TransferError, OSError) as error:
+            self._artifact_failed(transfer_id, connection, error, pending)
+
+    def _handle_artifact_end(self, message, connection):
+        transfer_id = message.get("transfer_id", "")
+        if self._is_refused_transfer(transfer_id):
+            self._refused_transfers.discard(transfer_id)
+            return
+        pending = self._receiver.peek(transfer_id)
+        try:
+            transfer = self._receiver.end(transfer_id)
+        except (Artifacts.TransferError, OSError) as error:
+            self._artifact_failed(transfer_id, connection, error, pending)
+            return
+        sha256 = transfer.expected_sha256
+        with self._lock:
+            self._received_sha256[transfer.destination] = sha256
+            waiter = self._awaited.get(transfer.destination)
+        self._record(
+            "artifact-received",
+            peer_id=connection.peer_id,
+            detail="%s (%d bytes, sha256 %s)" % (transfer.ref, transfer.received, sha256[:12]),
+            job_id=transfer.job_id,
+        )
+        if waiter is not None:
+            waiter.set()
+
+    def _artifact_failed(self, transfer_id, connection, error, pending=None):
+        """A transfer that cannot complete: no file, a reason, and any waiter released."""
+        ref = pending.ref if pending is not None else transfer_id
+        self._record("artifact-corrupt", peer_id=connection.peer_id, detail="%s: %s" % (ref, error))
+        self._refused_transfer(transfer_id)
+        self._receiver.abandon(transfer_id)
+        connection.send(protocol.message(protocol.ARTIFACT_REFUSED, transfer_id=transfer_id, ref=ref, reason=str(error)))
+        if pending is None:
+            return
+        # A worker waiting on this file must not sit out the whole fetch timeout.
+        with self._lock:
+            waiter = self._awaited.get(pending.destination)
+            if waiter is not None:
+                self._fetch_failures[pending.destination] = "corrupt: %s" % error
+        if waiter is not None:
+            waiter.set()
+
+    def _handle_artifact_missing(self, message):
+        ref = message.get("ref", "")
+        reason = message.get("reason", "missing")
+        self._record("artifact-missing", peer_id=self.peer_id, detail="%s: %s" % (ref, reason), job_id=message.get("job_id", ""))
+        if not self.artifact_dir:
+            return
+        local = Artifacts.local_path_for(ref, self.artifact_dir)
+        with self._lock:
+            self._fetch_failures[local] = reason
+            waiter = self._awaited.get(local)
+        if waiter is not None:
+            waiter.set()
+
     # ------------------------------------------------------------- work stealing
 
     def _steal_loop(self):
@@ -1298,6 +1658,7 @@ class MeshPeer:
                 return
             with self._lock:
                 idle = self._running is None and not self._queue
+                now = time.time()
                 candidates = [
                     dict(record)
                     for peer_id, record in self._members.items()
@@ -1305,6 +1666,7 @@ class MeshPeer:
                     and self.ROLE_WORKER in record.get("roles", [])
                     and record.get("address")
                     and record["load"].get("queued", 0) > 0
+                    and self._steal_backoff.get(peer_id, 0.0) <= now
                 ]
             if not idle:
                 continue
@@ -1321,10 +1683,15 @@ class MeshPeer:
             self._steal_attempts += 1
         host, port = parse_address(record["address"])
         try:
-            raw = socket.create_connection((host, port), timeout=2.0)
-            raw.settimeout(5.0)
-            sock = self.identity.client_context().wrap_socket(raw, server_hostname=host)
-        except (ssl.SSLError, OSError):
+            sock = self._dial(host, port, 2.0, expected_name=record.get("common_name") or None, purpose="steal")
+            sock.settimeout(5.0)
+        except (ssl.SSLError, OSError, RuntimeError) as error:
+            # A peer that advertises an address nobody can reach -- behind a NAT,
+            # on a tunnel that only runs one way -- is not an error to retry at
+            # wire speed. Say so once, and leave it alone for a while.
+            with self._lock:
+                self._steal_backoff[record["peer_id"]] = time.time() + 5.0
+            self._record("steal-unreachable", peer_id=record["peer_id"], detail="%s: %s" % (record["address"], error.__class__.__name__))
             return False
         connection = Connection(sock, record["peer_id"], log=self._log, transient=True)
         connection.on_close = self._note_connection_closed

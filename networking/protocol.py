@@ -47,6 +47,26 @@ STEAL_DENIED = "steal-denied"      # busy peer -> idle peer: nothing to hand ove
 SHUTDOWN = "shutdown"              # coordinator -> peers: finish, release, exit
 GOODBYE = "goodbye"                # peer -> peer: leaving the mesh cleanly
 
+# W20 -- artifacts over the wire (see `networking/artifacts.py`). Bytes of the
+# codec's own files, chunked and digest-named; never a machine term.
+ARTIFACT_FETCH = "artifact-fetch"      # worker -> coordinator: send me this input of job X
+ARTIFACT_BEGIN = "artifact-begin"      # either direction: a file follows (ref, size, sha256, chunks)
+ARTIFACT_CHUNK = "artifact-chunk"      # either direction: one base64 piece, in order
+ARTIFACT_END = "artifact-end"          # either direction: all pieces sent
+ARTIFACT_MISSING = "artifact-missing"  # coordinator -> worker: that is not an input I can serve
+ARTIFACT_REFUSED = "artifact-refused"  # receiver -> sender: that transfer is not authorised / failed
+
+# How a peer gets at a job's files: on a filesystem both ends share (W2's
+# original contract) or as bytes over the mesh connection (W20).
+ARTIFACTS_SHARED = "shared"
+ARTIFACTS_WIRE = "wire"
+
+# How a dialling peer checks the certificate it is shown, beyond the CA pin that
+# every connection has: by hostname/SAN (loopback default) or by the common name
+# it expects (identity -- what a tunnel or a NAT-traversed address needs).
+VERIFY_HOSTNAME = "hostname"
+VERIFY_IDENTITY = "identity"
+
 # Refusal reasons, so tests can assert on them rather than on prose.
 REFUSED_STALE = "refused-stale"
 REFUSED_SCOPE = "refused-scope-busy"
