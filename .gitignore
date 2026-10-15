@@ -8,3 +8,4 @@ __pycache__/
 # Generated run artifacts from search comparisons and swarm workers
 snapshots/search_compare/run-*/
 logs/*.log
+hyge-*-restore-*/
