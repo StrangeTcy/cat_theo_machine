@@ -70,67 +70,90 @@ def role_of(name, wanted):
     return False
 
 
-def read_node_rows(path):
-    """Node rows with the identity and label columns canonicalised.
+def iter_rows(path):
+    """Yield raw CSV rows one at a time, so callers never hold the file.
 
-    Every remaining column becomes a property edge, so apoc's payload columns
-    arrive as content rather than being dropped.
+    A million-object export does not fit in memory as a list of dicts -- the
+    measured ceiling is ~10KB of resident set per edge, and that is before the
+    Machine terms exist. Everything downstream that has to scale streams from
+    here.
     """
-    rows = read_rows(path)
-    canonical = []
-    for row in rows:
-        entry = {}
-        for key in row:
-            value = row[key]
-            if role_of(key, IDENTITY_HEADERS):
-                entry["id"] = value
-                continue
-            if role_of(key, LABEL_HEADERS):
-                entry["label"] = value
-                continue
-            entry[key] = value
-        canonical.append(entry)
-    return canonical
+    handle = open(path, "r", encoding="utf-8", newline="")
+    try:
+        reader = csv.DictReader(handle)
+        for row in reader:
+            yield row
+    finally:
+        handle.close()
 
 
-def read_edge_rows(path):
-    """Relationship rows canonicalised, with property columns expanded.
+def canonical_node_row(row):
+    """One raw node row with identity and label columns canonicalised."""
+    entry = {}
+    for key in row:
+        value = row[key]
+        if role_of(key, IDENTITY_HEADERS):
+            entry["id"] = value
+            continue
+        if role_of(key, LABEL_HEADERS):
+            entry["label"] = value
+            continue
+        entry[key] = value
+    return entry
+
+
+def canonical_edge_rows(row):
+    """One raw relationship row as a relationship plus one row per property.
 
     A relationship property column becomes its own hyperedge keyed
     `TYPE:column`, which is the same representation the cypher importer uses for
     `[:LIVES_IN {since: 1843}]`, so both decoded shapes land identically.
     """
-    rows = read_rows(path)
-    canonical = []
-    for row in rows:
-        entry = {}
-        properties = []
-        for key in row:
-            value = row[key]
-            if role_of(key, START_HEADERS):
-                entry["src"] = value
-                continue
-            if role_of(key, END_HEADERS):
-                entry["dst"] = value
-                continue
-            if role_of(key, TYPE_HEADERS):
-                entry["rel"] = value
-                continue
-            if role_of(key, IDENTITY_HEADERS):
-                continue
-            properties.append((key, value))
-        canonical.append(entry)
-        for key, value in properties:
-            if value is None:
-                continue
-            if value == "":
-                continue
-            canonical.append({
-                "src": entry["src"],
-                "rel": entry["rel"] + ":" + key,
-                "dst": value,
-            })
-    return canonical
+    entry = {}
+    properties = []
+    for key in row:
+        value = row[key]
+        if role_of(key, START_HEADERS):
+            entry["src"] = value
+            continue
+        if role_of(key, END_HEADERS):
+            entry["dst"] = value
+            continue
+        if role_of(key, TYPE_HEADERS):
+            entry["rel"] = value
+            continue
+        if role_of(key, IDENTITY_HEADERS):
+            continue
+        properties.append((key, value))
+    rows = [entry]
+    for key, value in properties:
+        if value is None:
+            continue
+        if value == "":
+            continue
+        rows.append({
+            "src": entry["src"],
+            "rel": entry["rel"] + ":" + key,
+            "dst": value,
+        })
+    return rows
+
+
+def read_node_rows(path):
+    """All node rows, canonicalised. Convenient, but holds the whole file."""
+    rows = []
+    for row in iter_rows(path):
+        rows.append(canonical_node_row(row))
+    return rows
+
+
+def read_edge_rows(path):
+    """All relationship rows, canonicalised and property-expanded."""
+    rows = []
+    for row in iter_rows(path):
+        for expanded in canonical_edge_rows(row):
+            rows.append(expanded)
+    return rows
 
 
 def build_terms(node_rows, edge_rows):
