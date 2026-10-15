@@ -77,7 +77,8 @@ From `SWARM_EVOLUTION_DAG.md` §5, restated so no brief has to repeat them:
    the machine discover the instance; if you must author a pack, it may carry *ontology*
    (sorts, constructors, generic schemas) but not the conclusion of the problem.
 4. **Verification**: every deliverable ships an automated suite in `validation/` at your
-   pre-allocated slot, 100% green, plus the existing 19 suites still green.
+   pre-allocated slot, 100% green, plus the existing suites (`test1`–`test30` as of
+   2026-10-15) still green.
 5. **Snapshot roots**: any state that must survive a cold resume is registered in
    `SnapshotCodec.capture()` and restored in `activate()`. State left in a Python
    attribute evaporates on reload.
@@ -111,6 +112,18 @@ From `SWARM_EVOLUTION_DAG.md` §5, restated so no brief has to repeat them:
 
 ## Pitfalls already paid for
 
+- **Stale bytecode after a sandbox restore.** Restored files carry untrustworthy mtimes, so
+  Python can keep running an old `.pyc` after you edit a module (symptom: a print that never
+  fires, `inspect.getsource` disagreeing with the file). `find . -name __pycache__ -type d
+  -exec rm -rf {} +` and rerun. The legacy tracked `__pycache__` artifacts were removed
+  from the repository on 2026-10-15; keep it that way.
+- **Never commit conflict markers.** One branch committed `<<<<<<<`/`>>>>>>>` blocks inside
+  `SWARM_EVOLUTION_DAG.md`; the integrator had to reconstruct the intent. Before committing
+  a merge: `grep -rn '^<<<<<<<\|^>>>>>>>' --include=*.md --include=*.py .` must be empty.
+- **One suite per slot.** If your slot's file already exists on the mainline when you
+  rebase, the mainline suite wins unless yours asserts something it does not — say so in
+  the DAG rather than shipping a second `testNN` under the same number (this happened with
+  `test27`, see DAG §6.8).
 - `M.IdentityCompare(x, M.Char("name"))()` compares **identity**, so it never matches a
   freshly constructed `Char`. To test a symbol, read its `.symbol` attribute or compare
   against the interned atom from the registry.

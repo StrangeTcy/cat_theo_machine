@@ -3,7 +3,7 @@
 **Dimension 1 · Phase 1 · Suite slot `test26` · Prereq W3 ✅ (done)**
 
 > **Status: closed as partial (done-definition 2) with a demonstrated negative account.**
-> `validation/test26_flt_descent.py` (45/45, ~115 s), `packs/infinite-descent.pack.yaml` (one
+> `validation/test26_flt_descent.py` (43/43, ~115 s; 38 s since W18), `packs/infinite-descent.pack.yaml` (one
 > authored strategy schema, declared as such), `playground.PolynomialIdentityByGrid` /
 > `ResidueTable` / `CongruenceClasses`. No lemma about triples or squares was authored; the
 > theorem is reduced to `EveryStateMoves(descent)` and what its discharge would need is

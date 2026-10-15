@@ -114,7 +114,7 @@ These arrived during Phase 0/1 execution and are prerequisites or enablers rathe
 - [x] **W14 (Proof Storyteller & Derivation Narrative Generator)**: Completed & verified in `test14_proof_story_narrative.py` (`story_renderer.py`).
 - [x] **W13 (Multi-Pass Backward Planning Engine)**: Completed & verified in `test15_multi_pass_planner.py`.
 - [~] **W6 (FLT $n=4$)**: The hand-authored `flt-quartic` pack was withdrawn as a hardcoding violation. What remains is machine-derived and verified in `validation/test18_flt_residue_discovery.py`: the Cartesian sweep discovers modulus 4, the machine's own arithmetic runs the complete residue case analysis (fourth powers are $\{0,1\}$ mod 4, two odd fourth powers give 2), the discovered obstruction names its own candidate lemma, and the promotion ledger refuses to ledger it without a Checker B receipt. The Pythagorean parametrization descent needed for the full theorem is not derivable by the current machinery and stays open.
-  **Remainder (2026-10-14, slot `test26`, `validation/test26_flt_descent.py`, 45/45, ~115 s):
+  **Remainder (2026-10-14, slot `test26`, `validation/test26_flt_descent.py`, 43/43, ~115 s before W18, 38 s after):
   done-definition rung 2, partial, closed with a demonstrated negative account.** No pack
   carries a quartic rule, a parametrisation, a constant or a lemma about squares; the only
   authored schema is a strategy axiom, `packs/infinite-descent.pack.yaml` (one rule,
@@ -557,44 +557,6 @@ integrated branch; see §4 W15. Two machine facts the work turned up, for the ne
 Regression run with the new labels and the `main.py` change: `test1`, `test4`, `test11`,
 `test12`, `test14`, `test19`, `test22`, `test23` green; `git status snapshots/` clean.
 
-### 6.6 Post-integration: W17 consensus (2026-10-14)
-
-`consensus/ledger_sync.py` + `validation/test28_byzantine_ledger_consensus.py` (slot 28) landed:
-in-process agreement under an adversarial schedule (crash, omission, duplicate, reorder, forged
-entry, stale snapshot, split view). Design, in one breath: **verification, not voting** — a
-delivery is admitted only if the peer re-derives the entry's receipt with Checker B over its own
-trusted rules (`EntryReceiptVerdict`); the check policy is built from the receipt's own
-session/start/goal, because rule licensing is the security boundary and session pinning is a
-deployment concern; commits mirror `PromoteCandidate`'s head-insertion so a peer's ledger is
-structurally `Compare`-equal to the origin's; out-of-order deliveries park on a version gap and
-drain in version order; tombstones (rollback entries, which reuse the revoked entry's id) are
-checked for a known target *before* the duplicate test; snapshots are refused if stale and
-delivered entry-by-entry through the same admission path if ahead; a crashed peer is simply
-excluded from the agreement set. `main.py` grew a `consensus` mode that replays a compact
-schedule end to end. Suite 28: 26/26 checks, ~25 s. Full gate after the change: **29/29**
-(test1–test29), which also retires the old W0 note about `test3` failing — it is green on the
-integrated tree.
-
-Machine facts the work turned up, for the next worker:
-
-- **Ledger versions are fresh `Succ` atoms — compare them by value, never by identity.**
-  `M.IdentityCompare(version, peano.two)()` is `False` even when the version *is* 2, because each
-  `M.Succ` mints a new atom; `math.peano.NatEq(v, k, registry)` (GMP-backed) or structural
-  `M.Compare` is the only sound test. `IdentityCompare` remains correct for label singletons.
-- **`is M.truth_value` binds a Python bool.** `x = X(...) is M.truth_value` followed by
-  `x is M.false_value` is always `False` — branch with `if not x:`. This silently dead-coded a
-  whole branch of the delivery path until a forge test caught it.
-- **Anonymous atoms are equal only to themselves.** `M.Compare` treats two freshly minted
-  `M.Atom()`s as unequal (Chars with equal text do compare equal), so cross-run determinism of
-  ledger *contents* is unassertable in machine terms — entry bodies are saturated with per-run
-  identity atoms. Test 28 therefore asserts cross-run reproducibility on the decision skeleton
-  (versions + statuses in commit order) and full structural identity only within a run (peer vs
-  origin), which is the strong form anyway.
-- **Sandbox bytecode is a live hazard**: restored files carry untrustworthy mtimes, so Python
-  silently runs stale `.pyc`s after an edit (symptom: a `DEBUG` print that never fires,
-  `inspect.getsource` disagreeing with the file). The tracked legacy `__pycache__` artifacts are
-  removed in this commit; the directory stays gitignored.
-
 ### 6.5 Post-integration: W6 remainder and a measured kernel cost (2026-10-14)
 
 `validation/test26_flt_descent.py` (slot 26) landed with `packs/infinite-descent.pack.yaml`,
@@ -636,11 +598,54 @@ Two facts for the next worker:
   directory under them). Nothing was silent — every outcome carried a reason — but the
   recovery clause (“the survivor hands in a real result”) failed. Not caused by W6; it is
   `networking/peer.py`'s loss handling counting a transient reconnect as an attempt, and it
-  belongs to the W16/W17 owner.
+  belongs to the W16/W17 owner. *Follow-up (2026-10-15, §6.8):* `arena/abf4a212`'s W2 fixes
+  (`cbd546a`, `1e98d3e`) close the outcome side of this — a progress report for a job already
+  recorded terminal is ignored (`progress-after-terminal-ignored`) and a real success now
+  supersedes a *recorded* failure, not only a provisional one — so the survivor's late result
+  stands when it arrives. The attempt double-count itself is unchanged; if the coordinator
+  shuts down before the survivor starts the unit, the unit is still `abandoned-on-shutdown`.
 
 Regression run: `test1`, `test3`, `test4`, `test5`, `test9`, `test12`, `test13`, `test18`,
 `test19`, `test23`, `test24` green, `test27` green on rerun (above); `git status snapshots/`
 clean.
+
+### 6.6 Post-integration: W17 consensus (2026-10-14)
+
+`consensus/ledger_sync.py` + `validation/test28_byzantine_ledger_consensus.py` (slot 28) landed:
+in-process agreement under an adversarial schedule (crash, omission, duplicate, reorder, forged
+entry, stale snapshot, split view). Design, in one breath: **verification, not voting** — a
+delivery is admitted only if the peer re-derives the entry's receipt with Checker B over its own
+trusted rules (`EntryReceiptVerdict`); the check policy is built from the receipt's own
+session/start/goal, because rule licensing is the security boundary and session pinning is a
+deployment concern; commits mirror `PromoteCandidate`'s head-insertion so a peer's ledger is
+structurally `Compare`-equal to the origin's; out-of-order deliveries park on a version gap and
+drain in version order; tombstones (rollback entries, which reuse the revoked entry's id) are
+checked for a known target *before* the duplicate test; snapshots are refused if stale and
+delivered entry-by-entry through the same admission path if ahead; a crashed peer is simply
+excluded from the agreement set. `main.py` grew a `consensus` mode that replays a compact
+schedule end to end. Suite 28: 26/26 checks, ~25 s. Full gate after the change: **29/29**
+(test1–test29), which also retires the old W0 note about `test3` failing — it is green on the
+integrated tree.
+
+Machine facts the work turned up, for the next worker:
+
+- **Ledger versions are fresh `Succ` atoms — compare them by value, never by identity.**
+  `M.IdentityCompare(version, peano.two)()` is `False` even when the version *is* 2, because each
+  `M.Succ` mints a new atom; `math.peano.NatEq(v, k, registry)` (GMP-backed) or structural
+  `M.Compare` is the only sound test. `IdentityCompare` remains correct for label singletons.
+- **`is M.truth_value` binds a Python bool.** `x = X(...) is M.truth_value` followed by
+  `x is M.false_value` is always `False` — branch with `if not x:`. This silently dead-coded a
+  whole branch of the delivery path until a forge test caught it.
+- **Anonymous atoms are equal only to themselves.** `M.Compare` treats two freshly minted
+  `M.Atom()`s as unequal (Chars with equal text do compare equal), so cross-run determinism of
+  ledger *contents* is unassertable in machine terms — entry bodies are saturated with per-run
+  identity atoms. Test 28 therefore asserts cross-run reproducibility on the decision skeleton
+  (versions + statuses in commit order) and full structural identity only within a run (peer vs
+  origin), which is the strong form anyway.
+- **Sandbox bytecode is a live hazard**: restored files carry untrustworthy mtimes, so Python
+  silently runs stale `.pyc`s after an edit (symptom: a `DEBUG` print that never fires,
+  `inspect.getsource` disagreeing with the file). The tracked legacy `__pycache__` artifacts are
+  removed in this commit; the directory stays gitignored.
 
 ### 6.7 Post-integration: W18 kernel lookup cost (2026-10-15)
 
@@ -705,3 +710,55 @@ Machine facts for the next worker:
   `nat(1) is peano.one` is and stays `False`; the index unifies only values that arrive
   through `NatFromRep`. Same value, different atom — do not assert node identity across
   those two worlds.
+
+### 6.8 Second integration: every branch with commits after 2026-10-13 (2026-10-15)
+
+All 76 remote heads were re-fetched and compared against this branch. Three had commits
+newer than the first integration (§6.2); everything else is unchanged since then (the
+pre-Hyge lineages and the 2026-10-07/08 branches were assessed in §6.1–6.2 and have not
+moved). Merged, in this order, as true merges so each branch's history survives:
+
+| Branch | New commits | What landed | Conflicts and how they were resolved |
+| :--- | :--- | :--- | :--- |
+| `arena/abf4a212` | `cbd546a`, `d6fd805`, `1e98d3e` | **W2 fixes in `networking/peer.py`**: a progress report for a terminal job is ignored instead of resurrecting it; a real success supersedes a recorded failure (provisional or not); `networking/README.md` and `test25` grew the two probes (51/51, 108 s). | `validation/test27_distributed_prover_swarm.py` **add/add**: the branch carried its own 18-check W16 suite (18/18, 239 s on that tree; findings: speedup negative at 140 s vs 56 s; plan equality holds within one transport only). The integrated 51-check suite (§6.3) already asserts the same four claims with the same transport discipline, so it was kept and the branch's suite dropped — its findings are recorded here. DAG §4 / delegation README kept the integrated W16–W18 entries. |
+| `arena/6e28638f` | `a066b7b`, `03db9eb`, `1fa7d9b`, `640cc43` (+1) | **Ingest**: apoc CSV headers read natively; `probes/ingest_scale_probe.py` (ceiling is memory, ~10 KB resident per edge: 60k relations at 951 MB, 100k OOM on this box); `importers/sharded_import.py` + `probes/sharded_import_probe.py` (label-sharded snapshots, stub nodes so no shard has a dangling edge). | `.gitignore` (one glob covers both restore-scratch patterns). `SWARM_EVOLUTION_DAG.md`: the branch had **committed its own unresolved conflict markers** around the ingest-ceiling table; resolved by keeping that content in §6's preamble ahead of §6.1. |
+| `arena/500df21f` | `3a40b88`, `6fcc568`, `5d07bf8` | **W17** (`consensus/ledger_sync.py`, `main.py consensus` mode, 10 labels, `test28` 26/26, 19 s) and **W18** (`trees.py`, `test30` 18/18, 35 s) — see §6.6 and §6.7; the 88 tracked `__pycache__` artifacts removed. | None (the branch was cut from this one at `675a21c`). |
+
+**Constraint check on the merged tree.** `core.py` is byte-identical to `master`. The
+kernel files (`machine.py`, `context.py`, `labels.py`, `proof.py`, `trees.py`, `graph.py`,
+`matching.py`) grep clean for `isinstance`/`hasattr`/`type(`/`__class__`/`__new__`. One
+follow-up was needed on the W18 change: `_layout_probe` collected machine terms in a Python
+list (`segments = []`, twice — a copy in `TreeInsert` and one in `TreeLookup`), and three
+accessor methods had been pasted into `TreePatriciaLookup`/`TreePatriciaInsert` on top of
+their existing definitions (pyflakes: redefinition). Both fixed in `596d40b`: a single
+module-level `_patricia_layout_is_current(walker, root)` collects the segments as a machine
+list and both edges delegate to it; the duplicated accessors are gone. `test30` is unchanged
+by the cleanup (0.041 → 0.043 s/call across 50 → 350 entries, ratio 1.06). `labels.py`'s W17
+additions follow the label convention; `consensus/ledger_sync.py` keeps peers, ledgers,
+entries, versions and reports as machine terms with the fault schedule in the suite.
+
+**Full gate on the merged tree, 30/30, sequential on 2 vCPU, `git status` clean after**
+(snapshots untouched, no restore scratch left behind):
+
+| Suite | Result | Wall clock now | Before W18 |
+| :--- | :--- | ---: | ---: |
+| `test1`–`test11`, `test14`–`test17`, `test19` | green | 3–8 s each | — |
+| `test12` persistence | 10/10 | 9 s | — |
+| `test13` playground | green | 16 s | — |
+| `test18` residue discovery | green | 17 s | — |
+| `test20` Eisenstein | green | 52 s | ~100 s |
+| `test21` geometry | 36/36 | 43 s | — |
+| `test22` funceq/combinatorics | green | 122 s | 212–215 s |
+| `test23` Engel | 80/80 | 41 s | — |
+| `test24` tutor | 85/85 | 29 s | — |
+| `test25` mesh (+2 probes) | 51/51 | 108 s | — |
+| `test26` descent | 43/43 | 38 s | ~115 s |
+| `test27` prover swarm | 51/51 | 213 s (speedup 0.83×) | 339–356 s |
+| `test28` consensus | 26/26 | 19 s | new |
+| `test29` funceq parity pack | 26/26 | 106 s | 135–164 s |
+| `test30` nat index cost | 18/18 | 38 s | new |
+
+The `test27` kill phase passed first time; see the follow-up note in §6.5 for what the W2
+fixes change there. Scoreboard after this integration: W1–W5, W8–W18 done; W6 closed as
+partial; W7 partial; W9(c) residue/divisibility schema wiring open. Suite slots `test1`–
+`test30` are all taken; **the next free slot is `test31`**.

@@ -3,6 +3,11 @@
 **Infra (kernel) · Phase 0 · Suite slot `test30` · Prereqs: none · Owner: coordinator sign-off
 required — this touches `trees.py`, which is kernel**
 
+> **Status: landed 2026-10-15** on `arena/500df21f` (`5d07bf8`), integrated the same day with a
+> purity cleanup of the layout probe (`596d40b`). Per-call cost is flat at ~0.04–0.07 s from 50 to
+> 900 interned nats; `test30` 18/18; full gate 30/30. See DAG §6.7 (the fix) and §6.8 (the
+> integration). The measurements below are the *before* picture and stay as the record.
+
 Read `delegation/README.md` first. Invariant 2 applies in full: `trees.py` is kernel, so
 the fix may use no Python native on a machine value, and `core.py` stays untouched. This
 brief exists because the W6 remainder measured the cost and had to design around it

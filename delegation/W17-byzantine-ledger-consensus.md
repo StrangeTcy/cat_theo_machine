@@ -1,6 +1,9 @@
 # W17 — Byzantine ledger consensus & monotonic snapshot broadcast
 
-**Swarm · Phase 3 · Suite slot `test28` · Prereqs: W2 ⬜ (open) · W12 ✅ · W1 ✅**
+**Swarm · Phase 3 · Suite slot `test28` · Prereqs: W2 ✅ · W12 ✅ · W1 ✅**
+
+> **Status: landed 2026-10-14** on `arena/500df21f`, integrated 2026-10-15 — `consensus/ledger_sync.py`,
+> `main.py consensus`, `validation/test28_byzantine_ledger_consensus.py` 26/26. See DAG §4 and §6.6.
 
 Read `delegation/README.md` first — shared invariants, environment facts and pitfalls are
 binding here.
