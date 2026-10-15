@@ -531,15 +531,6 @@ class TreePatriciaLookup(Edge):
     def _branch_prefix(self, branch):
         return Head(Tail(branch)())()
 
-    def _choice_token(self, choice):
-        return Head(Tail(choice)())()
-
-    def _branch_prefix(self, branch):
-        return Head(Tail(branch)())()
-
-    def _choice_token(self, choice):
-        return Head(Tail(choice)())()
-
     def _branch_choices(self, branch):
         return Head(Tail(Tail(branch)())())()
 
@@ -657,15 +648,6 @@ class TreePatriciaInsert(Edge):
 
     def _branch_prefix(self, branch):
         return Head(Tail(branch)())()
-
-    def _choice_token(self, choice):
-        return Head(Tail(choice)())()
-
-    def _branch_prefix(self, branch):
-        return Head(Tail(branch)())()
-
-    def _choice_token(self, choice):
-        return Head(Tail(choice)())()
 
     def _branch_choices(self, branch):
         return Head(Tail(Tail(branch)())())()
@@ -897,6 +879,68 @@ class TreeEntries(Edge):
         return self.result
 
 
+def _patricia_layout_is_current(walker, root):
+    """Does a bucketed Patricia root use the current (W18) index-key layout?
+
+    Walk to the first leaf and reassemble the stored path of that leaf --
+    branch prefixes, choice tokens, leaf suffix -- as one token stream. A
+    current-layout path carries the indexed atom itself after every
+    IndexAtomKeyLabel token; a legacy path carries EmptyList there, because
+    the old IndexAtomKey collapsed every atom. Paths whose atom blocks are
+    inconclusive (no IndexAtomKeyLabel at all, or only EmptyList atoms --
+    both layouts agree there) report legacy, which keeps the fallback path:
+    slower, never wrong.
+
+    `walker` is the TreeInsert or TreeLookup edge doing the asking; both
+    expose the same node accessors. The segments are collected as a machine
+    list (consed in reverse while descending, reversed once at the leaf), so
+    no machine term ever sits in a Python container.
+    """
+    current = root
+    segments = EmptyList
+    while walker._is_branch(current) is truth_value:
+        choices = walker._branch_choices(current)
+        if IdentityCompare(choices, EmptyList)() is truth_value:
+            return false_value
+        choice = Head(choices)()
+        segments = Pair(walker._branch_prefix(current), segments)
+        segments = Pair(Pair(TreePatriciaToken(walker._choice_token(choice))(), EmptyList), segments)
+        current = walker._choice_subtree(choice)
+    if walker._is_leaf(current) is false_value:
+        return false_value
+    segments = Pair(walker._leaf_suffix(current), segments)
+
+    in_order = EmptyList
+    while IdentityCompare(segments, EmptyList)() is false_value:
+        in_order = Pair(Head(segments)(), in_order)
+        segments = Tail(segments)()
+
+    saw_atom_label = False
+    saw_pair_after_label = False
+    while IdentityCompare(in_order, EmptyList)() is false_value:
+        cursor = Head(in_order)()
+        while IdentityCompare(cursor, EmptyList)() is false_value:
+            token = Head(cursor)()
+            if IsPair(token)() is truth_value:
+                payload = Head(Tail(token)())()
+                if saw_atom_label and saw_pair_after_label:
+                    if IdentityCompare(payload, EmptyList)() is false_value:
+                        return truth_value
+                    saw_atom_label = False
+                    saw_pair_after_label = False
+                elif saw_atom_label:
+                    if IdentityCompare(payload, TreePatriciaPairTokenLabel)() is truth_value:
+                        saw_pair_after_label = True
+                    else:
+                        saw_atom_label = False
+                else:
+                    if IdentityCompare(payload, IndexAtomKeyLabel)() is truth_value:
+                        saw_atom_label = True
+            cursor = Tail(cursor)()
+        in_order = Tail(in_order)()
+    return false_value
+
+
 class TreeInsert(Edge):
     def __init__(self, tree, key, fact, registry):
         self.registry = registry
@@ -987,51 +1031,8 @@ class TreeInsert(Edge):
         return self._is_branch(root)
 
     def _layout_probe(self, root):
-        # Walk to the first leaf and reassemble the stored path of that leaf
-        # -- branch prefixes, choice tokens, leaf suffix -- as one token
-        # stream. A current-layout path carries the indexed atom itself after
-        # every IndexAtomKeyLabel token; a legacy path carries EmptyList
-        # there, because the old IndexAtomKey collapsed every atom. Paths
-        # whose atom blocks are inconclusive (no IndexAtomKeyLabel at all, or
-        # only EmptyList atoms -- both layouts agree there) report legacy,
-        # which keeps the fallback path: slower, never wrong.
-        current = root
-        segments = []
-        while self._is_branch(current) is truth_value:
-            choices = self._branch_choices(current)
-            if IdentityCompare(choices, EmptyList)() is truth_value:
-                return false_value
-            choice = Head(choices)()
-            segments.append(self._branch_prefix(current))
-            segments.append(Pair(TreePatriciaToken(self._choice_token(choice))(), EmptyList))
-            current = self._choice_subtree(choice)
-        if self._is_leaf(current) is false_value:
-            return false_value
-        segments.append(self._leaf_suffix(current))
+        return _patricia_layout_is_current(self, root)
 
-        saw_atom_label = False
-        saw_pair_after_label = False
-        for segment in segments:
-            cursor = segment
-            while IdentityCompare(cursor, EmptyList)() is false_value:
-                token = Head(cursor)()
-                if IsPair(token)() is truth_value:
-                    payload = Head(Tail(token)())()
-                    if saw_atom_label and saw_pair_after_label:
-                        if IdentityCompare(payload, EmptyList)() is false_value:
-                            return truth_value
-                        saw_atom_label = False
-                        saw_pair_after_label = False
-                    elif saw_atom_label:
-                        if IdentityCompare(payload, TreePatriciaPairTokenLabel)() is truth_value:
-                            saw_pair_after_label = True
-                        else:
-                            saw_atom_label = False
-                    else:
-                        if IdentityCompare(payload, IndexAtomKeyLabel)() is truth_value:
-                            saw_atom_label = True
-                cursor = Tail(cursor)()
-        return false_value
     def _insert_tree(self, tree, key, fact):
         root = TreeStoredRoot(tree)()
         self._key_store = TreeKeyStore(tree)()
@@ -1135,51 +1136,8 @@ class TreeLookup(Edge):
         return Head(Tail(leaf)())()
 
     def _layout_probe(self, root):
-        # Walk to the first leaf and reassemble the stored path of that leaf
-        # -- branch prefixes, choice tokens, leaf suffix -- as one token
-        # stream. A current-layout path carries the indexed atom itself after
-        # every IndexAtomKeyLabel token; a legacy path carries EmptyList
-        # there, because the old IndexAtomKey collapsed every atom. Paths
-        # whose atom blocks are inconclusive (no IndexAtomKeyLabel at all, or
-        # only EmptyList atoms -- both layouts agree there) report legacy,
-        # which keeps the fallback path: slower, never wrong.
-        current = root
-        segments = []
-        while self._is_branch(current) is truth_value:
-            choices = self._branch_choices(current)
-            if IdentityCompare(choices, EmptyList)() is truth_value:
-                return false_value
-            choice = Head(choices)()
-            segments.append(self._branch_prefix(current))
-            segments.append(Pair(TreePatriciaToken(self._choice_token(choice))(), EmptyList))
-            current = self._choice_subtree(choice)
-        if self._is_leaf(current) is false_value:
-            return false_value
-        segments.append(self._leaf_suffix(current))
+        return _patricia_layout_is_current(self, root)
 
-        saw_atom_label = False
-        saw_pair_after_label = False
-        for segment in segments:
-            cursor = segment
-            while IdentityCompare(cursor, EmptyList)() is false_value:
-                token = Head(cursor)()
-                if IsPair(token)() is truth_value:
-                    payload = Head(Tail(token)())()
-                    if saw_atom_label and saw_pair_after_label:
-                        if IdentityCompare(payload, EmptyList)() is false_value:
-                            return truth_value
-                        saw_atom_label = False
-                        saw_pair_after_label = False
-                    elif saw_atom_label:
-                        if IdentityCompare(payload, TreePatriciaPairTokenLabel)() is truth_value:
-                            saw_pair_after_label = True
-                        else:
-                            saw_atom_label = False
-                    else:
-                        if IdentityCompare(payload, IndexAtomKeyLabel)() is truth_value:
-                            saw_atom_label = True
-                cursor = Tail(cursor)()
-        return false_value
     def _payload_head(self, term):
         return Head(Tail(term)())()
 
