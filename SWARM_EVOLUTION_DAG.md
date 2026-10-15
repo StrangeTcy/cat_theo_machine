@@ -54,6 +54,8 @@ The machine's capabilities and subsystems are partitioned into five core dimensi
 [PHASE 3: Swarm Distributed Proving Mesh] (SYSTEM DEPLOYMENT — 2 WORKERS)
  ├── W16: [Distributed Heuristic Search & Partitioned Prover Swarm] ◄───── W2, W13
  └── W17: [Byzantine Ledger Consensus & Monotonic Snapshot Broadcast] ◄── W2, W12, W1
+
+[UNPHASED, KERNEL — coordinator sign-off] W18: [NatValueIndex lookup cost, trees.py] ◄── none (opened by W6, §6.5)
 ```
 
 ---
@@ -67,7 +69,7 @@ The machine's capabilities and subsystems are partitioned into five core dimensi
 | **W3** | Cartesian Playground & Sweep | Infra / Dim 1 | `playground.py` | `math/peano.py`, `labels.py` | Irreducible $k$-ary domain products, projections |
 | **W4** | Independent Proof Checker B | Dim 4 | `checker_b.py` | `core.py`, `proof.py` | Zero-trust receipt verifier, step auditor |
 | **W5** | Surface Grammar & Lexicon | Dim 5 | `surface_bridge.py` | `graph_task.py`, `labels.py` | Declarative parser, render engine, concept defs |
-| **W6** | FLT $n=4$ Residue Discovery | Dim 1 | `validation/test18_flt_residue_discovery.py` | W3 | Modulo 4 obstruction discovered live; parametrization descent open |
+| **W6** | FLT $n=4$ Residue Discovery & Descent | Dim 1 | `validation/test18_flt_residue_discovery.py`, `playground.py` (`PolynomialIdentityByGrid`, `ResidueTable`, `CongruenceClasses`), `packs/infinite-descent.pack.yaml`, `validation/test26_flt_descent.py` | W3 | Modulo 4 obstruction discovered live; descent reduced to one named hypothesis with each step labelled derived / evidenced / authored / missing (partial, closed) |
 | **W7** | FLT $n=3$ Eisenstein Factorization | Dim 1 | `playground.py` (`RunPlaygroundFilteredPowerSweep`, `DiscoverSeparatingModulus`), `math/arithmetic.py` (`Ring*`), `validation/test20_flt_eisenstein_discovery.py` | W3 | Mod-9 obstruction discovered live, $N(1-\omega)=3$ derived; UFD and cubic descent open |
 | **W8** | IMO Geometry & Aux Construction | Dim 2 | `constructions.py`, `packs/geometry-constructions.pack.yaml`, `planner.py` (`Construction`) | W4 | Goal-directed auxiliary-point schemas, slot `test21` |
 | **W9** | IMO Combinatorics & Func-Eq | Dim 2 | `math/funceq.py`, `graph_task.py` (`ForwardDeriveFacts`), `packs/funceq-nt.pack.yaml` | W4 | Families 1–3 over the forward engine / miner / ledger (slot `test22`); pack-based functional-equation and parity slice (slot `test29`) |
@@ -79,6 +81,7 @@ The machine's capabilities and subsystems are partitioned into five core dimensi
 | **W15**| Socratic Dialogue & Tutor | Dim 5 | `dialogue.py`, `main.py` (`live` fall-through, `load pack`), `labels.py` (+11) | W5, W12 | Concept inspection from loaded rules/definitions/ledger, claim REPL (Checker B / counterexample / undecided), structure-generated Socratic questions, ledger transparency; `validation/test24_socratic_dialogue.py` (85/85, ~45 s) |
 | **W16**| Distributed Prover Swarm | Swarm | `search/distributed_engine.py`, `networking/jobs.py`, `main.py` (`swarm`, `mesh --swarm`) | W2, W13 | Partitioned frontier worker mesh, work-stealing; `validation/test27_distributed_prover_swarm.py` (51/51, ~340 s) |
 | **W17**| Byzantine Ledger Consensus | Swarm | `consensus/ledger_sync.py` | W2, W12, W1 | Raft/BFT rule sync, monotonic version broadcast |
+| **W18**| Kernel: `NatValueIndex` lookup cost | Infra | `trees.py` (`TreeLookup`, `TreePatriciaLookup`, `TreeInsert`), `math/peano.py` (`NatFromRep`) | none (kernel; coordinator sign-off) | `TreeLookup` miss in `O(key)`, not `O(entries)`; `validation/test30_nat_index_lookup_cost.py`; `test22`/`test26` wall clocks before/after. Brief: `delegation/W18-nat-index-lookup-cost.md` |
 
 ### 3.1 Substrate extensions added after this DAG was first published
 
@@ -111,6 +114,45 @@ These arrived during Phase 0/1 execution and are prerequisites or enablers rathe
 - [x] **W14 (Proof Storyteller & Derivation Narrative Generator)**: Completed & verified in `test14_proof_story_narrative.py` (`story_renderer.py`).
 - [x] **W13 (Multi-Pass Backward Planning Engine)**: Completed & verified in `test15_multi_pass_planner.py`.
 - [~] **W6 (FLT $n=4$)**: The hand-authored `flt-quartic` pack was withdrawn as a hardcoding violation. What remains is machine-derived and verified in `validation/test18_flt_residue_discovery.py`: the Cartesian sweep discovers modulus 4, the machine's own arithmetic runs the complete residue case analysis (fourth powers are $\{0,1\}$ mod 4, two odd fourth powers give 2), the discovered obstruction names its own candidate lemma, and the promotion ledger refuses to ledger it without a Checker B receipt. The Pythagorean parametrization descent needed for the full theorem is not derivable by the current machinery and stays open.
+  **Remainder (2026-10-14, slot `test26`, `validation/test26_flt_descent.py`, 45/45, ~115 s):
+  done-definition rung 2, partial, closed with a demonstrated negative account.** No pack
+  carries a quartic rule, a parametrisation, a constant or a lemma about squares; the only
+  authored schema is a strategy axiom, `packs/infinite-descent.pack.yaml` (one rule,
+  `Terminates(p) ∧ EveryStateMoves(p) → NoStates(p)`, declared as authored on the same footing
+  as `monovariant_terminates`). Two generic decision procedures were added to `playground.py`
+  and are the reusable yield: `PolynomialIdentityByGrid` decides an identity between two
+  polynomial expression terms (`ExprAdd`/`ExprMul`/`ExprPow` over Chars and nats) by
+  evaluating both sides with the machine's `Add`/`Multiply` on the grid `{0..d_i}` per
+  variable, `d_i` a structural degree bound — sound by the finite-grid identity lemma, so a
+  truth verdict is a proof over Z, not evidence (the suite shows the grid size is load-bearing:
+  `a²+a` and `2a` agree on `{0,1}` and the bound forces the third point that separates them);
+  `ResidueTable` / `CongruenceClasses` run the exhaustive residue case analysis `test18` did
+  inline, as records. Each step of Fermat's descent is then labelled. *Derived*: the
+  Pythagorean square identity in additive form `p² + 4(p+n²)n² = (p+2n²)²` (15 grid points),
+  `x⁴ = (x²)²`, odd squares ≡ 1 (mod 4), and `1 + n² ≡ m² (mod 4)` holding exactly on
+  `m` odd / `n` even — the modulus being the one the sweep re-discovers, not a constant; and a
+  2-step derivation `monovariant_terminates`, `infinite_descent` from `Monovariant`,
+  `AllMovesDecrease`, `BoundedBelow`, `EveryStateMoves` to `NoStates(descent)`, Checker-B
+  verified, rejected against the wrong goal, and not findable without `EveryStateMoves`.
+  *Evidenced only* (machine arithmetic on bounded sweeps, refused by the ledger, version 0):
+  every primitive triple with an even leg in range is `(m²−n², 2mn, m²+n²)` for a coprime
+  opposite-parity pair (5 instances, 2 beyond the bound the first 3 came from — and the suite
+  says the parametrisation is a human-stated candidate the machine neither discovered nor
+  derived), coprime factors of a square are squares (6 instances; the non-coprime
+  counterexample `(2, 8)` shows the hypothesis is load-bearing), the measure drops along the
+  would-be descent (6 family pairs). *Missing, demonstrated*: no loaded schema has a
+  replacement variable unbound by its premises, so no rule can introduce the witnesses a
+  descent step constructs (the `m, n`, the `u, v, w`) — existential witness introduction is
+  absent from the knowledge-rewrite format; `invariance.RewriteEquals` with the default
+  distributivity/associativity rules is stuck on the identity the grid decided — ring
+  normalisation is absent; `math/arithmetic` has no subtraction, root or factorisation edge,
+  so the coprime-square-factors lemma (unique factorisation) has no substrate; no loaded
+  schema concludes a `NatLess` fact, so the decrease is evidenced, not derived. The theorem is
+  therefore reduced to `EveryStateMoves(descent)` — "from every primitive solution a smaller
+  one can be built" — whose discharge is exactly the missing list. Nothing is promoted and the
+  skeleton derivation is not submitted: its receipt would certify the implication, not the
+  theorem. The brief's own ranking applies: this is a precise partial, not a positive hiding an
+  authored step.
 - [~] **W7 (FLT $n=3$ Eisenstein UFD Factorization)**: Partial, machine-derived, verified in
   `validation/test20_flt_eisenstein_discovery.py` (all sections green, ~92–98 s) — slot 20, from
   `arena/87d8295b-cat-theo-machine` (`808f299`). `RunPlaygroundFilteredPowerSweep` /
@@ -354,7 +396,17 @@ These arrived during Phase 0/1 execution and are prerequisites or enablers rathe
   cost (~12–30 s per unit, which is what makes the speedup negative); the brief's ~180 s suite
   budget is not attainable at this boot cost and the suite prints per-phase timings instead.
 - [x] **W17 (Byzantine Ledger Consensus & Monotonic Snapshot Broadcast)**: Dependent on Phase 2;
-  W2 ✅, W12 ✅, W1 ✅ — landed (see §6.5).
+  W2 ✅, W12 ✅, W1 ✅ — landed (see §6.6).
+- [ ] **W18 (Kernel: `NatValueIndex` lookup cost)**: Opened 2026-10-14 from the W6 remainder's
+  measurements (§6.5): one arithmetic operation costs ~0.2 s on a fresh runtime and ~0.6 s
+  after two hundred more nats are interned, because `trees.TreeLookup._lookup_tree` falls
+  back to a linear scan of every entry (`_lookup_entries`, `ExactKey` recomputed per entry)
+  whenever the Patricia lookup misses — and for `NatFromRep` a miss is every new value. Every
+  arithmetic sweep in the tree is therefore quadratic (`test22` ~215 s, `test26` ~85 s of
+  sweeps, the tutor's counterexample bound of 12). Kernel file: the fix needs coordinator
+  sign-off and must keep `trees.py` free of forbidden constructs; `core.py`'s per-allocation
+  `uuid4()` (57 % of the profile) is the floor under it and is out of scope. Brief:
+  `delegation/W18-nat-index-lookup-cost.md`; slot `test30`.
 
 ---
 
@@ -379,7 +431,7 @@ Every Arena agent working on this repository must strictly adhere to the followi
 
    **The exception is conjunctive: both halves must hold.** The code is host-layer, *and* there is no machine analogue for what it does. Being in a harness or a probe is not by itself a licence — if the machine can already answer the question (`Compare`, `IsAtom`, `IsPair`, `IsTree`), then reaching into a payload with `getattr`, `type`, or `.symbol` is a violation wherever it sits. The identity index passes both halves. A probe that read `.symbol` to find an edge by name and `type(x).__name__` to report what came back passed only the first; it was fixed to use `Compare` and `IsAtom`. An earlier draft of this section stated the test as "whether the value crosses into a machine term", which made layer the only condition and would have excused that probe. Do not spend a session on an unscoped purity refactor of host code, and do not cite this rule to reject working host-layer code — but do not cite the host layer to excuse bypassing a predicate the machine already provides.
 3. **No Domain-Specific Hardcoding**: Do not hardcode problem targets or fixed heuristics in search or mining modules.
-4. **Verification Requirement**: Every new worker module or pack must include an automated verification suite in `validation/` with $100\%$ green test results before promotion. There are currently **28** suites — `test1`–`test25`, `test27`–`test29` (slot 26 is pre-allocated to W6-remainder and still open; slot 28 is W17's, landed) — each a standalone script. Run one with `PYTHONPATH=<repo-parent> python -u validation/testN_*.py` (the suites insert the package parent onto `sys.path` themselves and import as `cat_theo_machine.*`).
+4. **Verification Requirement**: Every new worker module or pack must include an automated verification suite in `validation/` with $100\%$ green test results before promotion. There are currently **29** suites — `test1`–`test29` (slot 30 is pre-allocated to W18 and still open) — each a standalone script. Run one with `PYTHONPATH=<repo-parent> python -u validation/testN_*.py` (the suites insert the package parent onto `sys.path` themselves and import as `cat_theo_machine.*`).
 5. **Snapshot Root Invariant**: any new machine state that must survive a cold resume has to be registered as a root in `SnapshotCodec.capture()` and restored in `activate()`. Content added through the graph's `nodes`/`edges` context is now covered; state kept only in Python attributes is not, and silently evaporates on reload.
 6. **Suite Slot Discipline**: `validation/` numbering is append-only. Two lineages independently claimed slots 15 and 16 for unrelated suites; the reconciliation below is what happened, and new work must take the next free number rather than reusing a taken one.
 
@@ -491,7 +543,7 @@ integrated branch; see §4 W15. Two machine facts the work turned up, for the ne
 Regression run with the new labels and the `main.py` change: `test1`, `test4`, `test11`,
 `test12`, `test14`, `test19`, `test22`, `test23` green; `git status snapshots/` clean.
 
-### 6.5 Post-integration: W17 consensus (2026-10-14)
+### 6.6 Post-integration: W17 consensus (2026-10-14)
 
 `consensus/ledger_sync.py` + `validation/test28_byzantine_ledger_consensus.py` (slot 28) landed:
 in-process agreement under an adversarial schedule (crash, omission, duplicate, reorder, forged
@@ -528,3 +580,50 @@ Machine facts the work turned up, for the next worker:
   silently runs stale `.pyc`s after an edit (symptom: a `DEBUG` print that never fires,
   `inspect.getsource` disagreeing with the file). The tracked legacy `__pycache__` artifacts are
   removed in this commit; the directory stays gitignored.
+
+### 6.5 Post-integration: W6 remainder and a measured kernel cost (2026-10-14)
+
+`validation/test26_flt_descent.py` (slot 26) landed with `packs/infinite-descent.pack.yaml`,
+three `playground.py` procedures and five labels (`PolynomialIdentityLabel`,
+`ResidueTableLabel`, `CongruenceClassesLabel`, `EveryStateMovesLabel`, `NoStatesLabel`);
+the pack is registered in `main.py:PACK_PATHS`. See §4 W6 for what is and is not claimed.
+Two facts for the next worker:
+
+- **Machine arithmetic is slow and gets slower.** Every `Add`/`Multiply`/`Modulo` result goes
+  through `NatFromRep`, whose `TreeLookup` on `NatValueIndex` falls back to a linear scan of
+  every entry (`trees.TreeLookup._lookup_entries`, `ExactKey` recomputed per entry) whenever
+  the Patricia lookup misses — and for a new value it always misses — then inserts. Measured
+  on a fresh runtime: ~0.2 s per operation on new values around 1000, ~0.6 s after two
+  hundred more nats are interned, ~75 ms even for a hit. Profiled at 300 entries (20 hits +
+  20 misses, 61 s): the miss fallback 27 s, the Patricia bucket scans 15 s, `TreeInsert`
+  ~0.7 s per new value; `_is_bucketed_root`, suspected first, is 9 ms per lookup and not
+  the cause; `core.py`'s `uuid4()` per allocation is 35 s of the 61 and is the untouchable
+  floor. A sweep's cost is therefore quadratic in its size; `test26` keeps its bounds small
+  for that reason and says so, and `test22`'s 215 s is mostly this. The fix is in the kernel
+  (`trees.py`) and was **not** made here: it is opened as **W18** (§3, §4, slot `test30`;
+  brief `delegation/W18-nat-index-lookup-cost.md` with the profile and a fix sketch) and
+  needs coordinator sign-off because the file is kernel.
+- **The identity procedure is reusable where symbolic algebra is not.** W7's norm
+  multiplicativity and the IMO algebra schemas need identities the rewrite walker cannot
+  reach; `PolynomialIdentityByGrid` decides any identity in the admitted fragment
+  (`ExprAdd`/`ExprMul`/`ExprPow`, natural coefficients) and refuses the rest (`ExprNeg`,
+  `ExprFrac`, `ExprDiv` — subtraction must be moved across the equation first, as `test26`
+  does).
+
+- **A kill-phase race in the W16 mesh, seen once.** `test27` was run twice after the pack
+  registration: 51/51 on the second run, 49/51 on the first. In the failing run the SIGKILL
+  of the victim also closed the *survivor's* coordinator connection for 0.2 s
+  (`coordinator-lost`, then `rejoined`); the coordinator treated that as a second loss of the
+  already re-dispatched unit, hit `max_attempts`, and finalised it `failed / worker-lost`
+  while the survivor still held it queued; when the survivor finished its own unit and
+  started the victim's, every job was terminal from the coordinator's view, it broadcast
+  shutdown, and the survivor abandoned the unit (`abandoned-on-shutdown`; the
+  `FileNotFoundError` from its restore shards is that abandonment removing the scratch
+  directory under them). Nothing was silent — every outcome carried a reason — but the
+  recovery clause (“the survivor hands in a real result”) failed. Not caused by W6; it is
+  `networking/peer.py`'s loss handling counting a transient reconnect as an attempt, and it
+  belongs to the W16/W17 owner.
+
+Regression run: `test1`, `test3`, `test4`, `test5`, `test9`, `test12`, `test13`, `test18`,
+`test19`, `test23`, `test24` green, `test27` green on rerun (above); `git status snapshots/`
+clean.

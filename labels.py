@@ -1741,6 +1741,28 @@ class DialogueTurnLabel(ConstructorLabel):
 
 class DialogueFallthroughLabel(ConstructorLabel):
     pass
+
+
+# --- W6 remainder: evaluation-decided identities / congruences, descent strategy ---
+
+class PolynomialIdentityLabel(ConstructorLabel):
+    pass
+
+
+class ResidueTableLabel(ConstructorLabel):
+    pass
+
+
+class CongruenceClassesLabel(ConstructorLabel):
+    pass
+
+
+class EveryStateMovesLabel(ConstructorLabel):
+    pass
+
+
+class NoStatesLabel(ConstructorLabel):
+    pass
 TreeLabel = TreeLabel()
 ZeroLabel = ZeroLabel()
 SuccLabel = SuccLabel()
@@ -2175,6 +2197,11 @@ ConceptReportLabel = ConceptReportLabel()
 ConceptNotRepresentedLabel = ConceptNotRepresentedLabel()
 DialogueTurnLabel = DialogueTurnLabel()
 DialogueFallthroughLabel = DialogueFallthroughLabel()
+PolynomialIdentityLabel = PolynomialIdentityLabel()
+ResidueTableLabel = ResidueTableLabel()
+CongruenceClassesLabel = CongruenceClassesLabel()
+EveryStateMovesLabel = EveryStateMovesLabel()
+NoStatesLabel = NoStatesLabel()
 
 
 def sync_from_namespace(namespace):
@@ -2613,6 +2640,11 @@ def sync_from_namespace(namespace):
         "ConceptNotRepresentedLabel",
         "DialogueTurnLabel",
         "DialogueFallthroughLabel",
+        "PolynomialIdentityLabel",
+        "ResidueTableLabel",
+        "CongruenceClassesLabel",
+        "EveryStateMovesLabel",
+        "NoStatesLabel",
     ):
         if name in namespace:
             globals()[name] = namespace[name]

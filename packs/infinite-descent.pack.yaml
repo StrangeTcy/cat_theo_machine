@@ -1,0 +1,58 @@
+format: hyge-pack
+version: 1
+
+name: infinite-descent
+description: >
+  W6 remainder. One strategy schema -- Fermat's infinite descent, read as the
+  well-ordering of the naturals -- stated once over a symbolic process. It
+  names no equation, no number, no map and no lemma.
+
+  The schema is an authored axiom of the strategy layer, on the same footing
+  as engel-strategies' monovariant_terminates, and is declared as such: the
+  machine does not derive it. It says what follows once two obligations are
+  discharged, and both obligations belong to someone else:
+
+    Terminates(p)        every run of the process is finite. This is what the
+                         Engel monovariant schemas conclude from
+                         Monovariant(p, m), AllMovesDecrease(p, m) and
+                         BoundedBelow(m, b); it is not restated here.
+    EveryStateMoves(p)   every state of the process has a move. For a
+                         descent on the solutions of an equation this is the
+                         whole content: it says the construction of a smaller
+                         solution is defined at every solution, and that is
+                         where the number theory lives. The pack never
+                         asserts it.
+
+  From the two, NoStates(p): a process that cannot run forever and can
+  always take another step has nowhere to start. For a process whose states
+  are the solutions of an equation, NoStates(p) is the statement that the
+  equation has none.
+
+  What this pack cannot do, by construction: a Horn rule binds every
+  variable of its replacement in a premise, so nothing here (or in any pack)
+  can introduce the parameters a descent step constructs -- the m and n of a
+  parametrisation, the u, v, w of a smaller solution. Those witnesses must
+  already be named in the knowledge. That absence is recorded, not worked
+  around.
+
+requires: []
+
+phi:
+  call:
+    head: {sym: NoStatesLabel}
+    args: [{var: p}]
+
+rules:
+  - id: infinite_descent
+    premises:
+      - call:
+          head: {sym: TerminatesLabel}
+          args: [{var: p}]
+      - call:
+          head: {sym: EveryStateMovesLabel}
+          args: [{var: p}]
+    replacement:
+      list:
+        - call:
+            head: {sym: NoStatesLabel}
+            args: [{var: p}]
