@@ -1001,20 +1001,45 @@ class MeshPeer:
         with self._lock:
             if job_id not in self._job_state:
                 return
-            self._acknowledged.add(job_id)
-            self._job_owner[job_id] = peer_id
-            self._job_state[job_id] = "running" if started else "queued"
-            for key, lease in list(self._foreign_leases.items()):
-                if lease.job_id == job_id and lease.peer_id != peer_id:
-                    self._foreign_leases[key] = protocol.Lease(job_id, peer_id, key, lease.sequence, lease.lease_id)
-                    self._record("lease-transferred", job=self._jobs.get(job_id), peer_id=peer_id, detail="now held by %s" % peer_id)
-            record = self._members.get(peer_id)
-            if record is not None and started:
-                load = record.get("load", {})
-                record["load"] = {
-                    "queued": max(0, int(load.get("queued", 1)) - 1),
-                    "running": 1,
-                }
+            if job_id in self._results:
+                # This job is already finished. A peer reporting progress for it is
+                # working from a queue it never emptied -- which happens when the
+                # job was orphaned by a loss, recorded as failed, and then run
+                # anyway by a peer that still held it. Accepting the report would
+                # put the state back to running/queued beside a terminal record
+                # that `_finish_job` refuses to overwrite, so the ledger would
+                # claim a job is running that has already been accounted for, and
+                # whatever the second run produced would be dropped on the floor.
+                # Found by the W16 kill test: killing a worker mid-unit left
+                # job_states {done: 3, running: 1} next to terminal: 4.
+                finished_status = self._results[job_id].get("status", "")
+                finished = True
+            else:
+                finished_status = ""
+                finished = False
+            if not finished:
+                self._acknowledged.add(job_id)
+                self._job_owner[job_id] = peer_id
+                self._job_state[job_id] = "running" if started else "queued"
+                for key, lease in list(self._foreign_leases.items()):
+                    if lease.job_id == job_id and lease.peer_id != peer_id:
+                        self._foreign_leases[key] = protocol.Lease(job_id, peer_id, key, lease.sequence, lease.lease_id)
+                        self._record("lease-transferred", job=self._jobs.get(job_id), peer_id=peer_id, detail="now held by %s" % peer_id)
+                record = self._members.get(peer_id)
+                if record is not None and started:
+                    load = record.get("load", {})
+                    record["load"] = {
+                        "queued": max(0, int(load.get("queued", 1)) - 1),
+                        "running": 1,
+                    }
+        if finished:
+            self._record(
+                "progress-after-terminal-ignored",
+                job=self._jobs.get(job_id),
+                peer_id=peer_id,
+                detail="already recorded %s" % finished_status,
+            )
+            return
         self._record("job-" + ("started" if started else "queued"), job=self._jobs.get(job_id), peer_id=peer_id)
 
     def _handle_job_result(self, message):
@@ -1032,17 +1057,24 @@ class MeshPeer:
             "artifact_bytes": message.get("artifact_bytes", 0),
         }
         superseded = False
+        presumed = False
         with self._lock:
             job_id = record["job_id"]
             if job_id in self._results:
                 existing = self._results[job_id]
                 if existing.get("status") == protocol.STATUS_OK or record["status"] != protocol.STATUS_OK:
-                    return  # terminal records are written once; a real result stands
-                if not existing.get("provisional"):
-                    return
-                # The job was written off as lost with a peer, and that peer (or the
-                # one that took it over) has just handed in the actual result.
+                    return  # a recorded success stands, and a second failure adds nothing
+                # Any recorded failure gives way to a real success, presumed or not.
+                # The provisional case is the one the docstring describes: work
+                # written off as lost with a peer that has now turned up with the
+                # result. The non-provisional case is the one the W16 kill test
+                # found -- a job that ran out of attempts and was recorded failed
+                # while a peer that still held it queued went on to prove it.
+                # "Attempts exhausted" is bookkeeping; a finished search is a fact.
+                # The line above already refuses to replace a success and to record
+                # a second failure, so at most one supersession per job: no flapping.
                 superseded = True
+                presumed = bool(existing.get("provisional"))
             self._acknowledged.add(job_id)
             self._offered_at.pop(job_id, None)
             self._job_state[job_id] = "done" if protocol.status_is_success(record["status"]) else "failed"
@@ -1065,7 +1097,7 @@ class MeshPeer:
                 "result-superseded",
                 job=job,
                 peer_id=record["peer_id"],
-                detail="a real result replaced a presumed failure",
+                detail="a real result replaced a %s failure" % ("presumed" if presumed else "recorded"),
             )
         self._record(
             "job-result",
@@ -1231,8 +1263,13 @@ class MeshPeer:
             "provisional": bool(provisional),
         }
         with self._lock:
-            if job_id in self._results:
-                return
+            existing = self._results.get(job_id)
+            if existing is not None:
+                if existing.get("status") == protocol.STATUS_OK or not protocol.status_is_success(status):
+                    return  # a recorded success stands, and a second failure adds nothing
+                # The same rule as `_handle_job_result`, on the local path: a real
+                # success replaces a recorded failure. `provisional` outcomes are
+                # presumptions and never overwrite anything that is already there.
             self._results[job_id] = record
             self._job_state[job_id] = "done" if protocol.status_is_success(status) else "failed"
             self._job_owner.pop(job_id, None)
