@@ -1092,12 +1092,35 @@ def run_search_worker_mode(worker_mode: str, result_path: str, timeout_seconds: 
     return search_worker_execute(worker_mode, result_path, timeout_seconds, boot)
 
 
-def run_mesh_peer_mode(role: str, bind: str, coordinator: str = None, worker_modes: str = None, timeout_seconds: int = 6000, cert_dir: str = None, jobs_file: str = None, run_seconds: float = 0.0, cert_name: str = None, swarm: bool = False):
+def run_mesh_peer_mode(
+    role: str,
+    bind: str,
+    coordinator: str = None,
+    worker_modes: str = None,
+    timeout_seconds: int = 6000,
+    cert_dir: str = None,
+    jobs_file: str = None,
+    run_seconds: float = 0.0,
+    cert_name: str = None,
+    swarm: bool = False,
+    artifacts: str = "shared",
+    artifact_dir: str = None,
+    inbound: bool = True,
+    verify: str = "hostname",
+    expect: str = None,
+    advertise: str = None,
+    bundle_dir: str = None,
+    sans: str = None,
+):
     """`python main.py mesh ...` -- a long-lived peer of the W2 RPC/mTLS mesh.
 
     Boots the machine once (so the ~20 s pack boot is paid once per peer, not
     once per job) and then serves search jobs over the mesh transport. The job
     semantics are `search_worker_execute`'s; only the transport is new.
+
+    The W20 switches (`artifacts`, `artifact_dir`, `inbound`, `verify`, `expect`,
+    `advertise`) let the same peer run across a tunnel against a worker that has
+    no shared filesystem; `role="issue"` writes that worker's certificate bundle.
     """
     from . import mesh as Meshmod
     return Meshmod.run_peer_cli(
@@ -1111,6 +1134,14 @@ def run_mesh_peer_mode(role: str, bind: str, coordinator: str = None, worker_mod
         run_seconds=run_seconds,
         cert_name=cert_name,
         swarm=swarm,
+        artifacts=artifacts,
+        artifact_dir=artifact_dir,
+        inbound=inbound,
+        verify=verify,
+        expect=expect,
+        advertise=advertise,
+        bundle_dir=bundle_dir,
+        sans=sans,
     )
 
 
@@ -2301,8 +2332,8 @@ def main():
     parser.add_argument(
         "--role",
         default="worker",
-        choices=["coordinator", "worker", "plan"],
-        help="For mesh mode: whether this peer dispatches jobs or serves them. For swarm mode: plan units, or run one.",
+        choices=["coordinator", "worker", "plan", "issue"],
+        help="For mesh mode: whether this peer dispatches jobs or serves them (`issue` writes a remote peer's certificate bundle instead). For swarm mode: plan units, or run one.",
     )
     parser.add_argument(
         "--out",
@@ -2373,6 +2404,48 @@ def main():
         default=0.0,
         help="For mesh mode: stop after this many seconds (0 waits for a shutdown frame).",
     )
+    parser.add_argument(
+        "--artifacts",
+        default="shared",
+        choices=["shared", "wire"],
+        help="For mesh mode: `shared` (default) means job inputs and results are paths every peer can open; `wire` moves them in frames over the coordinator link, for peers without a shared filesystem.",
+    )
+    parser.add_argument(
+        "--artifact-dir",
+        default=None,
+        help="For mesh mode with --artifacts wire: where a worker keeps fetched inputs and the results it produces (any writable directory; a fresh temporary one if omitted).",
+    )
+    parser.add_argument(
+        "--no-inbound",
+        action="store_true",
+        help="For mesh mode: do not listen at all; this worker only dials out (a notebook, a box behind NAT). It still joins, serves jobs and steals, but cannot be stolen from.",
+    )
+    parser.add_argument(
+        "--verify",
+        default="hostname",
+        choices=["hostname", "identity"],
+        help="For mesh mode: how a dialled peer's certificate is matched. `hostname` requires the address dialled to be in the certificate (loopback material); `identity` keeps the CA pin and checks the certificate's common name against --expect instead (tunnels, tailnets).",
+    )
+    parser.add_argument(
+        "--expect",
+        default=None,
+        help="For mesh mode with --verify identity: the coordinator's certificate name (defaults to `coordinator`, the name the coordinator role uses unless --cert-name says otherwise).",
+    )
+    parser.add_argument(
+        "--advertise",
+        default=None,
+        help="For mesh mode: HOST:PORT that other peers should dial to reach this one, when it differs from --bind (a tunnel's public endpoint in front of a coordinator bound to 0.0.0.0).",
+    )
+    parser.add_argument(
+        "--bundle-dir",
+        default=None,
+        help="For `mesh --role issue`: directory receiving the remote peer's bundle (ca.crt + its leaf certificate and key; never the CA key). Must be outside the repository.",
+    )
+    parser.add_argument(
+        "--sans",
+        default=None,
+        help="For `mesh --role issue`: comma-separated subject alternative names for the leaf (default 127.0.0.1,localhost; irrelevant under --verify identity).",
+    )
     args = parser.parse_args()
     debug_enabled = args.arg1 == "debug"
     filter_name = args.arg2 if debug_enabled else args.arg1
@@ -2430,6 +2503,14 @@ def main():
                     run_seconds=args.run_seconds,
                     cert_name=args.cert_name,
                     swarm=args.swarm,
+                    artifacts=args.artifacts,
+                    artifact_dir=args.artifact_dir,
+                    inbound=not args.no_inbound,
+                    verify=args.verify,
+                    expect=args.expect,
+                    advertise=args.advertise,
+                    bundle_dir=args.bundle_dir,
+                    sans=args.sans,
                 )
             )
         elif args.mode == "consensus":

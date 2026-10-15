@@ -17,10 +17,32 @@ local tests, not a security model -- the directory is a temporary directory outs
 the repository, and `networking/identity.py` refuses to put key material in the
 tree. A real deployment would issue per-peer certificates and publish only the CA.
 
+Beyond one box (W20). The same CLI runs a mesh split across a laptop and a remote
+worker (a Colab notebook) that cannot see the laptop's filesystem and cannot be
+dialled. Three things change, none of them in the protocol's job semantics:
+
+* `--role issue` makes a *bundle* for the remote peer: the CA certificate plus
+  one leaf certificate and its key, and nothing else. The CA key stays home. The
+  bundle travels out of band (an upload into the notebook's session storage,
+  not through the repository, which is public).
+* the remote worker runs with `--no-inbound --verify identity --expect NAME
+  --artifacts wire --artifact-dir DIR`: it only dials out, it checks the
+  coordinator's certificate by common name under the CA pin (a tunnel address is
+  nothing a leaf can be issued for), and job inputs and results travel in frames
+  rather than being paths on a shared disk.
+* the laptop coordinator runs with `--bind 0.0.0.0:PORT --artifacts wire
+  --advertise HOST:PORT`, where HOST:PORT is whatever tunnel forwards to it.
+
 CLI (also reachable as `python main.py mesh ...`):
 
     coordinator:  python main.py mesh --role coordinator --cert-dir DIR --jobs jobs.json --run-seconds 120
     worker:       python main.py mesh --role worker --cert-dir DIR --run-seconds 120
+    issue bundle: python main.py mesh --role issue --cert-dir DIR --cert-name colab-1 --bundle-dir OUT
+    WAN coord.:   python main.py mesh --role coordinator --cert-dir DIR --bind 0.0.0.0:7443 \
+                      --artifacts wire --advertise tunnel.example:7443 --jobs jobs.json
+    WAN worker:   python main.py mesh --role worker --cert-dir BUNDLE --cert-name colab-1 \
+                      --coordinator tunnel.example:7443 --no-inbound --verify identity \
+                      --expect coordinator --artifacts wire --artifact-dir WORK
 
 The coordinator boots nothing itself; workers boot the machine once and reuse it
 for every job they run.
@@ -30,6 +52,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import tempfile
 import time
 
@@ -37,6 +60,9 @@ from .networking import identity as MeshIdentityModule
 from .networking import jobs as MeshJobs
 from .networking import protocol
 from .networking.peer import MeshPeer
+
+
+ROLE_ISSUE = "issue"
 
 
 def default_cert_dir():
@@ -69,6 +95,22 @@ def ensure_identity(directory, name, days=7):
         leaf = pki.issue(name, sans=("127.0.0.1", "localhost"), days=days, basename=name)
         return leaf
     # Self-service enrolment from an existing CA (loopback test material only).
+    if not os.path.exists(_ca_key_path(directory)):
+        # A bundle made by `--role issue` deliberately has no CA key: it can
+        # only be the identity it was issued for.
+        raise RuntimeError(
+            "no certificate named %r in %s, and no CA key there to issue one; "
+            "a bundle only holds the leaf it was issued for (check --cert-name), "
+            "or issue one on the coordinator with `mesh --role issue`" % (name, directory)
+        )
+    pki = load_pki(directory)
+    return pki.issue(name, sans=("127.0.0.1", "localhost"), days=days, basename=name)
+
+
+def load_pki(directory):
+    """Open the PKI in `directory` (which must hold `ca.crt` and `ca.key`)."""
+    directory = MeshIdentityModule.pki_directory_guard(directory)
+    ca_path = os.path.join(directory, "ca.crt")
     with open(_ca_key_path(directory), "rb") as handle:
         ca_key_pem = handle.read()
     ca_key = _load_pkcs1_key(ca_key_pem)
@@ -81,13 +123,55 @@ def ensure_identity(directory, name, days=7):
         except (OSError, json.JSONDecodeError):
             pass
     ca_identity = MeshIdentityModule.MeshIdentity(ca_name, ca_path, _ca_key_path(directory), ca_path)
-    pki = MeshIdentityModule.MeshPki(directory, ca_identity, ca_key)
-    return pki.issue(name, sans=("127.0.0.1", "localhost"), days=days, basename=name)
+    return MeshIdentityModule.MeshPki(directory, ca_identity, ca_key)
 
 
 def issue_identity(directory, name, pki, days=7, sans=("127.0.0.1", "localhost")):
     """Issue a named leaf from a PKI the caller already holds (used by the suite)."""
     return pki.issue(name, sans=sans, days=days, basename=name)
+
+
+BUNDLE_FILES = ("ca.crt",)
+
+
+def issue_bundle(directory, name, bundle_dir, days=7, sans=("127.0.0.1", "localhost")):
+    """Issue a leaf for a remote peer and stage exactly what it needs to travel.
+
+    The bundle holds three files: `ca.crt`, `NAME.crt`, `NAME.key`. The CA key is
+    not among them, so a leaked bundle is one revocable identity, not the power to
+    mint more. The remote side points `--cert-dir` at the unpacked bundle and
+    `--cert-name` at NAME; `ensure_identity` then finds the leaf and never looks
+    for a CA key. Returns the list of staged paths.
+    """
+    directory = MeshIdentityModule.pki_directory_guard(directory)
+    bundle_dir = MeshIdentityModule.pki_directory_guard(bundle_dir)
+    if not os.path.exists(os.path.join(directory, "ca.crt")):
+        # First use on this box: create the CA (and the coordinator's own leaf
+        # comes later, from the same directory, when the coordinator starts).
+        MeshIdentityModule.MeshPki.create(directory)
+    pki = load_pki(directory)
+    leaf = pki.issue(name, sans=tuple(sans), days=days, basename=name)
+    os.makedirs(bundle_dir, exist_ok=True)
+    staged = []
+    for source in (leaf.ca_path, leaf.cert_path, leaf.key_path):
+        target = os.path.join(bundle_dir, os.path.basename(source))
+        shutil.copyfile(source, target)
+        if source == leaf.key_path:
+            os.chmod(target, 0o600)
+        staged.append(target)
+    with open(os.path.join(bundle_dir, "bundle.json"), "w", encoding="utf-8") as handle:
+        json.dump(
+            {
+                "common_name": name,
+                "files": [os.path.basename(path) for path in staged],
+                "contains_ca_key": False,
+                "note": "copy out of band; never into the repository",
+            },
+            handle,
+            indent=2,
+            sort_keys=True,
+        )
+    return staged
 
 
 def _load_pkcs1_key(pem_bytes):
@@ -153,7 +237,21 @@ def read_coordinator(directory, timeout=30.0):
     raise RuntimeError("no coordinator record in %s after %.1fs" % (directory, timeout))
 
 
-def build_peer(role, identity, modes=None, timeout_seconds=6000, steal_enabled=True, log=None, runner=None):
+def build_peer(
+    role,
+    identity,
+    modes=None,
+    timeout_seconds=6000,
+    steal_enabled=True,
+    log=None,
+    runner=None,
+    artifacts=protocol.ARTIFACTS_SHARED,
+    artifact_dir=None,
+    inbound=True,
+    verify=protocol.VERIFY_HOSTNAME,
+    expect=None,
+    advertise=None,
+):
     """Construct a peer with the standard search-job runner unless one is given."""
     if runner is None and role == MeshPeer.ROLE_WORKER:
         runner = MeshJobs.SearchJobRunner(timeout_seconds=timeout_seconds, supported_modes=modes, log=log)
@@ -167,6 +265,12 @@ def build_peer(role, identity, modes=None, timeout_seconds=6000, steal_enabled=T
         steal_enabled=steal_enabled,
         log=log,
         heartbeat_interval=0.4,
+        artifacts=artifacts,
+        artifact_dir=artifact_dir,
+        inbound=inbound,
+        verify=verify,
+        expect_coordinator=expect,
+        advertise=advertise,
     )
 
 
@@ -240,6 +344,14 @@ def run_peer_cli(
     run_seconds=0.0,
     cert_name=None,
     swarm=False,
+    artifacts=protocol.ARTIFACTS_SHARED,
+    artifact_dir=None,
+    inbound=True,
+    verify=protocol.VERIFY_HOSTNAME,
+    expect=None,
+    advertise=None,
+    bundle_dir=None,
+    sans=None,
 ):
     """Entry point for `python main.py mesh ...`. Returns a process exit code.
 
@@ -247,28 +359,79 @@ def run_peer_cli(
     agenda problems, so they are served by `SwarmJobRunner` instead of the search
     worker. The transport, membership, leases and stealing are unchanged -- that
     is the point of consuming W2 rather than reimplementing it.
+
+    `artifacts`, `artifact_dir`, `inbound`, `verify`, `expect` and `advertise` are
+    the W20 switches described in the module docstring; their defaults reproduce
+    the one-filesystem mesh exactly. `role="issue"` does not start a peer at all:
+    it writes a bundle for a remote peer into `bundle_dir` and returns.
     """
     directory = cert_dir or default_cert_dir()
     modes = [mode.strip() for mode in (worker_modes or "dfs,bfs,astar,beam,rewritedfs").split(",") if mode.strip()]
     name = cert_name or role
-    identity = ensure_identity(directory, name)
-    host, _sep, port = bind.rpartition(":")
-    host = host or "127.0.0.1"
-    port = int(port or 0)
 
     def log(text):
         print("[mesh:%s] %s" % (name, text), flush=True)
 
+    if role == ROLE_ISSUE:
+        if not cert_name:
+            log("--role issue needs --cert-name (the remote peer's identity, e.g. colab-1)")
+            return 2
+        target = bundle_dir or os.path.join(tempfile.mkdtemp(prefix="hyge-bundle-"), name)
+        san_list = tuple(item.strip() for item in (sans or "127.0.0.1,localhost").split(",") if item.strip())
+        staged = issue_bundle(directory, name, target, sans=san_list)
+        log("issued %s from the CA in %s" % (name, directory))
+        for path in staged:
+            log("  staged %s" % path)
+        log("bundle in %s: carry it out of band (not through the repository); the CA key stayed home" % target)
+        return 0
+
+    identity = ensure_identity(directory, name)
+    host, _sep, port = bind.rpartition(":")
+    host = host or "127.0.0.1"
+    port = int(port or 0)
+    if role == MeshPeer.ROLE_WORKER and verify == protocol.VERIFY_IDENTITY and not expect:
+        # The coordinator's default certificate name is its role; an operator
+        # who named it otherwise says so with --expect.
+        expect = MeshPeer.ROLE_COORDINATOR
+    if role == MeshPeer.ROLE_WORKER and artifacts == protocol.ARTIFACTS_WIRE and not artifact_dir:
+        artifact_dir = tempfile.mkdtemp(prefix="hyge-artifacts-")
+        log("no --artifact-dir given; fetched inputs and results go under %s" % artifact_dir)
+
     runner = None
     if swarm:
         runner = MeshJobs.SwarmJobRunner(timeout_seconds=timeout_seconds, supported_modes=modes, log=log)
-    peer = build_peer(role, identity, modes=modes, timeout_seconds=timeout_seconds, log=log, runner=runner)
+    peer = build_peer(
+        role,
+        identity,
+        modes=modes,
+        timeout_seconds=timeout_seconds,
+        log=log,
+        runner=runner,
+        artifacts=artifacts,
+        artifact_dir=artifact_dir,
+        inbound=inbound,
+        verify=verify,
+        expect=expect,
+        advertise=advertise,
+    )
     address = peer.start(host, port)
-    log("listening on %s (mTLS, mutual authentication required)" % address)
+    if address:
+        log("listening on %s (mTLS, mutual authentication required)" % address)
+        if peer.announced_address != address:
+            log("announcing %s to peers" % peer.announced_address)
+    else:
+        log("no listener (--no-inbound): outbound connections only")
+    if artifacts == protocol.ARTIFACTS_WIRE:
+        log("artifacts travel over the wire" + ("; local root %s" % artifact_dir if artifact_dir else ""))
 
     submitted = []
     if role == MeshPeer.ROLE_COORDINATOR:
-        publish_coordinator(directory, address, identity.ca_path, extra={"peer_id": peer.peer_id})
+        publish_coordinator(
+            directory,
+            peer.announced_address,
+            identity.ca_path,
+            extra={"peer_id": peer.peer_id, "artifacts": artifacts, "bound": address},
+        )
         log("published discovery record in %s" % directory)
         if jobs_file:
             for job in load_jobs(jobs_file):
@@ -280,7 +443,7 @@ def run_peer_cli(
         if target is None:
             target = read_coordinator(directory).get("address")
         peer.join(target)
-        log("joined %s" % target)
+        log("joined %s%s" % (target, (" as %s (identity check: %s)" % (name, expect)) if verify == protocol.VERIFY_IDENTITY else ""))
 
     started = time.time()
     try:

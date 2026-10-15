@@ -177,6 +177,7 @@ class MeshPeer:
         verify=protocol.VERIFY_HOSTNAME,
         expect_coordinator=None,
         fetch_timeout=180.0,
+        advertise=None,
     ):
         self.identity = identity
         self.role = role
@@ -202,6 +203,10 @@ class MeshPeer:
         self._log = log or (lambda text: None)
         self.peer_id = peer_id or ("%s-%s" % (identity.common_name, os.urandom(3).hex()))
         self.address = ""
+        # What other peers should dial to reach this one, when that differs from
+        # the bound address: a coordinator bound to 0.0.0.0 behind a tunnel
+        # announces the tunnel's HOST:PORT, not the wildcard it listens on.
+        self.advertise = (advertise or "").strip() or None
 
         self._lock = threading.RLock()
         self._stop = threading.Event()
@@ -337,6 +342,13 @@ class MeshPeer:
                 self._spawn(self._steal_loop, "mesh-steal")
         return self.address
 
+    @property
+    def announced_address(self):
+        """The address this peer tells others to dial: `advertise` if set, else the bound one."""
+        if not self.address:
+            return ""
+        return self.advertise or self.address
+
     def _stop_now(self, reason):
         """Stop this peer, recording where the stop came from.
 
@@ -374,7 +386,7 @@ class MeshPeer:
             protocol.message(
                 protocol.JOIN,
                 peer_id=self.peer_id,
-                address=self.address,
+                address=self.announced_address,
                 reachable=bool(self.address),
                 common_name=self.identity.common_name,
                 roles=[self.role],
@@ -737,7 +749,7 @@ class MeshPeer:
             protocol.message(
                 protocol.WELCOME,
                 coordinator_id=self.peer_id,
-                address=self.address,
+                address=self.announced_address,
                 members=members,
                 heartbeat_interval=self.heartbeat_interval,
             )
@@ -894,7 +906,7 @@ class MeshPeer:
                 payload = protocol.message(
                     protocol.HEARTBEAT,
                     peer_id=self.peer_id,
-                    address=self.address,
+                    address=self.announced_address,
                     roles=[self.role],
                     load=self.load(),
                     members=digest,
@@ -906,7 +918,7 @@ class MeshPeer:
                     protocol.message(
                         protocol.HEARTBEAT,
                         peer_id=self.peer_id,
-                        address=self.address,
+                        address=self.announced_address,
                         roles=[self.role],
                         modes=list(self.runner.supported_modes) if self.runner is not None else [],
                         load=self.load(),
