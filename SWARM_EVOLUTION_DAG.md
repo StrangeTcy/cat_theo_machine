@@ -82,6 +82,8 @@ The machine's capabilities and subsystems are partitioned into five core dimensi
 | **W16**| Distributed Prover Swarm | Swarm | `search/distributed_engine.py`, `networking/jobs.py`, `main.py` (`swarm`, `mesh --swarm`) | W2, W13 | Partitioned frontier worker mesh, work-stealing; `validation/test27_distributed_prover_swarm.py` (51/51, ~340 s) |
 | **W17**| Byzantine Ledger Consensus | Swarm | `consensus/ledger_sync.py` | W2, W12, W1 | Raft/BFT rule sync, monotonic version broadcast |
 | **W18**| Kernel: `NatValueIndex` lookup cost | Infra | `trees.py` (`TreeLookup`, `TreePatriciaLookup`, `TreeInsert`), `math/peano.py` (`NatFromRep`) | none (kernel; coordinator sign-off) | `TreeLookup` miss in `O(key)`, not `O(entries)`; `validation/test30_nat_index_lookup_cost.py`; `test22`/`test26` wall clocks before/after. Brief: `delegation/W18-nat-index-lookup-cost.md` |
+| **W19**| Neo4j dump → machine shards, decoded on Colab | Infra / ingest | `importers/split_apoc_export.py`, `colab/neo4j_dump_to_shards.ipynb`, `colab/README.md` §B | ingest (§3.1, §6.8) | Combined and bulk APOC exports → `nodes.csv`/`edges.csv` + shard plan; the Neo4j decode in a notebook; `validation/test32_neo4j_export_to_shards.py` (35/35, ~38 s, one shard booted and machine-counted). Brief: `delegation/W19-neo4j-dump-to-shards.md` |
+| **W20**| Mesh beyond one filesystem (laptop behind a tunnel + Colab worker) | Swarm / Infra | `networking/artifacts.py`, `networking/framing.py` (`Duplex`), `networking/peer.py`, `networking/protocol.py`, `mesh.py` (`issue_bundle`), `main.py` (`mesh` switches), `colab/mesh_worker.ipynb`, `colab/README.md` §A | W2, W16 | `--artifacts wire` (inputs fetched / results pushed inside the connection, digest-named, authority-checked), `--no-inbound`, `--verify identity --expect`, `--advertise`, `--role issue` bundles; `validation/test31_wan_mesh_artifacts.py` (50/50, ~60 s). Brief: `delegation/W20-wan-mesh.md` |
 
 ### 3.1 Substrate extensions added after this DAG was first published
 
@@ -408,6 +410,39 @@ These arrived during Phase 0/1 execution and are prerequisites or enablers rathe
   `uuid4()` (57 % of the profile) is the floor under it and is out of scope. Brief:
   `delegation/W18-nat-index-lookup-cost.md`; slot `test30`. Landed 2026-10-15 with the
   coordinator's sign-off (see §6.7).
+- [x] **W19 (Neo4j dump → machine shards, decoded on Colab)**: Opened and landed 2026-10-15
+  (`8571449`). The ingest work of §6.8 read APOC's CSV natively and sharded it by label; what was
+  missing was the step from a Neo4j `.dump` (a private store format only Neo4j decodes) to that
+  CSV, without running a JVM database on the laptop that also runs the machine.
+  `importers/split_apoc_export.py` turns either APOC layout — the combined `apoc.export.csv.all`
+  file or the `bulkImport` per-label files with neo4j-admin headers — into the `nodes.csv` /
+  `edges.csv` pair plus `split.json` (counts, property columns, the first-label histogram that
+  *is* the shard plan, warnings); `colab/neo4j_dump_to_shards.ipynb` does the decode where a JVM
+  is free (load the dump into a matching Neo4j, export with APOC, split, `sharded_import`,
+  shards back to Drive). `test32` (35/35, ~38 s) drives the split both ways, `build_terms` on the
+  result, the real sharder as a subprocess and one shard booted alone with its nodes, edges and
+  cross-shard stubs counted by the machine. *Honest boundary*: the Neo4j cells of the notebook
+  are unexecuted (no route to `dist.neo4j.org` from the sandbox); verification starts at the
+  export. One importer quirk documented, not changed: a relationship property is an edge
+  `src → TYPE:prop → value`, so the sharder makes a stub node for the value. See §6.9.
+- [x] **W20 (Mesh beyond one filesystem)**: Opened and landed 2026-10-15 (`aaac6de` … `cedae50`).
+  W2/W16 assumed one box or a shared mount, dialable peers and SAN-matching certificates; a
+  laptop plus a Colab runtime has none of the three. Four switches remove them one at a time and
+  default to the old behaviour (`test25` 51/51 and `test27` unchanged in `shared` mode):
+  `--artifacts wire` moves the W16 unit snapshot to the worker and the result snapshot + manifest
+  back *inside* the mesh connection, chunked under the frame cap, SHA-256 named, with asymmetric
+  path-free authority (the coordinator serves only inputs it named and accepts only `result_ref`s
+  it issued) and without touching `TERM_PAYLOAD_KEYS` — the bytes are the codec's own file, loaded
+  through the codec, still the one serialisation of a machine term; `--no-inbound` for a peer
+  nobody can dial (steals, is never stolen from; undialable advertised addresses back off);
+  `--verify identity --expect NAME` matches the common name under the CA pin instead of the SAN
+  against a tunnel's address; `--advertise` and `--role issue` bundles (CA cert + leaf only; the
+  CA key never moves). The transfers exposed a latent W2 defect: one `SSLSocket` read by one
+  thread and written by another is unsound, and a 3 MiB frame in flight broke it intermittently;
+  `framing.Duplex` (non-blocking socket, one lock around OpenSSL, `select` with the lock released)
+  replaces the pattern for every mesh connection. `test31` 50/50 (~60 s) on loopback through the
+  real CLI. *Honest boundary*: no tunnel and no Colab in the sandbox — the first laptop ⇄ notebook
+  run is the user's, and `colab/README.md` names the ledger events to read. See §6.9.
 
 ---
 
@@ -432,9 +467,10 @@ Every Arena agent working on this repository must strictly adhere to the followi
 
    **The exception is conjunctive: both halves must hold.** The code is host-layer, *and* there is no machine analogue for what it does. Being in a harness or a probe is not by itself a licence — if the machine can already answer the question (`Compare`, `IsAtom`, `IsPair`, `IsTree`), then reaching into a payload with `getattr`, `type`, or `.symbol` is a violation wherever it sits. The identity index passes both halves. A probe that read `.symbol` to find an edge by name and `type(x).__name__` to report what came back passed only the first; it was fixed to use `Compare` and `IsAtom`. An earlier draft of this section stated the test as "whether the value crosses into a machine term", which made layer the only condition and would have excused that probe. Do not spend a session on an unscoped purity refactor of host code, and do not cite this rule to reject working host-layer code — but do not cite the host layer to excuse bypassing a predicate the machine already provides.
 3. **No Domain-Specific Hardcoding**: Do not hardcode problem targets or fixed heuristics in search or mining modules.
-4. **Verification Requirement**: Every new worker module or pack must include an automated verification suite in `validation/` with $100\%$ green test results before promotion. There are currently **30** suites — `test1`–`test30` (no open slots; the next free number is `test31`) — each a standalone script. Run one with `PYTHONPATH=<repo-parent> python -u validation/testN_*.py` (the suites insert the package parent onto `sys.path` themselves and import as `cat_theo_machine.*`).
+4. **Verification Requirement**: Every new worker module or pack must include an automated verification suite in `validation/` with $100\%$ green test results before promotion. There are currently **32** suites — `test1`–`test32` (no open slots; the next free number is `test33`) — each a standalone script. Run one with `PYTHONPATH=<repo-parent> python -u validation/testN_*.py` (the suites insert the package parent onto `sys.path` themselves and import as `cat_theo_machine.*`).
 5. **Snapshot Root Invariant**: any new machine state that must survive a cold resume has to be registered as a root in `SnapshotCodec.capture()` and restored in `activate()`. Content added through the graph's `nodes`/`edges` context is now covered; state kept only in Python attributes is not, and silently evaporates on reload.
 6. **Suite Slot Discipline**: `validation/` numbering is append-only. Two lineages independently claimed slots 15 and 16 for unrelated suites; the reconciliation below is what happened, and new work must take the next free number rather than reusing a taken one.
+7. **One serialisation of a machine term**: the snapshot codec. The mesh carries references (W2) and, under `--artifacts wire` (W20), the *bytes of snapshot files* that the receiver loads through the codec — never a pickled or otherwise serialised term (`framing.TERM_PAYLOAD_KEYS` rejects the frame). A new transport that wants to move machine state moves a snapshot.
 
 ---
 
@@ -761,4 +797,55 @@ entries, versions and reports as machine terms with the fault schedule in the su
 The `test27` kill phase passed first time; see the follow-up note in §6.5 for what the W2
 fixes change there. Scoreboard after this integration: W1–W5, W8–W18 done; W6 closed as
 partial; W7 partial; W9(c) residue/divisibility schema wiring open. Suite slots `test1`–
-`test30` are all taken; **the next free slot is `test31`**.
+`test30` were all taken at that point; W20 and W19 then took `test31` and `test32` (§6.9), so
+**the next free slot is `test33`**.
+
+### 6.9 Post-integration: W20 WAN mesh and W19 dump → shards (2026-10-15)
+
+Both opened from one request — make the machine run across a laptop and a Colab notebook,
+and make a Neo4j dump ingestible — and both landed on `arena/717c9822` the same day
+(`aaac6de`, `6301d7c`, `70a5699`, `cedae50`, `8571449` + docs). Briefs:
+`delegation/W20-wan-mesh.md`, `delegation/W19-neo4j-dump-to-shards.md`; runbook `colab/README.md`;
+transport reference `networking/README.md` ("Beyond one filesystem").
+
+**What was decided before writing code** (user's choices, asked up front). Dump decoding
+happens **on Colab**: the notebook loads the dump into a Neo4j of the matching major version,
+exports with `apoc.export.csv.all`, splits and shards — a `.dump` is a private, versioned
+store format and nothing but Neo4j should decode it, and the laptop that runs the machine
+should not also run a JVM database. WAN model: **the laptop is the coordinator behind a
+tunnel and artifacts travel over the wire** — the jobs, the PKI and the results stay on the
+machine the user owns; Colab dials out, verifies *who* it reached rather than *where*, and
+holds nothing that outlives the session. Scope: both halves, loopback-tested in `test31` /
+`test32`, the user runs the first real trial.
+
+**A W2 defect found by W20.** The mesh `Connection` reads its socket from one thread and
+writes from another. On the small control frames of `test25`/`test27` that never showed; the
+first 3 MiB `artifact-chunk` did: an `SSLSocket` is one OpenSSL object, the reader's poll
+`settimeout` landed inside the writer's `sendall`, and the link died intermittently with
+`SSLEOFError` / a half-written record on one side and a stall on the other. `framing.Duplex`
+replaces the pattern (non-blocking socket, one lock around every OpenSSL call, waits on
+`select` with the lock released, `pending()` checked before every wait). Micro-benchmark
+5/5 and `T31_PHASES=123` 6/6 after, flaky before; `test25` and `test27` green after.
+
+**Purity.** Nothing new touches a machine term over the wire: `artifact-*` frames carry file
+bytes the receiver loads through the codec, which is why §5 now says so as rule 7. The W19
+splitter is CSV-to-CSV; the sharder and importer it feeds were already machine-counted.
+`core.py` unchanged; kernel files unchanged.
+
+**Gate on this tree, sequential on 2 vCPU**: `test31` 50/50 (59 s), `test32` 35/35 (38 s),
+`test25` 51/51, `test27` all green (kill phase passed; the §6.5 race note still applies).
+`git status` clean after each; no certificate or key under the tree (`test32` phase 5 checks
+`git ls-files` for it).
+
+**What is not verified and must be said plainly.** (1) The Neo4j cells of
+`colab/neo4j_dump_to_shards.ipynb` — install, `neo4j-admin … load`, APOC export — were written
+against the documented tooling and never executed (the sandbox has no route to
+`dist.neo4j.org`); every code cell compiles and the pipeline is verified from the export
+onward. (2) `colab/mesh_worker.ipynb` and the tunnel were never run against a real network;
+`test31` runs the same CLI switches on loopback. The liveness window was tuned on loopback and
+may need widening at tunnel latency — `member-lost`/`rejoined` pairs with no incident are the
+symptom. (3) Both notebooks clone `arena/717c9822-cat-theo-machine` until this branch is
+merged; a `master` coordinator does not speak the `artifact-*` frames.
+
+**Scoreboard after this**: W1–W5, W8–W20 done (W6 closed as partial, W7 partial, W9(c) open).
+Suite slots `test1`–`test32` taken; **the next free slot is `test33`**.

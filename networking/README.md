@@ -31,12 +31,19 @@ Messages carry job *descriptions* and *references*; nothing carries a machine te
 worker -> coordinator   join, heartbeat, job-started, job-queued, job-result, job-declined, goodbye
 coordinator -> worker   welcome, heartbeat (carries the member digest), job-offer, shutdown, reject
 peer -> peer            steal-request, steal-grant, steal-denied
+worker -> coordinator   artifact-fetch                       (W20, `--artifacts wire` only)
+either direction        artifact-begin, artifact-chunk, artifact-end, artifact-refused
+coordinator -> worker   artifact-missing
 ```
 
 `framing.TERM_PAYLOAD_KEYS` rejects a frame containing `pickle`, `term_payload`,
 `machine_state` or `serialized_term`: a machine value travels as a snapshot
 reference the receiver loads through the codec, never as a serialised object. That
-is what "zero-copy" means in `SWARM_EVOLUTION_DAG.md` §3.
+is what "zero-copy" means in `SWARM_EVOLUTION_DAG.md` §3. The W20 `artifact-*`
+frames do not weaken this: they carry the *bytes of the codec's own file*
+(base64, chunked under the frame cap, SHA-256 named up front), which the receiver
+writes to disk and then loads through the codec exactly as it would from a shared
+mount — see *Beyond one filesystem* below.
 
 ## Identity and the certificate path
 
@@ -185,6 +192,70 @@ the protocol invariants with stub runners, then real search jobs over real
 subprocesses with a stolen job, a SIGKILLed worker, and every result compared
 against the single-process run of the same manifest.
 
+## Beyond one filesystem (W20): a laptop behind a tunnel and a Colab worker
+
+Everything above assumed the W2 deployment: peers on one box or on two laptops with a
+shared mount, every peer reachable by every other, and certificates whose SAN is the
+address that gets dialled. A laptop plus a Colab notebook breaks all three — they share
+nothing but a socket, the laptop is behind NAT and the notebook has no inbound port at
+all, and whatever public name a tunnel hands out is not the one on anybody's
+certificate. W20 adds four switches that remove those assumptions one at a time; with
+none of them set the layer behaves exactly as before (`test25` and `test27` run in the
+default `shared` mode and are unchanged).
+
+| switch | default | what it changes |
+| :--- | :--- | :--- |
+| `--artifacts wire` | `shared` | job files travel inside the connection (`networking/artifacts.py`). A worker fetches a job's **input** (the W16 unit snapshot named by `unit_path`) with `artifact-fetch` and writes it under its own `--artifact-dir`; it pushes its **result** snapshot and the manifest sidecar to the coordinator *before* the `job-result` frame, on the same ordered connection, and the coordinator writes them at the exact `result_ref` it issued. Authority is asymmetric: the coordinator serves only inputs it named in a job it submitted and accepts only files at a `result_ref` it issued (`InputAuthority`, `ResultAuthority`); a worker maps every coordinator path onto its own root (`local_path_for`), so the two machines never need the same layout. Every transfer declares size and SHA-256 up front; a short or corrupt file is `artifact-refused`, never loaded. `job-result` carries `artifact_sha256` so the coordinator can tell a result from a reference to one it did not receive (`result-without-artifact`). |
+| `--no-inbound` | inbound | the worker opens no listening socket and joins with `reachable: false` and `address: ""`. It can still *steal* from reachable peers; nobody can steal from it, because the steal loop never selects a member without an address. A member that *does* advertise an address nobody can dial (NAT, a one-way tunnel) costs one failed dial, a `steal-unreachable` event and a 5 s back-off rather than a retry storm. A Colab runtime is always the first kind of peer. |
+| `--verify identity --expect NAME` | `hostname` | the dialling side still pins the CA, but matches the certificate's common name against `NAME` instead of matching its SAN against the address dialled. That is what makes a certificate issued on the laptop valid when the coordinator is reached through an `ngrok`/`bore` host and port: the name is a *who*, not a *where*. A mismatch is a TLS failure plus an `identity-mismatch` event, not a warning. |
+| `--advertise HOST:PORT` | the bind address | the address a peer announces in its join/welcome and in the member digest, for the case where the address it binds is not the address anyone can dial (the tunnel's). |
+
+Two more pieces make the remote end bootable without ever moving the CA key:
+
+* `main.py mesh --role issue --cert-name colab-1 --cert-dir DIR --bundle-dir OUT` writes a
+  **bundle** — `bundle.json`, `ca.crt`, `colab-1.crt`, `colab-1.key` — for one remote peer.
+  The CA key stays in `--cert-dir`; the bundle is what you copy to the other machine (Drive,
+  `scp`, a paste into the notebook). `identity.pki_directory_guard` still refuses a bundle
+  directory inside the working tree.
+* `framing.Duplex` replaces the pattern of one thread reading and another writing the same
+  `SSLSocket`. That pattern looked fine on loopback for small frames and broke the moment a
+  3 MiB artifact chunk was in flight: an OpenSSL object is not thread-safe, the reader's poll
+  `settimeout` landed in the middle of the writer's `sendall`, and the link died with an
+  `SSLEOFError` or a half-written record on one end and a stall on the other — intermittently,
+  which is the worst way. `Duplex` makes the socket non-blocking, puts one lock around every call
+  into OpenSSL, and waits for readability/writability on `select` with the lock released, so
+  the two threads take turns instead of overlapping. All mesh `Connection`s go through it;
+  the blocking `send_frame`/`recv_frame` remain for single-threaded raw clients only.
+
+The shape of a laptop ⇄ Colab run (the step-by-step version with the tunnel commands is
+`colab/README.md`; the notebook is `colab/mesh_worker.ipynb`):
+
+```bash
+# laptop: issue the notebook's bundle (CA key never leaves --cert-dir), start a tunnel
+PYTHONPATH=.. .venv/bin/python main.py mesh --role issue --cert-name colab-1 \
+    --cert-dir ~/hyge-pki --bundle-dir ~/hyge-bundles/colab-1
+ngrok tcp 7443        # or: bore local 7443 --to bore.pub   -> gives TUNNEL_HOST:PORT
+
+# laptop: coordinator, artifacts over the wire, advertising the tunnel's name
+PYTHONPATH=.. .venv/bin/python main.py mesh --role coordinator --bind 0.0.0.0:7443 \
+    --cert-dir ~/hyge-pki --artifacts wire --advertise TUNNEL_HOST:PORT \
+    --jobs jobs.json --run-seconds 1800
+
+# Colab (what the notebook runs): dial out, verify who, not where; nothing inbound
+PYTHONPATH=/content python -u -m cat_theo_machine.main mesh --role worker \
+    --coordinator TUNNEL_HOST:PORT --verify identity --expect coordinator --no-inbound \
+    --artifacts wire --artifact-dir /content/hyge-artifacts \
+    --cert-dir /content/hyge-pki --cert-name colab-1 --swarm --run-seconds 1700
+```
+
+`validation/test31_wan_mesh_artifacts.py` drives all of it on loopback: identity
+verification and its refusals, a real unit snapshot fetched and a real result pushed
+through a coordinator that shares no directory with the worker (corrupt and
+unauthorised transfers refused), a no-inbound worker stealing and being skipped as a
+steal target, and the CLI switches end to end. What it cannot drive is a real tunnel
+and a real notebook — the first trial of that is yours, and the runbook says what to
+look for.
+
 ## The ledger, and which events are load-bearing
 
 Every peer keeps an ordered event log (`peer.events()`, `report()`), and the
@@ -196,7 +267,10 @@ difference matters when reading a failing run:
   `job-dispatched` / `job-started` / `job-queued` / `job-result` /
   `job-redispatched` / `job-declined`, `lease-released` / `lease-transferred`,
   `rejoined` / `rejoin-failed`, `hearsay-expired`, `result-superseded`,
-  `reader-stopped`, `handshake-refused`.
+  `reader-stopped`, `handshake-refused`; and under W20 `artifact-fetch-requested` /
+  `artifact-served` / `artifact-sent` / `artifact-incoming` / `artifact-received`,
+  `artifact-missing` / `artifact-refused` / `artifact-corrupt`,
+  `result-without-artifact`, `identity-mismatch`, `steal-unreachable`.
 * **Diagnostic** — kept because a transport that fails silently costs hours:
   the `closed_by` chain on a `connection-closed` (`connection.close()` with no
   reason records the four frames that did it), the `on_close` callback that

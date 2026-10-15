@@ -22,6 +22,12 @@ documented tooling, the Python halves are driven by `validation/test31_wan_mesh_
 shard), and the first real run is the trial. When a cell fails, the message is the result
 to bring back.
 
+**Which branch the notebooks clone.** Both notebooks have a `BRANCH` field and default to
+`arena/717c9822-cat-theo-machine`, the branch this work lives on today. The mesh notebook
+must run the *same* code as the laptop's coordinator (a `master` coordinator does not
+speak the `artifact-*` frames), and the dump notebook needs `importers/split_apoc_export.py`, which
+`master` does not have until this branch is merged. After the merge, set it to `master`.
+
 ## A — laptop ⇄ Colab mesh
 
 ### 0. What travels where

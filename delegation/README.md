@@ -19,6 +19,8 @@ Index (open workers only; everything marked `[x]` in the DAG is already done and
 | `W16-distributed-prover-swarm.md` | W16: distributed prover swarm — **done**, see DAG §4 and §6.3 (speedup 0.84× on 2 vCPU, reported not tuned) | Swarm | 3 | W2 ✅ W13 ✅ | `test27` ✅ |
 | `W17-byzantine-ledger-consensus.md` | W17: Byzantine ledger consensus — **done**, see DAG §4 and §6.6 | Swarm | 3 | W2 ✅ W12 ✅ W1 ✅ | `test28` ✅ |
 | `W18-nat-index-lookup-cost.md` | W18: kernel — `NatValueIndex` lookup cost — **done** (coordinator sign-off given 2026-10-15), see DAG §4 and §6.7 | Infra | 0 | none | `test30` ✅ |
+| `W19-neo4j-dump-to-shards.md` | W19: Neo4j `.dump` → APOC export → split → label shards, decoded on Colab — **done** (pipeline from the export onward verified; the Neo4j cells await the first real run), see DAG §4 and §6.9 | Infra / ingest | 0 (late) | ingest (§6.8) ✅ | `test32` ✅ |
+| `W20-wan-mesh.md` | W20: mesh beyond one filesystem — artifacts over the wire, no-inbound workers, identity verification, bundles, `framing.Duplex`; a Colab worker notebook — **done** (loopback-verified; the tunnel trial is the user's), see DAG §4 and §6.9 | Swarm / Infra | 3 (late) | W2 ✅ W16 ✅ | `test31` ✅ |
 
 Dispatch order that respects the gates: the five Phase-1 briefs (W6–W10) and W15 are
 independent and can all run in parallel (W15 is now done). W2 is the only Phase-3 prerequisite and its
@@ -30,7 +32,8 @@ before it landed; read that as W2 ✅.
 Suite slots are **append-only** and pre-allocated above. Do not reuse a number: two
 lineages already collided on slots 15 and 16, which is recorded in DAG §6, and two W9
 sessions then collided on slot 22 (DAG §6.2) — the second suite now lives at `test29`,
-and W18 (kernel lookup cost) holds `test30`, so **the next free slot is `test31`**.
+W18 (kernel lookup cost) holds `test30`, W20 (WAN mesh) `test31` and W19 (dump → shards)
+`test32`, so **the next free slot is `test33`**.
 
 ---
 
@@ -77,7 +80,7 @@ From `SWARM_EVOLUTION_DAG.md` §5, restated so no brief has to repeat them:
    the machine discover the instance; if you must author a pack, it may carry *ontology*
    (sorts, constructors, generic schemas) but not the conclusion of the problem.
 4. **Verification**: every deliverable ships an automated suite in `validation/` at your
-   pre-allocated slot, 100% green, plus the existing suites (`test1`–`test30` as of
+   pre-allocated slot, 100% green, plus the existing suites (`test1`–`test32` as of
    2026-10-15) still green.
 5. **Snapshot roots**: any state that must survive a cold resume is registered in
    `SnapshotCodec.capture()` and restored in `activate()`. State left in a Python
