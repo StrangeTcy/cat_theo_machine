@@ -20,7 +20,12 @@ naming a node that is not there, which is exactly the silent failure the cypher
 importer's `id` collision produced.
 
 Usage:
-    python probes/sharded_import_probe.py
+    python probes/sharded_import_probe.py [MAX_NODES_PER_SHARD]
+
+With no argument the fixture shards by label alone into three shards. With a cap
+each label is bucketed, which is the mode a real dump needs: a heterogeneous
+export is usually dominated by one label, and one shard holding nearly
+everything meets the same cliff the monolith did.
 """
 
 import json
@@ -99,14 +104,21 @@ def write_fixture(directory):
 
 
 def main():
+    argv = sys.argv
+    cap = 0
+    if len(argv) > 1:
+        cap = int(argv[1])
     failures = 0
     work = tempfile.mkdtemp(prefix="shard-probe-")
     node_csv, edge_csv = write_fixture(work)
     outdir = os.path.join(work, "shards")
 
+    command = [sys.executable, IMPORTER, node_csv, edge_csv, outdir]
+    if cap > 0:
+        command.append(str(cap))
     started = time.monotonic()
     proc = subprocess.run(
-        [sys.executable, IMPORTER, node_csv, edge_csv, outdir],
+        command,
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
@@ -124,6 +136,9 @@ def main():
         handle.close()
 
     expected_shards = len(LABELS)
+    if cap > 0:
+        buckets = (PER_LABEL + cap - 1) // cap
+        expected_shards = len(LABELS) * buckets
     expected_nodes = PER_LABEL * len(LABELS)
     manifest_checks = (
         ("shards", len(manifest["shards"]), expected_shards),

@@ -136,8 +136,8 @@ class Spill:
 
 def main():
     argv = sys.argv
-    if len(argv) != 4:
-        print("usage: sharded_import NODES.csv EDGES.csv OUTDIR")
+    if len(argv) != 4 and len(argv) != 5:
+        print("usage: sharded_import NODES.csv EDGES.csv OUTDIR [MAX_NODES]")
         return 1
     node_csv = argv[1]
     edge_csv = argv[2]
@@ -151,14 +151,29 @@ def main():
 
     started = time.monotonic()
     spill = Spill(spill_dir)
+    max_nodes = 0
+    if len(argv) > 4:
+        max_nodes = int(argv[4])
     assignment = {}
+    label_seen = {}
     node_total = 0
     for row in _Csv.iter_rows(node_csv):
         entry = _Csv.canonical_node_row(row)
         identity = entry.get("id")
         if identity is None:
             continue
-        shard = shard_name_of(entry.get("label"))
+        base = shard_name_of(entry.get("label"))
+        shard = base
+        if max_nodes > 0:
+            # Label alone is not enough: a heterogeneous dump is usually
+            # dominated by one label, so a single shard would hold nearly
+            # everything and meet the same cliff the monolith did. Buckets keep
+            # each shard under a size the restore path is measured to survive.
+            seen = label_seen.get(base)
+            if seen is None:
+                seen = 0
+            shard = base + "_" + str(seen // max_nodes)
+            label_seen[base] = seen + 1
         assignment[identity] = shard
         spill.write(shard, "nodes", entry)
         node_total += 1
