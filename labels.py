@@ -1763,6 +1763,10 @@ class EveryStateMovesLabel(ConstructorLabel):
 
 class NoStatesLabel(ConstructorLabel):
     pass
+
+
+class UnboundVariableLabel(ConstructorLabel):
+    pass
 TreeLabel = TreeLabel()
 ZeroLabel = ZeroLabel()
 SuccLabel = SuccLabel()
@@ -2202,6 +2206,7 @@ ResidueTableLabel = ResidueTableLabel()
 CongruenceClassesLabel = CongruenceClassesLabel()
 EveryStateMovesLabel = EveryStateMovesLabel()
 NoStatesLabel = NoStatesLabel()
+UnboundVariableLabel = UnboundVariableLabel()
 
 
 def sync_from_namespace(namespace):
@@ -2645,6 +2650,7 @@ def sync_from_namespace(namespace):
         "CongruenceClassesLabel",
         "EveryStateMovesLabel",
         "NoStatesLabel",
+        "UnboundVariableLabel",
     ):
         if name in namespace:
             globals()[name] = namespace[name]

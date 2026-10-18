@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from . import graph_task as GT
 from . import labels as L
 from . import machine as M
 from . import proof as P
@@ -41,10 +42,23 @@ class VerifyProofStep(M.Edge):
         if in_ruleset is M.false_value:
             return M.Pair(L.UnknownRuleLabel, M.Pair(rule, M.EmptyList))
 
+        recorded = P.ActionBindings(action)()
+        leftovers = self._replacement_leftovers(rule, current)
+        if (
+            M.IdentityCompare(leftovers, M.EmptyList)() is M.false_value
+            and P.ContainsVar(next_term)() is M.truth_value
+        ):
+            return M.Pair(
+                L.UnboundVariableLabel,
+                M.Pair(next_term, M.EmptyList),
+            )
+
         derived = self._apply_action(action, current, self.registry)
         if M.Compare(derived, next_term)() is M.false_value:
             if (
-                self._knowledge_reproduces(rule, current, next_term)()
+                self._knowledge_reproduces(
+                    rule, current, next_term, recorded
+                )
                 is M.truth_value
             ):
                 return M.Pair(L.StepVerifiedLabel, M.Pair(next_term, M.EmptyList))
@@ -67,7 +81,35 @@ class VerifyProofStep(M.Edge):
         conclusion = M.CanonicalArithmeticTerm(M.Head(inst)(), self.registry)()
         return P.Knowledge(M.Pair(conclusion, facts))()
 
-    def _knowledge_reproduces(self, rule, current, next_term):
+    def _vars_missing_from_bindings(self, vars_list, bindings):
+        if M.IdentityCompare(vars_list, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        var = M.Head(vars_list)()
+        rest = self._vars_missing_from_bindings(M.Tail(vars_list)(), bindings)
+        found = M.FindBinding(bindings, var)()
+        if M.IdentityCompare(M.Head(found)(), M.truth_value)() is M.truth_value:
+            return rest
+        return M.Pair(var, rest)
+
+    def _replacement_leftovers(self, rule, current):
+        if P.IsKnowledge(current)() is M.false_value:
+            return M.EmptyList
+        facts = P.KnowledgeFacts(current)()
+        joins = P.JoinPremises(P.RulePremises(rule)(), facts, M.EmptyList)()
+        if M.IdentityCompare(joins, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        bindings = M.Head(joins)()
+        template_vars = GT.CollectUnboundVarPatterns(P.RuleReplacement(rule)())()
+        return self._vars_missing_from_bindings(template_vars, bindings)
+
+    def _fill_knowledge(self, candidate, recorded):
+        facts = P.KnowledgeFacts(candidate)()
+        filled = GT.FillUnboundWitnessesInList(facts, recorded)()
+        if M.IdentityCompare(M.Head(filled)(), M.truth_value)() is M.false_value:
+            return M.Pair(M.false_value, candidate)
+        return M.Pair(M.truth_value, P.Knowledge(M.Tail(filled)())())
+
+    def _knowledge_reproduces(self, rule, current, next_term, recorded):
         if P.IsKnowledge(current)() is M.false_value:
             return M.false_value
         if M.Compare(current, next_term)() is M.truth_value:
@@ -82,11 +124,17 @@ class VerifyProofStep(M.Edge):
                 candidate = P.ApplyKnowledgeRewrite(current, rule, bindings)()
                 if M.Compare(candidate, next_term)() is M.truth_value:
                     return M.truth_value
+                filled = self._fill_knowledge(candidate, recorded)
+                if M.IdentityCompare(M.Head(filled)(), M.truth_value)() is M.truth_value:
+                    if M.Compare(M.Tail(filled)(), next_term)() is M.truth_value:
+                        return M.truth_value
             else:
                 inst = M.Instantiate(P.RuleReplacement(rule)(), bindings)()
-                conclusion = M.CanonicalArithmeticTerm(
-                    M.Head(inst)(), self.registry
-                )()
+                raw = M.Head(inst)()
+                filled_term = GT.FillUnboundWitnesses(raw, recorded)()
+                if M.IdentityCompare(M.Head(filled_term)(), M.truth_value)() is M.truth_value:
+                    raw = M.Tail(filled_term)()
+                conclusion = M.CanonicalArithmeticTerm(raw, self.registry)()
                 plain = P.Knowledge(M.Pair(conclusion, facts))()
                 if M.Compare(plain, next_term)() is M.truth_value:
                     return M.truth_value

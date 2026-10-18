@@ -2,6 +2,12 @@
 
 **Substrate / Dim 1 · Phase 4 · Suite slot `test33` · Prereq none**
 
+> **Status: done.** `validation/test33_witness_introduction.py` (8/8, ~3 s) on
+> this branch. Minting lives in `graph_task.py` after Instantiate; Checker B
+> audits recorded introductions and refuses leftover Vars. `test26` still
+> reports that no *loaded schema* introduces a witness — the engine can, the
+> packs do not. Do not re-execute this brief.
+
 Read `delegation/README.md` first — shared invariants, environment facts and pitfalls are
 binding here. Read DAG §7.1 and §8 (W21) before writing anything.
 

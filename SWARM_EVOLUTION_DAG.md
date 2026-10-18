@@ -460,7 +460,8 @@ These arrived during Phase 0/1 execution and are prerequisites or enablers rathe
   replaces the pattern for every mesh connection. `test31` 50/50 (~60 s) on loopback through the
   real CLI. *Honest boundary*: no tunnel and no Colab in the sandbox — the first laptop ⇄ notebook
   run is the user's, and `colab/README.md` names the ledger events to read. See §6.9.
-- [ ] **W21–W33 (Phase 4+, opened 2026-10-19)**: See §7–§8. None started. Next slot `test33`.
+- [x] **W21 (Existential witness introduction)**: Landed 2026-10-19. `graph_task.MintUnboundWitnesses` / `ApplyKnowledgeRewriteWithWitnesses` mint a fresh `Thingy` for replacement variables unbound by premises and record the introduction in the action bindings. Checker B accepts that step only with the record (`test33`, 8/8, ~3 s) and refuses a successor that still carries the leftover Var (`UnboundVariableLabel`). Fully-bound rules are a no-op. `test5`/`test15`/`test19`/`test22`/`test26` still green; `test26`'s pack-level negative account is unchanged (no loaded schema uses the new ability; `EveryStateMoves` is not discharged). Brief: `delegation/W21-witness-introduction.md`.
+- [ ] **W22–W33 (Phase 4+, remainder)**: See §8. Next free slot `test34`.
 
 ---
 

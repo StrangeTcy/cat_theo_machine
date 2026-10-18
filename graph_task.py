@@ -309,6 +309,195 @@ class MatchQueryConjunction(M.Edge):
         return self.result
 
 
+def _var_already_collected(acc, var):
+    remaining = acc
+    while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+        if M.Compare(M.Head(remaining)(), var)() is M.truth_value:
+            return M.truth_value
+        remaining = M.Tail(remaining)()
+    return M.false_value
+
+
+def _collect_unbound_vars(term, acc):
+    if P.IsVarPattern(term)() is M.truth_value:
+        if _var_already_collected(acc, term) is M.truth_value:
+            return acc
+        return M.Pair(term, acc)
+    if M.IsPair(term)() is M.truth_value:
+        acc = _collect_unbound_vars(M.Head(term)(), acc)
+        return _collect_unbound_vars(M.Tail(term)(), acc)
+    return acc
+
+
+def _bindings_for_vars(vars_list):
+    if M.IdentityCompare(vars_list, M.EmptyList)() is M.truth_value:
+        return M.EmptyList
+    var = M.Head(vars_list)()
+    witness = M.Thingy()
+    binding = M.Pair(var, M.Pair(witness, M.EmptyList))
+    return M.Pair(binding, _bindings_for_vars(M.Tail(vars_list)()))
+
+
+def _find_binding_compare(bindings, var):
+    remaining = bindings
+    while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+        binding = M.Head(remaining)()
+        bvar = M.Head(binding)()
+        bval = M.Head(M.Tail(binding)())()
+        if M.Compare(bvar, var)() is M.truth_value:
+            return M.Pair(M.truth_value, bval)
+        remaining = M.Tail(remaining)()
+    return M.Pair(M.false_value, M.EmptyList)
+
+
+class CollectUnboundVarPatterns(M.Edge):
+    """Var patterns still present in a term after Instantiate (unbound by premises)."""
+
+    def __init__(self, term):
+        self.result = _collect_unbound_vars(term, M.EmptyList)
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class MintUnboundWitnesses(M.Edge):
+    """
+    After Instantiate: leftover Var patterns become fresh Thingy witnesses.
+    Returns Pair(ground_term, extra_bindings) where extra_bindings is a
+    Match-shaped list Pair(var, Pair(witness, EmptyList)).
+    """
+
+    def __init__(self, term):
+        self.result = self._mint(term)
+        super().__init__(inputs=M.Pair(term, M.EmptyList), results=self.result)
+
+    def _mint(self, term):
+        vars_list = _collect_unbound_vars(term, M.EmptyList)
+        if M.IdentityCompare(vars_list, M.EmptyList)() is M.truth_value:
+            return M.Pair(term, M.EmptyList)
+        extra = _bindings_for_vars(vars_list)
+        inst = M.Instantiate(term, extra)()
+        return M.Pair(M.Head(inst)(), extra)
+
+    def __call__(self):
+        return self.result
+
+
+class FillUnboundWitnesses(M.Edge):
+    """
+    Instantiate leftover Vars from recorded bindings (Compare on the var,
+    because Instantiate rebuilds Pair spines so IdentityCompare misses).
+    Returns Pair(flag, ground_term). flag is false if a Var has no record —
+    that is a smuggled unbound variable, not a witness introduction.
+    """
+
+    def __init__(self, term, recorded_bindings):
+        self.recorded = recorded_bindings
+        self.result = self._fill(term)
+        super().__init__(
+            inputs=M.Pair(term, M.Pair(recorded_bindings, M.EmptyList)),
+            results=self.result,
+        )
+
+    def _extra_for_vars(self, vars_list):
+        if M.IdentityCompare(vars_list, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.truth_value, M.EmptyList)
+        var = M.Head(vars_list)()
+        found = _find_binding_compare(self.recorded, var)
+        if M.IdentityCompare(M.Head(found)(), M.truth_value)() is M.false_value:
+            return M.Pair(M.false_value, M.EmptyList)
+        witness = M.Tail(found)()
+        rest = self._extra_for_vars(M.Tail(vars_list)())
+        if M.IdentityCompare(M.Head(rest)(), M.truth_value)() is M.false_value:
+            return M.Pair(M.false_value, M.EmptyList)
+        binding = M.Pair(var, M.Pair(witness, M.EmptyList))
+        return M.Pair(M.truth_value, M.Pair(binding, M.Tail(rest)()))
+
+    def _fill(self, term):
+        vars_list = _collect_unbound_vars(term, M.EmptyList)
+        if M.IdentityCompare(vars_list, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.truth_value, term)
+        extra_res = self._extra_for_vars(vars_list)
+        if M.IdentityCompare(M.Head(extra_res)(), M.truth_value)() is M.false_value:
+            return M.Pair(M.false_value, term)
+        extra = M.Tail(extra_res)()
+        inst = M.Instantiate(term, extra)()
+        return M.Pair(M.truth_value, M.Head(inst)())
+
+    def __call__(self):
+        return self.result
+
+
+class MintUnboundWitnessesInList(M.Edge):
+    """Mint once per distinct leftover var across a fact list, then instantiate each fact."""
+
+    def __init__(self, facts):
+        self.result = self._mint_list(facts)
+        super().__init__(inputs=M.Pair(facts, M.EmptyList), results=self.result)
+
+    def _instantiate_each(self, facts, bindings):
+        if M.IdentityCompare(facts, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        inst = M.Instantiate(M.Head(facts)(), bindings)()
+        return M.Pair(M.Head(inst)(), self._instantiate_each(M.Tail(facts)(), bindings))
+
+    def _mint_list(self, facts):
+        vars_list = _collect_unbound_vars(facts, M.EmptyList)
+        if M.IdentityCompare(vars_list, M.EmptyList)() is M.truth_value:
+            return M.Pair(facts, M.EmptyList)
+        extra = _bindings_for_vars(vars_list)
+        return M.Pair(self._instantiate_each(facts, extra), extra)
+
+    def __call__(self):
+        return self.result
+
+
+class FillUnboundWitnessesInList(M.Edge):
+    def __init__(self, facts, recorded_bindings):
+        self.recorded = recorded_bindings
+        self.result = self._fill_list(facts)
+        super().__init__(
+            inputs=M.Pair(facts, M.Pair(recorded_bindings, M.EmptyList)),
+            results=self.result,
+        )
+
+    def _fill_list(self, facts):
+        filled = FillUnboundWitnesses(facts, self.recorded)()
+        if M.IdentityCompare(M.Head(filled)(), M.truth_value)() is M.false_value:
+            return M.Pair(M.false_value, facts)
+        return filled
+
+    def __call__(self):
+        return self.result
+
+
+class ApplyKnowledgeRewriteWithWitnesses(M.Edge):
+    """
+    ApplyKnowledgeRewrite, then mint witnesses for leftover Vars.
+    Returns Pair(next_state, extra_bindings). extra_bindings go in the
+    TheoremAction so Checker B can audit the introduction.
+    """
+
+    def __init__(self, state, rule, bindings):
+        nxt = P.ApplyKnowledgeRewrite(state, rule, bindings)()
+        facts = P.KnowledgeFacts(nxt)()
+        minted = MintUnboundWitnessesInList(facts)()
+        next_facts = M.Head(minted)()
+        extra = M.Tail(minted)()
+        next_state = P.Knowledge(next_facts)()
+        self.result = M.Pair(next_state, extra)
+        super().__init__(
+            inputs=M.Pair(
+                state, M.Pair(rule, M.Pair(bindings, M.EmptyList))
+            ),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class ForwardDeriveFacts(M.Edge):
     """
     Applies forward rules up to a fixed depth to derive new facts from existing facts.
@@ -365,7 +554,8 @@ class ForwardDeriveFacts(M.Edge):
         ):
             bindings = M.Tail(match_res)()
             inst_res = M.Instantiate(replacement, bindings)()
-            derived = M.Head(inst_res)()
+            minted = MintUnboundWitnesses(M.Head(inst_res)())()
+            derived = M.Head(minted)()
             if self._has_fact_rec(existing_facts, derived) is M.false_value:
                 return M.Pair(derived, rest)
 
@@ -391,6 +581,8 @@ class ForwardDeriveFacts(M.Edge):
         ):
             bindings = M.Tail(match_res)()
             inst_res = P.InstantiateFactList(replacement, bindings)()
+            minted = MintUnboundWitnessesInList(inst_res)()
+            inst_res = M.Head(minted)()
             fresh = self._filter_new_facts_rec(inst_res, existing_facts)
             fresh = self._filter_new_facts_rec(fresh, rest)
             return self._merge_facts_rec(fresh, rest, M.EmptyList)
@@ -431,10 +623,13 @@ class ForwardDeriveFacts(M.Edge):
                 bindings = M.Tail(match_res)()
                 if P.ReplacementIsFactList(r)() is M.truth_value:
                     inst_res = P.InstantiateFactList(replacement, bindings)()
+                    minted = MintUnboundWitnessesInList(inst_res)()
+                    inst_res = M.Head(minted)()
                     new_from_r = self._filter_new_facts_rec(inst_res, current_facts)
                 else:
                     inst_res = M.Instantiate(replacement, bindings)()
-                    derived = M.Head(inst_res)()
+                    minted = MintUnboundWitnesses(M.Head(inst_res)())()
+                    derived = M.Head(minted)()
                     if self._has_fact_rec(current_facts, derived) is M.false_value:
                         new_from_r = M.Pair(derived, M.EmptyList)
                     else:
@@ -778,6 +973,12 @@ __all__ = (
     "TaskRecordProvenance",
     "NormalizeGraphFacts",
     "MatchQueryConjunction",
+    "CollectUnboundVarPatterns",
+    "MintUnboundWitnesses",
+    "FillUnboundWitnesses",
+    "MintUnboundWitnessesInList",
+    "FillUnboundWitnessesInList",
+    "ApplyKnowledgeRewriteWithWitnesses",
     "ForwardDeriveFacts",
     "ExecuteGraphQuery",
     "DecomposeGoalConjunction",

@@ -12,7 +12,7 @@ Index (open workers only):
 
 | Brief | Worker | Dimension | Phase | Prereqs | Suite slot |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| `W21-witness-introduction.md` | Existential witness introduction | Substrate / 1 | 4 | none — **start now** | `test33` |
+| `W21-witness-introduction.md` | Existential witness introduction — **done**, see DAG §4 W21 | Substrate / 1 | 4 | none | `test33` ✅ |
 | `W22-algebraic-rewriting.md` | Grid identities → rewrite derivations | Substrate / 1 | 4 | none — **start now**; do not edit `math/arithmetic.py` | `test34` |
 | `W23-factorisation-natless.md` | Factorisation edges & derived `NatLess` | Substrate / 1 | 4 | none — **start now**; owns `math/arithmetic.py` | `test35` |
 | `W24-residue-divisibility-wiring.md` | Residue / divisibility schema wiring (was W9(c)) | 2 | 4b | W9 ✅ — **start now** | `test36` |
