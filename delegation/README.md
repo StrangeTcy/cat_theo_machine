@@ -1,39 +1,42 @@
 # Delegation Pack — Swarm Workers
 
-These briefs dispatch the open workers from `SWARM_EVOLUTION_DAG.md`. Each brief is
+These briefs dispatch the open workers from `SWARM_EVOLUTION_DAG.md` §8. Each brief is
 self-contained: paste it into a **fresh Arena session** on this repository. The session
 is pinned to its own branch, works there, and reports back. The coordinator imports the
 result — see *Reporting back* below.
 
-Index (open workers only; everything marked `[x]` in the DAG is already done and verified):
+W1–W20 are done or closed as partial (DAG §4, §6.9). Their briefs stay in this directory
+as history; **do not re-execute them.** Remaining work is W21–W33 plus USER/COORD.
 
-| Brief | Worker | Dimension | Phase | Prereqs (all met?) | Suite slot |
+Index (open workers only):
+
+| Brief | Worker | Dimension | Phase | Prereqs | Suite slot |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| `W06-flt-n4-descent.md` | W6 remainder: descent — **closed as partial**, see DAG §4 W6 and §6.5 (each step derived / evidenced / authored / missing) | 1 | 1 | W3 ✅ | `test26` ✅ |
-| `W07-flt-n3-eisenstein.md` | W7: FLT $n=3$ Eisenstein UFD factorization — **partial `[~]`**, see DAG §4 (obstruction + norm landed; UFD/descent open) | 1 | 1 | W3 ✅ | `test20` ✅ |
-| `W08-imo-geometry.md` | W8: IMO geometry & auxiliary construction — **done**, see DAG §4 | 2 | 1 | W4 ✅ | `test21` ✅ |
-| `W09-imo-combinatorics-funceq.md` | W9: IMO combinatorics, functional equations, NT — **done**, see DAG §4 (two deliverables) | 2 | 1 | W4 ✅ | `test22` ✅, `test29` ✅ |
-| `W10-engel-strategies.md` | W10: Engel monovariants, extremal, box, colouring — **done**, see DAG §4 | 3 | 1 | W3 ✅ W4 ✅ | `test23` ✅ |
-| `W15-socratic-tutor.md` | W15: conversational Socratic tutor — **done**, see DAG §4 and §6.4 | 5 | 2 | W5 ✅ W12 ✅ | `test24` ✅ |
-| `W02-rpc-mtls-mesh.md` | W2: RPC / mTLS mesh — **done**, see DAG §4 | Infra | 0 (late) | none | `test25` |
-| `W16-distributed-prover-swarm.md` | W16: distributed prover swarm — **done**, see DAG §4 and §6.3 (speedup 0.84× on 2 vCPU, reported not tuned) | Swarm | 3 | W2 ✅ W13 ✅ | `test27` ✅ |
-| `W17-byzantine-ledger-consensus.md` | W17: Byzantine ledger consensus — **done**, see DAG §4 and §6.6 | Swarm | 3 | W2 ✅ W12 ✅ W1 ✅ | `test28` ✅ |
-| `W18-nat-index-lookup-cost.md` | W18: kernel — `NatValueIndex` lookup cost — **done** (coordinator sign-off given 2026-10-15), see DAG §4 and §6.7 | Infra | 0 | none | `test30` ✅ |
-| `W19-neo4j-dump-to-shards.md` | W19: Neo4j `.dump` → APOC export → split → label shards, decoded on Colab — **done** (pipeline from the export onward verified; the Neo4j cells await the first real run), see DAG §4 and §6.9 | Infra / ingest | 0 (late) | ingest (§6.8) ✅ | `test32` ✅ |
-| `W20-wan-mesh.md` | W20: mesh beyond one filesystem — artifacts over the wire, no-inbound workers, identity verification, bundles, `framing.Duplex`; a Colab worker notebook — **done** (loopback-verified; the tunnel trial is the user's), see DAG §4 and §6.9 | Swarm / Infra | 3 (late) | W2 ✅ W16 ✅ | `test31` ✅ |
+| `W21-witness-introduction.md` | Existential witness introduction | Substrate / 1 | 4 | none — **start now** | `test33` |
+| `W22-algebraic-rewriting.md` | Grid identities → rewrite derivations | Substrate / 1 | 4 | none — **start now**; do not edit `math/arithmetic.py` | `test34` |
+| `W23-factorisation-natless.md` | Factorisation edges & derived `NatLess` | Substrate / 1 | 4 | none — **start now**; owns `math/arithmetic.py` | `test35` |
+| `W24-residue-divisibility-wiring.md` | Residue / divisibility schema wiring (was W9(c)) | 2 | 4b | W9 ✅ — **start now** | `test36` |
+| `W25-curriculum-loader.md` | Curriculum card loader | 2/3/4 | 4b | none — **start now** | `test37` |
+| `W26-geometry-remainder.md` | Cyclic-quad / chord-angle + receipts | 2 | 4b | W8 ✅ W4 ✅ — **start now** | `test38` |
+| `W27-engel-remainder.md` | Real instances, search firing, measure discovery | 3 | 4b | W10 ✅ — **start now** | `test39` |
+| `W28-flt-n3-ufd-descent.md` | Eisenstein UFD + cubic descent | 1 | 5 | W21, W22, W23, W7 `[~]` — **gated** | `test40` |
+| `W29-flt-n4-everystate.md` | Discharge `EveryStateMoves` | 1 | 5 | W21, W22, W23, W6 `[~]` — **gated** | `test41` |
+| `W30-domain-promotion-loop.md` | Domain packs through Checker B + ledger | 4 | 6 | W12 ✅ + a Phase 4b receipt — **gated** | `test42` |
+| `W31-dialogue-beyond-arithmetic.md` | Tutor/story beyond arithmetic | 5 | 6 | W15 ✅ W14 ✅ | `test43` |
+| `W32-swarm-boot-cost.md` | Swarm unit-boot cost | Infra | 7 | W16 ✅ — **start now** | `test44` |
+| `W33-mesh-reconnect-accounting.md` | Transient reconnect ≠ second attempt | Infra | 7 | W2 ✅ W16 ✅ — **start now** | `test45` |
 
-Dispatch order that respects the gates: the five Phase-1 briefs (W6–W10) and W15 are
-independent and can all run in parallel (W15 is now done). W2 is the only Phase-3 prerequisite and its
-brief is now executed and green (`validation/test25_rpc_mtls_mesh.py`, 48/48, ~100 s),
-so W16 (now done) and
-W17 are unblocked — their `Prereqs` columns still name W2 ⬜ because they were written
-before it landed; read that as W2 ✅.
+USER-1 (laptop ⇄ Colab WAN trial) and USER-2 (real Neo4j dump decode) are not Arena
+briefs — see DAG §8. COORD merges this line to `master`.
 
-Suite slots are **append-only** and pre-allocated above. Do not reuse a number: two
-lineages already collided on slots 15 and 16, which is recorded in DAG §6, and two W9
-sessions then collided on slot 22 (DAG §6.2) — the second suite now lives at `test29`,
-W18 (kernel lookup cost) holds `test30`, W20 (WAN mesh) `test31` and W19 (dump → shards)
-`test32`, so **the next free slot is `test33`**.
+Dispatch order: nine sessions can start in parallel (W21–W27, W32, W33) with disjoint
+file ownership except append-only `labels.py`. Do **not** start W28 or W29 before
+W21–W23 report. W30 waits on a new domain receipt. W31 can start on existing
+arithmetic/Engel-pack goals; it is richer after W30.
+
+Suite slots are **append-only** and pre-allocated above (`test33`–`test45`). Do not
+reuse a number. Historical collisions (15/16, 22, 27) are recorded in DAG §6. After
+Phase 4+ the next free slot is `test46`.
 
 ---
 
@@ -81,7 +84,7 @@ From `SWARM_EVOLUTION_DAG.md` §5, restated so no brief has to repeat them:
    (sorts, constructors, generic schemas) but not the conclusion of the problem.
 4. **Verification**: every deliverable ships an automated suite in `validation/` at your
    pre-allocated slot, 100% green, plus the existing suites (`test1`–`test32` as of
-   2026-10-15) still green.
+   2026-10-15, plus any `test33+` already on the tree) still green.
 5. **Snapshot roots**: any state that must survive a cold resume is registered in
    `SnapshotCodec.capture()` and restored in `activate()`. State left in a Python
    attribute evaporates on reload.

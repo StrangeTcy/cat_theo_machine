@@ -2,6 +2,8 @@
 
 This document specifies the evolutionary architecture, dependency DAG, worker allocation, and synchronization protocols for coordinating Arena agents evolving the Hyge Theorem Prover.
 
+Phases 0–3 (W1–W20) landed by 2026-10-15; their record is §2–§6. **Remaining work is §7 (five-dimension status) and §8 (Phase 4+ DAG, W21–W33).** Next free suite slot is `test33`. This copy of the tree was fast-forwarded onto `arena/5d1b2a18-cat-theo-machine` from `arena/717c9822-cat-theo-machine` (`a548d7d`) on 2026-10-19.
+
 ---
 
 ## 1. Architectural Scope: The 5 Dimensions & Infrastructure Substrate
@@ -18,6 +20,8 @@ The machine's capabilities and subsystems are partitioned into five core dimensi
 ---
 
 ## 2. Complete Swarm Evolutionary Trajectory DAG
+
+Phases 0–3 below are the original trajectory. They are **completed** (2026-10-15) except W6 closed as partial and W7 partial. Do not re-dispatch W1–W20. The continuation DAG is §8.
 
 ```
 ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
@@ -84,6 +88,19 @@ The machine's capabilities and subsystems are partitioned into five core dimensi
 | **W18**| Kernel: `NatValueIndex` lookup cost | Infra | `trees.py` (`TreeLookup`, `TreePatriciaLookup`, `TreeInsert`), `math/peano.py` (`NatFromRep`) | none (kernel; coordinator sign-off) | `TreeLookup` miss in `O(key)`, not `O(entries)`; `validation/test30_nat_index_lookup_cost.py`; `test22`/`test26` wall clocks before/after. Brief: `delegation/W18-nat-index-lookup-cost.md` |
 | **W19**| Neo4j dump → machine shards, decoded on Colab | Infra / ingest | `importers/split_apoc_export.py`, `colab/neo4j_dump_to_shards.ipynb`, `colab/README.md` §B | ingest (§3.1, §6.8) | Combined and bulk APOC exports → `nodes.csv`/`edges.csv` + shard plan; the Neo4j decode in a notebook; `validation/test32_neo4j_export_to_shards.py` (35/35, ~38 s, one shard booted and machine-counted). Brief: `delegation/W19-neo4j-dump-to-shards.md` |
 | **W20**| Mesh beyond one filesystem (laptop behind a tunnel + Colab worker) | Swarm / Infra | `networking/artifacts.py`, `networking/framing.py` (`Duplex`), `networking/peer.py`, `networking/protocol.py`, `mesh.py` (`issue_bundle`), `main.py` (`mesh` switches), `colab/mesh_worker.ipynb`, `colab/README.md` §A | W2, W16 | `--artifacts wire` (inputs fetched / results pushed inside the connection, digest-named, authority-checked), `--no-inbound`, `--verify identity --expect`, `--advertise`, `--role issue` bundles; `validation/test31_wan_mesh_artifacts.py` (50/50, ~60 s). Brief: `delegation/W20-wan-mesh.md` |
+| **W21**| Existential witness introduction | Substrate / Dim 1 | `graph_task.py`, `checker_b.py` | none (kernel off-limits) | Unbound replacement variables mint recorded witnesses; Checker B audits the introduction. Brief: `delegation/W21-witness-introduction.md`. Slot `test33` |
+| **W22**| Algebraic rewriting (normalise identities) | Substrate / Dim 1 | `invariance.py` (`RewriteEquals`), `playground.py` | none | Grid-decided identities become rewrite derivations. Brief: `delegation/W22-algebraic-rewriting.md`. Slot `test34` |
+| **W23**| Factorisation substrate & derived `NatLess` | Substrate / Dim 1 | `math/arithmetic.py`, `math/peano.py` | none | Subtraction/factor edges; a schema that concludes `NatLess`. Brief: `delegation/W23-factorisation-natless.md`. Slot `test35` |
+| **W24**| Residue / divisibility schema wiring | Dim 2 | `packs/funceq-nt.pack.yaml`, `math/funceq.py` | W9 ✅ (edges already exist) | `Divides`/`Gcd`/`Modulo`/`IsCoprime` used by schemas, not just host edges. Brief: `delegation/W24-residue-divisibility-wiring.md`. Slot `test36` |
+| **W25**| Curriculum card loader | Dim 2/3/4 | `curriculum.py`, `labels.py`, `curriculum/` | none | Markdown cards become executable graph tasks; held-outs load. Brief: `delegation/W25-curriculum-loader.md`. Slot `test37` |
+| **W26**| Geometry remainder | Dim 2 | `constructions.py`, `packs/geometry-constructions.pack.yaml` | W8 ✅ W4 ✅ | Cyclic-quad / chord-angle schemas; Checker-B receipts in-suite. Brief: `delegation/W26-geometry-remainder.md`. Slot `test38` |
+| **W27**| Engel remainder | Dim 3 | `packs/engel-strategies.pack.yaml`, `invariant_miner.py`, `search/` | W10 ✅ | Real Engel instances as evaluation data; strategies fire in search. Brief: `delegation/W27-engel-remainder.md`. Slot `test39` |
+| **W28**| FLT $n=3$ UFD + cubic descent | Dim 1 | `playground.py`, `math/arithmetic.py` | W21, W22, W23, W7 `[~]` | Unique factorisation scaffolding used, cubic descent attempted. Brief: `delegation/W28-flt-n3-ufd-descent.md`. Slot `test40` |
+| **W29**| FLT $n=4$ discharge `EveryStateMoves` | Dim 1 | `validation/test26_flt_descent.py` (do not weaken), new `test41` | W21, W22, W23, W6 `[~]` | Re-open W6 only after witness+factorisation land. Brief: `delegation/W29-flt-n4-everystate.md`. Slot `test41` |
+| **W30**| Domain packs through the closed loop | Dim 4 | `checker_b.py`, `promotion_ledger.py`, `evaluator.py` | W12 ✅, W24–W27 | Geometry/Engel/funceq derivations earn receipts or stated refusals. Brief: `delegation/W30-domain-promotion-loop.md`. Slot `test42` |
+| **W31**| Tutor/story beyond arithmetic | Dim 5 | `dialogue.py`, `story_renderer.py` | W15 ✅ W14 ✅ | Claims and stories over geometry/Engel/FLT vocabulary. Brief: `delegation/W31-dialogue-beyond-arithmetic.md`. Slot `test43` |
+| **W32**| Swarm unit-boot cost | Infra | `persistence.py`, `search/distributed_engine.py` | W16 ✅ | Cut the 12–30 s per-unit boot that makes swarm speedup negative. Brief: `delegation/W32-swarm-boot-cost.md`. Slot `test44` |
+| **W33**| Mesh reconnect attempt accounting | Infra | `networking/peer.py` | W2 ✅ W16 ✅ | Transient reconnect is not a second attempt; kill-phase race closed. Brief: `delegation/W33-mesh-reconnect-accounting.md`. Slot `test45` |
 
 ### 3.1 Substrate extensions added after this DAG was first published
 
@@ -443,6 +460,7 @@ These arrived during Phase 0/1 execution and are prerequisites or enablers rathe
   replaces the pattern for every mesh connection. `test31` 50/50 (~60 s) on loopback through the
   real CLI. *Honest boundary*: no tunnel and no Colab in the sandbox — the first laptop ⇄ notebook
   run is the user's, and `colab/README.md` names the ledger events to read. See §6.9.
+- [ ] **W21–W33 (Phase 4+, opened 2026-10-19)**: See §7–§8. None started. Next slot `test33`.
 
 ---
 
@@ -467,7 +485,7 @@ Every Arena agent working on this repository must strictly adhere to the followi
 
    **The exception is conjunctive: both halves must hold.** The code is host-layer, *and* there is no machine analogue for what it does. Being in a harness or a probe is not by itself a licence — if the machine can already answer the question (`Compare`, `IsAtom`, `IsPair`, `IsTree`), then reaching into a payload with `getattr`, `type`, or `.symbol` is a violation wherever it sits. The identity index passes both halves. A probe that read `.symbol` to find an edge by name and `type(x).__name__` to report what came back passed only the first; it was fixed to use `Compare` and `IsAtom`. An earlier draft of this section stated the test as "whether the value crosses into a machine term", which made layer the only condition and would have excused that probe. Do not spend a session on an unscoped purity refactor of host code, and do not cite this rule to reject working host-layer code — but do not cite the host layer to excuse bypassing a predicate the machine already provides.
 3. **No Domain-Specific Hardcoding**: Do not hardcode problem targets or fixed heuristics in search or mining modules.
-4. **Verification Requirement**: Every new worker module or pack must include an automated verification suite in `validation/` with $100\%$ green test results before promotion. There are currently **32** suites — `test1`–`test32` (no open slots; the next free number is `test33`) — each a standalone script. Run one with `PYTHONPATH=<repo-parent> python -u validation/testN_*.py` (the suites insert the package parent onto `sys.path` themselves and import as `cat_theo_machine.*`).
+4. **Verification Requirement**: Every new worker module or pack must include an automated verification suite in `validation/` with $100\%$ green test results before promotion. There are currently **32** suites — `test1`–`test32` (no open slots; Phase 4 pre-allocates `test33`–`test45`, see §8) — each a standalone script. Run one with `PYTHONPATH=<repo-parent> python -u validation/testN_*.py` (the suites insert the package parent onto `sys.path` themselves and import as `cat_theo_machine.*`).
 5. **Snapshot Root Invariant**: any new machine state that must survive a cold resume has to be registered as a root in `SnapshotCodec.capture()` and restored in `activate()`. Content added through the graph's `nodes`/`edges` context is now covered; state kept only in Python attributes is not, and silently evaporates on reload.
 6. **Suite Slot Discipline**: `validation/` numbering is append-only. Two lineages independently claimed slots 15 and 16 for unrelated suites; the reconciliation below is what happened, and new work must take the next free number rather than reusing a taken one.
 7. **One serialisation of a machine term**: the snapshot codec. The mesh carries references (W2) and, under `--artifacts wire` (W20), the *bytes of snapshot files* that the receiver loads through the codec — never a pickled or otherwise serialised term (`framing.TERM_PAYLOAD_KEYS` rejects the frame). A new transport that wants to move machine state moves a snapshot.
@@ -848,4 +866,256 @@ symptom. (3) Both notebooks clone `arena/717c9822-cat-theo-machine` until this b
 merged; a `master` coordinator does not speak the `artifact-*` frames.
 
 **Scoreboard after this**: W1–W5, W8–W20 done (W6 closed as partial, W7 partial, W9(c) open).
-Suite slots `test1`–`test32` taken; **the next free slot is `test33`**.
+Suite slots `test1`–`test32` taken; **the next free slot is `test33`**. Continuation: §7–§8 (opened 2026-10-19).
+
+---
+
+## 7. Five-dimension status (2026-10-19)
+
+What the machine can do *now*, and what it still cannot, by dimension. Substrate (W1–W5, W16–W20, W18) is treated as the floor under all five, not as a sixth dimension.
+
+### 7.1 Dimension 1 — FLT & Diophantine proving
+
+**Done.**
+- Modulus-4 obstruction for fourth powers is *discovered* by a Cartesian sweep, not written (`test18`). The machine's own arithmetic runs the residue case analysis; the promotion ledger refuses the candidate without a Checker B receipt.
+- Modulus-9 obstruction for cubes, over the coprime-to-3 domain, is discovered the same way (`test20`). Generic quadratic-ring scaffolding (`RingAdd` / `RingMultiply` / `RingConjugate` / `RingNorm`) derives $N(1-\omega)=3$ from the relation $\omega^2=-1-\omega$; no norm formula is authored.
+- Infinite-descent *strategy* is one authored schema (`Terminates(p) ∧ EveryStateMoves(p) → NoStates(p)`), on the same footing as `monovariant_terminates`. Pythagorean square identity in additive form, $x^4=(x^2)^2$, odd-squares $\equiv 1\pmod{4}$, and the mod-4 condition on $1+n^2\equiv m^2$ are *derived* by `PolynomialIdentityByGrid` / `ResidueTable` (`test26`, 43/43).
+- Kernel lookup cost that made every sweep quadratic is gone (W18, `test30`). Arithmetic is flat-rate at ~40–75 ms/op (`core.py`'s `uuid4()` is the untouchable floor).
+
+**Not done.**
+- The $n=4$ theorem is reduced to `EveryStateMoves(descent)` — "from every primitive solution a smaller one can be built". Discharge is blocked by four missing *generic* abilities, not by a missing FLT pack: (1) existential witness introduction, so a rule can mint the $m,n$ / $u,v,w$ a descent step constructs; (2) ring normalisation, so `RewriteEquals` reaches identities the grid already decided; (3) a factorisation substrate, so "coprime factors of a square are squares" is derived rather than evidenced on 6 instances; (4) a schema that *concludes* a `NatLess` fact, so the measure drop is derived rather than swept.
+- Unique factorisation in $\mathbb{Z}[\omega]$ and the cubic descent are not derived. W7 is `[~]`.
+- Do not re-author a quartic or cubic pack. W6's withdrawal (`524de6f`) still binds.
+
+**Unblocks.** W21, W22, W23 (substrate, parallel). Then W28 ($n=3$) and W29 ($n=4$).
+
+### 7.2 Dimension 2 — IMO problems
+
+**Done.**
+- Goal-directed auxiliary constructions (`constructions.py`): bisector completion and circumcircle-at-a-vertex, instantiated through `Match` / `JoinPremises`, minted as anonymous `Thingy`s, dispatched as `Construction` planner methods. Negative controls: withhold the proposal, scalene the figure, or aim the goal at a length — nothing closes (`test21`, 36/36).
+- Combinatorics / funceq / NT, two independent deliverables kept: (a) families 1–3 over the forward engine, miner and ledger (`test22`); (b) pack-based Cauchy and parity slice (`test29`). Cauchy is data; `math/funceq.py` compiles an equation into a unary rewrite schema. Family 1 closes a generic multi-premise rule on an opaque fact hypergraph, mines the terminating invariant, and promotes with a Checker B certificate.
+- Multi-pass backward planner (W13, `test15`).
+
+**Not done.**
+- **W9(c)** — residue and divisibility schema *wiring*. `Divides`, `Gcd`, `Modulo`, `IsCoprime` exist in `math/arithmetic.py`; the funceq/NT packs do not use them. Residues beyond parity are a wiring task, not a missing substrate.
+- Cyclic-quadrilateral conclusion schema; circumcircle stops at vertex incidence and does not feed chord/angle facts back into goals. Angle chasing beyond the bisector, projective collineations: open.
+- W8's done-definition asked for Checker-B receipts, ledger records, evaluator ablation and figure sweeps. The authoring branch did not have those modules; they are on this tree now and `test21` still does not exercise them.
+- d'Alembert-type equations need a minus term. Extremal-set combinatorics and curriculum held-outs are blocked on the card loader (W25): every corpus file is blueprint-only, `IntegerLabel` / `ResidueLabel` / `CongruentLabel` are absent, and test22/[31] asserts that held-out evidence is currently impossible.
+- Closure engine is a single-chain saturator (test22/[32]): soundness, not completeness.
+
+**Unblocks.** W24 (wiring, now), W25 (loader, now), W26 (geometry remainder, now). d'Alembert waits on W22.
+
+### 7.3 Dimension 3 — Engel strategies
+
+**Done.**
+- Strategy principles as *ontology and generic schemas*, not as three named problems: invariance, monovariants, semi-invariants, extremal, box-as-obligation (`packs/engel-strategies.pack.yaml`, `test23`, 80/80). Universality by fixpoint recursion over `MoveSet` (peel the head; empty list closes; a single failing move stops the recursion). Semi-invariant is honestly weaker (`NonIncreases` + obligated `EventuallyDecreases`). Box principle does not conclude a collision — `Pigeonhole` already obligationes the counting. Checkerboard colouring is invariance whose $\phi$ is a parity.
+- Planner method terms `Monovariant`, `SemiInvariant`, `Invariance` with obligation/conclusion records.
+- Three older instance packs still work (`engel-coins`, `engel-means`, `engel-blackboard`). Curriculum rung builders exist (`curriculum.py`, `test10`) for synthetic graph tasks — not for the markdown cards.
+
+**Not done.**
+- No domain pack drives these rules from a *real Engel problem* that is not named in code. Discovery of a measure or an observable (rather than being handed one) is open. Strategy rules do not fire during ordinary search — nothing proposes them the way the planner methods do.
+- `StrictlyDecreases` / `NonIncreases` / `Preserves` claims are not independently verified. Held-out/decoy evidence against `curriculum/heldout` and `curriculum/decoys` is blocked on W25.
+- `main.py`'s theorem agenda still hardcodes `"Engel E1"`, `"Engel E2"`, `"Engel coin problem"`. Standing §5.3 tension; do not add more cases in that style.
+
+**Unblocks.** W27 (remainder, now). Measure *discovery* also wants the miner (already there) plus W25 for held-outs.
+
+### 7.4 Dimension 5 — Stories, explanations, Socratic tutor
+
+**Done.**
+- Surface grammar and lexicon (`surface_bridge.py`, `test11`).
+- Proof storyteller: formal receipt $\to$ Markdown (`story_renderer.py`, `test14`).
+- Socratic tutor as a *reader* of the machine, not a second knowledge base (`dialogue.py`, `test24`, 85/85). Concept inspection from loaded packs / definitions / ledger. Claims (arithmetic grammar) judged three ways: Checker-B verified, sweep-refuted, or undecided with both pieces of evidence. Questions from `BackwardObligations`, tagged with curriculum rungs. REPL fall-through in `live`, plus `load pack`.
+
+**Not done.**
+- Claim grammar is arithmetic-only. Other goals enter through `Tutor.set_focus_goal` / `assume`, not through the parser. Geometry, Engel, and FLT vocabulary are not conversational yet.
+- Ledger ablation/holdout gates are *reported as not run*, not simulated — honest, but the tutor cannot yet explain a completed Dim-4 trial.
+- Stories are of whatever receipt they are handed; they do not yet narrate a domain derivation from W8/W10/W6 because those receipts mostly do not exist.
+
+**Unblocks.** W31, after W30 has receipts worth narrating. W31 can start earlier on existing arithmetic/Engel-pack goals if scoped that way.
+
+### 7.5 Dimension 4 — Autonomous self-improvement
+
+**Done.**
+- Independent Checker B, including knowledge-rewriting / `FactsCover` (`test5`, `test19`).
+- Invariant trace miner and candidate evaluator with ablation (`test8`, `test7`).
+- Dual-ledger promotion loop; refuses entries without a receipt (`test9`).
+- Byzantine ledger consensus: verification, not voting; peers re-derive receipts (`test28`).
+- The closed loop exists as machinery.
+
+**Not done.**
+- Domain workers mostly do not *drive* the loop. W8 and W10 authoring suites explicitly do not claim Checker-B / ledger / ablation. W6/W7 discoveries are refused (correctly) because a sweep is not a derivation. Family 1 in `test22` is the one place the full loop has run on a combinatorics macro.
+- Curriculum cards cannot be evaluation data until they load (W25).
+- Nothing yet mines a descent measure or a geometry observable and promotes it.
+
+**Unblocks.** W30, once W24–W27 (and later W28–W29) produce derivations rather than evidence.
+
+### 7.6 Substrate notes that still matter
+
+Independent of the five dimensions, still open, and *not* an excuse to reopen W1–W20:
+
+- Swarm speedup **0.84×** on `engel_e2` (2 vCPU): the proof lives in one branch; unit-boot is 12–30 s (W32).
+- Kill-phase race: a transient reconnect still counts as an attempt; W2's 2026-10-15 fixes close the *outcome* side (late success supersedes a recorded failure) but not the double-count (W33).
+- Snapshot format fork v3 vs v4: stay on v3; adoption unbought (§6).
+- Real laptop ⇄ Colab trial and real Neo4j dump decode: user, not a sandbox worker (USER-1, USER-2).
+- Merge this line to `master` so notebooks stop cloning a session branch (COORD).
+- `core.py` `uuid4()` per allocation: out of scope.
+
+---
+
+## 8. Phase 4+ remaining-work DAG (opened 2026-10-19)
+
+```
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+                          PHASE 4+ DAG — WHAT'S LEFT, WHO DOES IT, WHAT IT UNBLOCKS
+═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
+
+[PHASE 4: Unblocking substrate]  (PARALLEL — 3 WORKERS; start immediately)
+ ├── W21: Existential witness introduction
+ │         Agent: Arena session on this repo, brief W21, slot test33
+ │         Owns:  graph_task.py, checker_b.py (consume; do not weaken)
+ │         Effect: a replacement variable unbound by premises mints a recorded
+ │                 witness (Thingy/fresh atom). Descent steps can construct
+ │                 (m,n) / (u,v,w) without authoring them. Checker B audits
+ │                 the introduction or refuses it.
+ │         Do not: edit core.py / machine.py / proof.py without coordinator
+ │                 sign-off. Prefer minting in graph_task after Instantiate.
+ │
+ ├── W22: Algebraic rewriting
+ │         Agent: Arena session, brief W22, slot test34
+ │         Owns:  invariance.py (RewriteEquals), playground.py
+ │         Effect: identities PolynomialIdentityByGrid already decides become
+ │                 rewrite derivations, not evidence. Unblocks ring steps of
+ │                 W6/W7 and d'Alembert (Dim 2).
+ │         Do not: touch math/arithmetic.py (that's W23). Use WholeNegate /
+ │                 "move subtraction across the equation" until W23 lands.
+ │
+ └── W23: Factorisation substrate & derived NatLess
+           Agent: Arena session, brief W23, slot test35
+           Owns:  math/arithmetic.py, math/peano.py (extend, sort-generic)
+           Effect: subtraction / root-or-factor edges exist as *generic*
+                   arithmetic; some schema concludes a NatLess fact from
+                   machine arithmetic (not a sweep). Unblocks coprime-square-
+                   factors (W6) and well-founded decrease (W6/W10).
+           Do not: write unique factorisation in Z[ω] (that's W28). Do not
+                   conclude FLT.
+
+      │
+      │   W21/W22/W23 have disjoint file ownership. labels.py is append-only
+      │   union. If two sessions add the same label name, the later rebase loses.
+      ▼
+
+[PHASE 4b: Domain remainders that are unblocked *now*]  (PARALLEL with Phase 4 — 4 WORKERS)
+ ├── W24: Residue / divisibility schema wiring          (Dim 2, was W9(c))
+ │         Agent: Arena session, brief W24, slot test36
+ │         Owns:  packs/funceq-nt.pack.yaml, math/funceq.py
+ │         Effect: schemas derive residue and divisibility facts using the
+ │                 existing Divides/Gcd/Modulo/IsCoprime edges. Family 3
+ │                 grows past parity without new host arithmetic.
+ │
+ ├── W25: Curriculum card loader                        (Dims 2, 3, 4)
+ │         Agent: Arena session, brief W25, slot test37
+ │         Owns:  curriculum.py, labels.py (IntegerLabel, ResidueLabel, …),
+ │                a loader over curriculum/tier0|tier1
+ │         Effect: held-out and decoy cards become evaluation data. W9/W10
+ │                 done-definitions that required them become reachable.
+ │         Do not: encode solutions in cards; cards stay evaluation data.
+ │
+ ├── W26: Geometry remainder                            (Dim 2)
+ │         Agent: Arena session, brief W26, slot test38
+ │         Owns:  constructions.py, packs/geometry-constructions.pack.yaml
+ │         Effect: at least one cyclic-quad or chord/angle schema; the suite
+ │                 exercises Checker B / ledger / ablation that W8 deferred.
+ │
+ └── W27: Engel remainder                               (Dim 3)
+           Agent: Arena session, brief W27, slot test39
+           Owns:  packs/engel-strategies.pack.yaml, invariant_miner.py,
+                  a search-hook (not a new agenda case in main.py)
+           Effect: at least two unnamed Engel instances solved by the
+                   strategy machinery; strategies proposed during ordinary
+                   search; miner asked to find a measure on one of them.
+
+      │
+      ▼ (Sequential gate: W21 + W22 + W23 green. W24–W27 need not wait.)
+
+[PHASE 5: FLT remainders]  (PARALLEL — 2 WORKERS; do not start early)
+ ├── W28: Eisenstein UFD + cubic descent                (Dim 1, W7 remainder)
+ │         Agent: Arena session, brief W28, slot test40
+ │         Prereqs: W21, W22, W23, W7 [~]
+ │         Effect: unique-factorisation *scaffolding* used on Z[ω]; cubic
+ │                 descent attempted. Honest [~] still allowed. No cube
+ │                 identity authored.
+ │
+ └── W29: Discharge EveryStateMoves                     (Dim 1, W6 remainder)
+           Agent: Arena session, brief W29, slot test41
+           Prereqs: W21, W22, W23, W6 [~]
+           Effect: the missing list in test26 is re-tried with the new
+                   substrate. First reachable of {full, partial, precise
+                   negative}. Do not re-execute W06's brief as written.
+
+      │
+      ▼ (Sequential gate: at least one of W24–W29 produces a Checker-B receipt)
+
+[PHASE 6: Closed loop and language]
+ ├── W30: Domain packs through Checker B + ledger + ablation     (Dim 4)
+ │         Agent: Arena session, brief W30, slot test42
+ │         Prereqs: W12 ✅, and receipts from W24–W27 (W28–W29 if present)
+ │         Effect: the closed loop is no longer only a combinatorics-family-1
+ │                 demo. Geometry / Engel / funceq (and FLT if receipts exist)
+ │                 either promote or refuse for a stated reason.
+ │
+ └── W31: Tutor and storyteller beyond arithmetic                (Dim 5)
+           Agent: Arena session, brief W31, slot test43
+           Prereqs: W15 ✅, W14 ✅; richer if W30 has run
+           Effect: claim grammar and Socratic questions cover geometry /
+                   Engel / (optionally) FLT vocabulary; a story is generated
+                   from a real domain receipt, not a fixture.
+
+[PHASE 7: Ops — independent of Phases 4–6, start any time]
+ ├── W32: Swarm unit-boot cost                          (Infra)
+ │         Agent: Arena session, brief W32, slot test44
+ │         Owns:  persistence.py, search/distributed_engine.py
+ │         Effect: per-unit boot no longer dominates swarm wall-clock;
+ │                 test27 speedup re-measured and reported, not tuned.
+ │
+ ├── W33: Mesh reconnect attempt accounting             (Infra)
+ │         Agent: Arena session, brief W33, slot test45
+ │         Owns:  networking/peer.py
+ │         Effect: a 0.2 s coordinator-lost/rejoined is not a second
+ │                 attempt; test27 kill phase is no longer racy.
+ │
+ ├── USER-1: Laptop ⇄ Colab WAN trial
+ │         Agent: the user, not an Arena worker
+ │         Effect: first real `--artifacts wire` + `--no-inbound` +
+ │                 identity-verify run; colab/README.md names the ledger
+ │                 events to read. Sandbox cannot do this.
+ │
+ ├── USER-2: Real Neo4j dump decode
+ │         Agent: the user, on Colab
+ │         Effect: neo4j-admin load + APOC export executed; W19's notebook
+ │                 cells stop being documentation. Sandbox has no route to
+ │                 dist.neo4j.org.
+ │
+ └── COORD: Merge this line to master
+           Agent: repository owner
+           Effect: notebooks clone master; a master coordinator speaks
+                   artifact-* frames. Two stale pre-swarm PRs (#3, #4)
+                   should be closed or rebased, not merged as-is.
+
+[OUT OF SCOPE]
+ └── core.py uuid4() per allocation (~40–75 ms/op floor)
+ └── Snapshot v4 adoption (49 branches, +701/−225 in persistence.py, unread)
+```
+
+### 8.1 Dispatch rules for Phase 4+
+
+1. **Start immediately (no prereq gate):** W21, W22, W23, W24, W25, W26, W27, W32, W33. Nine sessions, disjoint file ownership except `labels.py` (append-only union, as in §6.2).
+2. **Do not start W28 or W29** until W21–W23 have reported. Re-opening FLT without witness introduction will reproduce test26's negative account.
+3. **W30 waits** on at least one new domain receipt. Running it against the present tree would only restate that W8/W10 suites do not exercise the loop.
+4. **One slot per brief**, already allocated above. Do not invent `test33` for something else.
+5. **W22 vs W23:** if a session believes it *must* edit the other's files, stop and report; do not take a silent dependency.
+6. Honest `[~]` and precise negatives remain first-class outcomes (W6 is the model).
+7. Work only on the branch the session is pinned to. Do not open a pull request. Report as in `delegation/README.md`.
+
+### 8.2 Lineage note (2026-10-19)
+
+`arena/5d1b2a18-cat-theo-machine` was opened from `master` (`428ecdc`, 2026-08-25) and fast-forwarded to `arena/717c9822-cat-theo-machine` (`a548d7d`, 2026-10-15) so this session would not re-fork the swarm. Further Phase 4+ work on this session lands here. Notebooks still clone `717c9822` until COORD merges to `master`; that is USER/COORD, not a worker.
