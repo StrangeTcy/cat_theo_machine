@@ -6,7 +6,7 @@ is pinned to its own branch, works there, and reports back. The coordinator impo
 result — see *Reporting back* below.
 
 W1–W20 are done or closed as partial (DAG §4, §6.9). Their briefs stay in this directory
-as history; **do not re-execute them.** W21–W23 have landed; remaining work is W24–W33 plus USER/COORD.
+as history; **do not re-execute them.** W21–W23 have landed; W29 is closed as a precise negative. Remaining dispatchable work is W24–W28 and W30–W33 (subject to their gates), plus USER/COORD.
 
 Index (open workers only):
 
@@ -20,7 +20,7 @@ Index (open workers only):
 | `W26-geometry-remainder.md` | Cyclic-quad / chord-angle + receipts | 2 | 4b | W8 ✅ W4 ✅ — **start now** | `test38` |
 | `W27-engel-remainder.md` | Real instances, search firing, measure discovery | 3 | 4b | W10 ✅ — **start now** | `test39` |
 | `W28-flt-n3-ufd-descent.md` | Eisenstein UFD + cubic descent | 1 | 5 | W21–W23 ✅, W7 `[~]` — **ready** | `test40` |
-| `W29-flt-n4-everystate.md` | Discharge `EveryStateMoves` | 1 | 5 | W21–W23 ✅, W6 `[~]` — **ready** | `test41` |
+| `W29-flt-n4-everystate.md` | **Closed, precise negative:** EveryStateMoves still open (DAG §4) | 1 | 5 | do not re-dispatch unchanged | `test41` 54/54 |
 | `W30-domain-promotion-loop.md` | Domain packs through Checker B + ledger | 4 | 6 | W12 ✅ + a Phase 4b receipt — **gated** | `test42` |
 | `W31-dialogue-beyond-arithmetic.md` | Tutor/story beyond arithmetic | 5 | 6 | W15 ✅ W14 ✅ | `test43` |
 | `W32-swarm-boot-cost.md` | Swarm unit-boot cost | Infra | 7 | W16 ✅ — **start now** | `test44` |
@@ -31,8 +31,8 @@ briefs — see DAG §8. COORD merges this line to `master`.
 
 Dispatch order: six independent sessions can start in parallel (W24–W27, W32, W33)
 with disjoint file ownership except append-only `labels.py`. W21–W23 have reported
-green, so W28 and W29 may now start; they share arithmetic/playground interests and
-must coordinate file ownership rather than silently overwrite one another. W30 waits on a new domain receipt. W31 can start on existing
+green, so W28 may start. W29 has now reported a precise negative; do not re-dispatch
+it until its named generic/proof gaps change. W30 waits on a new domain receipt. W31 can start on existing
 arithmetic/Engel-pack goals; it is richer after W30.
 
 Suite slots are **append-only** and pre-allocated above (`test33`–`test45`). Do not
