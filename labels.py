@@ -1948,6 +1948,41 @@ class CardLoaderResultLabel(ConstructorLabel):
     pass
 
 
+# --- W26: cyclic-quadrilateral and chord/angle vocabulary (append-only) -----
+# W8's geometry vocabulary stopped at angle equality, incidence and the
+# circumcircle.  These six relations are what a chord/angle argument needs to
+# state its own conclusions; none of them is a construction, a measure or a
+# table, and none carries a constant.
+
+class PerpendicularLabel(ConstructorLabel):
+    pass
+
+
+class DiameterLineLabel(ConstructorLabel):
+    pass
+
+
+class CentreOfLabel(ConstructorLabel):
+    pass
+
+
+class SameSideOfLineLabel(ConstructorLabel):
+    pass
+
+
+class SupplementaryAnglesLabel(ConstructorLabel):
+    pass
+
+
+class CyclicOrderLabel(ConstructorLabel):
+    pass
+
+
+class GeometryRemainderLabel(ConstructorLabel):
+    pass
+
+
+
 TreeLabel = TreeLabel()
 ZeroLabel = ZeroLabel()
 SuccLabel = SuccLabel()
@@ -2432,6 +2467,14 @@ CardSplitCheckLabel = CardSplitCheckLabel()
 ColorCountLabel = ColorCountLabel()
 TileRequiredLabel = TileRequiredLabel()
 CardLoaderResultLabel = CardLoaderResultLabel()
+
+PerpendicularLabel = PerpendicularLabel()
+DiameterLineLabel = DiameterLineLabel()
+CentreOfLabel = CentreOfLabel()
+SameSideOfLineLabel = SameSideOfLineLabel()
+SupplementaryAnglesLabel = SupplementaryAnglesLabel()
+CyclicOrderLabel = CyclicOrderLabel()
+GeometryRemainderLabel = GeometryRemainderLabel()
 
 
 def sync_from_namespace(namespace):
@@ -2919,6 +2962,13 @@ def sync_from_namespace(namespace):
         "ColorCountLabel",
         "TileRequiredLabel",
         "CardLoaderResultLabel",
+        "PerpendicularLabel",
+        "DiameterLineLabel",
+        "CentreOfLabel",
+        "SameSideOfLineLabel",
+        "SupplementaryAnglesLabel",
+        "CyclicOrderLabel",
+        "GeometryRemainderLabel",
     ):
         if name in namespace:
             globals()[name] = namespace[name]

@@ -271,8 +271,23 @@ pack = loader.load_pack_file(PACK_PATH, graph)
 rules = P.CompileRuleChain(pack.rule_chain, registry)()
 
 check("pack name is geometry-constructions", pack.name == "geometry-constructions", pack.name)
-check("pack carries 6 generic schema rules", count_list(pack.rule_chain) == 6,
+# W26 appended three chord/angle schemas to this pack.  The count is the
+# pack's, and this suite still owns only W8's six rules: the ids are checked
+# by name so a rename or a loss cannot hide behind the number.
+check("pack carries W8's six generic schema rules plus W26's three",
+      count_list(pack.rule_chain) == 9,
       str(count_list(pack.rule_chain)) + " rules")
+W8_RULE_IDS = (
+    "bisector_splits_angle",
+    "sas_self_congruence",
+    "on_segment_unifies_ray",
+    "equal_angle_symmetric",
+    "equal_angle_transitive",
+    "circumcircle_admits_vertex",
+)
+missing_w8 = [rid for rid in W8_RULE_IDS if rid not in pack.rule_map]
+check("all six W8 rule ids are still loaded, unrenamed", not missing_w8,
+      ", ".join(missing_w8))
 
 # Genericity pin, machine-side: no ground atom in any argument position of
 # any premise or replacement. A Char naming a point, a triangle or a problem
