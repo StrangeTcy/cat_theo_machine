@@ -1765,6 +1765,14 @@ class NoStatesLabel(ConstructorLabel):
     pass
 
 
+class NatSuccessorLabel(ConstructorLabel):
+    pass
+
+
+class CoprimeCofactorsLabel(ConstructorLabel):
+    pass
+
+
 class PolynomialGridActionLabel(ConstructorLabel):
     pass
 
@@ -2217,6 +2225,8 @@ NoStatesLabel = NoStatesLabel()
 UnboundVariableLabel = UnboundVariableLabel()
 PolynomialGridActionLabel = PolynomialGridActionLabel()
 PolynomialGridRuleLabel = PolynomialGridRuleLabel()
+NatSuccessorLabel = NatSuccessorLabel()
+CoprimeCofactorsLabel = CoprimeCofactorsLabel()
 
 
 def sync_from_namespace(namespace):
@@ -2663,6 +2673,8 @@ def sync_from_namespace(namespace):
         "UnboundVariableLabel",
         "PolynomialGridActionLabel",
         "PolynomialGridRuleLabel",
+        "NatSuccessorLabel",
+        "CoprimeCofactorsLabel",
     ):
         if name in namespace:
             globals()[name] = namespace[name]

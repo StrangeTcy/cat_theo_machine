@@ -104,7 +104,8 @@ The default symbolic `RewriteEquals` still cannot expand powers or normalise
 commutative rings; test26's negative claim about that walker remains valid. Both
 of test26's grid-derived polynomial identities now additionally have Checker-B
 verified grid proofs in test34. Subtraction, `ExprNeg`/`ExprFrac`/`ExprDiv`, FLT
-packs and FLT discharge remain out of scope. W28/W29 still wait for W23.
+packs and FLT discharge remain out of scope. W23 subsequently landed; see its
+completion note for the now-green W28/W29 prerequisite gate.
 
 The grid procedure was hardened before admitting it into Checker B: malformed
 arity, undeclared/duplicate/numeric variables and unsupported terms are refused;

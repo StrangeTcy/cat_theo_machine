@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from .. import machine as M
+from .. import labels as L
 
 
 class IsNat(M.Edge):
@@ -65,6 +66,135 @@ class Multiply(M.Edge):
             return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
         product_rep = M.GMPRep(rep_a() * rep_b())
         return M.NatFromRep(product_rep, registry)()
+
+    def __call__(self):
+        return self.result
+
+
+def _natural_rep(value, registry):
+    """The existing NatRepOf boundary, with negative cached reps refused.
+
+    NatFromRep clamps negatives to Zero, so partial natural operations must
+    reject underflow before interning, not silently inherit that saturation.
+    """
+    rep = M.NatRepOf(value, registry)()
+    if M.IdentityCompare(rep, M.EmptyList)() is M.truth_value:
+        return M.EmptyList
+    if rep() < 0:
+        return M.EmptyList
+    return rep
+
+
+class NatSubtract(M.Edge):
+    """Partial a-b on naturals. Underflow or non-Nat -> Pair([], [registry])."""
+
+    def __init__(self, a, b, registry):
+        rep_a = _natural_rep(a, registry)
+        rep_b = _natural_rep(b, registry)
+        if M.IdentityCompare(rep_a, M.EmptyList)() is M.truth_value:
+            self.result = M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+        elif M.IdentityCompare(rep_b, M.EmptyList)() is M.truth_value:
+            self.result = M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+        elif rep_a() < rep_b():
+            self.result = M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+        else:
+            self.result = M.NatFromRep(M.GMPRep(rep_a() - rep_b()), registry)()
+        super().__init__(inputs=M.Pair(a, M.Pair(b, M.Pair(registry, M.EmptyList))), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class ExactNatQuotient(M.Edge):
+    """Return a/b only for a natural a and a positive natural divisor b.
+
+    Delegates divisibility to the existing Divides edge. No rounding,
+    truncation or 0/0 convention is introduced. Return shape matches Add.
+    """
+
+    def __init__(self, a, b, registry):
+        rep_a = _natural_rep(a, registry)
+        rep_b = _natural_rep(b, registry)
+        self.result = M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+        if M.IdentityCompare(rep_a, M.EmptyList)() is M.false_value:
+            if M.IdentityCompare(rep_b, M.EmptyList)() is M.false_value:
+                if rep_b() > 0:
+                    if Divides(b, a, registry)() is M.truth_value:
+                        self.result = M.NatFromRep(M.GMPRep(rep_a() // rep_b()), registry)()
+        super().__init__(inputs=M.Pair(a, M.Pair(b, M.Pair(registry, M.EmptyList))), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class CoprimeCofactors(M.Edge):
+    """Compute a=g*u, b=g*v, gcd(u,v)=1 using Gcd and ExactNatQuotient.
+
+    Result Pair(record-or-[], Pair(registry, [])); record is
+    Pair(CoprimeCofactorsLabel, [a,b,g,u,v]). Both-zero is refused (g=0).
+    One-zero is allowed: its cofactors are (0,1) or (1,0).
+    The record certifies the *reduced* pair, not that the inputs are coprime.
+    This is gcd extraction, not prime factorisation or a square-factor lemma.
+    """
+
+    def __init__(self, a, b, registry):
+        self.result = self._compute(a, b, registry)
+        super().__init__(inputs=M.Pair(a, M.Pair(b, M.Pair(registry, M.EmptyList))), results=self.result)
+
+    def _compute(self, a, b, registry):
+        if M.IdentityCompare(_natural_rep(a, registry), M.EmptyList)() is M.truth_value:
+            return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+        if M.IdentityCompare(_natural_rep(b, registry), M.EmptyList)() is M.truth_value:
+            return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+        gcd_res = Gcd(a, b, registry)()
+        gcd = M.Head(gcd_res)()
+        reg1 = M.Head(M.Tail(gcd_res)())()
+        if M.NatEq(gcd, M.Zero, reg1)() is M.truth_value:
+            return M.Pair(M.EmptyList, M.Pair(reg1, M.EmptyList))
+        left = ExactNatQuotient(a, gcd, reg1)()
+        u = M.Head(left)()
+        reg2 = M.Head(M.Tail(left)())()
+        right = ExactNatQuotient(b, gcd, reg2)()
+        v = M.Head(right)()
+        reg3 = M.Head(M.Tail(right)())()
+        if IsCoprime(u, v, reg3)() is M.false_value:
+            return M.Pair(M.EmptyList, M.Pair(reg3, M.EmptyList))
+        record = M.Pair(L.CoprimeCofactorsLabel, M.Pair(a, M.Pair(b,
+            M.Pair(gcd, M.Pair(u, M.Pair(v, M.EmptyList))))))
+        return M.Pair(record, M.Pair(reg3, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class NatPredecessorFact(M.Edge):
+    """Guarded arithmetic-to-fact adapter for the Peano order pack.
+
+    For a positive natural n compute p=NatPred(n), check Succ(p)=n, and
+    return Pair(NatSuccessor(p,n), Pair(registry, [])). Zero and invalid
+    sorts return no fact: NatPred's saturated predecessor at zero must NOT
+    license NatLess(0,0). This is a computed premise, not an order verdict.
+    """
+
+    def __init__(self, n, registry):
+        self.result = self._compute(n, registry)
+        super().__init__(inputs=M.Pair(n, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def _compute(self, n, registry):
+        rep = _natural_rep(n, registry)
+        if M.IdentityCompare(rep, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+        if rep() == 0:
+            return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+        pred = M.NatPred(n, registry)()
+        p = M.Head(pred)()
+        reg1 = M.Head(M.Tail(pred)())()
+        successor = M.Succ(p, reg1)()
+        reg2 = M.Head(M.Tail(successor)())()
+        if M.NatEq(M.Head(successor)(), n, reg2)() is M.false_value:
+            return M.Pair(M.EmptyList, M.Pair(reg2, M.EmptyList))
+        fact = M.Pair(L.NatSuccessorLabel, M.Pair(p, M.Pair(n, M.EmptyList)))
+        return M.Pair(fact, M.Pair(reg2, M.EmptyList))
 
     def __call__(self):
         return self.result
@@ -204,6 +334,26 @@ class WholeNegate(M.Edge):
         super().__init__(
             inputs=M.Pair(x, M.Pair(registry, M.EmptyList)), results=self.result
         )
+
+    def __call__(self):
+        return self.result
+
+
+class WholeSubtract(M.Edge):
+    """x-y over the existing Whole difference-pair sort, via add-of-negate.
+
+    Invalid sorts return Pair([], Pair(registry, [])), as NatSubtract does.
+    No second signed representation or integer-normalisation engine is added.
+    """
+
+    def __init__(self, x, y, registry):
+        if M.AndAtom(M.IsWhole(x, registry)(), M.IsWhole(y, registry)())() is M.false_value:
+            self.result = M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+        else:
+            neg = WholeNegate(y, registry)()
+            reg1 = M.Head(M.Tail(neg)())()
+            self.result = M.WholeAdd(x, M.Head(neg)(), reg1)()
+        super().__init__(inputs=M.Pair(x, M.Pair(y, M.Pair(registry, M.EmptyList))), results=self.result)
 
     def __call__(self):
         return self.result
@@ -465,6 +615,11 @@ __all__ = [
     "IsNat",
     "Add",
     "Multiply",
+    "NatSubtract",
+    "WholeSubtract",
+    "ExactNatQuotient",
+    "CoprimeCofactors",
+    "NatPredecessorFact",
     "Succ",
     "NatPred",
     "Count",

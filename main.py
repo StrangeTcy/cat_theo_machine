@@ -83,6 +83,7 @@ PACK_PATHS = [
     os.path.join(PACK_DIR, "geometry-constructions.pack.yaml"),
     os.path.join(PACK_DIR, "funceq-nt.pack.yaml"),
     os.path.join(PACK_DIR, "infinite-descent.pack.yaml"),
+    os.path.join(PACK_DIR, "nat-order.pack.yaml"),
 ]
 
 def _latest_snapshot_path():

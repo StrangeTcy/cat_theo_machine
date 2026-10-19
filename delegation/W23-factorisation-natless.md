@@ -64,3 +64,67 @@ must not restore quadratic lookup.
 
 Witness introduction (W21), rewrite normalisation (W22), Eisenstein UFD (W28),
 discharging `EveryStateMoves` (W29), `core.py` edits.
+
+
+## Completion / handoff (2026-10-19)
+
+Done on `arena/c58acfec-cat-theo-machine`; `test35` is occupied. **109/109 checks**,
+~26 s; all **35/35** validation suites green sequentially (~27.9 min). W18/test30's
+index-growth ratio is 1.00 (0.0674 s/call in both measured batches). No kernel/index
+changes except the two appended snapshot-registered labels.
+
+### Arithmetic API
+
+All new operations return `Pair(value-or-[], Pair(registry, []))`. Always thread
+the returned registry; `[]` is failure, **not** the natural zero.
+
+- `NatSubtract(a,b,registry)`: partial natural difference. Underflow and invalid
+  sorts are refused before `NatFromRep` can clamp a negative to zero.
+- `WholeSubtract(x,y,registry)`: signed difference, implemented solely with existing
+  `WholeNegate` and `WholeAdd`. Inputs must be kernel `Whole` values; natural atoms
+  are not silently coerced into wholes.
+- `ExactNatQuotient(a,b,registry)`: division only if `b>0` and existing `Divides(b,a)`
+  accepts. Non-exact quotients and all zero-divisor cases (including 0/0) fail.
+- `CoprimeCofactors(a,b,registry)`: uses existing `Gcd`, exact quotients and
+  `IsCoprime`. Its record is `Pair(CoprimeCofactorsLabel, [a,b,g,u,v])`, where
+  `a=g*u`, `b=g*v`, `g=gcd(a,b)` and `gcd(u,v)=1`. Both-zero fails; single-zero
+  succeeds with reduced cofactors (0,1)/(1,0). The record never claims the original
+  pair is coprime: (2,8) records g=2 and reduced pair (1,4).
+- `NatPredecessorFact(n,registry)`: for positive naturals only, compute `p=NatPred(n)`,
+  verify `Succ(p)=n` and return the fact `Pair(NatSuccessorLabel,[p,n])`. Zero emits
+  no fact; this guard prevents the saturating `NatPred(0)=0` convention licensing
+  a strict self-inequality.
+
+### Proof API and boundary
+
+Load `packs/nat-order.pack.yaml` explicitly (also registered in `main.PACK_PATHS`).
+It contains only `successor_strict_order` and `nat_less_transitive`, generic authored
+Peano schemas with no problem data. Feed the computed successor fact(s) to
+`proof.Knowledge`; `graph_task.ForwardDeriveFacts` and
+`dialogue.SearchKnowledgeDerivation` can derive `NatLess` facts. Ordinary Checker B
+verification accepts these derivations and rejects the same proof against swapped
+endpoints, absent starting premises, or withheld rules. No new checker clause or
+arithmetic proof action was added.
+
+**Important:** initial computation facts are explicit premises, as `NatSum` is in
+W9. Checker B verifies schema application conditional on them; it does not independently
+recompute or authenticate their arithmetic provenance. Do not hand-author a false
+`NatSuccessor` fact and call the resulting conditional derivation an unconditional
+proof of an inequality. Arithmetic provenance checking is a distinct future extension.
+
+New labels `NatSuccessorLabel` and `CoprimeCofactorsLabel` use the existing snapshot
+symbol mechanism; test35 re-verifies a real order derivation after codec round-trip.
+No new persistent state/roots or second machine-term serialisation was introduced.
+`math/peano.py`, `core.py`, W21/W22 modules, Checker B and persistence are unchanged.
+
+### What W28/W29 can and cannot assume
+
+The W21–W23 prerequisite gate is now green. They may use these edges/schemas; they
+may **not** assume FTA, prime decomposition, the coprime-square-factors lemma,
+Eisenstein UFD, a proved descent measure, EveryStateMoves or FLT. Those are not
+consequences claimed by this worker.
+
+`test26` stays unchanged and green, but its old arithmetic-absence prose is historical:
+its name checks mention generic legacy symbols, not these sort-specific operations,
+and its selected packs exclude `nat-order`. Its negative FLT/descent account was not
+upgraded. `test35` is the authoritative test of this new substrate.

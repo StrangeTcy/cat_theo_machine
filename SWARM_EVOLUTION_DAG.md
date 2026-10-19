@@ -2,7 +2,7 @@
 
 This document specifies the evolutionary architecture, dependency DAG, worker allocation, and synchronization protocols for coordinating Arena agents evolving the Hyge Theorem Prover.
 
-Phases 0–3 (W1–W20) landed by 2026-10-15; their record is §2–§6. **Remaining work is §7 (five-dimension status) and §8 (Phase 4+ DAG).** W21 and W22 have landed; the next unoccupied allocated suite slot is `test35` (W23). This copy of the tree was fast-forwarded onto `arena/5d1b2a18-cat-theo-machine` from `arena/717c9822-cat-theo-machine` (`a548d7d`) on 2026-10-19.
+Phases 0–3 (W1–W20) landed by 2026-10-15; their record is §2–§6. **Remaining work is §7 (five-dimension status) and §8 (Phase 4+ DAG).** W21–W23 have landed; the next unoccupied allocated suite slot is `test36` (W24). This copy of the tree was fast-forwarded onto `arena/5d1b2a18-cat-theo-machine` from `arena/717c9822-cat-theo-machine` (`a548d7d`) on 2026-10-19.
 
 ---
 
@@ -90,7 +90,7 @@ Phases 0–3 below are the original trajectory. They are **completed** (2026-10-
 | **W20**| Mesh beyond one filesystem (laptop behind a tunnel + Colab worker) | Swarm / Infra | `networking/artifacts.py`, `networking/framing.py` (`Duplex`), `networking/peer.py`, `networking/protocol.py`, `mesh.py` (`issue_bundle`), `main.py` (`mesh` switches), `colab/mesh_worker.ipynb`, `colab/README.md` §A | W2, W16 | `--artifacts wire` (inputs fetched / results pushed inside the connection, digest-named, authority-checked), `--no-inbound`, `--verify identity --expect`, `--advertise`, `--role issue` bundles; `validation/test31_wan_mesh_artifacts.py` (50/50, ~60 s). Brief: `delegation/W20-wan-mesh.md` |
 | **W21**| Existential witness introduction | Substrate / Dim 1 | `graph_task.py`, `checker_b.py` | none (kernel off-limits) | Unbound replacement variables mint recorded witnesses; Checker B audits the introduction. Brief: `delegation/W21-witness-introduction.md`. Slot `test33` |
 | **W22**| Algebraic rewriting (recorded grid proofs ✅) | Substrate / Dim 1 | `invariance.py`, `playground.py`, `checker_b.py` (new grid clause) | none | Grid-decided identities become Checker-B-verified derivations; symbolic normalisation remains open. Brief: `delegation/W22-algebraic-rewriting.md`. Slot `test34` |
-| **W23**| Factorisation substrate & derived `NatLess` | Substrate / Dim 1 | `math/arithmetic.py`, `math/peano.py` | none | Subtraction/factor edges; a schema that concludes `NatLess`. Brief: `delegation/W23-factorisation-natless.md`. Slot `test35` |
+| **W23**| Factorisation substrate & derived `NatLess` ✅ | Substrate / Dim 1 | `math/arithmetic.py`, `packs/nat-order.pack.yaml` | none | Partial natural / signed subtraction, exact quotient, gcd cofactors; successor and transitivity schemas conclude `NatLess`. Brief: `delegation/W23-factorisation-natless.md`. Slot `test35` |
 | **W24**| Residue / divisibility schema wiring | Dim 2 | `packs/funceq-nt.pack.yaml`, `math/funceq.py` | W9 ✅ (edges already exist) | `Divides`/`Gcd`/`Modulo`/`IsCoprime` used by schemas, not just host edges. Brief: `delegation/W24-residue-divisibility-wiring.md`. Slot `test36` |
 | **W25**| Curriculum card loader | Dim 2/3/4 | `curriculum.py`, `labels.py`, `curriculum/` | none | Markdown cards become executable graph tasks; held-outs load. Brief: `delegation/W25-curriculum-loader.md`. Slot `test37` |
 | **W26**| Geometry remainder | Dim 2 | `constructions.py`, `packs/geometry-constructions.pack.yaml` | W8 ✅ W4 ✅ | Cyclic-quad / chord-angle schemas; Checker-B receipts in-suite. Brief: `delegation/W26-geometry-remainder.md`. Slot `test38` |
@@ -482,13 +482,40 @@ These arrived during Phase 0/1 execution and are prerequisites or enablers rathe
   distinguish a false constant identity's empty-tuple counterexample from no difference.
   New labels are snapshot-registered. `core.py`, `proof.py`, arithmetic and FLT packs
   untouched. **Full gate: 34/34 suites green**, sequential, ~25.6 min on this sandbox;
-  snapshots untouched. W22's prerequisite is green, but W28/W29 still wait on W23.
+  snapshots untouched. W22's prerequisite is green; W23 subsequently landed below.
   Limits: no symbolic normaliser, no signed/subtraction fragment, no automatic search
   proposal of grid actions, no FLT theorem or descent discharge claimed. Ordinary
   `BuildDerivation` replays ordinary actions only; grid actions are constructed by the
   dedicated API and verified by Checker B, not replayed through that builder.
-- [ ] **W23–W33 (Phase 4+, remainder)**: See §8. Slot `test34` is occupied; other
-  slots remain as allocated.
+- [x] **W23 (Factorisation substrate & derived `NatLess`)**: Completed on
+  `arena/c58acfec-cat-theo-machine` (2026-10-19), slot `test35` (**109/109**, ~26 s).
+  `math/arithmetic.py` adds `NatSubtract` (partial, underflow refused), `WholeSubtract`
+  (existing `WholeAdd` + `WholeNegate`), `ExactNatQuotient` (positive exact divisor only),
+  `CoprimeCofactors` (record `a,b,g,u,v` with `a=g*u`, `b=g*v`, coprime `u,v`) and
+  `NatPredecessorFact` (guarded computed `NatSuccessor(p,n)`, checks `Succ(p)=n`).
+  Zero emits no predecessor fact; `(0,0)` has no cofactor record; single-zero pairs
+  reduce to `(0,1)` / `(1,0)`. The `(2,8)` decoy retains gcd 2 and does **not** acquire
+  a claim that the original pair is coprime.
+  `packs/nat-order.pack.yaml`, registered by path only, carries two authored generic
+  Peano schemas: successor implies strict order; strict order is transitive. Search
+  and forward closure derive `NatLess` facts from the machine-computed successor
+  premises. Checker B verifies the ordinary derivations and refuses swapped goals
+  or withheld rules; a multi-step transitive proof and codec round-trip also pass.
+  **Trust boundary:** these are proofs conditional on explicit computed premises,
+  like `NatSum` in W9, not a new independently audited arithmetic action. The checker
+  replays schemas, not the provenance of initial facts. Do not supply unaudited
+  `NatSuccessor` facts and call the resulting conditional proof arithmetic verification.
+  No changes to kernel files except append-only labels; no changes to `math/peano.py`,
+  Checker B, W21/W22 files, persistence or test26. **Full gate 35/35 green**, sequential,
+  ~27.9 min; snapshots untouched. `test30` measures 0.0674 s/call before and after
+  index growth (ratio **1.00**, within 1.5x). No new index scan or host cache.
+  Not derived: prime factorisation/FTA, coprime-square-factors, Eisenstein UFD,
+  EveryStateMoves or FLT. test26's old absence prose is now historical: its shallow
+  name checks and selected packs do not cover these new sort-specific APIs. test35
+  is the new substrate account; test26's descent claim was neither changed nor upgraded.
+  The W21–W23 entry gate is now green: W28/W29 may retry, not presume success.
+- [ ] **W24–W33 (Phase 4+, remainder)**: See §8. Slots through `test35` are occupied;
+  other slots remain as allocated.
 
 ---
 
@@ -513,7 +540,7 @@ Every Arena agent working on this repository must strictly adhere to the followi
 
    **The exception is conjunctive: both halves must hold.** The code is host-layer, *and* there is no machine analogue for what it does. Being in a harness or a probe is not by itself a licence — if the machine can already answer the question (`Compare`, `IsAtom`, `IsPair`, `IsTree`), then reaching into a payload with `getattr`, `type`, or `.symbol` is a violation wherever it sits. The identity index passes both halves. A probe that read `.symbol` to find an edge by name and `type(x).__name__` to report what came back passed only the first; it was fixed to use `Compare` and `IsAtom`. An earlier draft of this section stated the test as "whether the value crosses into a machine term", which made layer the only condition and would have excused that probe. Do not spend a session on an unscoped purity refactor of host code, and do not cite this rule to reject working host-layer code — but do not cite the host layer to excuse bypassing a predicate the machine already provides.
 3. **No Domain-Specific Hardcoding**: Do not hardcode problem targets or fixed heuristics in search or mining modules.
-4. **Verification Requirement**: Every new worker module or pack must include an automated verification suite in `validation/` with $100\%$ green test results before promotion. There are currently **34** suites — `test1`–`test34` (Phase 4 pre-allocates the remaining `test35`–`test45`, see §8) — each a standalone script. Run one with `PYTHONPATH=<repo-parent> python -u validation/testN_*.py` (the suites insert the package parent onto `sys.path` themselves and import as `cat_theo_machine.*`).
+4. **Verification Requirement**: Every new worker module or pack must include an automated verification suite in `validation/` with $100\%$ green test results before promotion. There are currently **35** suites — `test1`–`test35` (Phase 4 pre-allocates the remaining `test36`–`test45`, see §8) — each a standalone script. Run one with `PYTHONPATH=<repo-parent> python -u validation/testN_*.py` (the suites insert the package parent onto `sys.path` themselves and import as `cat_theo_machine.*`).
 5. **Snapshot Root Invariant**: any new machine state that must survive a cold resume has to be registered as a root in `SnapshotCodec.capture()` and restored in `activate()`. Content added through the graph's `nodes`/`edges` context is now covered; state kept only in Python attributes is not, and silently evaporates on reload.
 6. **Suite Slot Discipline**: `validation/` numbering is append-only. Two lineages independently claimed slots 15 and 16 for unrelated suites; the reconciliation below is what happened, and new work must take the next free number rather than reusing a taken one.
 7. **One serialisation of a machine term**: the snapshot codec. The mesh carries references (W2) and, under `--artifacts wire` (W20), the *bytes of snapshot files* that the receiver loads through the codec — never a pickled or otherwise serialised term (`framing.TERM_PAYLOAD_KEYS` rejects the frame). A new transport that wants to move machine state moves a snapshot.
@@ -911,11 +938,11 @@ What the machine can do *now*, and what it still cannot, by dimension. Substrate
 - Kernel lookup cost that made every sweep quadratic is gone (W18, `test30`). Arithmetic is flat-rate at ~40–75 ms/op (`core.py`'s `uuid4()` is the untouchable floor).
 
 **Not done.**
-- The $n=4$ theorem is reduced to `EveryStateMoves(descent)` — "from every primitive solution a smaller one can be built". Discharge is blocked by four missing *generic* abilities, not by a missing FLT pack: (1) existential witness introduction, so a rule can mint the $m,n$ / $u,v,w$ a descent step constructs; (2) ring normalisation, so `RewriteEquals` reaches identities the grid already decided; (3) a factorisation substrate, so "coprime factors of a square are squares" is derived rather than evidenced on 6 instances; (4) a schema that *concludes* a `NatLess` fact, so the measure drop is derived rather than swept.
+- The $n=4$ theorem remains reduced to `EveryStateMoves(descent)` — "from every primitive solution a smaller one can be built". The original four-part substrate gap now has W21 witness introduction, W22 Checker-B grid proofs (not symbolic normalisation), and W23 subtraction/gcd-cofactor arithmetic plus Peano order schemas. These are enabling tools, **not** a derivation of "coprime factors of a square are squares" or of the descent's measure drop. W29 must retry those obligations and distinguish actual derivations from arithmetic premises/evidence.
 - Unique factorisation in $\mathbb{Z}[\omega]$ and the cubic descent are not derived. W7 is `[~]`.
 - Do not re-author a quartic or cubic pack. W6's withdrawal (`524de6f`) still binds.
 
-**Continuation update.** W21 and W22 are green (see §4). W22 chose recorded grid proofs, not symbolic normalisation; signed expressions remain refused. W23 is still required before W28 ($n=3$) and W29 ($n=4$).
+**Continuation update.** W21–W23 are green (see §4), so W28 ($n=3$) and W29 ($n=4$) may start. W22 chose recorded grid proofs, not symbolic normalisation; its expression grammar still refuses signed operators even though W23 now supplies signed arithmetic subtraction.
 
 ### 7.2 Dimension 2 — IMO problems
 
@@ -991,6 +1018,9 @@ Independent of the five dimensions, still open, and *not* an excuse to reopen W1
 ---
 
 ## 8. Phase 4+ remaining-work DAG (opened 2026-10-19)
+
+**Dispatch update:** W21–W23 are complete (§4). Their nodes below preserve the original
+allocation/dependency plan, not instructions to re-run them. W28/W29 may now start.
 
 ```
 ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
@@ -1136,8 +1166,8 @@ Independent of the five dimensions, still open, and *not* an excuse to reopen W1
 
 ### 8.1 Dispatch rules for Phase 4+
 
-1. **Start immediately (no prereq gate):** W23, W24, W25, W26, W27, W32, W33. W21 and W22 are done (§4); do not re-dispatch them. File ownership is disjoint except `labels.py` (append-only union, as in §6.2). W22 added the brief-authorised Checker-B grid clause after W21 landed; it preserves witness checking.
-2. **Do not start W28 or W29** until W21–W23 have reported. Re-opening FLT without witness introduction will reproduce test26's negative account.
+1. **Start immediately (no prereq gate):** W24, W25, W26, W27, W32, W33. W21–W23 are done (§4); do not re-dispatch them. File ownership is disjoint except `labels.py` (append-only union, as in §6.2). W22 added the brief-authorised Checker-B grid clause after W21 landed; it preserves witness checking.
+2. **W28 and W29 may now start:** W21–W23 have reported green. This removes the entry gate, not their mathematical obligations. Do not treat gcd extraction as unique factorisation or a conditional order proof as a proved descent.
 3. **W30 waits** on at least one new domain receipt. Running it against the present tree would only restate that W8/W10 suites do not exercise the loop.
 4. **One slot per brief**, already allocated above. Do not invent `test33` for something else.
 5. **W22 vs W23:** if a session believes it *must* edit the other's files, stop and report; do not take a silent dependency.
