@@ -2,7 +2,8 @@
 
 **Dimension 1 · Phase 5 · Suite slot `test41` · Prereqs W21, W22, W23, W6 `[~]`**
 
-> **Reported 2026-10-19:** test41 passes 54/54 with a precise negative. No
+> **Reported 2026-10-19:** test41 initially passed 54/54; the endpoint follow-up
+> now passes 56/56, still with a precise negative. No
 > EveryStateMoves discharge or FLT theorem. Do not re-dispatch this brief
 > unchanged. W21–W23 were green for this retry; W6/test26 remains historical.
 > See the completion note below for the remaining gaps.
@@ -39,7 +40,7 @@ stand after W21–W23. No `core.py`. No revival of `flt-quartic`.
 $n=3$ (W28), the full FLT, weakening the ledger, rewriting history in `test26`.
 
 
-## Completion / coordinator handoff (2026-10-19)
+## Initial completion / coordinator handoff (2026-10-19)
 
 Outcome: **precise negative** (the permitted third outcome), not a mathematical
 counterexample and not a statement that no future prover could do it.
@@ -94,11 +95,37 @@ conditional order receipts must not be promoted as a verified descent macro.
 
 - Generic constrained arithmetic witness construction (not anonymous allocation).
 - Derived parametrisation completeness and the coprime-square-factor argument.
-- Natural-value equality/transport for facts and goals, with Checker-B provenance
-  preserved; do not fix this by making arbitrary anonymous atoms compare equal.
+- The adapter-level endpoint mismatch is now fixed (follow-up below). General
+  value-equality transport for arbitrary/previously stored facts is not implemented;
+  never repair this by making arbitrary anonymous atoms compare equal.
 - A checked construction that preserves source-solution membership and strictly
   decreases a well-founded measure, plus coverage of **every** source state.
 
 No new rule concludes EveryStateMoves, no smaller solution is asserted, no quartic
 pack is revived, and no result here proves FLT. The isolated receipts do not clear
 W30's domain-macro gate as an FLT success.
+
+
+## Endpoint follow-up (2026-10-19)
+
+The first actionable integration gap is now repaired in the **W23 arithmetic
+adapter**, not by weakening fact equality or Checker B. NatPredecessorFact
+interns its computed predecessor through the existing natural-value index before
+emitting NatSuccessor(p,n), while preserving the input upper atom n. The new fact
+uses the same lower atom as independently computed NatSubtract(n,1).
+
+Current test41: **56/56**, ~62 s. The proof now verifies the independently
+computed 40<41 endpoint in the concrete measure retry. A raw NatPred result still
+shows the original alias mismatch and the verifier still rejects that off-index
+atom; general equality is unchanged. Reversed order, EveryStateMoves, missing
+premises and laundering conditional receipts remain rejected. The ledger stays 0.
+
+Current test35: **146/146**, ~44 s, including independent arithmetic endpoints,
+transitive joins crossing representation boundaries, invalid inputs and codec
+replay. Full gate **36/36 green**, ~28.7 min. No kernel/checker/pack/test26 or
+snapshot changes; production diff is scoped to math/arithmetic.py.
+
+This repairs newly emitted predecessor facts only. It does not add a general
+substitution/transport rule, migrate old off-index facts, authenticate initial
+arithmetic premises, solve constrained witnesses, derive a parametrisation or
+construct a smaller solution. The universal movement obligation remains open.

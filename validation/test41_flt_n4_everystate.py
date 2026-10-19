@@ -1,16 +1,16 @@
 """W29: retry W6's missing list after W21-W23; precise negative outcome.
 
-No quartic, parametrisation or square-factor schema is authored. Existing
-modules/packs and test26 are consumed unchanged. A full registered-rule audit
+No quartic, parametrisation or square-factor schema is authored. The W23 adapter now interns its computed endpoint; all
+packs and test26 are consumed unchanged. A full registered-rule audit
 pins the missing EveryStateMoves producer; bounded smoke searches are labelled
 as such, not used as a proof of impossibility. The symbol-absence argument is
 scoped to these ordinary knowledge-rewrite rules, not arbitrary future code.
 
 Progress is real but limited: anonymous witnesses allocate, both W6 polynomial
 identities have Checker-B grid proofs, and a predecessor of an actual family
-measure has a Peano proof from a computed successor premise. Atom identity
-blocks transporting even that one-step order fact to its independently computed
-arithmetic endpoint. None constructs a smaller solution or proves a universal
+measure has a Peano proof from a computed successor premise. The adapter now
+uses the arithmetic endpoint, without equating arbitrary anonymous atoms or
+changing raw NatPred. None constructs a smaller solution or proves a universal
 descent. The ledger must not promote it.
 """
 import os
@@ -159,7 +159,7 @@ def main():
     decoy = take(A.CoprimeCofactors(nat(2), nat(8), reg)())
     check('noncoprime square-product decoy retains gcd two', same_number(field(decoy, 2), M.two))
 
-    print('[4] W23: concrete measure retry exposes endpoint value/identity mismatch', flush=True)
+    print('[4] W23 follow-up: canonical predecessor endpoint now matches arithmetic', flush=True)
     # The smallest coprime opposite-parity parameter pair used in W6. This is
     # a human-selected arithmetic instance, NOT a discovered parametrisation.
     aa, bb = M.two, M.one
@@ -175,15 +175,18 @@ def main():
     check('candidate measures are computed as 5 and 41', same_number(smaller_measure, nat(5)) and same_number(larger_measure, nat(41)))
     check('the gap is computed, not authored as an order premise', same_number(gap, nat(36)))
     check('machine comparison sees 5<41, but this verdict is not a derivation', M.NatLess(smaller_measure, larger_measure, reg)() is M.truth_value)
-    # Retry even the immediate-predecessor decrease of this computed upper
-    # measure. No expensive full successor chain is needed to expose the
-    # grounding/transport failure; the family-wide decrease remains evidence.
+    # The original W29 retry failed even for this immediate predecessor.
+    # Preserve the raw mismatch as a control, then test the adapter-level fix.
+    # No expensive full successor chain is needed; family-wide decrease still
+    # requires a separate construction and coverage proof.
     predecessor_record = take(A.NatPredecessorFact(larger_measure, reg)())
     predecessor = field(predecessor_record, 0)
     canonical_predecessor = take(A.NatSubtract(larger_measure, M.one, reg)())
     check('predecessor adapter and subtraction agree by NatEq', same_number(predecessor, canonical_predecessor))
     check('both predecessor values are 40', same_number(predecessor, nat(40)))
-    check('but predecessor and arithmetic endpoint are distinct atoms', M.IdentityCompare(predecessor, canonical_predecessor)() is M.false_value)
+    check('adapter predecessor now shares the arithmetic endpoint', M.IdentityCompare(predecessor, canonical_predecessor)() is M.truth_value)
+    raw_predecessor = take(M.NatPred(larger_measure, reg)())
+    check('raw NatPred still demonstrates the original value/identity mismatch', same_number(raw_predecessor, canonical_predecessor) and M.IdentityCompare(raw_predecessor, canonical_predecessor)() is M.false_value)
     order_pack = loaded.by_name('nat-order')
     successor_rule = order_pack.rule_map['successor_strict_order']
     matched = M.Match(P.RulePattern(successor_rule)(), predecessor_record)()
@@ -194,7 +197,9 @@ def main():
     order_proof = take(P.BuildDerivation(order_start, order_plan, reg)())
     check('Checker B verifies the predecessor-endpoint order fact', M.Head(CB.VerifyDerivation(order_proof, order_start, order_goal, order_pack.rule_chain, reg)())() is L.DerivationVerifiedLabel)
     exact_order_goal = P.Knowledge(chain(fact(L.NatLessLabel, canonical_predecessor, larger_measure)))()
-    check('same proof does not cover the independently computed endpoint', M.Head(CB.VerifyDerivation(order_proof, order_start, exact_order_goal, order_pack.rule_chain, reg)())() is L.GoalMismatchLabel)
+    check('same proof now verifies the independently computed endpoint', M.Head(CB.VerifyDerivation(order_proof, order_start, exact_order_goal, order_pack.rule_chain, reg)())() is L.DerivationVerifiedLabel)
+    raw_goal = P.Knowledge(chain(fact(L.NatLessLabel, raw_predecessor, larger_measure)))()
+    check('the fix does not silently identify off-index atoms', M.Head(CB.VerifyDerivation(order_proof, order_start, raw_goal, order_pack.rule_chain, reg)())() is L.GoalMismatchLabel)
     backwards = P.Knowledge(chain(fact(L.NatLessLabel, larger_measure, predecessor)))()
     check('same predecessor proof cannot establish reversed order', M.Head(CB.VerifyDerivation(order_proof, order_start, backwards, order_pack.rule_chain, reg)())() is L.GoalMismatchLabel)
     check('predecessor proof cannot establish universal movement', M.Head(CB.VerifyDerivation(order_proof, order_start, every_goal, order_pack.rule_chain, reg)())() is L.GoalMismatchLabel)
@@ -269,7 +274,7 @@ def main():
     print('W29 OUTCOME: PRECISE NEGATIVE. EveryStateMoves remains undischarged; ledger version 0.', flush=True)
     print('Available: handle allocation, verified grid identities, gcd extraction, one computed predecessor order fact.', flush=True)
     print('Missing: arithmetic witness solving, parametrisation completeness, coprime-square-factor proof,', flush=True)
-    print('value-equality transport for order facts, and a verified construction/coverage argument', flush=True)
+    print('and a verified construction/coverage argument', flush=True)
     print('linking each source solution to a smaller solution.', flush=True)
     print('No quartic rule, square lemma, parameterisation or domain constant was authored into a rule.', flush=True)
 

@@ -170,9 +170,13 @@ class CoprimeCofactors(M.Edge):
 class NatPredecessorFact(M.Edge):
     """Guarded arithmetic-to-fact adapter for the Peano order pack.
 
-    For a positive natural n compute p=NatPred(n), check Succ(p)=n, and
-    return Pair(NatSuccessor(p,n), Pair(registry, [])). Zero and invalid
-    sorts return no fact: NatPred's saturated predecessor at zero must NOT
+    For a positive natural n compute p=NatPred(n), intern p by its natural
+    value, check Succ(p)=n, and return Pair(NatSuccessor(p,n), Pair(registry,
+    [])). The original upper endpoint n is retained. Interning the lower
+    endpoint makes it join with arithmetic results such as NatSubtract(n,1),
+    without changing general fact equality or the raw NatPred edge.
+    Zero and invalid sorts return no fact: NatPred's saturated predecessor
+    at zero must NOT
     license NatLess(0,0). This is a computed premise, not an order verdict.
     """
 
@@ -189,6 +193,16 @@ class NatPredecessorFact(M.Edge):
         pred = M.NatPred(n, registry)()
         p = M.Head(pred)()
         reg1 = M.Head(M.Tail(pred)())()
+        # NatPred may return an unindexed cached atom for larger naturals.
+        # Term matching is identity-sensitive, so a value-equal arithmetic
+        # result otherwise fails to join this fact. Use the existing index,
+        # not a host cache, a new equality rule, or a checker exception.
+        predecessor_rep = _natural_rep(p, reg1)
+        if M.IdentityCompare(predecessor_rep, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.EmptyList, M.Pair(reg1, M.EmptyList))
+        canonical = M.NatFromRep(predecessor_rep, reg1)()
+        p = M.Head(canonical)()
+        reg1 = M.Head(M.Tail(canonical)())()
         successor = M.Succ(p, reg1)()
         reg2 = M.Head(M.Tail(successor)())()
         if M.NatEq(M.Head(successor)(), n, reg2)() is M.false_value:

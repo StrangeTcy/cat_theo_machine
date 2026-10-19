@@ -121,6 +121,7 @@ def main():
         check('positive natural produces a successor computation fact', M.Head(computed)() is L.NatSuccessorLabel)
         lower = field(computed, 0)
         check('fact agrees with machine predecessor/successor', equal(lower, expected_lower) and equal(field(computed, 1), upper))
+        check('predecessor fact uses the interned arithmetic endpoint', M.IdentityCompare(lower, expected_lower)() is M.truth_value)
         start = P.Knowledge(chain(computed))()
         goal = P.Knowledge(chain(fact(L.NatLessLabel, lower, upper)))()
         closure = GT.ForwardDeriveFacts(chain(computed), rules, M.two, reg)()
@@ -133,22 +134,58 @@ def main():
         check('same proof with withheld rule is refused', M.Head(CB.VerifyDerivation(proof, start, goal, M.EmptyList, reg)())() is L.UnknownRuleLabel)
         check('swapped inequality is not derivable', take(D.SearchKnowledgeDerivation(start, swapped, rules, M.two, reg)()) is M.EmptyList)
         saved_start, saved_goal, saved_proof = start, goal, proof
+    # Exercise both interning orders and cross the small-Nat representation
+    # boundary. Large input values must not force a predecessor chain walk.
+    for n in (17, 41, 1000, 1000003):
+        upper = nat(n)
+        computed = take(A.NatPredecessorFact(upper, reg)())
+        endpoint = take(A.NatSubtract(upper, M.one, reg)())
+        check('adapter-first endpoint agrees by identity for n=%d' % n,
+              M.IdentityCompare(field(computed, 0), endpoint)() is M.truth_value)
+        repeated = take(A.NatPredecessorFact(upper, reg)())
+        check('repeated adapter calls retain the endpoint', M.IdentityCompare(field(repeated, 0), endpoint)() is M.truth_value)
+        independent_goal = P.Knowledge(chain(fact(L.NatLessLabel, endpoint, upper)))()
+        state = P.Knowledge(chain(computed))()
+        proof = take(D.SearchKnowledgeDerivation(state, independent_goal, rules, M.two, reg)())
+        check('independent arithmetic-endpoint goal has a proof', proof is not M.EmptyList)
+        check('Checker B accepts independent arithmetic endpoint', M.Head(CB.VerifyDerivation(proof, state, independent_goal, rules, reg)())() is L.DerivationVerifiedLabel)
+        wrong_goal = P.Knowledge(chain(fact(L.NatLessLabel, upper, endpoint)))()
+        check('canonical endpoint does not license reversed inequality', M.Head(CB.VerifyDerivation(proof, state, wrong_goal, rules, reg)())() is L.GoalMismatchLabel)
+        saved_start, saved_goal, saved_proof = state, independent_goal, proof
+
+    # An off-index upper input remains the caller's exact endpoint. Only the
+    # computed lower endpoint is canonicalised; arbitrary input atoms are not
+    # globally identified, even when they carry equal natural values.
+    larger = nat(42)
+    off_index_upper = take(M.NatPred(larger, reg)())
+    computed = take(A.NatPredecessorFact(off_index_upper, reg)())
+    expected = take(A.NatSubtract(off_index_upper, M.one, reg)())
+    check('adapter preserves the supplied upper atom', M.IdentityCompare(field(computed, 1), off_index_upper)() is M.truth_value)
+    check('off-index upper still produces a canonical lower endpoint', M.IdentityCompare(field(computed, 0), expected)() is M.truth_value)
+    check('distinct anonymous atoms still do not compare equal', M.Compare(M.Thingy(), M.Thingy())() is M.false_value)
+
     for value in (M.Zero, bad, whole(-1)):
         check('zero or wrong sort emits no predecessor fact', take(A.NatPredecessorFact(value, reg)()) is M.EmptyList)
     empty_start = P.Knowledge(M.EmptyList)()
     check('no computed premise means no order proof', take(D.SearchKnowledgeDerivation(empty_start, saved_goal, rules, M.two, reg)()) is M.EmptyList)
     zero_goal = P.Knowledge(chain(fact(L.NatLessLabel, M.Zero, M.Zero)))()
     check('zero does not acquire a strict self inequality', take(D.SearchKnowledgeDerivation(empty_start, zero_goal, rules, M.two, reg)()) is M.EmptyList)
-    lower_record = take(A.NatPredecessorFact(nat(6), reg)())
-    middle = field(lower_record, 0)
-    bottom_record = take(A.NatPredecessorFact(middle, reg)())
-    bottom = field(bottom_record, 0)
-    top = field(lower_record, 1)
-    start = P.Knowledge(chain(lower_record, bottom_record))()
-    goal = P.Knowledge(chain(fact(L.NatLessLabel, bottom, top)))()
-    proof = take(D.SearchKnowledgeDerivation(start, goal, rules, M.three, reg)())
-    check('transitive decrease uses both computed predecessor facts', proof is not M.EmptyList)
-    check('multi-step transitive order proof verified', M.Head(CB.VerifyDerivation(proof, start, goal, rules, reg)())() is L.DerivationVerifiedLabel)
+    for top_value in (6, 18, 1002):
+        top = nat(top_value)
+        arithmetic_middle = take(A.NatSubtract(top, M.one, reg)())
+        arithmetic_bottom = take(A.NatSubtract(arithmetic_middle, M.one, reg)())
+        lower_record = take(A.NatPredecessorFact(top, reg)())
+        bottom_record = take(A.NatPredecessorFact(arithmetic_middle, reg)())
+        check('independent arithmetic middle joins both successor facts',
+              M.IdentityCompare(field(lower_record, 0), field(bottom_record, 1))() is M.truth_value)
+        check('independent arithmetic bottom is the derived endpoint',
+              M.IdentityCompare(field(bottom_record, 0), arithmetic_bottom)() is M.truth_value)
+        start = P.Knowledge(chain(lower_record, bottom_record))()
+        goal = P.Knowledge(chain(fact(L.NatLessLabel, arithmetic_bottom, top)))()
+        proof = take(D.SearchKnowledgeDerivation(start, goal, rules, M.three, reg)())
+        check('transitive decrease uses both computed predecessor facts', proof is not M.EmptyList)
+        check('multi-step transitive order proof verified', M.Head(CB.VerifyDerivation(proof, start, goal, rules, reg)())() is L.DerivationVerifiedLabel)
+        saved_start, saved_goal, saved_proof = start, goal, proof
 
     codec = persistence.SnapshotCodec(main_mod._runtime_namespace())
     state = codec.load_snapshot(codec.capture_objects({'registry': reg, 'start': saved_start,

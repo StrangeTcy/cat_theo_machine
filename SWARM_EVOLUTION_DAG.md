@@ -96,7 +96,7 @@ Phases 0–3 below are the original trajectory. They are **completed** (2026-10-
 | **W26**| Geometry remainder | Dim 2 | `constructions.py`, `packs/geometry-constructions.pack.yaml` | W8 ✅ W4 ✅ | Cyclic-quad / chord-angle schemas; Checker-B receipts in-suite. Brief: `delegation/W26-geometry-remainder.md`. Slot `test38` |
 | **W27**| Engel remainder | Dim 3 | `packs/engel-strategies.pack.yaml`, `invariant_miner.py`, `search/` | W10 ✅ | Real Engel instances as evaluation data; strategies fire in search. Brief: `delegation/W27-engel-remainder.md`. Slot `test39` |
 | **W28**| FLT $n=3$ UFD + cubic descent | Dim 1 | `playground.py`, `math/arithmetic.py` | W21, W22, W23, W7 `[~]` | Unique factorisation scaffolding used, cubic descent attempted. Brief: `delegation/W28-flt-n3-ufd-descent.md`. Slot `test40` |
-| **W29**| FLT $n=4$ `EveryStateMoves` retry — precise negative | Dim 1 | `validation/test41_flt_n4_everystate.py`; test26 unchanged | W21–W23 ✅, W6 `[~]` | 54/54; no universal movement producer in all 206 registered rules. The descent remains open. Brief: `delegation/W29-flt-n4-everystate.md`. Slot `test41` |
+| **W29**| FLT $n=4$ `EveryStateMoves` retry — precise negative | Dim 1 | `validation/test41_flt_n4_everystate.py`; test26 unchanged | W21–W23 ✅, W6 `[~]` | 56/56; adapter endpoint repaired, but no universal movement producer in all 206 registered rules. The descent remains open. Brief: `delegation/W29-flt-n4-everystate.md`. Slot `test41` |
 | **W30**| Domain packs through the closed loop | Dim 4 | `checker_b.py`, `promotion_ledger.py`, `evaluator.py` | W12 ✅, W24–W27 | Geometry/Engel/funceq derivations earn receipts or stated refusals. Brief: `delegation/W30-domain-promotion-loop.md`. Slot `test42` |
 | **W31**| Tutor/story beyond arithmetic | Dim 5 | `dialogue.py`, `story_renderer.py` | W15 ✅ W14 ✅ | Claims and stories over geometry/Engel/FLT vocabulary. Brief: `delegation/W31-dialogue-beyond-arithmetic.md`. Slot `test43` |
 | **W32**| Swarm unit-boot cost | Infra | `persistence.py`, `search/distributed_engine.py` | W16 ✅ | Cut the 12–30 s per-unit boot that makes swarm speedup negative. Brief: `delegation/W32-swarm-boot-cost.md`. Slot `test44` |
@@ -173,11 +173,12 @@ These arrived during Phase 0/1 execution and are prerequisites or enablers rathe
   theorem. The brief's own ranking applies: this is a precise partial, not a positive hiding an
   authored step.
   **W29 continuation (2026-10-19):** `test41_flt_n4_everystate.py` retries this
-  missing list after W21–W23; 54/54, precise negative, ledger 0. The grid identities
+  missing list after W21–W23; initially 54/54, now 56/56 after the endpoint
+  repair below; precise negative, ledger 0. The grid identities
   now have Checker-B receipts, but anonymous allocation is not arithmetic witness
   solving and gcd extraction is not a square-root/parametrisation theorem. A new
-  value/identity mismatch blocks transporting a computed predecessor-order fact to
-  an independently computed equal-valued endpoint. See §4 W29 below; EveryStateMoves
+  value/identity mismatch was found in computed predecessor-order facts; the adapter
+  follow-up below now interns the computed endpoint. See §4 W29; EveryStateMoves
   and the full descent remain undischarged. test26 is unchanged.
 - [~] **W7 (FLT $n=3$ Eisenstein UFD Factorization)**: Partial, machine-derived, verified in
   `validation/test20_flt_eisenstein_discovery.py` (all sections green, ~92–98 s) — slot 20, from
@@ -521,9 +522,20 @@ These arrived during Phase 0/1 execution and are prerequisites or enablers rathe
   name checks and selected packs do not cover these new sort-specific APIs. test35
   is the new substrate account; test26's descent claim was neither changed nor upgraded.
   The W21–W23 entry gate is now green: W28/W29 may retry, not presume success.
+  **W29-driven adapter follow-up (2026-10-19):** NatPredecessorFact now interns
+  its computed predecessor through the existing NatFromRep/NatValueIndex before
+  checking Succ(p)=n and emitting the fact. The input upper atom n is preserved.
+  Thus it joins independently computed NatSubtract(n,1) endpoints without any
+  general equality change or new trusted checker rule. Raw NatPred is unchanged.
+  test35 covers both interning orders, values through 1,000,003, repeated calls,
+  off-index upper inputs, transitive joins across representation boundaries and
+  codec replay. Latest full gate 36/36; test30 growth ratio 1.04 (within 1.5x).
+  This repairs newly emitted predecessor facts, not arbitrary equal-valued atoms
+  or facts already stored with off-index endpoints. It proves no new descent.
 - [~] **W29 (Quartic descent / `EveryStateMoves` retry)**: Closed as a precise
   negative on `arena/c58acfec-cat-theo-machine` (2026-10-19), slot `test41`:
-  **54/54**, ~67 s. Consumes W21–W23 unchanged and adds no prover code or rules.
+  Initially **54/54**, ~67 s, consuming W21–W23 unchanged. Following the narrow
+  W23 adapter repair below, test41 is **56/56**, ~62 s. No descent rule is added.
   - W21 introductions allocate distinct recorded anonymous handles; neither natural
     arithmetic nor gcd extraction turns them into constrained numerical witnesses.
   - Both W6 grid identities now have Checker-B-verified derivations. Their receipts
@@ -534,11 +546,12 @@ These arrived during Phase 0/1 execution and are prerequisites or enablers rathe
     authored or promoted.
   - A human-selected family instance computes the candidate measures 5 and 41.
     `NatLess(5,41)` is an arithmetic verdict, not a general decrease derivation.
-    Even the immediate predecessor of 41 exposes a transport gap: the predecessor
-    adapter emits a 40-valued atom distinct from the atom produced by `NatSubtract`.
-    `NatEq` says equal; the successor schema proves order for the emitted endpoint;
-    Checker B rejects the same proof against the independently computed endpoint
-    (`GoalMismatch`). Fact matching/coverage does not use natural value equality.
+    The initial retry exposed a transport gap at the immediate predecessor of 41:
+    the adapter emitted a 40-valued atom distinct from `NatSubtract`'s result.
+    **Follow-up repaired that producer boundary:** NatPredecessorFact now interns
+    its computed lower endpoint, so the same proof verifies the independent
+    arithmetic endpoint. Raw NatPred's off-index atom still fails that goal;
+    general fact matching/coverage and Checker B equality remain unchanged.
   - Full registered-pack audit: **17 packs / 206 raw rules**, no occurrence of
     `EveryStateMovesLabel` or `ExistsLabel` in any replacement. Initial source facts
     contain neither the movement claim nor its symbol. Ordinary substitution and
@@ -550,12 +563,13 @@ These arrived during Phase 0/1 execution and are prerequisites or enablers rathe
     is rejected by the policy scope guard. Both the actual missing-universal claim
     and a skeleton replay without that premise are submitted to the real ledger,
     rejected for `GoalMismatch`; ledger remains 0, no active domain promotion.
-  **Full gate: 36/36 suites green** (`test1`–`test35` plus `test41`), ~28.9 min
-  sequential. Only the new suite and handoff/status docs changed; test26, all
-  modules, packs and snapshots untouched. Do not re-dispatch W29 unchanged.
-  Reopen only after generic constrained arithmetic witnesses, parametrisation/
-  coprime-square-factor proofs, value-equality transport, and a checked construction
-  plus source-state coverage path are available. No FLT, smaller solution or
+  Initial gate: 36/36 green, ~28.9 min; only the new suite/docs changed then.
+  **Endpoint follow-up gate: 36/36 green**, ~28.7 min sequential; test35 is now
+  146/146 (~44 s), test41 56/56 (~62 s). Only math/arithmetic.py, these suites and
+  docs changed in the follow-up; kernel, checker, packs, test26 and snapshots
+  remain untouched. Do not re-dispatch the descent attempt unchanged. Generic
+  constrained arithmetic witnesses, parametrisation/coprime-square-factor proofs
+  and a checked construction plus source-state coverage path remain missing. No FLT, smaller solution or
   EveryStateMoves theorem is claimed; these isolated receipts do not clear W30's
   gate as a verified FLT domain macro.
 - [ ] **W24–W28, W30–W33 (Phase 4+, remainder)**: See §8. Slots through `test35`

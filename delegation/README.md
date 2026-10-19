@@ -20,7 +20,7 @@ Index (open workers only):
 | `W26-geometry-remainder.md` | Cyclic-quad / chord-angle + receipts | 2 | 4b | W8 ✅ W4 ✅ — **start now** | `test38` |
 | `W27-engel-remainder.md` | Real instances, search firing, measure discovery | 3 | 4b | W10 ✅ — **start now** | `test39` |
 | `W28-flt-n3-ufd-descent.md` | Eisenstein UFD + cubic descent | 1 | 5 | W21–W23 ✅, W7 `[~]` — **ready** | `test40` |
-| `W29-flt-n4-everystate.md` | **Closed, precise negative:** EveryStateMoves still open (DAG §4) | 1 | 5 | do not re-dispatch unchanged | `test41` 54/54 |
+| `W29-flt-n4-everystate.md` | **Closed, precise negative:** EveryStateMoves still open (DAG §4) | 1 | 5 | do not re-dispatch unchanged | `test41` 56/56 |
 | `W30-domain-promotion-loop.md` | Domain packs through Checker B + ledger | 4 | 6 | W12 ✅ + a Phase 4b receipt — **gated** | `test42` |
 | `W31-dialogue-beyond-arithmetic.md` | Tutor/story beyond arithmetic | 5 | 6 | W15 ✅ W14 ✅ | `test43` |
 | `W32-swarm-boot-cost.md` | Swarm unit-boot cost | Infra | 7 | W16 ✅ — **start now** | `test44` |

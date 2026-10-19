@@ -128,3 +128,32 @@ consequences claimed by this worker.
 its name checks mention generic legacy symbols, not these sort-specific operations,
 and its selected packs exclude `nat-order`. Its negative FLT/descent account was not
 upgraded. `test35` is the authoritative test of this new substrate.
+
+
+## W29-driven endpoint repair (2026-10-19)
+
+NatPredecessorFact previously passed raw NatPred's output directly into the
+successor fact. For larger values this can be a cached but off-index atom:
+NatEq agrees with NatSubtract(n,1), but identity-sensitive rule matching and
+FactsCover reject an independently computed equal-valued endpoint.
+
+The adapter now interns **only its computed predecessor** using existing
+NatFromRep/NatValueIndex, threads the returned registry, then checks Succ(p)=n.
+It retains the caller's original upper atom n, including an off-index upper
+input. Zero/invalid-input refusals are unchanged. There is no new cache, rule,
+checker clause, equality relaxation, or kernel/raw NatPred modification.
+
+The test35 follow-up is **146/146** (~44 s): arithmetic-first and adapter-first
+interning, repeated calls, natural values 17/41/1000/1000003, independent-endpoint
+proofs, reversed-goal rejection, preserved upper identity, distinct anonymous
+atoms, transitive joins across small/large representation boundaries and
+snapshot-codec proof replay. test41 is **56/56**, and now accepts the exact
+independent arithmetic endpoint while still refusing a raw off-index atom.
+Full gate: **36/36 green**, ~28.7 min; test30's lookup-growth ratio is **1.04**
+(first 0.0638 s/call, third 0.0667), within the unchanged 1.5x bound.
+
+This is a producer-boundary repair for newly computed predecessor facts. It is
+not general value-equality transport and does not migrate previously stored
+facts or identify arbitrary anonymous atoms. Initial successor facts remain
+explicit arithmetic premises; their provenance is not independently rechecked
+by Checker B. W29 still cannot discharge EveryStateMoves or prove FLT.
