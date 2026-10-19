@@ -96,7 +96,7 @@ Phases 0–3 below are the original trajectory. They are **completed** (2026-10-
 | **W26**| Geometry remainder | Dim 2 | `constructions.py`, `packs/geometry-constructions.pack.yaml` | W8 ✅ W4 ✅ | Cyclic-quad / chord-angle schemas; Checker-B receipts in-suite. Brief: `delegation/W26-geometry-remainder.md`. Slot `test38` |
 | **W27**| Engel remainder | Dim 3 | `packs/engel-strategies.pack.yaml`, `invariant_miner.py`, `search/` | W10 ✅ | Real Engel instances as evaluation data; strategies fire in search. Brief: `delegation/W27-engel-remainder.md`. Slot `test39` |
 | **W28**| FLT $n=3$ UFD + cubic descent | Dim 1 | `playground.py`, `math/arithmetic.py` | W21, W22, W23, W7 `[~]` | Unique factorisation scaffolding used, cubic descent attempted. Brief: `delegation/W28-flt-n3-ufd-descent.md`. Slot `test40` |
-| **W29**| FLT $n=4$ `EveryStateMoves` retry — precise negative | Dim 1 | `validation/test41_flt_n4_everystate.py`; test26 unchanged | W21–W23 ✅, W6 `[~]` | 56/56; adapter endpoint repaired, but no universal movement producer in all 206 registered rules. The descent remains open. Brief: `delegation/W29-flt-n4-everystate.md`. Slot `test41` |
+| **W29**| FLT $n=4$ `EveryStateMoves` retry — precise negative | Dim 1 | `validation/test41_flt_n4_everystate.py`; test26 unchanged | W21–W23 ✅, W6 `[~]` | 61/61; adapter repaired and finite numeric fixture solved, but no universal movement producer in all 206 registered rules. The descent remains open. Brief: `delegation/W29-flt-n4-everystate.md`. Slot `test41` |
 | **W30**| Domain packs through the closed loop | Dim 4 | `checker_b.py`, `promotion_ledger.py`, `evaluator.py` | W12 ✅, W24–W27 | Geometry/Engel/funceq derivations earn receipts or stated refusals. Brief: `delegation/W30-domain-promotion-loop.md`. Slot `test42` |
 | **W31**| Tutor/story beyond arithmetic | Dim 5 | `dialogue.py`, `story_renderer.py` | W15 ✅ W14 ✅ | Claims and stories over geometry/Engel/FLT vocabulary. Brief: `delegation/W31-dialogue-beyond-arithmetic.md`. Slot `test43` |
 | **W32**| Swarm unit-boot cost | Infra | `persistence.py`, `search/distributed_engine.py` | W16 ✅ | Cut the 12–30 s per-unit boot that makes swarm speedup negative. Brief: `delegation/W32-swarm-boot-cost.md`. Slot `test44` |
@@ -173,8 +173,9 @@ These arrived during Phase 0/1 execution and are prerequisites or enablers rathe
   theorem. The brief's own ranking applies: this is a precise partial, not a positive hiding an
   authored step.
   **W29 continuation (2026-10-19):** `test41_flt_n4_everystate.py` retries this
-  missing list after W21–W23; initially 54/54, now 56/56 after the endpoint
-  repair below; precise negative, ledger 0. The grid identities
+  missing list after W21–W23; initially 54/54, then 56/56 after the endpoint
+  repair, now 61/61 with a bounded numeric witness probe; precise negative,
+  ledger 0. Supplemental test46 validates bounded numeric search (185/185). The grid identities
   now have Checker-B receipts, but anonymous allocation is not arithmetic witness
   solving and gcd extraction is not a square-root/parametrisation theorem. A new
   value/identity mismatch was found in computed predecessor-order facts; the adapter
@@ -572,8 +573,31 @@ These arrived during Phase 0/1 execution and are prerequisites or enablers rathe
   and a checked construction plus source-state coverage path remain missing. No FLT, smaller solution or
   EveryStateMoves theorem is claimed; these isolated receipts do not clear W30's
   gate as a verified FLT domain macro.
+- [x] **Constrained Nat witness follow-up** (2026-10-19; supplemental slot
+  `validation/test46_constrained_nat_witnesses.py`): generic **bounded** numeric
+  search, not another anonymous-handle allocator. `playground.FindNatWitness`
+  streams `[0,bound)^arity` using machine chains/arithmetic, with a native
+  candidate-count budget. Accepts equations and strict inequalities in the
+  existing natural-polynomial fragment. Separate Found/Exhausted/Budget/Invalid
+  statuses prevent bounded absence, resource refusal and malformed input from
+  being conflated. `VerifyNatWitness` independently re-evaluates an exact numeric
+  assignment against the caller's constraints/bound; it does not authenticate
+  the search record's count, completeness claim or status.
+  - test46 **185/185**, ~8 s: carries/last tuples, numeric bindings, opaque formal
+    variables without sort mutation, bounds/budget, invalid requests, changed
+    constraints, empty-dimensional products, codec replay, no movement proof.
+  - test41 **61/61**, ~60 s: a human-supplied finite fixture `2mn=4`,
+    `m²+n²=5`, `0<n<m` yields `(2,1)` after seven checks. This is NOT a
+    discovered parametrisation, universal existence theorem or smaller solution.
+  - Latest **37/37 suites green** (~27.5 min); test35 146/146; test30 ratio 1.07.
+    Only playground/label vocabulary, test41/test46 and handoff docs changed;
+    kernel, checker, ledger, arithmetic adapter, packs, snapshots and test26 are
+    untouched. No new proof capability or promotion is enabled. W29 still lacks
+    uniform witnesses/parametrisation/square-factor proofs and checked source
+    coverage. Budget bounds candidate checks, not exponent cost or wall time.
+  Full API/trust-boundary handoff: `delegation/constrained-nat-witnesses.md`.
 - [ ] **W24–W28, W30–W33 (Phase 4+, remainder)**: See §8. Slots through `test35`
-  plus `test41` are occupied; other slots remain as allocated.
+  plus `test41` and supplemental `test46` are occupied; other slots remain as allocated.
 
 ---
 

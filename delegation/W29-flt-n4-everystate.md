@@ -3,7 +3,8 @@
 **Dimension 1 · Phase 5 · Suite slot `test41` · Prereqs W21, W22, W23, W6 `[~]`**
 
 > **Reported 2026-10-19:** test41 initially passed 54/54; the endpoint follow-up
-> now passes 56/56, still with a precise negative. No
+> passed 56/56; the bounded numeric witness follow-up now passes 61/61,
+> still with a precise negative. No
 > EveryStateMoves discharge or FLT theorem. Do not re-dispatch this brief
 > unchanged. W21–W23 were green for this retry; W6/test26 remains historical.
 > See the completion note below for the remaining gaps.
@@ -93,7 +94,9 @@ conditional order receipts must not be promoted as a verified descent macro.
 
 ### What must change before another retry
 
-- Generic constrained arithmetic witness construction (not anonymous allocation).
+- Source-state-uniform constrained arithmetic witness construction. Generic
+  bounded numeric search is now available (follow-up below), not a universal
+  existence theorem or a complete solver for arbitrary natural constraints.
 - Derived parametrisation completeness and the coprime-square-factor argument.
 - The adapter-level endpoint mismatch is now fixed (follow-up below). General
   value-equality transport for arbitrary/previously stored facts is not implemented;
@@ -114,7 +117,7 @@ interns its computed predecessor through the existing natural-value index before
 emitting NatSuccessor(p,n), while preserving the input upper atom n. The new fact
 uses the same lower atom as independently computed NatSubtract(n,1).
 
-Current test41: **56/56**, ~62 s. The proof now verifies the independently
+At the endpoint-repair stage, test41: **56/56**, ~62 s. The proof now verifies the independently
 computed 40<41 endpoint in the concrete measure retry. A raw NatPred result still
 shows the original alias mismatch and the verifier still rejects that off-index
 atom; general equality is unchanged. Reversed order, EveryStateMoves, missing
@@ -129,3 +132,26 @@ This repairs newly emitted predecessor facts only. It does not add a general
 substitution/transport rule, migrate old off-index facts, authenticate initial
 arithmetic premises, solve constrained witnesses, derive a parametrisation or
 construct a smaller solution. The universal movement obligation remains open.
+
+
+## Bounded numeric witness follow-up (2026-10-19)
+
+Generic `FindNatWitness` / `VerifyNatWitness` now support concrete assignments
+for equations and strict inequalities in the existing natural-polynomial
+fragment. Supplemental `test46`: **185/185**, ~8 s. Current test41: **61/61**,
+~60 s. Full gate: **37/37 green**, ~27.5 min; test35 remains 146/146.
+
+The explicitly human-supplied fixture `2mn=4`, `m²+n²=5`, `0<n<m` recovers
+`(2,1)` after seven checks within `[0,4)²` and budget 9. It is independently
+re-evaluated as a concrete arithmetic assignment. No input equation is authored
+into a rule; this is not discovery/completeness of the parametrisation, a
+symbolic solution to the source hypotheses, or a smaller-state construction.
+
+Search statuses distinguish a hit, finite-box exhaustion, budget exhaustion and
+invalid syntax. No Cartesian product is materialised. Candidate budget does not
+bound exponent cost or wall time. The positive assignment verifier does not
+certify search status/count or a negative/universal claim. No Checker-B capability,
+pack, ledger gate, arithmetic adapter, kernel or test26 changes are made here.
+The real evaluator/ledger refusal checks still hold: ledger version 0, no domain
+promotion, EveryStateMoves undischarged. See `constrained-nat-witnesses.md` for
+API details and the remaining provenance/uniform-construction integration.

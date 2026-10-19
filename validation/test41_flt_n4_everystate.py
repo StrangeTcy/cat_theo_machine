@@ -10,7 +10,9 @@ Progress is real but limited: anonymous witnesses allocate, both W6 polynomial
 identities have Checker-B grid proofs, and a predecessor of an actual family
 measure has a Peano proof from a computed successor premise. The adapter now
 uses the arithmetic endpoint, without equating arbitrary anonymous atoms or
-changing raw NatPred. None constructs a smaller solution or proves a universal
+changing raw NatPred. Bounded numeric search can now recover a supplied finite
+parameter fixture; that is not a derived parametrisation. None constructs a
+smaller solution or proves a universal
 descent. The ledger must not promote it.
 """
 import os
@@ -126,6 +128,26 @@ def main():
     check('subtraction cannot ground an anonymous witness', take(A.NatSubtract(u, M.Zero, reg)()) is M.EmptyList)
     check('gcd cofactors cannot ground anonymous witnesses', take(A.CoprimeCofactors(u, v, reg)()) is M.EmptyList)
     check('minting introduces no universal move assertion', contains_symbol(ground, L.EveryStateMovesLabel, reg) is M.false_value)
+
+    print('[1b] Bounded numeric witnesses for a supplied finite fixture only', flush=True)
+    param_m, param_n = M.Char('numeric-m'), M.Char('numeric-n')
+    parameter_variables = chain(param_m, param_n)
+    # These equations and numerical inputs are a human candidate, not a rule,
+    # parametrisation theorem, symbolic source-state coverage, or FLT evidence.
+    parameter_constraints = chain(
+        fact(L.ExprEqLabel, mul(mul(M.two, param_m), param_n), four),
+        fact(L.ExprEqLabel, add(pw(param_m, M.two), pw(param_n, M.two)), M.five),
+        fact(L.ExprLtLabel, M.Zero, param_n), fact(L.ExprLtLabel, param_n, param_m))
+    numeric_record = take(PG.FindNatWitness(parameter_constraints, parameter_variables, four, M.nine, reg)())
+    numeric_environment = field(numeric_record, 5)
+    check('bounded solver finds a numeric assignment for the supplied fixture', field(numeric_record, 4) is L.NatWitnessFoundLabel)
+    check('fixture search examines seven assignments', same_number(field(numeric_record, 6), M.seven))
+    check('numeric assignment independently satisfies all supplied constraints', take(PG.VerifyNatWitness(
+        parameter_constraints, parameter_variables, four, numeric_environment, reg)()) is M.truth_value)
+    check('numeric fixture recovers values 2 and 1',
+        same_number(take(PG.EvaluateNatExpr(param_m, numeric_environment, reg)()), M.two)
+        and same_number(take(PG.EvaluateNatExpr(param_n, numeric_environment, reg)()), M.one))
+    check('numeric fixture record introduces no universal movement assertion', contains_symbol(numeric_record, L.EveryStateMovesLabel, reg) is M.false_value)
 
     print('[2] W22: the W6 identities now have checked grid derivations', flush=True)
     p, n = M.Char('p'), M.Char('n')
@@ -272,8 +294,8 @@ def main():
 
     print('TEST 41: %d/%d checks passed (%.1fs).' % (checks, checks, time.monotonic() - t0), flush=True)
     print('W29 OUTCOME: PRECISE NEGATIVE. EveryStateMoves remains undischarged; ledger version 0.', flush=True)
-    print('Available: handle allocation, verified grid identities, gcd extraction, one computed predecessor order fact.', flush=True)
-    print('Missing: arithmetic witness solving, parametrisation completeness, coprime-square-factor proof,', flush=True)
+    print('Available: handle allocation, bounded numeric witnesses, verified grid identities, gcd extraction, one computed predecessor order fact.', flush=True)
+    print('Missing: source-state-uniform witnesses, parametrisation completeness, coprime-square-factor proof,', flush=True)
     print('and a verified construction/coverage argument', flush=True)
     print('linking each source solution to a smaller solution.', flush=True)
     print('No quartic rule, square lemma, parameterisation or domain constant was authored into a rule.', flush=True)

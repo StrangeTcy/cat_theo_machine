@@ -1472,3 +1472,192 @@ __all__ = (
     "CongruenceClasses",
     "run_playground_interactive",
 )
+
+
+# ============================================================
+# Bounded constrained Nat witnesses (not universal existence proofs)
+# ============================================================
+
+
+def _valid_nat_constraints(constraints, variables, registry):
+    if _valid_polynomial_variables(variables, registry) is M.false_value:
+        return M.false_value
+    cursor = constraints
+    while M.IdentityCompare(cursor, M.EmptyList)() is M.false_value:
+        if M.IsPair(cursor)() is M.false_value:
+            return M.false_value
+        constraint = M.Head(cursor)()
+        head, args = _expr_head_args(constraint)
+        if M.OrAtom(M.IdentityCompare(head, L.ExprEqLabel)(),
+                    M.IdentityCompare(head, L.ExprLtLabel)())() is M.false_value:
+            return M.false_value
+        if _exact_arity(args, 2) is M.false_value:
+            return M.false_value
+        if _admitted_polynomial(M.Head(args)(), variables, registry) is M.false_value:
+            return M.false_value
+        if _admitted_polynomial(M.Head(M.Tail(args)())(), variables, registry) is M.false_value:
+            return M.false_value
+        cursor = M.Tail(cursor)()
+    return M.truth_value
+
+
+def _valid_nat_environment(variables, environment, bound, registry):
+    cursor = variables
+    remaining = environment
+    while M.IdentityCompare(cursor, M.EmptyList)() is M.false_value:
+        if M.IsPair(remaining)() is M.false_value:
+            return M.false_value
+        entry = M.Head(remaining)()
+        if _exact_arity(entry, 2) is M.false_value:
+            return M.false_value
+        if M.Compare(M.Head(entry)(), M.Head(cursor)())() is M.false_value:
+            return M.false_value
+        value = M.Head(M.Tail(entry)())()
+        if M.IdentityCompare(A._natural_rep(value, registry), M.EmptyList)() is M.truth_value:
+            return M.false_value
+        if M.NatLess(value, bound, registry)() is M.false_value:
+            return M.false_value
+        cursor = M.Tail(cursor)()
+        remaining = M.Tail(remaining)()
+    return M.IdentityCompare(remaining, M.EmptyList)()
+
+
+def _evaluate_nat_constraints(constraints, environment, registry):
+    cursor = constraints
+    while M.IdentityCompare(cursor, M.EmptyList)() is M.false_value:
+        constraint = M.Head(cursor)()
+        args = M.Tail(constraint)()
+        left_res = EvaluateNatExpr(M.Head(args)(), environment, registry)()
+        left = M.Head(left_res)()
+        reg1 = M.Head(M.Tail(left_res)())()
+        right_res = EvaluateNatExpr(M.Head(M.Tail(args)())(), environment, reg1)()
+        right = M.Head(right_res)()
+        registry = M.Head(M.Tail(right_res)())()
+        if M.OrAtom(M.IdentityCompare(left, M.EmptyList)(),
+                    M.IdentityCompare(right, M.EmptyList)())() is M.truth_value:
+            return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+        if M.IdentityCompare(M.Head(constraint)(), L.ExprEqLabel)() is M.truth_value:
+            verdict = M.NatEq(left, right, registry)()
+        else:
+            verdict = M.NatLess(left, right, registry)()
+        if verdict is M.false_value:
+            return M.Pair(M.false_value, M.Pair(registry, M.EmptyList))
+        cursor = M.Tail(cursor)()
+    return M.Pair(M.truth_value, M.Pair(registry, M.EmptyList))
+
+
+class VerifyNatWitness(M.Edge):
+    """Re-evaluate a concrete bounded Nat assignment, not a search status.
+
+    constraints: chain of ExprEq(lhs,rhs) / ExprLt(lhs,rhs), using the same
+    admitted natural polynomial syntax as PolynomialIdentityByGrid.
+    environment: exactly one Pair(variable, Pair(Nat, [])) per declared
+    variable, in declaration order, with values in [0,bound).
+    Result Pair(verdict, Pair(registry, [])): true/false for valid assignments,
+    [] for malformed syntax/coverage/sorts/bounds. An empty assignment can be
+    valid (zero variables). This is a computed arithmetic check, NOT a Checker-B
+    derivation, existential theorem, trusted premise, or ledger receipt.
+    """
+
+    def __init__(self, constraints, variables, bound, environment, registry):
+        self.result = self._verify(constraints, variables, bound, environment, registry)
+        super().__init__(inputs=M.Pair(constraints, M.Pair(variables, M.Pair(bound,
+            M.Pair(environment, M.Pair(registry, M.EmptyList))))), results=self.result)
+
+    def _verify(self, constraints, variables, bound, environment, registry):
+        if M.IdentityCompare(A._natural_rep(bound, registry), M.EmptyList)() is M.truth_value:
+            return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+        if _valid_nat_constraints(constraints, variables, registry) is M.false_value:
+            return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+        if _valid_nat_environment(variables, environment, bound, registry) is M.false_value:
+            return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+        return _evaluate_nat_constraints(constraints, environment, registry)
+
+    def __call__(self):
+        return self.result
+
+
+class FindNatWitness(M.Edge):
+    """Stream [0,bound)^arity with a candidate-count budget; first axis fastest.
+
+    Result Pair(record, Pair(registry, [])), where record is
+      NatWitnessSearchLabel(constraints, variables, bound, budget, status,
+                            environment, examined).
+    Status: NatWitnessFoundLabel / NatWitnessExhaustedLabel /
+    NatWitnessBudgetLabel / NatWitnessInvalidLabel. Only Found carries an
+    environment (which may itself be [] for zero variables). Exhausted means
+    this FINITE box only, never no natural solution. Budget is assignment checks,
+    not a bound on expression size, exponent size, arithmetic cost or wall time.
+    No full Cartesian product or host-language numerical search is materialised.
+    """
+
+    def __init__(self, constraints, variables, bound, budget, registry):
+        self.result = self._search(constraints, variables, bound, budget, registry)
+        super().__init__(inputs=M.Pair(constraints, M.Pair(variables, M.Pair(bound,
+            M.Pair(budget, M.Pair(registry, M.EmptyList))))), results=self.result)
+
+    def _record(self, constraints, variables, bound, budget, status, env, count, registry):
+        record = M.Pair(L.NatWitnessSearchLabel, M.Pair(constraints, M.Pair(variables,
+            M.Pair(bound, M.Pair(budget, M.Pair(status, M.Pair(env,
+                M.Pair(count, M.EmptyList))))))))
+        return M.Pair(record, M.Pair(registry, M.EmptyList))
+
+    def _zeros(self, variables):
+        if M.IdentityCompare(variables, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        return M.Pair(M.Zero, self._zeros(M.Tail(variables)()))
+
+    def _advance(self, values, bound, registry):
+        if M.IdentityCompare(values, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+        increment = A.Add(M.Head(values)(), M.one, registry)()
+        value = M.Head(increment)()
+        reg1 = M.Head(M.Tail(increment)())()
+        if M.NatLess(value, bound, reg1)() is M.truth_value:
+            return M.Pair(M.Pair(value, M.Tail(values)()), M.Pair(reg1, M.EmptyList))
+        carry = self._advance(M.Tail(values)(), bound, reg1)
+        tail = M.Head(carry)()
+        reg2 = M.Head(M.Tail(carry)())()
+        if M.IdentityCompare(tail, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.EmptyList, M.Pair(reg2, M.EmptyList))
+        return M.Pair(M.Pair(M.Zero, tail), M.Pair(reg2, M.EmptyList))
+
+    def _search(self, constraints, variables, bound, budget, registry):
+        count = M.Zero
+        env = M.EmptyList
+        if (M.IdentityCompare(A._natural_rep(bound, registry), M.EmptyList)() is M.truth_value
+                or M.IdentityCompare(A._natural_rep(budget, registry), M.EmptyList)() is M.truth_value
+                or _valid_nat_constraints(constraints, variables, registry) is M.false_value):
+            return self._record(constraints, variables, bound, budget,
+                                L.NatWitnessInvalidLabel, env, count, registry)
+        if (M.IdentityCompare(variables, M.EmptyList)() is M.false_value
+                and M.NatEq(bound, M.Zero, registry)() is M.truth_value):
+            return self._record(constraints, variables, bound, budget,
+                                L.NatWitnessExhaustedLabel, env, count, registry)
+        values = self._zeros(variables)
+        while True:
+            if M.NatLess(count, budget, registry)() is M.false_value:
+                return self._record(constraints, variables, bound, budget,
+                                    L.NatWitnessBudgetLabel, M.EmptyList, count, registry)
+            env = _zip_environment(variables, values)
+            evaluated = _evaluate_nat_constraints(constraints, env, registry)
+            verdict = M.Head(evaluated)()
+            reg1 = M.Head(M.Tail(evaluated)())()
+            counted = A.Add(count, M.one, reg1)()
+            count = M.Head(counted)()
+            registry = M.Head(M.Tail(counted)())()
+            if verdict is M.truth_value:
+                return self._record(constraints, variables, bound, budget,
+                                    L.NatWitnessFoundLabel, env, count, registry)
+            if verdict is M.EmptyList:
+                return self._record(constraints, variables, bound, budget,
+                                    L.NatWitnessInvalidLabel, M.EmptyList, count, registry)
+            advanced = self._advance(values, bound, registry)
+            values = M.Head(advanced)()
+            registry = M.Head(M.Tail(advanced)())()
+            if M.IdentityCompare(values, M.EmptyList)() is M.truth_value:
+                return self._record(constraints, variables, bound, budget,
+                                    L.NatWitnessExhaustedLabel, M.EmptyList, count, registry)
+
+    def __call__(self):
+        return self.result

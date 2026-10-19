@@ -1781,6 +1781,26 @@ class PolynomialGridRuleLabel(ConstructorLabel):
     pass
 
 
+class NatWitnessSearchLabel(ConstructorLabel):
+    pass
+
+
+class NatWitnessFoundLabel(ConstructorLabel):
+    pass
+
+
+class NatWitnessExhaustedLabel(ConstructorLabel):
+    pass
+
+
+class NatWitnessBudgetLabel(ConstructorLabel):
+    pass
+
+
+class NatWitnessInvalidLabel(ConstructorLabel):
+    pass
+
+
 class UnboundVariableLabel(ConstructorLabel):
     pass
 TreeLabel = TreeLabel()
@@ -2222,6 +2242,11 @@ ResidueTableLabel = ResidueTableLabel()
 CongruenceClassesLabel = CongruenceClassesLabel()
 EveryStateMovesLabel = EveryStateMovesLabel()
 NoStatesLabel = NoStatesLabel()
+NatWitnessSearchLabel = NatWitnessSearchLabel()
+NatWitnessFoundLabel = NatWitnessFoundLabel()
+NatWitnessExhaustedLabel = NatWitnessExhaustedLabel()
+NatWitnessBudgetLabel = NatWitnessBudgetLabel()
+NatWitnessInvalidLabel = NatWitnessInvalidLabel()
 UnboundVariableLabel = UnboundVariableLabel()
 PolynomialGridActionLabel = PolynomialGridActionLabel()
 PolynomialGridRuleLabel = PolynomialGridRuleLabel()
@@ -2670,6 +2695,11 @@ def sync_from_namespace(namespace):
         "CongruenceClassesLabel",
         "EveryStateMovesLabel",
         "NoStatesLabel",
+        "NatWitnessSearchLabel",
+        "NatWitnessFoundLabel",
+        "NatWitnessExhaustedLabel",
+        "NatWitnessBudgetLabel",
+        "NatWitnessInvalidLabel",
         "UnboundVariableLabel",
         "PolynomialGridActionLabel",
         "PolynomialGridRuleLabel",
