@@ -250,7 +250,10 @@ pack = loader.load_pack_file(PACK_PATH, graph)
 rules = P.CompileRuleChain(pack.rule_chain, registry)()
 
 check("pack name is funceq-nt", pack.name == "funceq-nt", pack.name)
-check("pack carries 25 generic schema rules", len(mpylist(pack.rule_chain)) == 25,
+# 25 W9 rules + 8 W24 residue/divisibility schemas (2026-10-19).  The count is
+# pinned so a silent removal is caught; W24's own suite is test36.
+check("pack carries 33 generic schema rules (25 W9 + 8 W24)",
+      len(mpylist(pack.rule_chain)) == 33,
       str(len(mpylist(pack.rule_chain))) + " rules")
 
 rule_ok = True
