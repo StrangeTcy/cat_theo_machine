@@ -2,7 +2,7 @@
 
 This document specifies the evolutionary architecture, dependency DAG, worker allocation, and synchronization protocols for coordinating Arena agents evolving the Hyge Theorem Prover.
 
-Phases 0–3 (W1–W20) landed by 2026-10-15; their record is §2–§6. **Remaining work is §7 (five-dimension status) and §8 (Phase 4+ DAG).** W21, W22 and W24 have landed; W23 is in progress in another session on slot `test35`; the next unoccupied allocated suite slot is `test37` (W25). This copy of the tree was fast-forwarded onto `arena/5d1b2a18-cat-theo-machine` from `arena/717c9822-cat-theo-machine` (`a548d7d`), then to `arena/c58acfec-cat-theo-machine` (`45e4564`, W22), both on 2026-10-19.
+Phases 0–3 (W1–W20) landed by 2026-10-15; their record is §2–§6. **Remaining work is §7 (five-dimension status) and §8 (Phase 4+ DAG).** W21, W22, W24 and W25 have landed; W23 is in progress in another session on slot `test35`; the next unoccupied allocated suite slot is `test37`'s successor, `test38` (W26). This copy of the tree was fast-forwarded onto `arena/5d1b2a18-cat-theo-machine` from `arena/717c9822-cat-theo-machine` (`a548d7d`), then to `arena/c58acfec-cat-theo-machine` (`45e4564`, W22), both on 2026-10-19.
 
 ---
 
@@ -92,7 +92,7 @@ Phases 0–3 below are the original trajectory. They are **completed** (2026-10-
 | **W22**| Algebraic rewriting (recorded grid proofs ✅) | Substrate / Dim 1 | `invariance.py`, `playground.py`, `checker_b.py` (new grid clause) | none | Grid-decided identities become Checker-B-verified derivations; symbolic normalisation remains open. Brief: `delegation/W22-algebraic-rewriting.md`. Slot `test34` |
 | **W23**| Factorisation substrate & derived `NatLess` | Substrate / Dim 1 | `math/arithmetic.py`, `math/peano.py` | none | Subtraction/factor edges; a schema that concludes `NatLess`. Brief: `delegation/W23-factorisation-natless.md`. Slot `test35` |
 | **W24**| Residue / divisibility schema wiring ✅ | Dim 2 | `packs/funceq-nt.pack.yaml` | W9 ✅ (edges already exist) | ✅ 2026-10-19: eight constant-free schemas (transitivity, gcd's two universal properties, commutativity, Euclid's lemma, residue addition and multiplication); facts are records of the machine's `Divides`/`Gcd`/`Modulo`/`IsCoprime` edges; Checker B verifies the transitivity step and the ledger promotes it; `test36` 41/41. Brief: `delegation/W24-residue-divisibility-wiring.md`. Slot `test36` |
-| **W25**| Curriculum card loader | Dim 2/3/4 | `curriculum.py`, `labels.py`, `curriculum/` | none | Markdown cards become executable graph tasks; held-outs load. Brief: `delegation/W25-curriculum-loader.md`. Slot `test37` |
+| **W25**| Curriculum card loader ✅ | Dim 2/3/4 | `curriculum.py`, `labels.py`, `curriculum/` | none | ✅ 2026-10-19: markdown cards parse to machine records; two compile to graph tasks (held-out solved, decoy refused); 22 refused with reasons, 48 Ground 1 gaps reported; `test37` 62/62. Brief: `delegation/W25-curriculum-loader.md`. Slot `test37` |
 | **W26**| Geometry remainder | Dim 2 | `constructions.py`, `packs/geometry-constructions.pack.yaml` | W8 ✅ W4 ✅ | Cyclic-quad / chord-angle schemas; Checker-B receipts in-suite. Brief: `delegation/W26-geometry-remainder.md`. Slot `test38` |
 | **W27**| Engel remainder | Dim 3 | `packs/engel-strategies.pack.yaml`, `invariant_miner.py`, `search/` | W10 ✅ | Real Engel instances as evaluation data; strategies fire in search. Brief: `delegation/W27-engel-remainder.md`. Slot `test39` |
 | **W28**| FLT $n=3$ UFD + cubic descent | Dim 1 | `playground.py`, `math/arithmetic.py` | W21, W22, W23, W7 `[~]` | Unique factorisation scaffolding used, cubic descent attempted. Brief: `delegation/W28-flt-n3-ufd-descent.md`. Slot `test40` |
@@ -523,8 +523,53 @@ These arrived during Phase 0/1 execution and are prerequisites or enablers rathe
   no completeness claim is made; the moduli exercised are 3, 5 and 7 -- the schemas
   are modulus-agnostic by construction, not by a table, but no exhaustive sweep is
   claimed.
+- [x] **W25 (Curriculum card loader)**: Landed 2026-10-19 on this branch.
+  `labels.py` gains 30 constructors the corpus already cites (`IntegerLabel`,
+  `ResidueLabel`, `CongruentLabel`, the board/colouring/path vocabulary, the
+  glass/flip vocabulary) plus 11 record/verdict labels, all append-only and
+  registered by `sync_from_namespace`. `curriculum.py` gains the loader:
+  `load_card_corpus` turns each markdown card into an eleven-field `CardRecord`
+  (id, tier, role, family, target class, status, title, statement, the numbers
+  the statement states, the roles those numbers fill, cited and missing
+  constructors); `CompileCardTask` dispatches to family builders that emit a
+  `GraphTaskRecord`; `RunCardTask` runs it with `ForwardDeriveFacts` +
+  `MatchQueryConjunction`; `TrainingRecordLoader` returns records, tasks,
+  refusals, verdicts and a machine `Ground1Gap` report.
+  What actually loads: 24 records, 2 compiled, 22 refused with a reason. The
+  seven-glasses held-out closes as an invariance obstruction -- the builder
+  emits `Preserves(flip, phi)` only after the machine's own `Modulo` has
+  checked every one of the k+1 splits, and `Apart(0, 1)` only after two
+  machine residues differ; the Engel pack then derives `Unreachable` in four
+  rounds (`thread_preserving_moves` → `preserving_moves_step` →
+  `preserving_moves_empty` → `invariant_obstruction`), open at depth 1-3 and
+  solved from depth 4. The domino-board decoy compiles with expectation
+  `refuse` and is rejected; the count argument the trap would use is
+  machine-verified to hold (62 = 31x2, colours 32 vs 30), so the refusal is
+  not a counting artefact. A one-word perturbation of the held-out statement
+  (odd flip count, or equal parities) makes the same builder drop the premise
+  and the card stay open -- the structural proof that no conclusion is
+  authored per card. Still OPEN: 48 constructors the cards cite (Burnside,
+  orbit, tournament, necklace, binary-word, staircase ...) and 22 cards with
+  no obligation generator (10 count-target refuse on Ground 3; 5 extremal on
+  the absent graph theorem; 4 pigeonhole on residue/prefix closure; 3
+  invariance whose statement states no numbers). `test37` **62/62**, ~18 s.
+  `test10` 8/8 unchanged, `test3`, `test12` 10/10, `test22` green,
+  `test36` 41/41.
+  *Downstream change, stated honestly*: `test22/[31]` used to assert that no
+  loader exists and that ten named constructors are absent. It now measures
+  the opposite, true thing: 24 parsed, 2 compiled, 22 refused with reasons;
+  those ten names exist, 48 others still do not, and no combinatorics card
+  compiles -- so held-out evidence for family 3 in `test22` remains
+  machine-swept. `test22` passes end to end.
+  *Limits*: two of 24 cards compile; the loader implements two family
+  builders (two-state-population invariance, rectangular board tiling
+  refusal), not five. The decoy refusal means "the claim is not derivable
+  from its own compiled fact base", not "impossibility is proved": a
+  colouring-obstruction rule (Ground 3) does not exist yet. Nothing is
+  promoted into a pack; the corpus stays `blueprint-only` evaluation data.
 - [ ] **W25–W33 (Phase 4+, remainder)**: See §8. `test35` belongs to W23 (in
-  progress); `test36` is now taken by W24; the next free slot is `test37`.
+  progress); `test36` is W24's and `test37` is W25's; the next free slot is
+  `test38`.
 
 ---
 
@@ -549,7 +594,7 @@ Every Arena agent working on this repository must strictly adhere to the followi
 
    **The exception is conjunctive: both halves must hold.** The code is host-layer, *and* there is no machine analogue for what it does. Being in a harness or a probe is not by itself a licence — if the machine can already answer the question (`Compare`, `IsAtom`, `IsPair`, `IsTree`), then reaching into a payload with `getattr`, `type`, or `.symbol` is a violation wherever it sits. The identity index passes both halves. A probe that read `.symbol` to find an edge by name and `type(x).__name__` to report what came back passed only the first; it was fixed to use `Compare` and `IsAtom`. An earlier draft of this section stated the test as "whether the value crosses into a machine term", which made layer the only condition and would have excused that probe. Do not spend a session on an unscoped purity refactor of host code, and do not cite this rule to reject working host-layer code — but do not cite the host layer to excuse bypassing a predicate the machine already provides.
 3. **No Domain-Specific Hardcoding**: Do not hardcode problem targets or fixed heuristics in search or mining modules.
-4. **Verification Requirement**: Every new worker module or pack must include an automated verification suite in `validation/` with $100\%$ green test results before promotion. There are currently **35** suites — `test1`–`test34` plus `test36` (W24); slot `test35` is W23's and is in progress in another session, and Phase 4 pre-allocates `test37`–`test45`, see §8 — each a standalone script. Run one with `PYTHONPATH=<repo-parent> python -u validation/testN_*.py` (the suites insert the package parent onto `sys.path` themselves and import as `cat_theo_machine.*`).
+4. **Verification Requirement**: Every new worker module or pack must include an automated verification suite in `validation/` with $100\%$ green test results before promotion. There are currently **36** suites — `test1`–`test34` plus `test36` (W24) and `test37` (W25); slot `test35` is W23's and is in progress in another session, and Phase 4 pre-allocates `test38`–`test45`, see §8 — each a standalone script. Run one with `PYTHONPATH=<repo-parent> python -u validation/testN_*.py` (the suites insert the package parent onto `sys.path` themselves and import as `cat_theo_machine.*`).
 5. **Snapshot Root Invariant**: any new machine state that must survive a cold resume has to be registered as a root in `SnapshotCodec.capture()` and restored in `activate()`. Content added through the graph's `nodes`/`edges` context is now covered; state kept only in Python attributes is not, and silently evaporates on reload.
 6. **Suite Slot Discipline**: `validation/` numbering is append-only. Two lineages independently claimed slots 15 and 16 for unrelated suites; the reconciliation below is what happened, and new work must take the next free number rather than reusing a taken one.
 7. **One serialisation of a machine term**: the snapshot codec. The mesh carries references (W2) and, under `--artifacts wire` (W20), the *bytes of snapshot files* that the receiver loads through the codec — never a pickled or otherwise serialised term (`framing.TERM_PAYLOAD_KEYS` rejects the frame). A new transport that wants to move machine state moves a snapshot.
@@ -965,10 +1010,10 @@ What the machine can do *now*, and what it still cannot, by dimension. Substrate
 - No subtraction / signed fragment, so residue-difference laws and d'Alembert-type equations remain out. Residue schemas are modulus-agnostic by construction but were exercised at 3, 5 and 7 only; no exhaustive modulus sweep is claimed.
 - Cyclic-quadrilateral conclusion schema; circumcircle stops at vertex incidence and does not feed chord/angle facts back into goals. Angle chasing beyond the bisector, projective collineations: open.
 - W8's done-definition asked for Checker-B receipts, ledger records, evaluator ablation and figure sweeps. The authoring branch did not have those modules; they are on this tree now and `test21` still does not exercise them.
-- Extremal-set combinatorics and curriculum held-outs are blocked on the card loader (W25): every corpus file is blueprint-only, `IntegerLabel` / `ResidueLabel` / `CongruentLabel` are absent, and test22/[31] asserts that held-out evidence is currently impossible.
+- Curriculum held-outs are partly unblocked by W25: `IntegerLabel` / `ResidueLabel` / `CongruentLabel` and 27 more card-cited constructors exist, and two of the 24 cards compile (seven-glasses held-out solved through the Engel invariance schema, domino-board decoy refused). The other 22 still cite 48 absent constructors or lack an obligation generator, so extremal-set combinatorics remains without a held-out card; test22/[31] measures this rather than asserting impossibility.
 - Closure engine is a single-chain saturator (test22/[32]): soundness, not completeness.
 
-**Unblocks.** W25 (loader, now), W26 (geometry remainder, now), W27 (Engel remainder, now). W24 is done. d'Alembert waits on a signed fragment that W22 did not deliver.
+**Unblocks.** W26 (geometry remainder, now), W27 (Engel remainder, now). W24 and W25 are done. d'Alembert waits on a signed fragment that W22 did not deliver.
 
 ### 7.3 Dimension 3 — Engel strategies
 
@@ -979,10 +1024,10 @@ What the machine can do *now*, and what it still cannot, by dimension. Substrate
 
 **Not done.**
 - No domain pack drives these rules from a *real Engel problem* that is not named in code. Discovery of a measure or an observable (rather than being handed one) is open. Strategy rules do not fire during ordinary search — nothing proposes them the way the planner methods do.
-- `StrictlyDecreases` / `NonIncreases` / `Preserves` claims are not independently verified. Held-out/decoy evidence against `curriculum/heldout` and `curriculum/decoys` is blocked on W25.
+- `StrictlyDecreases` / `NonIncreases` / `Preserves` claims are not independently verified as *discovered* claims: W25 hands them to the schema only after machine arithmetic has checked every split of the move, which verifies the premise's arithmetic but not the choice of observable. Held-out/decoy evidence now exists for one problem: seven-glasses closes through `thread_preserving_moves` → `preserving_moves_step` → `preserving_moves_empty` → `invariant_obstruction`; the domino decoy is refused (test37). The remaining 22 cards do not load.
 - `main.py`'s theorem agenda still hardcodes `"Engel E1"`, `"Engel E2"`, `"Engel coin problem"`. Standing §5.3 tension; do not add more cases in that style.
 
-**Unblocks.** W27 (remainder, now). Measure *discovery* also wants the miner (already there) plus W25 for held-outs.
+**Unblocks.** W27 (remainder, now). Measure *discovery* also wants the miner (already there); W25 supplied the first held-out problem (seven-glasses), so a miner can now be asked to find its observable.
 
 ### 7.4 Dimension 5 — Stories, explanations, Socratic tutor
 
@@ -1009,7 +1054,7 @@ What the machine can do *now*, and what it still cannot, by dimension. Substrate
 
 **Not done.**
 - Domain workers mostly do not *drive* the loop. W8 and W10 authoring suites explicitly do not claim Checker-B / ledger / ablation. W6/W7 discoveries are refused (correctly) because a sweep is not a derivation. Family 1 in `test22` is the one place the full loop has run on a combinatorics macro.
-- Curriculum cards cannot be evaluation data until they load (W25).
+- Two curriculum cards are evaluation data since W25 (one held-out solved, one decoy refused, test37); the other 22 still have no builder, so corpus-scale evaluation is not yet possible.
 - Nothing yet mines a descent measure or a geometry observable and promotes it.
 
 **Unblocks.** W30, once W24–W27 (and later W28–W29) produce derivations rather than evidence.
@@ -1078,13 +1123,13 @@ Independent of the five dimensions, still open, and *not* an excuse to reopen W1
  │                 IsCoprime edges. test36 41/41; Checker B verified; ledger
  │                 promoted the transitivity schema. Do not re-dispatch.
  │
- ├── W25: Curriculum card loader                        (Dims 2, 3, 4)
- │         Agent: Arena session, brief W25, slot test37
- │         Owns:  curriculum.py, labels.py (IntegerLabel, ResidueLabel, …),
- │                a loader over curriculum/tier0|tier1
- │         Effect: held-out and decoy cards become evaluation data. W9/W10
- │                 done-definitions that required them become reachable.
- │         Do not: encode solutions in cards; cards stay evaluation data.
+ ├── W25: Curriculum card loader  ✅ DONE               (Dims 2, 3, 4)
+ │         Agent: Arena session, brief W25, slot test37 — landed 2026-10-19
+ │         Owns:  curriculum.py, labels.py (IntegerLabel, ResidueLabel, …)
+ │         Result: 24 records, 2 compiled, 22 refused with reasons; the
+ │                 seven-glasses held-out closes through the Engel invariance
+ │                 schema, the domino decoy is refused; 48 Ground 1 gaps
+ │                 reported. test37 62/62. Do not re-dispatch.
  │
  ├── W26: Geometry remainder                            (Dim 2)
  │         Agent: Arena session, brief W26, slot test38
@@ -1174,14 +1219,14 @@ Independent of the five dimensions, still open, and *not* an excuse to reopen W1
 
 ### 8.1 Dispatch rules for Phase 4+
 
-1. **Start immediately (no prereq gate):** W23, W25, W26, W27, W32, W33. W21, W22 and W24 are done (§4); do not re-dispatch them. W23 is already underway in another session. File ownership is disjoint except `labels.py` (append-only union, as in §6.2). W22 added the brief-authorised Checker-B grid clause after W21 landed; it preserves witness checking.
+1. **Start immediately (no prereq gate):** W23, W26, W27, W32, W33. W21, W22, W24 and W25 are done (§4); do not re-dispatch them. W23 is already underway in another session. File ownership is disjoint except `labels.py` (append-only union, as in §6.2). W22 added the brief-authorised Checker-B grid clause after W21 landed; it preserves witness checking.
 2. **Do not start W28 or W29** until W21–W23 have reported. Re-opening FLT without witness introduction will reproduce test26's negative account.
 3. **W30 waits** on at least one new domain receipt. Running it against the present tree would only restate that W8/W10 suites do not exercise the loop.
-4. **One slot per brief**, already allocated above. `test33`–`test36` are taken; the next free slot is `test37`. Do not invent a number for something else.
+4. **One slot per brief**, already allocated above. `test33`–`test37` are taken; the next free slot is `test38`. Do not invent a number for something else.
 5. **W22 vs W23:** if a session believes it *must* edit the other's files, stop and report; do not take a silent dependency.
 6. Honest `[~]` and precise negatives remain first-class outcomes (W6 is the model).
 7. Work only on the branch the session is pinned to. Do not open a pull request. Report as in `delegation/README.md`.
 
 ### 8.2 Lineage note (2026-10-19)
 
-`arena/5d1b2a18-cat-theo-machine` was opened from `master` (`428ecdc`, 2026-08-25) and fast-forwarded to `arena/717c9822-cat-theo-machine` (`a548d7d`, 2026-10-15) so this session would not re-fork the swarm. On 2026-10-19 it was fast-forwarded again to `arena/c58acfec-cat-theo-machine` (`45e4564`, W22) and W24 landed on top. Further Phase 4+ work on this session lands here. Notebooks still clone `717c9822` until COORD merges to `master`; that is USER/COORD, not a worker.
+`arena/5d1b2a18-cat-theo-machine` was opened from `master` (`428ecdc`, 2026-08-25) and fast-forwarded to `arena/717c9822-cat-theo-machine` (`a548d7d`, 2026-10-15) so this session would not re-fork the swarm. On 2026-10-19 it was fast-forwarded again to `arena/c58acfec-cat-theo-machine` (`45e4564`, W22); W24 (`02e8240`) and then W25 landed on top. Further Phase 4+ work on this session lands here. Notebooks still clone `717c9822` until COORD merges to `master`; that is USER/COORD, not a worker.

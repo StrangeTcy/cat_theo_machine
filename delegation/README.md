@@ -6,7 +6,7 @@ is pinned to its own branch, works there, and reports back. The coordinator impo
 result — see *Reporting back* below.
 
 W1–W20 are done or closed as partial (DAG §4, §6.9). Their briefs stay in this directory
-as history; **do not re-execute them.** W21 and W22 have landed; remaining work is W23–W33 plus USER/COORD.
+as history; **do not re-execute them.** W21, W22, W24 and W25 have landed; remaining work is W23 and W26–W33 plus USER/COORD.
 
 Index (open workers only):
 
@@ -15,8 +15,8 @@ Index (open workers only):
 | `W21-witness-introduction.md` | Existential witness introduction — **done**, see DAG §4 W21 | Substrate / 1 | 4 | none | `test33` ✅ |
 | `W22-algebraic-rewriting.md` | Grid identities → **done via Checker-B-verified grid proofs**; symbolic normalisation remains open (DAG §4) | Substrate / 1 | 4 | none; do not re-dispatch | `test34` ✅ |
 | `W23-factorisation-natless.md` | Factorisation edges & derived `NatLess` | Substrate / 1 | 4 | none — **start now**; owns `math/arithmetic.py` | `test35` |
-| `W24-residue-divisibility-wiring.md` | Residue / divisibility schema wiring (was W9(c)) | 2 | 4b | W9 ✅ — **start now** | `test36` |
-| `W25-curriculum-loader.md` | Curriculum card loader | 2/3/4 | 4b | none — **start now** | `test37` |
+| `W24-residue-divisibility-wiring.md` | Residue / divisibility schema wiring (was W9(c)) — **done**, see DAG §4 W24 | 2 | 4b | W9 ✅ | `test36` ✅ |
+| `W25-curriculum-loader.md` | Curriculum card loader — **done**: 24 cards parse, 2 compile (held-out solved, decoy refused), 22 refused with reasons, 48 Ground 1 gaps reported; DAG §4 W25 | 2/3/4 | 4b | none | `test37` ✅ |
 | `W26-geometry-remainder.md` | Cyclic-quad / chord-angle + receipts | 2 | 4b | W8 ✅ W4 ✅ — **start now** | `test38` |
 | `W27-engel-remainder.md` | Real instances, search firing, measure discovery | 3 | 4b | W10 ✅ — **start now** | `test39` |
 | `W28-flt-n3-ufd-descent.md` | Eisenstein UFD + cubic descent | 1 | 5 | W21, W22, W23, W7 `[~]` — **gated** | `test40` |
