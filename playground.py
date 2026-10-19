@@ -1075,6 +1075,72 @@ class EvaluateNatExpr(M.Edge):
         return self.result
 
 
+def _exact_arity(args, arity):
+    """Syntax arity only; never interprets a machine number as a host int."""
+    for _ in range(arity):
+        if M.IsPair(args)() is M.false_value:
+            return M.false_value
+        args = M.Tail(args)()
+    return M.IdentityCompare(args, M.EmptyList)()
+
+
+def _valid_polynomial_variables(variables, registry):
+    remaining = variables
+    while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+        if M.IsPair(remaining)() is M.false_value:
+            return M.false_value
+        variable = M.Head(remaining)()
+        if M.IsPair(variable)() is M.truth_value:
+            return M.false_value
+        if M.IdentityCompare(variable, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        if A.IsNat(variable, registry)() is M.truth_value:
+            return M.false_value
+        previous = variables
+        while M.IdentityCompare(previous, remaining)() is M.false_value:
+            if M.Compare(variable, M.Head(previous)())() is M.truth_value:
+                return M.false_value
+            previous = M.Tail(previous)()
+        remaining = M.Tail(remaining)()
+    return M.truth_value
+
+
+def _admitted_polynomial(term, variables, registry):
+    """Check exact syntax and coverage *before* computing a degree or grid.
+
+    Non-numeric atoms declared in variables are formal indeterminates. A
+    missing variable is not a degree-zero constant. Duplicate variables are
+    refused: a diagonal grid is not a Cartesian grid of independent variables.
+    """
+    if A.IsNat(term, registry)() is M.truth_value:
+        return M.truth_value
+    if M.IsPair(term)() is M.false_value:
+        remaining = variables
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            if M.Compare(term, M.Head(remaining)())() is M.truth_value:
+                return M.truth_value
+            remaining = M.Tail(remaining)()
+        return M.false_value
+    head, args = _expr_head_args(term)
+    if M.IdentityCompare(head, L.ExprIntLabel)() is M.truth_value:
+        if _exact_arity(args, 1) is M.false_value:
+            return M.false_value
+        return A.IsNat(M.Head(args)(), registry)()
+    if _exact_arity(args, 2) is M.false_value:
+        return M.false_value
+    left = M.Head(args)()
+    right = M.Head(M.Tail(args)())()
+    if M.IdentityCompare(head, L.ExprPowLabel)() is M.truth_value:
+        if A.IsNat(right, registry)() is M.false_value:
+            return M.false_value
+        return _admitted_polynomial(left, variables, registry)
+    if M.OrAtom(M.IdentityCompare(head, L.ExprAddLabel)(),
+                M.IdentityCompare(head, L.ExprMulLabel)())() is M.false_value:
+        return M.false_value
+    return M.AndAtom(_admitted_polynomial(left, variables, registry),
+                     _admitted_polynomial(right, variables, registry))()
+
+
 class PolynomialIdentityByGrid(M.Edge):
     """
     Decides whether two admitted expression terms are equal as polynomials in
@@ -1082,8 +1148,10 @@ class PolynomialIdentityByGrid(M.Edge):
     {0..d_k}, d_i the larger structural degree bound of the two sides in
     x_i. Sound by the finite-grid identity lemma (see the section comment):
     verdict truth is a proof of the identity for all naturals, verdict false
-    comes with every grid point where the sides differ -- the first is a
-    counterexample. Verdict [] means a side was outside the fragment.
+    records the first grid point where the sides differ. For a false constant
+    identity this is the empty tuple, so inspect the verdict, not the witness's
+    emptiness. Verdict [] means malformed/uncovered syntax or an unsupported
+    fragment. Variables must be distinct formal atoms and cover both terms.
 
     Result: Pair(record, Pair(registry, [])) with
       record = Pair(PolynomialIdentityLabel,
@@ -1137,6 +1205,11 @@ class PolynomialIdentityByGrid(M.Edge):
         return M.Pair(degree, rest_degrees), M.Pair(domain, rest_domains), M.truth_value, reg5
 
     def _decide(self, lhs, rhs, variables, registry):
+        if _valid_polynomial_variables(variables, registry) is M.false_value:
+            return self._record(lhs, rhs, variables, M.EmptyList, M.Zero, M.EmptyList, M.EmptyList, registry)
+        if M.AndAtom(_admitted_polynomial(lhs, variables, registry),
+                     _admitted_polynomial(rhs, variables, registry))() is M.false_value:
+            return self._record(lhs, rhs, variables, M.EmptyList, M.Zero, M.EmptyList, M.EmptyList, registry)
         degrees, domains, admitted, reg1 = self._degrees(lhs, rhs, variables, registry)
         if admitted is M.false_value:
             return self._record(lhs, rhs, variables, M.EmptyList, M.Zero, M.EmptyList, M.EmptyList, reg1)
@@ -1144,16 +1217,17 @@ class PolynomialIdentityByGrid(M.Edge):
         count_res = ChainLength(tuples, reg1)()
         grid_count = M.Head(count_res)()
         reg2 = M.Head(M.Tail(count_res)())()
-        witness, reg3 = self._first_difference(lhs, rhs, variables, tuples, reg2)
-        verdict = M.truth_value if M.IdentityCompare(witness, M.EmptyList)() is M.truth_value else M.false_value
+        verdict, witness, reg3 = self._first_difference(lhs, rhs, variables, tuples, reg2)
         return self._record(lhs, rhs, variables, degrees, grid_count, verdict, witness, reg3)
 
     def _first_difference(self, lhs, rhs, variables, tuples, registry):
-        """The first grid point where the sides differ (or a side fails to
-        evaluate), or EmptyList when they agree everywhere. Stops at the
-        first difference: one point refutes."""
+        """Return (verdict, first differing tuple, registry).
+
+        The verdict is separate: the empty tuple is a valid counterexample
+        for a constant polynomial with no variables, not evidence of equality.
+        """
         if M.IdentityCompare(tuples, M.EmptyList)() is M.truth_value:
-            return M.EmptyList, registry
+            return M.truth_value, M.EmptyList, registry
         point = M.Head(tuples)()
         environment = _zip_environment(variables, point)
         left_res = EvaluateNatExpr(lhs, environment, registry)()
@@ -1163,12 +1237,82 @@ class PolynomialIdentityByGrid(M.Edge):
         right = M.Head(right_res)()
         reg2 = M.Head(M.Tail(right_res)())()
         if M.IdentityCompare(left, M.EmptyList)() is M.truth_value:
-            return point, reg2
+            return M.false_value, point, reg2
         if M.IdentityCompare(right, M.EmptyList)() is M.truth_value:
-            return point, reg2
+            return M.false_value, point, reg2
         if M.NatEq(left, right, reg2)() is M.false_value:
-            return point, reg2
+            return M.false_value, point, reg2
         return self._first_difference(lhs, rhs, variables, M.Tail(tuples)(), reg2)
+
+    def __call__(self):
+        return self.result
+
+
+class PolynomialRewriteCertificate(M.Edge):
+    """Grid-gated ordinary rewrite certificate (W22, partial).
+
+    Returns Pair(grid_record, Pair(success, Pair(derivation-or-[],
+    Pair(registry, [])))). Only a grid-true admitted identity is searched.
+    No grid verdict becomes a trusted rewrite rule: Checker B must replay the
+    returned derivation using the caller's rules. Power expansion, coefficient
+    collection and commutative-ring normalisation remain missing from the
+    default rules; success is deliberately not promised for every grid truth.
+    """
+
+    def __init__(self, lhs, rhs, variables, rules, registry, fuel=M.nine):
+        from .invariance import RewriteEqualityDerivation
+
+        decided = PolynomialIdentityByGrid(lhs, rhs, variables, registry)()
+        record = M.Head(decided)()
+        registry = M.Head(M.Tail(decided)())()
+        fields = M.Tail(record)()
+        # lhs, rhs, variables, degrees, grid_count, verdict, witness
+        fields = M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(fields)())())())())()
+        if M.Head(fields)() is M.truth_value:
+            rewritten = RewriteEqualityDerivation(lhs, rhs, rules, registry, fuel)()
+        else:
+            rewritten = M.Pair(M.false_value, M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList)))
+        self.result = M.Pair(record, rewritten)
+        super().__init__(inputs=M.Pair(lhs, M.Pair(rhs, M.Pair(variables,
+            M.Pair(rules, M.Pair(registry, M.Pair(fuel, M.EmptyList)))))), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class PolynomialGridDerivation(M.Edge):
+    """Record one finite-grid inference for Checker B to recompute.
+
+    Result Pair(grid_record, Pair(derivation-or-[], Pair(registry, []))).
+    This is a decision-procedure certificate, NOT a RewriteHere path.
+    Verifiers must explicitly trust PolynomialGridRuleLabel to admit this
+    action; the record's verdict, bounds and count are never trusted as facts.
+    """
+
+    def __init__(self, lhs, rhs, variables, registry):
+        from . import proof as P
+
+        input_registry = registry
+        decided = PolynomialIdentityByGrid(lhs, rhs, variables, registry)()
+        record = M.Head(decided)()
+        registry = M.Head(M.Tail(decided)())()
+        fields = M.Tail(record)()
+        fields = M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(fields)())())())())()
+        derivation = M.EmptyList
+        if M.Head(fields)() is M.truth_value:
+            action = M.Pair(L.PolynomialGridActionLabel, M.Pair(record, M.EmptyList))
+            step_res = P.Step(lhs, action, rhs, registry)()
+            step = M.Head(step_res)()
+            registry = M.Head(M.Tail(step_res)())()
+            steps = M.Pair(step, M.EmptyList)
+            cost_res = P.BuildProofCost(steps, registry)()
+            registry = M.Head(M.Tail(cost_res)())()
+            built = P.Derivation(steps, M.Head(cost_res)(), registry)()
+            derivation = M.Head(built)()
+            registry = M.Head(M.Tail(built)())()
+        self.result = M.Pair(record, M.Pair(derivation, M.Pair(registry, M.EmptyList)))
+        super().__init__(inputs=M.Pair(lhs, M.Pair(rhs, M.Pair(variables,
+            M.Pair(input_registry, M.EmptyList)))), results=self.result)
 
     def __call__(self):
         return self.result
@@ -1322,6 +1466,8 @@ __all__ = (
     "ExprDegreeBound",
     "EvaluateNatExpr",
     "PolynomialIdentityByGrid",
+    "PolynomialRewriteCertificate",
+    "PolynomialGridDerivation",
     "ResidueTable",
     "CongruenceClasses",
     "run_playground_interactive",

@@ -58,3 +58,56 @@ green, plus `test13`, `test16`, `test18`, `test26`.
 
 Subtraction/factorisation edges (W23), FLT discharge (W28/W29), d'Alembert as a named
 equation (W24/W31). `core.py` edits.
+
+
+## Completion / integration note (2026-10-19)
+
+W22 is done on `arena/c58acfec-cat-theo-machine` using the **recorded-grid-proof**
+alternative, not a full symbolic normaliser. `test34` is occupied (60/60); full
+`test1`–`test34` gate is green. Do not re-dispatch the brief as unstarted.
+
+### APIs and trust boundary
+
+- `invariance.RewriteEqualityDerivation(start, goal, rules, registry, fuel=M.nine)`
+  returns `Pair(success, Pair(derivation-or-[], Pair(registry, [])))`. It follows
+  the first applicable supplied rule at a cons-cell path, bounded by machine fuel;
+  failure is not a proof of inequality. Checker B replays ordinary rewrite actions.
+- `playground.PolynomialRewriteCertificate(lhs, rhs, variables, rules, registry, fuel)`
+  gates that walker on a grid verdict and returns `Pair(record, walker_result)`.
+  This initial path-only API remains partial on powers with the default rules.
+- `playground.PolynomialGridDerivation(lhs, rhs, variables, registry)` returns
+  `Pair(record, Pair(derivation-or-[], Pair(registry, [])))`. A true admitted
+  identity creates a one-step derivation with
+  `Pair(PolynomialGridActionLabel, Pair(record, []))` as the action. A false or
+  unsupported identity creates **no** derivation. It is a decision-procedure
+  inference, not a fabricated `RewriteHere` path.
+- Verify with `checker_b.VerifyDerivation` (or `VerifyProofReceipt`) and an explicit
+  trusted capability `Pair(labels.PolynomialGridRuleLabel, existing_trusted_rules)`.
+  Without this capability the step is rejected as `UnknownRuleLabel`. Do **not**
+  pass this capability to ordinary search as if it were a `proof.Rule`; it is a
+  Checker-B policy token, and no automatic search hook was added here.
+- Checker B checks exact action/record shape, endpoints and claimed true verdict,
+  then recomputes `PolynomialIdentityByGrid` with validated syntax, distinct,
+  complete variables, structural bounds and every point of the required grid.
+  Claimed bounds/count are compared by `NatEq`, not atom identity. A forged truth
+  or a smaller claimed grid cannot license a step. Both new labels are registered
+  by the existing snapshot-symbol mechanism and covered by round-trip replay.
+
+`proof.BuildDerivation` is unchanged and only replays the old action types; use
+`PolynomialGridDerivation` to construct a grid step. The shared `checker_b.py`
+change is exactly the new clause explicitly allowed in goal 1; existing rewrite,
+knowledge and W21 witness checking are unchanged.
+
+### Scope remaining
+
+The default symbolic `RewriteEquals` still cannot expand powers or normalise
+commutative rings; test26's negative claim about that walker remains valid. Both
+of test26's grid-derived polynomial identities now additionally have Checker-B
+verified grid proofs in test34. Subtraction, `ExprNeg`/`ExprFrac`/`ExprDiv`, FLT
+packs and FLT discharge remain out of scope. W28/W29 still wait for W23.
+
+The grid procedure was hardened before admitting it into Checker B: malformed
+arity, undeclared/duplicate/numeric variables and unsupported terms are refused;
+false constant identities with no variables now carry an explicit false verdict
+(their counterexample is the empty tuple). No smaller grid is substituted for
+structural degree bounds. No core/proof, arithmetic, persistence, or FLT-pack edits.

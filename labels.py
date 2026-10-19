@@ -1765,6 +1765,14 @@ class NoStatesLabel(ConstructorLabel):
     pass
 
 
+class PolynomialGridActionLabel(ConstructorLabel):
+    pass
+
+
+class PolynomialGridRuleLabel(ConstructorLabel):
+    pass
+
+
 class UnboundVariableLabel(ConstructorLabel):
     pass
 TreeLabel = TreeLabel()
@@ -2207,6 +2215,8 @@ CongruenceClassesLabel = CongruenceClassesLabel()
 EveryStateMovesLabel = EveryStateMovesLabel()
 NoStatesLabel = NoStatesLabel()
 UnboundVariableLabel = UnboundVariableLabel()
+PolynomialGridActionLabel = PolynomialGridActionLabel()
+PolynomialGridRuleLabel = PolynomialGridRuleLabel()
 
 
 def sync_from_namespace(namespace):
@@ -2651,6 +2661,8 @@ def sync_from_namespace(namespace):
         "EveryStateMovesLabel",
         "NoStatesLabel",
         "UnboundVariableLabel",
+        "PolynomialGridActionLabel",
+        "PolynomialGridRuleLabel",
     ):
         if name in namespace:
             globals()[name] = namespace[name]

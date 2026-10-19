@@ -34,6 +34,9 @@ class VerifyProofStep(M.Edge):
 
     def _verify(self, step, trusted_rules, premises, computed_steps):
         action = P.StepAction(step, self.registry)()
+        if M.IsPair(action)() is M.truth_value:
+            if M.IdentityCompare(M.Head(action)(), L.PolynomialGridActionLabel)() is M.truth_value:
+                return self._verify_polynomial_grid(step, action, trusted_rules)
         rule = P.ActionRule(action)()
         current = P.StepCurrent(step, self.registry)()
         next_term = P.StepNext(step, self.registry)()
@@ -68,6 +71,69 @@ class VerifyProofStep(M.Edge):
             )
 
         return M.Pair(L.StepVerifiedLabel, M.Pair(next_term, M.EmptyList))
+
+    def _verify_polynomial_grid(self, step, action, trusted_rules):
+        # Explicit decision-procedure authority, separate from rewrite rules.
+        # Do not call the certificate generator or symbolic search here.
+        from . import playground as PG
+
+        if self._rule_in_ruleset(L.PolynomialGridRuleLabel, trusted_rules) is M.false_value:
+            return M.Pair(L.UnknownRuleLabel, M.Pair(L.PolynomialGridRuleLabel, M.EmptyList))
+        current = P.StepCurrent(step, self.registry)()
+        nxt = P.StepNext(step, self.registry)()
+        refusal = M.Pair(L.ConclusionMutationLabel, M.Pair(current, M.Pair(nxt, M.EmptyList)))
+        if PG._exact_arity(M.Tail(action)(), 1) is M.false_value:
+            return refusal
+        record = M.Head(M.Tail(action)())()
+        if M.IsPair(record)() is M.false_value:
+            return refusal
+        if M.IdentityCompare(M.Head(record)(), L.PolynomialIdentityLabel)() is M.false_value:
+            return refusal
+        fields = M.Tail(record)()
+        if PG._exact_arity(fields, 7) is M.false_value:
+            return refusal
+        lhs = M.Head(fields)()
+        fields = M.Tail(fields)()
+        rhs = M.Head(fields)()
+        fields = M.Tail(fields)()
+        variables = M.Head(fields)()
+        fields = M.Tail(fields)()
+        degrees = M.Head(fields)()
+        fields = M.Tail(fields)()
+        count = M.Head(fields)()
+        fields = M.Tail(fields)()
+        verdict = M.Head(fields)()
+        witness = M.Head(M.Tail(fields)())()
+        if M.AndAtom(M.Compare(lhs, current)(), M.Compare(rhs, nxt)())() is M.false_value:
+            return refusal
+        if M.IdentityCompare(verdict, M.truth_value)() is M.false_value:
+            return refusal
+        if M.IdentityCompare(witness, M.EmptyList)() is M.false_value:
+            return refusal
+        # Recompute exact syntax, variable coverage, degree bounds, full grid
+        # and machine arithmetic. The submitted grid cannot choose its size.
+        checked = PG.PolynomialIdentityByGrid(lhs, rhs, variables, self.registry)()
+        registry = M.Head(M.Tail(checked)())()
+        fresh_fields = M.Tail(M.Head(checked)())()
+        fresh_fields = M.Tail(M.Tail(M.Tail(fresh_fields)())())()
+        fresh_degrees = M.Head(fresh_fields)()
+        fresh_fields = M.Tail(fresh_fields)()
+        fresh_count = M.Head(fresh_fields)()
+        fresh_verdict = M.Head(M.Tail(fresh_fields)())()
+        if M.IdentityCompare(fresh_verdict, M.truth_value)() is M.false_value:
+            return refusal
+        if M.NatEq(count, fresh_count, registry)() is M.false_value:
+            return refusal
+        while M.IdentityCompare(fresh_degrees, M.EmptyList)() is M.false_value:
+            if M.IsPair(degrees)() is M.false_value:
+                return refusal
+            if M.NatEq(M.Head(degrees)(), M.Head(fresh_degrees)(), registry)() is M.false_value:
+                return refusal
+            degrees = M.Tail(degrees)()
+            fresh_degrees = M.Tail(fresh_degrees)()
+        if M.IdentityCompare(degrees, M.EmptyList)() is M.false_value:
+            return refusal
+        return M.Pair(L.StepVerifiedLabel, M.Pair(nxt, M.EmptyList))
 
     def _apply_knowledge_rule(self, rule, current):
         facts = P.KnowledgeFacts(current)()

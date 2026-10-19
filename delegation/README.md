@@ -6,14 +6,14 @@ is pinned to its own branch, works there, and reports back. The coordinator impo
 result — see *Reporting back* below.
 
 W1–W20 are done or closed as partial (DAG §4, §6.9). Their briefs stay in this directory
-as history; **do not re-execute them.** Remaining work is W21–W33 plus USER/COORD.
+as history; **do not re-execute them.** W21 and W22 have landed; remaining work is W23–W33 plus USER/COORD.
 
 Index (open workers only):
 
 | Brief | Worker | Dimension | Phase | Prereqs | Suite slot |
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | `W21-witness-introduction.md` | Existential witness introduction — **done**, see DAG §4 W21 | Substrate / 1 | 4 | none | `test33` ✅ |
-| `W22-algebraic-rewriting.md` | Grid identities → rewrite derivations | Substrate / 1 | 4 | none — **start now**; do not edit `math/arithmetic.py` | `test34` |
+| `W22-algebraic-rewriting.md` | Grid identities → **done via Checker-B-verified grid proofs**; symbolic normalisation remains open (DAG §4) | Substrate / 1 | 4 | none; do not re-dispatch | `test34` ✅ |
 | `W23-factorisation-natless.md` | Factorisation edges & derived `NatLess` | Substrate / 1 | 4 | none — **start now**; owns `math/arithmetic.py` | `test35` |
 | `W24-residue-divisibility-wiring.md` | Residue / divisibility schema wiring (was W9(c)) | 2 | 4b | W9 ✅ — **start now** | `test36` |
 | `W25-curriculum-loader.md` | Curriculum card loader | 2/3/4 | 4b | none — **start now** | `test37` |
@@ -29,7 +29,7 @@ Index (open workers only):
 USER-1 (laptop ⇄ Colab WAN trial) and USER-2 (real Neo4j dump decode) are not Arena
 briefs — see DAG §8. COORD merges this line to `master`.
 
-Dispatch order: nine sessions can start in parallel (W21–W27, W32, W33) with disjoint
+Dispatch order: seven remaining sessions can start in parallel (W23–W27, W32, W33) with disjoint
 file ownership except append-only `labels.py`. Do **not** start W28 or W29 before
 W21–W23 report. W30 waits on a new domain receipt. W31 can start on existing
 arithmetic/Engel-pack goals; it is richer after W30.
