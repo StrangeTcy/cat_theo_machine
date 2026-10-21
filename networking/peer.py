@@ -22,6 +22,14 @@ Invariants this module owns, all of them observable from outside:
 * **Nothing silently lost.** Every job reaches exactly one terminal record -- a
   result, or a failure with a reason. A worker killed mid-job has its leases
   reclaimed and its job re-dispatched or recorded as `worker-lost`.
+* **A dropped link is not a dead peer (W33).** A closed connection is evidence
+  about a link, so it makes the member *suspect* for `reconnect_grace`
+  seconds: owners, states, leases and attempt numbers are frozen and no
+  terminal record is written. A rejoin with the same peer id inside the
+  grace cancels the loss without charging an attempt; only a suspect that
+  stays gone resolves into the loss above. A goodbye (the peer says it is
+  leaving) and a heartbeat timeout (it has already been silent for
+  `peer_timeout`) are losses at once and are never deferred.
 
 Threads per peer: one accept loop, one reader and one writer per connection, one
 heartbeat loop, plus (coordinator) a dispatch loop and a liveness loop, and
@@ -181,6 +189,7 @@ class MeshPeer:
         expect_coordinator=None,
         fetch_timeout=180.0,
         advertise=None,
+        reconnect_grace=5.0,
     ):
         self.identity = identity
         self.role = role
@@ -199,6 +208,12 @@ class MeshPeer:
         self.fetch_timeout = fetch_timeout
         self.heartbeat_interval = heartbeat_interval
         self.peer_timeout = peer_timeout
+        # How long a severed link may heal itself before it is accounted as a
+        # loss (W33). Sized against the worker's own repair loop, which polls
+        # every 0.3 s and allows a 3 s join: a transient drop rejoins inside
+        # this window, a dead peer costs this much extra recovery latency and
+        # no more. Zero restores the pre-W33 immediate accounting.
+        self.reconnect_grace = max(0.0, reconnect_grace)
         self.max_attempts = max_attempts
         self.offer_ack_timeout = offer_ack_timeout
         self.steal_enabled = steal_enabled
@@ -236,6 +251,12 @@ class MeshPeer:
         self._offered_at = {}           # job_id -> when its offer went out
         self._acknowledged = set()      # job_ids whose last offer was answered
         self._retry_after = {}          # job_id -> when it may be offered again
+        # W33: members whose link died but whose loss is not yet accounted --
+        # peer_id -> (resolve_at, lost_at, reason). Membership and the
+        # connection go at once (nothing new is dispatched to a suspect); the
+        # peer's jobs, leases and attempt numbers are frozen until the loss
+        # resolves or the peer rejoins and cancels it.
+        self._deferred_losses = {}
         self._coordinator_address = ""  # where a worker rejoins after a drop
         # W20: artifact transfers in flight (either role), what a worker is
         # waiting to receive, which fetches came back empty, and when an
@@ -315,6 +336,7 @@ class MeshPeer:
                 "live_leases": len(self._foreign_leases),
                 "local_leases": len(self._local_leases),
                 "members": sorted(self._members.keys()),
+                "deferred_losses": sorted(self._deferred_losses.keys()),
             }
 
     # --------------------------------------------------------------- lifecycle
@@ -578,7 +600,15 @@ class MeshPeer:
         deadline = time.time() + min(1.0, timeout)
         while time.time() < deadline:
             with self._lock:
-                pending = [1 for connection in self._connections.values() if not connection.flushed]
+                # A worker's GOODBYE rides its coordinator connection, which
+                # is not in `_connections`: without it in this wait, the
+                # socket below could close on a goodbye its writer had not
+                # sent yet, and the coordinator would see a bare link loss
+                # (a W33 suspect) where the peer in fact said it was leaving.
+                closing = list(self._connections.values())
+                if self._coordinator_connection is not None:
+                    closing.append(self._coordinator_connection)
+                pending = [1 for connection in closing if not connection.flushed]
             if not pending:
                 break
             time.sleep(0.02)
@@ -649,7 +679,9 @@ class MeshPeer:
             )
             connection.close()
             if was_member and not self._stop.is_set():
-                self._member_lost(connection.peer_id, "connection closed", connection=connection)
+                # A closed socket says the *link* died. Whether the peer did
+                # is what the reconnect grace finds out (W33).
+                self._member_lost(connection.peer_id, "connection closed", connection=connection, link_loss=True)
 
     def _reader_loop(self, connection):
         """Read frames on a connection this peer dialled (its coordinator)."""
@@ -747,6 +779,12 @@ class MeshPeer:
             "load": message.get("load", {"queued": 0, "running": 0}),
         }
         with self._lock:
+            # Claimed in the same critical section that registers the member:
+            # whichever of this join and a due deferred loss takes the lock
+            # first decides the peer's fate, and the other sees a consistent
+            # answer (a resolved loss leaves no entry to cancel here, and a
+            # cancelled one cannot be resolved behind this member's back).
+            deferred = self._deferred_losses.pop(peer_id, None)
             self._members[peer_id] = record
             self._connections[peer_id] = connection
             members = [dict(item) for item in self._members.values()]
@@ -761,6 +799,16 @@ class MeshPeer:
             )
         )
         self._record("member-joined", peer_id=peer_id, detail=record["address"], mode_list=record["modes"])
+        if deferred is not None:
+            # The peer behind the dead link was alive all along. Its jobs
+            # never changed owner or state and no attempt was charged: the
+            # worker's re-announcement (`_announce_work`) simply re-states an
+            # ownership the coordinator never took away.
+            self._record(
+                "member-rejoined",
+                peer_id=peer_id,
+                detail="link restored %.1fs after %s; no attempt charged" % (time.time() - deferred[1], deferred[2]),
+            )
 
     def _send(self, peer_id, message):
         with self._lock:
@@ -836,12 +884,101 @@ class MeshPeer:
                 elif "load" in item:
                     existing["load"] = item["load"]
 
-    def _member_lost(self, peer_id, reason, connection=None):
+    def _member_lost(self, peer_id, reason, connection=None, link_loss=False):
+        """A member may be gone: decide whether that is a loss yet (W33).
+
+        Three callers, two different kinds of evidence. A `goodbye` frame and
+        a heartbeat timeout are statements about the *peer* -- it says it is
+        leaving, or it has already been silent for `peer_timeout` -- and they
+        resolve as losses at once. A severed connection (`link_loss`) is a
+        statement about a *socket*: the peer behind it may be a worker whose
+        coordinator link blinked for a fraction of a second, queue and
+        running job intact, already re-joining. Counting that as a loss is
+        what charged a second attempt against a live holder in DAG §6.5, so
+        the coordinator first makes the member *suspect*: membership and the
+        connection go (a suspect is offered nothing new), but its job owners,
+        states, leases, offer bookkeeping and attempt numbers are frozen for
+        `reconnect_grace`. A rejoin with the same peer id cancels the
+        accounting (`_handle_join`); `_expire_deferred_losses` resolves what
+        stays gone. Only the coordinator defers, because attempt accounting
+        over submitted jobs is the coordinator's.
+        """
+        defer = False
+        deferred_connection = None
         with self._lock:
             if connection is not None and self._connections.get(peer_id) is not connection:
                 # The peer already re-joined over a newer connection, so this
                 # loss is historical: healing it again would discard live work.
                 self._record("stale-loss-ignored", peer_id=peer_id, detail=reason)
+                return
+            if link_loss and peer_id in self._deferred_losses:
+                # A second dead connection for a peer already suspect: the
+                # first deferral stands, with its original deadline.
+                self._record("stale-loss-ignored", peer_id=peer_id, detail="%s (loss already deferred)" % reason)
+                return
+            defer = (
+                link_loss
+                and self.role == self.ROLE_COORDINATOR
+                and self.reconnect_grace > 0
+                and not self._stop.is_set()
+                and peer_id in self._members
+            )
+            if defer:
+                self._members.pop(peer_id, None)
+                deferred_connection = self._connections.pop(peer_id, None)
+                now = time.time()
+                self._deferred_losses[peer_id] = (now + self.reconnect_grace, now, reason)
+        if defer:
+            if deferred_connection is not None:
+                deferred_connection.close()
+            self._record(
+                "member-suspect",
+                peer_id=peer_id,
+                detail="%s; loss accounting deferred %.1fs" % (reason, self.reconnect_grace),
+            )
+            return
+        self._resolve_member_loss(peer_id, reason)
+
+    def _expire_deferred_losses(self):
+        """Resolve every suspect that stayed gone past its grace.
+
+        Driven by the coordinator's liveness loop, so a resolution lands at
+        most one heartbeat interval after its deadline. The entries are only
+        *read* here: `_resolve_member_loss` claims each one under the lock,
+        so a rejoin that slips in between this snapshot and the resolution
+        still wins (and vice versa).
+        """
+        now = time.time()
+        with self._lock:
+            due = [
+                (peer_id, entry[2])
+                for peer_id, entry in list(self._deferred_losses.items())
+                if entry[0] <= now
+            ]
+        for peer_id, reason in due:
+            self._resolve_member_loss(peer_id, reason, from_deferred=True)
+
+    def _resolve_member_loss(self, peer_id, reason, from_deferred=False):
+        """Account a member as lost: reclaim its leases and its jobs.
+
+        This is the only place a peer loss charges an attempt or writes a
+        presumed terminal record. The orphan set is read *now*, not when
+        the link died, so work a suspect peer handed over in the meantime
+        (a queued job can still be stolen peer-to-peer while its holder's
+        coordinator link is down) is not orphaned out from under its new
+        owner.
+        """
+        with self._lock:
+            # Any deferred entry for this peer is claimed by this resolution
+            # (an immediate loss supersedes a pending grace too), so no loss
+            # can ever be accounted twice. A deferred entry also proves the
+            # peer *was* a member; its record was already popped at defer
+            # time, so `member-lost` below cannot key off the record alone.
+            was_deferred_member = self._deferred_losses.pop(peer_id, None) is not None
+            if from_deferred and (not was_deferred_member or peer_id in self._members):
+                # The rejoin won the lock first: it popped this entry in the
+                # same section that re-registered the member, so there is no
+                # loss left to resolve (`_handle_join` recorded it).
                 return
             record = self._members.pop(peer_id, None)
             connection = self._connections.pop(peer_id, None)
@@ -860,7 +997,7 @@ class MeshPeer:
             if job is not None:
                 self._offered_at.pop(job.job_id, None)
                 self._acknowledged.discard(job.job_id)
-        if record is not None:
+        if record is not None or was_deferred_member:
             self._record("member-lost", peer_id=peer_id, detail=reason)
         for lease in released:
             self._record("lease-released", peer_id=peer_id, job_id=lease.job_id, detail="scope reclaimed after loss")
@@ -953,6 +1090,9 @@ class MeshPeer:
                 self._record("hearsay-expired", peer_id=peer_id, detail="never heard from directly")
             for peer_id in direct:
                 self._member_lost(peer_id, "heartbeat timeout")
+            # Suspects are already out of `_members`, so the stale scan above
+            # cannot see them: their deadline is the grace, not the timeout.
+            self._expire_deferred_losses()
 
     # ------------------------------------------------------- coordinator: work
 
@@ -1060,6 +1200,12 @@ class MeshPeer:
         precisely because of the guards the workers apply -- a peer that already
         advanced the scope refuses the job as `refused-stale`, and a peer that
         already holds the scope refuses it as `refused-scope-busy`.
+
+        Charging that attempt is loss accounting too, so an offer owned by a
+        *suspect* member is left alone until its loss resolves (W33): if the
+        peer rejoins still holding the job, its re-announcement acknowledges
+        the offer and nothing was spent; if it never held it, the watchdog
+        charges the one attempt after the grace, at the next pass.
         """
         while not self._stop.is_set():
             time.sleep(0.5)
@@ -1073,6 +1219,7 @@ class MeshPeer:
                     if state == "dispatched"
                     and job_id not in self._acknowledged
                     and self._offered_at.get(job_id, 0.0) < deadline
+                    and self._job_owner.get(job_id) not in self._deferred_losses
                 ]
                 decisions = []
                 for job_id in silent:

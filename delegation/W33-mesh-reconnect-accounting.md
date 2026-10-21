@@ -43,3 +43,29 @@ Not `core.py`. Keep `framing.Duplex`.
 ## Non-goals
 
 WAN features (W20, done), boot cost (W32), consensus (W17, done).
+
+## Outcome (2026-10-21, `arena/b94f5f2e-cat-theo-machine`)
+
+Done as briefed. `networking/peer.py` distinguishes the two at the call
+site: only a severed connection (`link_loss=True` from `_serve_connection`)
+is deferred; the coordinator records `member-suspect` and freezes the
+member's owners/states/leases/attempts for `MeshPeer(reconnect_grace=...)`
+seconds (default 5.0; 0 restores the old behaviour), while `goodbye` and
+heartbeat-timeout callers resolve immediately. A same-id rejoin inside the
+grace pops the deferred entry in the same lock section that re-registers
+the member (`member-rejoined`); `_expire_deferred_losses`, driven by the
+liveness loop, resolves the rest exactly once, reading the orphan set at
+resolution time. The offer watchdog skips suspect owners.
+
+`validation/test45_mesh_reconnect_accounting.py` (**20/20**, ~26 s, run
+twice) reproduces the 0.2 s blink without a SIGKILL: it cuts a live
+worker's coordinator connection while gating its rejoin (phases 1 and 5)
+and also unassisted (phase 2). Against the pre-fix code phase 1 showed the
+recorded failure (`states={'failed': 1, 'pending': 1}`, the survivor's
+own job charged attempt 2). Gate: `test25` 51/51, `test31` 50/50, `test27`
+51/51 (kill run 45.8 s, redispatches=1). A goodbye-flush defect in
+`shutdown()` was found by phase 2 and fixed in the same commit. Remaining
+window: an absence longer than the grace still spends the attempt (W2
+supersession remains the outcome backstop), and true-crash recovery now
+lands up to `reconnect_grace` + one heartbeat later than before. Full
+record: DAG §4 W33 and `networking/README.md` § *Liveness*.

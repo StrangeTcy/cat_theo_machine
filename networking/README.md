@@ -139,6 +139,26 @@ first version of this layer got them wrong:
   `job-queued`, which transfer ownership back to it). A `member-lost` for a link
   the peer has already replaced is ignored, so a rejoin is never undone by the
   stale loss of the link it replaced.
+* **A dropped link is also not yet a dead peer (W33).** When a member's
+  connection closes, the coordinator makes it *suspect* (`member-suspect`,
+  listed in `summary()["deferred_losses"]`) for `reconnect_grace` seconds
+  (5 s by default, against the worker's 0.3 s reconnect poll and 3 s join).
+  Membership ends at once — a suspect is offered nothing new — but its job
+  owners, states, leases, offer bookkeeping and attempt numbers are frozen
+  and no terminal record is written, which also means a coordinator waiting
+  for "every submitted job has a result" cannot mistake a blink for
+  completion and shut down under a queued job. A rejoin with the same peer id
+  inside the window cancels the loss (`member-rejoined`, no attempt charged);
+  a suspect still gone at the deadline resolves into exactly the old loss,
+  once: `member-lost`, leases reclaimed, one attempt charged, the job
+  re-dispatched or reported `worker-lost`. A `goodbye` and a heartbeat
+  timeout are never deferred — the peer said it is leaving, or it has
+  already been silent for the full timeout — and the offer watchdog likewise
+  does not charge an unanswered offer against an owner that is only
+  suspect. `reconnect_grace=0` restores the immediate accounting. What this
+  does *not* close: a peer that stays away longer than the grace is charged
+  the one attempt even if it later returns with the work; the result still
+  supersedes a recorded failure (below), but the attempt stays spent.
 
 * **A heartbeat is not a question.** Each pair of peers has its own periodic
   sender — the coordinator's loop tells every member it is alive and gossips the
@@ -263,7 +283,8 @@ coordinator writes `ledger.json`. Two kinds of event live there, and the
 difference matters when reading a failing run:
 
 * **Behavioural** — these are what the layer *does*, and a test asserts on them:
-  `member-joined` / `member-lost` / `stale-loss-ignored`, `job-submitted` /
+  `member-joined` / `member-suspect` / `member-rejoined` / `member-lost` /
+  `stale-loss-ignored`, `job-submitted` /
   `job-dispatched` / `job-started` / `job-queued` / `job-result` /
   `job-redispatched` / `job-declined`, `lease-released` / `lease-transferred`,
   `rejoined` / `rejoin-failed`, `hearsay-expired`, `result-superseded`,
@@ -400,3 +421,27 @@ The ordering that makes that safe is the one that was already there: never repla
 a success, never record a second failure. `result-superseded` now says which kind
 of failure it replaced — `presumed` or `recorded` — because the second is the one
 that means the attempt budget raced a peer, which is worth seeing.
+
+**A transient reconnect was charged as a second attempt** (`networking/peer.py`,
+W33, found by the W16 kill test, DAG §6.5). Supersession healed that job's
+*outcome* when the survivor eventually started it, but the accounting that
+produced the failure was untouched: the SIGKILL that closed the victim's
+connection also closed the *survivor's* for 0.2 s, the coordinator treated
+that EOF as a second loss of the already re-dispatched unit, the attempt
+budget hit its ceiling, and the unit was finalised `failed` / `worker-lost`
+while still queued on a live worker — at which point a coordinator whose
+run loop stops when every job has a terminal record could shut down before
+the unit ever started, the one ordering supersession cannot heal. A closed
+connection is now suspect before it is a loss (see *Liveness* above):
+nothing is charged, released or recorded until the peer either rejoins
+inside `reconnect_grace` or stays gone past it, and
+`validation/test45_mesh_reconnect_accounting.py` reproduces the §6.5
+sequence with stub runners and shows the pre-fix ledger
+(`states={'failed': 1, 'pending': 1}` after the blink) turning into no
+terminal record, no charged attempt, and the unit run once by its holder.
+Found on the way, and fixed in the same commit because the goodbye/loss
+distinction is now load-bearing: `shutdown()`'s writer-flush wait covered
+`_connections` but not a worker's coordinator connection, so the socket
+could close on a `GOODBYE` its writer thread had not sent yet, and the
+coordinator would see a bare link loss where the peer had said it was
+leaving.

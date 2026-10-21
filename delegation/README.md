@@ -6,7 +6,7 @@ is pinned to its own branch, works there, and reports back. The coordinator impo
 result — see *Reporting back* below.
 
 W1–W20 are done or closed as partial (DAG §4, §6.9). Their briefs stay in this directory
-as history; **do not re-execute them.** W21–W23 have landed; W29 is closed as a precise negative. Remaining dispatchable work is W24–W28 and W30–W33 (subject to their gates), plus USER/COORD.
+as history; **do not re-execute them.** W21–W23 have landed; W29 is closed as a precise negative; W33 has landed. Remaining dispatchable work is W24–W28 and W30–W32 (subject to their gates), plus USER/COORD.
 
 Index (open workers only):
 
@@ -24,7 +24,7 @@ Index (open workers only):
 | `W30-domain-promotion-loop.md` | Domain packs through Checker B + ledger | 4 | 6 | W12 ✅ + a Phase 4b receipt — **gated** | `test42` |
 | `W31-dialogue-beyond-arithmetic.md` | Tutor/story beyond arithmetic | 5 | 6 | W15 ✅ W14 ✅ | `test43` |
 | `W32-swarm-boot-cost.md` | Swarm unit-boot cost | Infra | 7 | W16 ✅ — **start now** | `test44` |
-| `W33-mesh-reconnect-accounting.md` | Transient reconnect ≠ second attempt | Infra | 7 | W2 ✅ W16 ✅ — **start now** | `test45` |
+| `W33-mesh-reconnect-accounting.md` | **Done:** severed links are suspect for `reconnect_grace` before they are losses; transient reconnects charge no attempt (DAG §4) | Infra | 7 | done; do not re-dispatch | `test45` ✅ |
 
 Supplemental follow-up: [`constrained-nat-witnesses.md`](constrained-nat-witnesses.md)
 records bounded numeric witness search (`test46`, 185/185) and independent
@@ -35,8 +35,10 @@ open; this is not parametrisation completeness or an existential proof rule.
 USER-1 (laptop ⇄ Colab WAN trial) and USER-2 (real Neo4j dump decode) are not Arena
 briefs — see DAG §8. COORD merges this line to `master`.
 
-Dispatch order: six independent sessions can start in parallel (W24–W27, W32, W33)
-with disjoint file ownership except append-only `labels.py`. W21–W23 have reported
+Dispatch order: five independent sessions can start in parallel (W24–W27, W32)
+with disjoint file ownership except append-only `labels.py` — but read the
+lineage warning in DAG §8.2 before taking W24–W26, which have already landed
+on an unmerged branch. W21–W23 have reported
 green, so W28 may start. W29 has now reported a precise negative; do not re-dispatch
 it until its named generic/proof gaps change. W30 waits on a new domain receipt. W31 can start on existing
 arithmetic/Engel-pack goals; it is richer after W30.

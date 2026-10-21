@@ -2,7 +2,7 @@
 
 This document specifies the evolutionary architecture, dependency DAG, worker allocation, and synchronization protocols for coordinating Arena agents evolving the Hyge Theorem Prover.
 
-Phases 0–3 (W1–W20) landed by 2026-10-15; their record is §2–§6. **Remaining work is §7 (five-dimension status) and §8 (Phase 4+ DAG).** W21–W23 have landed; W29 has reported a precise negative (test41). The next unoccupied allocated suite slot is `test36` (W24). This copy of the tree was fast-forwarded onto `arena/5d1b2a18-cat-theo-machine` from `arena/717c9822-cat-theo-machine` (`a548d7d`) on 2026-10-19.
+Phases 0–3 (W1–W20) landed by 2026-10-15; their record is §2–§6. **Remaining work is §7 (five-dimension status) and §8 (Phase 4+ DAG).** W21–W23 have landed; W29 has reported a precise negative (test41); W33 landed 2026-10-21 (test45, §4). The next unoccupied allocated suite slot on this branch is `test36` (W24) — but see the §8.2 lineage warning before dispatching it. This copy of the tree was fast-forwarded onto `arena/5d1b2a18-cat-theo-machine` from `arena/717c9822-cat-theo-machine` (`a548d7d`) on 2026-10-19, and this session's branch fast-forwarded to `arena/c58acfec-cat-theo-machine` (`0b80aed`) on 2026-10-21, where W33 then landed.
 
 ---
 
@@ -100,7 +100,7 @@ Phases 0–3 below are the original trajectory. They are **completed** (2026-10-
 | **W30**| Domain packs through the closed loop | Dim 4 | `checker_b.py`, `promotion_ledger.py`, `evaluator.py` | W12 ✅, W24–W27 | Geometry/Engel/funceq derivations earn receipts or stated refusals. Brief: `delegation/W30-domain-promotion-loop.md`. Slot `test42` |
 | **W31**| Tutor/story beyond arithmetic | Dim 5 | `dialogue.py`, `story_renderer.py` | W15 ✅ W14 ✅ | Claims and stories over geometry/Engel/FLT vocabulary. Brief: `delegation/W31-dialogue-beyond-arithmetic.md`. Slot `test43` |
 | **W32**| Swarm unit-boot cost | Infra | `persistence.py`, `search/distributed_engine.py` | W16 ✅ | Cut the 12–30 s per-unit boot that makes swarm speedup negative. Brief: `delegation/W32-swarm-boot-cost.md`. Slot `test44` |
-| **W33**| Mesh reconnect attempt accounting | Infra | `networking/peer.py` | W2 ✅ W16 ✅ | Transient reconnect is not a second attempt; kill-phase race closed. Brief: `delegation/W33-mesh-reconnect-accounting.md`. Slot `test45` |
+| **W33**| Mesh reconnect attempt accounting ✅ | Infra | `networking/peer.py` | W2 ✅ W16 ✅ | ✅ 2026-10-21: a severed link makes a member suspect for `reconnect_grace` (default 5 s) — no attempt charged, no terminal record — and only an unresolved suspect becomes `member-lost`; goodbye/heartbeat-timeout stay immediate; the offer watchdog does not charge a suspect owner either. `test45` 20/20. Brief: `delegation/W33-mesh-reconnect-accounting.md`. Slot `test45` |
 
 ### 3.1 Substrate extensions added after this DAG was first published
 
@@ -596,8 +596,55 @@ These arrived during Phase 0/1 execution and are prerequisites or enablers rathe
     uniform witnesses/parametrisation/square-factor proofs and checked source
     coverage. Budget bounds candidate checks, not exponent cost or wall time.
   Full API/trust-boundary handoff: `delegation/constrained-nat-witnesses.md`.
-- [ ] **W24–W28, W30–W33 (Phase 4+, remainder)**: See §8. Slots through `test35`
-  plus `test41` and supplemental `test46` are occupied; other slots remain as allocated.
+- [x] **W33 (Mesh reconnect attempt accounting)**: Landed 2026-10-21 on
+  `arena/b94f5f2e-cat-theo-machine` (fast-forwarded to `0b80aed` first), slot
+  `test45` (**20/20**, ~26 s, three full runs). The §6.5 double-count is closed on the
+  accounting side, not just healed on the outcome side. A severed member
+  connection now makes the member *suspect* (`member-suspect`,
+  `summary()["deferred_losses"]`) for `reconnect_grace` seconds (new
+  `MeshPeer` argument, default **5.0**, sized against the worker's 0.3 s
+  reconnect poll and 3 s join; `0` restores the old accounting, test45
+  phase 4). Membership and the connection end at once, so a suspect is
+  offered nothing new, but job owners/states, leases, offer bookkeeping and
+  attempt numbers are frozen and **no terminal record is written** — a
+  coordinator waiting for every submitted job to have a result can no longer
+  mistake a blink for completion and shut down under a queued unit. A
+  rejoin with the same peer id inside the grace cancels the loss
+  (`member-rejoined`, claimed atomically with re-registration in
+  `_handle_join`); the worker's `_announce_work` then re-states an ownership
+  that was never taken away. Only an unresolved suspect resolves, from the
+  liveness loop, into exactly the old loss once (`member-lost`, leases
+  reclaimed, one attempt, re-dispatch or provisional `worker-lost`), with
+  the orphan set read at resolution time. `goodbye` and heartbeat-timeout
+  losses are never deferred, and the offer watchdog does not charge an
+  unanswered offer against a suspect owner (test45 phase 5). *Reproduced
+  first*: phase 1 replays the §6.5 sequence with gated stub runners over
+  real mTLS (victim killed mid-job → attempt 2 queued on the survivor → the
+  survivor's link cut with its rejoin held); against the pre-fix code it
+  reads `states={'failed': 1, 'pending': 1}` with the survivor's own job at
+  attempt 2 (6 passed, 5 failed), and passes 20/20 whole-suite after.
+  *Defect found on the way*: `shutdown()`'s writer-flush wait omitted a
+  worker's coordinator connection, so its socket could close on a `GOODBYE`
+  the writer had not sent, and a peer that said it was leaving would have
+  arrived as a bare link loss; the coordinator connection is in the wait
+  now (test45 phase 2 pins goodbye as an immediate, unsuspected loss).
+  Files: `networking/peer.py` only (`networking/jobs.py` untouched), plus
+  `test45` and docs. `core.py`, kernel, packs, snapshots untouched.
+  **Gate** (re-run in full on the final tree): `test25` **51/51** (169.0 s;
+  its two crash paths now each pay the 5 s grace before resolving, inside
+  their 20–25 s waits), `test31` **50/50** (85.9 s), `test27` **51/51**
+  (320 s; kill run 45.8 s, redispatches=1, `member-lost` and mid-job
+  attempt 2 exactly as before; healthy-run speedup 0.85×, reported not
+  tuned). `test45` also passed in full three times. No other suite imports
+  `networking.peer`; the other 34 suites were not re-run this session.
+  *Remaining window, stated plainly*: a peer away longer than the grace is
+  still charged the one attempt and its presumed record stands until a real
+  result supersedes it (the W2 behaviour); the grace lengthens true-crash
+  recovery by up to `reconnect_grace` plus one heartbeat interval; and a
+  coordinator that shuts down while a holder is suspect does not force
+  those jobs terminal — as before, it never did for running jobs.
+- [ ] **W24–W28, W30–W32 (Phase 4+, remainder)**: See §8. Slots through `test35`
+  plus `test41`, `test45` and supplemental `test46` are occupied; other slots remain as allocated.
 
 ---
 
@@ -622,7 +669,7 @@ Every Arena agent working on this repository must strictly adhere to the followi
 
    **The exception is conjunctive: both halves must hold.** The code is host-layer, *and* there is no machine analogue for what it does. Being in a harness or a probe is not by itself a licence — if the machine can already answer the question (`Compare`, `IsAtom`, `IsPair`, `IsTree`), then reaching into a payload with `getattr`, `type`, or `.symbol` is a violation wherever it sits. The identity index passes both halves. A probe that read `.symbol` to find an edge by name and `type(x).__name__` to report what came back passed only the first; it was fixed to use `Compare` and `IsAtom`. An earlier draft of this section stated the test as "whether the value crosses into a machine term", which made layer the only condition and would have excused that probe. Do not spend a session on an unscoped purity refactor of host code, and do not cite this rule to reject working host-layer code — but do not cite the host layer to excuse bypassing a predicate the machine already provides.
 3. **No Domain-Specific Hardcoding**: Do not hardcode problem targets or fixed heuristics in search or mining modules.
-4. **Verification Requirement**: Every new worker module or pack must include an automated verification suite in `validation/` with $100\%$ green test results before promotion. There are currently **36** suites — `test1`–`test35` plus `test41` (other Phase 4+ slots remain pre-allocated; do not fill numbering gaps, see §8) — each a standalone script. Run one with `PYTHONPATH=<repo-parent> python -u validation/testN_*.py` (the suites insert the package parent onto `sys.path` themselves and import as `cat_theo_machine.*`).
+4. **Verification Requirement**: Every new worker module or pack must include an automated verification suite in `validation/` with $100\%$ green test results before promotion. There are currently **38** suites — `test1`–`test35` plus `test41`, `test45` and supplemental `test46` (other Phase 4+ slots remain pre-allocated; do not fill numbering gaps, see §8) — each a standalone script. Run one with `PYTHONPATH=<repo-parent> python -u validation/testN_*.py` (the suites insert the package parent onto `sys.path` themselves and import as `cat_theo_machine.*`).
 5. **Snapshot Root Invariant**: any new machine state that must survive a cold resume has to be registered as a root in `SnapshotCodec.capture()` and restored in `activate()`. Content added through the graph's `nodes`/`edges` context is now covered; state kept only in Python attributes is not, and silently evaporates on reload.
 6. **Suite Slot Discipline**: `validation/` numbering is append-only. Two lineages independently claimed slots 15 and 16 for unrelated suites; the reconciliation below is what happened, and new work must take the next free number rather than reusing a taken one.
 7. **One serialisation of a machine term**: the snapshot codec. The mesh carries references (W2) and, under `--artifacts wire` (W20), the *bytes of snapshot files* that the receiver loads through the codec — never a pickled or otherwise serialised term (`framing.TERM_PAYLOAD_KEYS` rejects the frame). A new transport that wants to move machine state moves a snapshot.
@@ -795,6 +842,10 @@ Two facts for the next worker:
   supersedes a *recorded* failure, not only a provisional one — so the survivor's late result
   stands when it arrives. The attempt double-count itself is unchanged; if the coordinator
   shuts down before the survivor starts the unit, the unit is still `abandoned-on-shutdown`.
+  *Closed (2026-10-21, W33, §4):* a severed link is now a suspect for
+  `reconnect_grace` before it is a loss, so the transient above charges no
+  attempt, writes no terminal record (hence no shutdown cue), and is
+  cancelled by the rejoin; `test45` reproduces this exact sequence.
 
 Regression run: `test1`, `test3`, `test4`, `test5`, `test9`, `test12`, `test13`, `test18`,
 `test19`, `test23`, `test24` green, `test27` green on rerun (above); `git status snapshots/`
@@ -1091,7 +1142,7 @@ What the machine can do *now*, and what it still cannot, by dimension. Substrate
 Independent of the five dimensions, still open, and *not* an excuse to reopen W1–W20:
 
 - Swarm speedup **0.84×** on `engel_e2` (2 vCPU): the proof lives in one branch; unit-boot is 12–30 s (W32).
-- Kill-phase race: a transient reconnect still counts as an attempt; W2's 2026-10-15 fixes close the *outcome* side (late success supersedes a recorded failure) but not the double-count (W33).
+- Kill-phase race: **closed by W33** (2026-10-21, §4). A severed link is suspect for `reconnect_grace` (default 5 s) before it is a loss; only an absence longer than the grace still spends the one attempt, with W2's supersession as the outcome-side backstop.
 - Snapshot format fork v3 vs v4: stay on v3; adoption unbought (§6).
 - Real laptop ⇄ Colab trial and real Neo4j dump decode: user, not a sandbox worker (USER-1, USER-2).
 - Merge this line to `master` so notebooks stop cloning a session branch (COORD).
@@ -1104,6 +1155,7 @@ Independent of the five dimensions, still open, and *not* an excuse to reopen W1
 **Dispatch update:** W21–W23 are complete (§4). Their nodes below preserve the original
 allocation/dependency plan, not instructions to re-run them. W28 may start; W29
 has since reported a precise negative (§4) and must not be re-dispatched unchanged.
+W33 is complete (2026-10-21, §4); do not re-dispatch it.
 
 ```
 ═══════════════════════════════════════════════════════════════════════════════════════════════════════════════════
@@ -1218,11 +1270,12 @@ has since reported a precise negative (§4) and must not be re-dispatched unchan
  │         Effect: per-unit boot no longer dominates swarm wall-clock;
  │                 test27 speedup re-measured and reported, not tuned.
  │
- ├── W33: Mesh reconnect attempt accounting             (Infra)
- │         Agent: Arena session, brief W33, slot test45
+ ├── W33: Mesh reconnect attempt accounting  ✅ DONE    (Infra)
+ │         Agent: Arena session, brief W33, slot test45 — landed 2026-10-21
  │         Owns:  networking/peer.py
  │         Effect: a 0.2 s coordinator-lost/rejoined is not a second
  │                 attempt; test27 kill phase is no longer racy.
+ │                 test45 20/20 (§4). Do not re-dispatch.
  │
  ├── USER-1: Laptop ⇄ Colab WAN trial
  │         Agent: the user, not an Arena worker
@@ -1249,7 +1302,7 @@ has since reported a precise negative (§4) and must not be re-dispatched unchan
 
 ### 8.1 Dispatch rules for Phase 4+
 
-1. **Start immediately (no prereq gate):** W24, W25, W26, W27, W32, W33. W21–W23 are done (§4); do not re-dispatch them. File ownership is disjoint except `labels.py` (append-only union, as in §6.2). W22 added the brief-authorised Checker-B grid clause after W21 landed; it preserves witness checking.
+1. **Start immediately (no prereq gate):** W24, W25, W26, W27, W32. W21–W23 and W33 are done (§4); do not re-dispatch them. File ownership is disjoint except `labels.py` (append-only union, as in §6.2). W22 added the brief-authorised Checker-B grid clause after W21 landed; it preserves witness checking.
 2. **W28 may start; W29 has reported.** W21–W23 are green, but test41 closes W29 as a precise negative. Reopen only after the named generic/proof gaps change. Do not treat gcd extraction as unique factorisation or a conditional order proof as a proved descent.
 3. **W30 waits** on at least one new domain receipt. Running it against the present tree would only restate that W8/W10 suites do not exercise the loop.
 4. **One slot per brief**, already allocated above. Do not invent `test33` for something else.
@@ -1260,3 +1313,18 @@ has since reported a precise negative (§4) and must not be re-dispatched unchan
 ### 8.2 Lineage note (2026-10-19)
 
 `arena/5d1b2a18-cat-theo-machine` was opened from `master` (`428ecdc`, 2026-08-25) and fast-forwarded to `arena/717c9822-cat-theo-machine` (`a548d7d`, 2026-10-15) so this session would not re-fork the swarm. Further Phase 4+ work on this session lands here. Notebooks still clone `717c9822` until COORD merges to `master`; that is USER/COORD, not a worker.
+
+**2026-10-21 warning (verified by fetching all 78 remote heads):** the swarm
+again has two heads off W22 (`45e4564`). This branch descends from the younger,
+`arena/c58acfec-cat-theo-machine` (`0b80aed`: W23, W29, constrained witnesses).
+The other, `origin/arena/f0572ef6-cat-theo-machine` (`8fac788`, 2026-10-19),
+already landed **W24, W25 and W26** (`test36` 41/41, `test37` 62/62, `test38`
+49/49 in its own copy of this document, §3/§4 there) and is **not** merged
+here, so this document lists W24–W26 as open and they'd collide on exactly
+those allocated slots (`SWARM_EVOLUTION_DAG.md`, `delegation/README.md` and
+`labels.py` are the overlapping files) if re-dispatched from this tree. Do not
+re-dispatch W24–W26; integrate `f0572ef6` first (a §6.2/§6.8-style
+integration), after which the next unoccupied allocated slot is `test39`
+(W27). W33 was chosen this session precisely because `networking/peer.py` is
+byte-identical on both heads (`b4fcaea`), so it lands cleanly on either side
+of that integration.
