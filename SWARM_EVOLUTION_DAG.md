@@ -2,7 +2,7 @@
 
 This document specifies the evolutionary architecture, dependency DAG, worker allocation, and synchronization protocols for coordinating Arena agents evolving the Hyge Theorem Prover.
 
-Phases 0–3 (W1–W20) landed by 2026-10-15; their record is §2–§6. **Remaining work is §7 (five-dimension status) and §8 (Phase 4+ DAG).** W21–W27 have landed; W29 has reported a precise negative (test41); W33 landed 2026-10-21 (test45, §4); W27 landed 2026-10-22 (test39, §4). The next unoccupied allocated suite slot is `test40` (W28). The two post-W22 heads — `arena/c58acfec-cat-theo-machine` (`0b80aed`: W23, W29) and `arena/f0572ef6-cat-theo-machine` (`8fac788`: W24–W26), both fast-forwarded from `arena/717c9822-cat-theo-machine` (`a548d7d`) on 2026-10-19 — were integrated on 2026-10-21 (§6.10); this branch descends from the first of them, via `arena/b94f5f2e-cat-theo-machine`, where W33 landed before the merge.
+Phases 0–3 (W1–W20) landed by 2026-10-15; their record is §2–§6. **Remaining work is §7 (five-dimension status) and §8 (Phase 4+ DAG).** W21–W27 have landed; W29 has reported a precise negative (test41); W33 landed 2026-10-21 (test45, §4); W27 landed 2026-10-22 (test39, §4). The next unoccupied allocated suite slot is `test40` (W28). The two post-W22 heads — `arena/c58acfec-cat-theo-machine` (`0b80aed`: W23, W29) and `arena/f0572ef6-cat-theo-machine` (`8fac788`: W24–W26), both fast-forwarded from `arena/717c9822-cat-theo-machine` (`a548d7d`) on 2026-10-19 — were integrated on 2026-10-21 (§6.10); this branch descends from the first of them, via `arena/b94f5f2e-cat-theo-machine`, where W33 landed before the merge. A further parallel head, `arena/f42b3f12-cat-theo-machine` (`966e26f`, forked at W33), was integrated on 2026-10-22 after W27 landed (§6.11).
 
 ---
 
@@ -852,6 +852,29 @@ These arrived during Phase 0/1 execution and are prerequisites or enablers rathe
   "Only Pigeonhole and Extremal" comment corrected), `labels.py`
   (append-only, three sites), `validation/test39_engel_remainder.py`.
   `core.py`, `search/`, packs, snapshots untouched.
+- [x] **Supplemental, unbriefed (machine-native playground, slot `test47`)**:
+  Landed 2026-10-22 on `arena/f42b3f12-cat-theo-machine` (forked at W33,
+  `b7a94c6`), integrated the same day (§6.11). Three commits, three files:
+  `playground.py` grows pure-machine set/coordinate edges (`SetDifference`,
+  `SortNatChain`, `TupleElementAt`, `ProjectCoordinate`,
+  `ProjectAllCoordinates`, `ProjectTensorModulo`,
+  `FindTensorEqualityWitness`, `DiscoverExprObstructions`,
+  `EvaluateNatExpr`), a surface-goal parser into Pair spec records,
+  dynamic goal-directed Cartesian sweeps over `ResidueTable` /
+  `CongruenceClasses`, multi-process sweep dispatch with
+  `[debug: cartesian_playground process <pid>]` telemetry, and `main.py live`
+  automatically suggests lemmas on unproved goals (playground sweep +
+  backward-obligation candidates) without being asked; direct lesson
+  naming after "Would you care to give it a name?". `test47` **27/27**
+  (~67 s; §[4] drives `main.py live` as a subprocess). Verified on
+  integration by diff scan (additions are `M.Edge`s over machine terms;
+  host code tokenises/routes) and by the full gate, not by a line audit of
+  the ~2800 added lines. *Defect found on integration*: as committed, the
+  head was not green — `_pg_debug` used `sys` without importing it, so
+  test47 and test13 crashed on contact; one-line repair (`import sys`)
+  on this branch. No slot collision: `test47` was the next never-allocated
+  number; no brief or W-number was consumed, and no DAG record came with
+  the branch — this entry and §6.11 are written by the integrating session.
 - [ ] **W28, W30–W32 (Phase 4+, remainder)**: See §8. Slots through `test39`
   plus `test41`, `test45` and supplemental `test46` are occupied; other slots remain as allocated.
 
@@ -878,7 +901,7 @@ Every Arena agent working on this repository must strictly adhere to the followi
 
    **The exception is conjunctive: both halves must hold.** The code is host-layer, *and* there is no machine analogue for what it does. Being in a harness or a probe is not by itself a licence — if the machine can already answer the question (`Compare`, `IsAtom`, `IsPair`, `IsTree`), then reaching into a payload with `getattr`, `type`, or `.symbol` is a violation wherever it sits. The identity index passes both halves. A probe that read `.symbol` to find an edge by name and `type(x).__name__` to report what came back passed only the first; it was fixed to use `Compare` and `IsAtom`. An earlier draft of this section stated the test as "whether the value crosses into a machine term", which made layer the only condition and would have excused that probe. Do not spend a session on an unscoped purity refactor of host code, and do not cite this rule to reject working host-layer code — but do not cite the host layer to excuse bypassing a predicate the machine already provides.
 3. **No Domain-Specific Hardcoding**: Do not hardcode problem targets or fixed heuristics in search or mining modules.
-4. **Verification Requirement**: Every new worker module or pack must include an automated verification suite in `validation/` with $100\%$ green test results before promotion. There are currently **42** suites — `test1`–`test39` plus `test41`, `test45` and supplemental `test46` (the rest of the Phase 4+ slots `test40`, `test42`–`test44` remain pre-allocated to their briefs; do not fill numbering gaps with other work, see §8) — each a standalone script. Run one with `PYTHONPATH=<repo-parent> python -u validation/testN_*.py` (the suites insert the package parent onto `sys.path` themselves and import as `cat_theo_machine.*`).
+4. **Verification Requirement**: Every new worker module or pack must include an automated verification suite in `validation/` with $100\%$ green test results before promotion. There are currently **43** suites — `test1`–`test39` plus `test41`, `test45`, supplemental `test46` and supplemental `test47` (the rest of the Phase 4+ slots `test40`, `test42`–`test44` remain pre-allocated to their briefs; do not fill numbering gaps with other work, see §8) — each a standalone script. Run one with `PYTHONPATH=<repo-parent> python -u validation/testN_*.py` (the suites insert the package parent onto `sys.path` themselves and import as `cat_theo_machine.*`).
 5. **Snapshot Root Invariant**: any new machine state that must survive a cold resume has to be registered as a root in `SnapshotCodec.capture()` and restored in `activate()`. Content added through the graph's `nodes`/`edges` context is now covered; state kept only in Python attributes is not, and silently evaporates on reload.
 6. **Suite Slot Discipline**: `validation/` numbering is append-only. Two lineages independently claimed slots 15 and 16 for unrelated suites; the reconciliation below is what happened, and new work must take the next free number rather than reusing a taken one.
 7. **One serialisation of a machine term**: the snapshot codec. The mesh carries references (W2) and, under `--artifacts wire` (W20), the *bytes of snapshot files* that the receiver loads through the codec — never a pickled or otherwise serialised term (`framing.TERM_PAYLOAD_KEYS` rejects the frame). A new transport that wants to move machine state moves a snapshot.
@@ -1345,6 +1368,36 @@ partial; W7 partial; W29 a precise negative (do not re-dispatch unchanged).
 Remaining: W27, W28, W30, W31, W32. Suite slots `test1`–`test38`, `test41`,
 `test45`, `test46` are taken; the next unoccupied allocated slot is `test39` (W27)
 and the next never-allocated number is `test47`. Dispatch rules: §8.1 as integrated.
+
+### 6.11 Fourth integration: the f42b3f12 head (2026-10-22)
+
+`arena/f42b3f12-cat-theo-machine` forked at W33 (`b7a94c6`) — before the
+§6.10 merge and before W27 — and landed three commits (`ff19a17`, `26a6969`,
+`966e26f`) touching only `playground.py`, `main.py` (REPL dialogue, no new
+agenda cases) and the new `validation/test47_dynamic_goal_lemma_suggestion.py`.
+Content is recorded as the supplemental §4 entry above. After W27 landed
+(`a603605`), the user asked for the latest commits to be pulled first; the
+head was merged as a true merge (`a7aee56`, no conflicts — disjoint files),
+so both histories survive.
+
+**Defect found on integration**: the head was not green as committed.
+`playground._pg_debug` called `sys.stdout` with no `sys` import; test47 and
+test13 crashed with `NameError` on the merged tree (test18/test20, which do
+not reach the debug path, passed). One-line repair on this branch
+(`import sys`); test47 then passed **27/27** and test13 green. Recorded
+here because "the suite on the branch" is only evidence once it has been
+run on the tree that receives it.
+
+**Full gate on the merged tree: 43/43 suites exit 0** (test39 53/53,
+test47 27/27, test23 80/80, test21 37/37; demos rc=0). `core.py` untouched
+on both sides. §5's gate count is now 43 suites; `test47` is taken as
+supplemental, the next never-allocated number is `test48`, and the next
+unoccupied allocated slot remains `test40` (W28). Scoreboard unchanged
+otherwise: W1–W5, W8–W27, W33 done; W6/W7 partial; W29 precise negative.
+Next work taken up on this branch at the user's direction: **W30**
+(domain packs through the closed loop, slot `test42`) — its gate is met
+(W24/W26 receipts) and W27 left it two transition-verified Engel
+derivations awaiting receipts.
 
 ---
 

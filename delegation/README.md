@@ -28,8 +28,10 @@ Index (open workers only):
 
 Supplemental follow-up: [`constrained-nat-witnesses.md`](constrained-nat-witnesses.md)
 records bounded numeric witness search (`test46`, 185/185) and independent
-assignment re-evaluation. Latest full gate: **42/42 green** after W27 landed
-(2026-10-22, DAG §4 W27; integrated tree DAG §6.10). W29's finite fixture
+assignment re-evaluation. A second unbriefed supplemental landed 2026-10-22
+(machine-native playground projections + REPL auto lemma suggestion,
+`test47` 27/27, DAG §4/§6.11). Latest full gate: **43/43 green** after the
+f42b3f12 integration (2026-10-22, DAG §6.11). W29's finite fixture
 now yields numeric parameters, but EveryStateMoves and the promotion gate remain
 open; this is not parametrisation completeness or an existential proof rule.
 
@@ -47,8 +49,8 @@ W30.
 
 Suite slots are **append-only** and pre-allocated above (`test33`–`test45`). Do not
 reuse a number. Historical collisions (15/16, 22, 27) are recorded in DAG §6. The
-supplemental `test46` is taken (above); the next unoccupied allocated slot is
-`test40` (W28) and the next never-allocated number is `test47`.
+supplementals `test46` and `test47` are taken (above); the next unoccupied allocated slot is
+`test40` (W28) and the next never-allocated number is `test48`.
 
 ---
 
