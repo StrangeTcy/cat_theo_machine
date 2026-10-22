@@ -10,10 +10,13 @@ class PlannerProblem(M.Edge):
     """
     A planning problem.
 
-    `methods` is an optional Pair-chain of trainer-supplied Engel method terms
-    for this problem. It is supplied by the trainer or a problem pack; there is
-    no automatic strategy recognition. Problem terms written without the field
-    still construct and still read through every existing positional accessor.
+    `methods` is an optional Pair-chain of Engel method terms for this
+    problem, supplied by the trainer or a problem pack -- or proposed from
+    the problem's own declarations by ProposeStrategyMethods /
+    PlannerProblemWithProposals (W27), which is recognition of a strategy
+    shape the data already declares, never invention of a measure.
+    Problem terms written without the field still construct and still
+    read through every existing positional accessor.
     """
 
     def __init__(self, mathematical_state, goal, rules, heuristic, methods=None):
@@ -811,6 +814,190 @@ class ConstructionConclusion(M.Edge):
         return self.result
 
 
+class ProposeStrategyMethods(M.Edge):
+    """
+    Automatic strategy recognition for the Engel method layer.
+
+    Reads a problem's mathematical state (a Knowledge term or a bare
+    fact chain) against its goal and proposes the strategy method terms
+    the declarations in the facts support:
+
+      goal Terminates(p)  +  Monovariant(p, m), MoveSet(p, moves),
+        BoundedBelow(m, b)   ->  Monovariant(p, m, b, moves)
+      goal Terminates(p)  +  SemiInvariant(p, m), MoveSet(p, moves),
+        BoundedBelow(m, b)   ->  SemiInvariant(p, m, b, moves)
+      goal Unreachable(p, target)  +  MoveSet(p, moves),
+        Reading(phi, target, v1), Reading(phi, s0, v0) with s0 apart
+        from target and Apart(v0, v1)
+                             ->  Invariance(p, phi, moves, s0, v0, target, v1)
+
+    Recognition is only this: the *shape* of a strategy already
+    declared in the problem data. Nothing is proposed from the goal
+    alone, no measure or observable is invented, and any declaration
+    whose supporting facts are incomplete proposes nothing. Where
+    several declarations are complete, every supported method is
+    proposed, in fact order.
+    """
+
+    def __init__(self, mathematical_state, goal):
+        self.result = self._propose(mathematical_state, goal)
+        super().__init__(
+            inputs=M.Pair(mathematical_state, M.Pair(goal, M.EmptyList)),
+            results=self.result,
+        )
+
+    def _facts_of(self, mathematical_state):
+        if P.IsKnowledge(mathematical_state)() is M.truth_value:
+            return P.KnowledgeFacts(mathematical_state)()
+        return mathematical_state
+
+    def _args(self, fact, count):
+        """The argument terms of a label-headed fact, or None."""
+        if M.IsPair(fact)() is M.false_value:
+            return None
+        args = []
+        cursor = M.Tail(fact)()
+        while M.IsPair(cursor)() is M.truth_value:
+            args.append(M.Head(cursor)())
+            cursor = M.Tail(cursor)()
+        if M.IdentityCompare(cursor, M.EmptyList)() is M.false_value:
+            return None
+        if len(args) != count:
+            return None
+        return args
+
+    def _collect(self, facts, label, count):
+        found = []
+        cursor = facts
+        while M.IsPair(cursor)() is M.truth_value:
+            fact = M.Head(cursor)()
+            cursor = M.Tail(cursor)()
+            if M.IsPair(fact)() is M.false_value:
+                continue
+            if M.IdentityCompare(M.Head(fact)(), label)() is M.false_value:
+                continue
+            args = self._args(fact, count)
+            if args is not None:
+                found.append(args)
+        return found
+
+    def _find(self, rows, first, second=None):
+        for row in rows:
+            if M.TermEqual(row[0], first)() is M.false_value:
+                continue
+            if second is not None and M.TermEqual(row[1], second)() is M.false_value:
+                continue
+            return row
+        return None
+
+    def _propose(self, mathematical_state, goal):
+        if M.IsPair(goal)() is M.false_value:
+            return M.EmptyList
+        goal_head = M.Head(goal)()
+        facts = self._facts_of(mathematical_state)
+        proposals = []
+
+        if M.IdentityCompare(goal_head, L.TerminatesLabel)() is M.truth_value:
+            goal_args = self._args(goal, 1)
+            if goal_args is None:
+                return M.EmptyList
+            problem = goal_args[0]
+            move_sets = self._collect(facts, L.MoveSetLabel, 2)
+            bounds = self._collect(facts, L.BoundedBelowLabel, 2)
+            move_row = self._find(move_sets, problem)
+            if move_row is not None:
+                moves = move_row[1]
+                for declaration, build in (
+                    (L.MonovariantLabel, Monovariant),
+                    (L.SemiInvariantLabel, SemiInvariant),
+                ):
+                    for row in self._collect(facts, declaration, 2):
+                        if M.TermEqual(row[0], problem)() is M.false_value:
+                            continue
+                        bound_row = self._find(bounds, row[1])
+                        if bound_row is None:
+                            continue
+                        proposals.append(
+                            build(problem, row[1], bound_row[1], moves)()
+                        )
+
+        if M.IdentityCompare(goal_head, L.UnreachableLabel)() is M.truth_value:
+            goal_args = self._args(goal, 2)
+            if goal_args is None:
+                return M.EmptyList
+            problem, target = goal_args
+            move_sets = self._collect(facts, L.MoveSetLabel, 2)
+            move_row = self._find(move_sets, problem)
+            if move_row is not None:
+                moves = move_row[1]
+                readings = self._collect(facts, L.ReadingLabel, 3)
+                aparts = self._collect(facts, L.ApartLabel, 2)
+                for target_row in readings:
+                    phi, at, target_reading = target_row
+                    if M.TermEqual(at, target)() is M.false_value:
+                        continue
+                    for start_row in readings:
+                        start_phi, initial, initial_reading = start_row
+                        if M.TermEqual(start_phi, phi)() is M.false_value:
+                            continue
+                        if M.TermEqual(initial, target)() is M.truth_value:
+                            continue
+                        if self._find(aparts, initial_reading, target_reading) is None:
+                            continue
+                        proposals.append(
+                            Invariance(
+                                problem, phi, moves,
+                                initial, initial_reading,
+                                target, target_reading,
+                            )()
+                        )
+
+        chain = M.EmptyList
+        for proposal in reversed(proposals):
+            chain = M.Pair(proposal, chain)
+        return chain
+
+    def __call__(self):
+        return self.result
+
+
+class PlannerProblemWithProposals(M.Edge):
+    """
+    A problem term whose methods are the strategy proposals its own
+    state and goal support (ProposeStrategyMethods), in place of
+    whatever method chain it carried.
+
+    This is the entry point for strategy firing in ordinary runs: a
+    problem built without any hand-written method term is passed
+    through this edge, and PlannerRun then decomposes its root with
+    the proposed methods. The rebuild goes through PlannerProblem, so
+    the problem id and root fields take the constructor's Zero values,
+    as they do for every constructor-built problem.
+    """
+
+    def __init__(self, problem):
+        fields = M.Tail(problem)()
+        fields = M.Tail(fields)()
+        mathematical_state = M.Head(fields)()
+        fields = M.Tail(fields)()
+        goal = M.Head(fields)()
+        fields = M.Tail(fields)()
+        rules = M.Head(fields)()
+        fields = M.Tail(fields)()
+        heuristic = M.Head(fields)()
+        proposals = ProposeStrategyMethods(mathematical_state, goal)()
+        self.result = PlannerProblem(
+            mathematical_state, goal, rules, heuristic, proposals
+        )()
+        super().__init__(
+            inputs=M.Pair(problem, M.EmptyList),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class PlannerAlternative(M.Edge):
     """
     One competing way of discharging a parent obligation.
@@ -1448,6 +1635,7 @@ class PlannerStep(M.Edge):
                     if M.IdentityCompare(problem, M.EmptyList)() is M.false_value:
                         problem_fields = M.Tail(problem)()
                         problem_fields = M.Tail(problem_fields)()
+                        problem_state = M.Head(problem_fields)()
                         problem_fields = M.Tail(problem_fields)()
                         problem_rules = M.Head(M.Tail(problem_fields)())()
                         remaining_rules = problem_rules
@@ -1514,10 +1702,11 @@ class PlannerStep(M.Edge):
                             admissible_bindings = M.Tail(admissible_bindings)()
                         admissible_rules = reversed_admissible_rules
                         admissible_bindings = reversed_admissible_bindings
-                        # Trainer-supplied Engel methods become alternatives
-                        # beside the ordinary rule decompositions. Only
-                        # Pigeonhole and Extremal are expanded so far; other
-                        # method terms are carried but generate no children.
+                        # Supplied Engel methods become alternatives beside
+                        # the ordinary rule decompositions. Pigeonhole,
+                        # Extremal, Monovariant, SemiInvariant, Construction
+                        # and Invariance are expanded below; other method
+                        # terms are carried but generate no children.
                         method_decomposed = M.false_value
                         already_has_alternatives = M.false_value
                         existing_alternatives = alternatives
@@ -1571,11 +1760,32 @@ class PlannerStep(M.Edge):
                                     next_pair = M.Succ(next_obligation_id, registry)()
                                     next_obligation_id = M.Head(next_pair)()
                                     registry = M.Head(M.Tail(next_pair)())()
+                                    child_goal = M.Head(goals_to_add)()
+                                    # A method obligation the problem's own
+                                    # knowledge already carries as an exact
+                                    # fact is discharged on creation: a method
+                                    # obligation is a requirement on the
+                                    # supplied data, and the data supplies it.
+                                    # A search job cannot report this case --
+                                    # a zero-step success has an empty plan,
+                                    # which the search step reads as no
+                                    # success -- so without this, obligations
+                                    # the facts already meet could only fail.
+                                    child_status = L.PendingLabel
+                                    state_facts = problem_state
+                                    if P.IsKnowledge(problem_state)() is M.truth_value:
+                                        state_facts = P.KnowledgeFacts(problem_state)()
+                                    remaining_facts = state_facts
+                                    while M.IsPair(remaining_facts)() is M.truth_value:
+                                        if M.TermEqual(M.Head(remaining_facts)(), child_goal)() is M.truth_value:
+                                            child_status = L.ProvedLabel
+                                            break
+                                        remaining_facts = M.Tail(remaining_facts)()
                                     child = PlannerObligation(
                                         child_id,
                                         problem_id,
-                                        M.Head(goals_to_add)(),
-                                        L.PendingLabel,
+                                        child_goal,
+                                        child_status,
                                         M.EmptyList,
                                         M.EmptyList,
                                     )()
@@ -1891,6 +2101,8 @@ __all__ = (
     "Construction",
     "ConstructionObligations",
     "ConstructionConclusion",
+    "ProposeStrategyMethods",
+    "PlannerProblemWithProposals",
     "PigeonholeObligations",
     "PigeonholeConclusion",
     "ExtremalObligations",

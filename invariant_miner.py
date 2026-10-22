@@ -11,6 +11,7 @@ from . import machine as M
 from . import playground as PG
 from . import promotion_ledger as PL
 from . import proof as P
+from .math import arithmetic as Arith
 
 
 class InvariantCertificate(M.Edge):
@@ -646,6 +647,429 @@ class ProposeNextRegularityOrStructure(M.Edge):
         return self.result
 
 
+# ============================================================
+# W27 — ground-transition observables: independent verification of
+# Preserves / StrictlyDecreases / NonIncreases claims, and mining of
+# preserved observables over an enumerated transition relation.
+#
+# The miner above (MineInvariantFromTrace) tests candidate *patterns*
+# against rule premises/replacements; it cannot evaluate a computed
+# observable such as a count parity, because nothing computes the
+# readings. The edges below close that gap for finite processes whose
+# transition relation is supplied as ground data:
+#
+#   transition  ::= Pair(move, Pair(state, Pair(next_state, [])))
+#   state       ::= chain of nat components
+#   observable  ::= Pair(LinearObservableLabel,
+#                        Pair(coefficients, Pair(modulus, [])))
+#                   coefficients aligned with the state components;
+#                   modulus EmptyList means the raw linear form (a
+#                   measure), otherwise the form reduced modulo it.
+#
+# Every reading is computed by the machine's own arithmetic edges
+# (Multiply / Add / Modulo) and every comparison is decided by NatEq /
+# NatLess. The reading caches below are bookkeeping only: they memoise
+# machine-computed reading terms per state term so an exhaustive check
+# over a few hundred transitions stays affordable; no verdict is ever
+# taken from the cache without the reading having been computed by
+# LinearObservableValue first.
+# ============================================================
+
+
+class LinearObservable(M.Edge):
+    """
+    Observable descriptor term: a linear form over state components,
+    optionally reduced by a modulus.
+
+    inputs: [coefficients, modulus]   (modulus EmptyList = raw value)
+    results: Pair(LinearObservableLabel, Pair(coefficients, Pair(modulus, EmptyList)))
+    """
+
+    def __init__(self, coefficients, modulus):
+        self.result = M.Pair(
+            L.LinearObservableLabel,
+            M.Pair(coefficients, M.Pair(modulus, M.EmptyList)),
+        )
+        super().__init__(
+            inputs=M.Pair(coefficients, M.Pair(modulus, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class LinearObservableValue(M.Edge):
+    """
+    Evaluates a linear observable on one state.
+
+    inputs: [observable, state, registry]
+    results: Pair(value, Pair(registry, EmptyList)); value is EmptyList
+    on any refusal (descriptor head mismatch, coefficient/state length
+    mismatch, a non-nat component, or a zero modulus).
+    """
+
+    def __init__(self, observable, state, registry):
+        self.result = self._evaluate(observable, state, registry)
+        super().__init__(
+            inputs=M.Pair(
+                observable,
+                M.Pair(state, M.Pair(registry, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def _evaluate(self, observable, state, registry):
+        refused = M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+        if M.IsPair(observable)() is M.false_value:
+            return refused
+        if M.IdentityCompare(M.Head(observable)(), L.LinearObservableLabel)() is M.false_value:
+            return refused
+        fields = M.Tail(observable)()
+        coefficients = M.Head(fields)()
+        modulus = M.Head(M.Tail(fields)())()
+
+        total = M.Zero
+        reg = registry
+        coeffs = coefficients
+        components = state
+        while M.IdentityCompare(coeffs, M.EmptyList)() is M.false_value:
+            if M.IdentityCompare(components, M.EmptyList)() is M.truth_value:
+                return M.Pair(M.EmptyList, M.Pair(reg, M.EmptyList))
+            if M.IdentityCompare(M.Head(coeffs)(), M.Zero)() is M.truth_value:
+                # A zero coefficient contributes nothing; skipping its
+                # product is decided by identity against the Zero term
+                # and changes no value -- it only keeps exhaustive
+                # mining affordable.
+                coeffs = M.Tail(coeffs)()
+                components = M.Tail(components)()
+                continue
+            product_pair = Arith.Multiply(M.Head(coeffs)(), M.Head(components)(), reg)()
+            product = M.Head(product_pair)()
+            reg = M.Head(M.Tail(product_pair)())()
+            if M.IdentityCompare(product, M.EmptyList)() is M.truth_value:
+                return M.Pair(M.EmptyList, M.Pair(reg, M.EmptyList))
+            sum_pair = Arith.Add(total, product, reg)()
+            total = M.Head(sum_pair)()
+            reg = M.Head(M.Tail(sum_pair)())()
+            if M.IdentityCompare(total, M.EmptyList)() is M.truth_value:
+                return M.Pair(M.EmptyList, M.Pair(reg, M.EmptyList))
+            coeffs = M.Tail(coeffs)()
+            components = M.Tail(components)()
+        if M.IdentityCompare(components, M.EmptyList)() is M.false_value:
+            return M.Pair(M.EmptyList, M.Pair(reg, M.EmptyList))
+        if M.IdentityCompare(modulus, M.EmptyList)() is M.truth_value:
+            return M.Pair(total, M.Pair(reg, M.EmptyList))
+        residue_pair = Arith.Modulo(total, modulus, reg)()
+        return residue_pair
+
+    def __call__(self):
+        return self.result
+
+
+class _GroundTransitionCheck:
+    """Shared transition walking for the W27 verifier/miner edges.
+
+    Not an edge itself. Holds the registry being threaded and the
+    reading cache (state term -> machine-computed reading term).
+    """
+
+    def _init_ground(self, registry):
+        self.registry = registry
+        self._reading_cache = {}
+
+    def _reading(self, observable, state):
+        cached = self._reading_cache.get(state)
+        if cached is not None:
+            return cached
+        pair = LinearObservableValue(observable, state, self.registry)()
+        value = M.Head(pair)()
+        self.registry = M.Head(M.Tail(pair)())()
+        self._reading_cache[state] = value
+        return value
+
+    def _transition_parts(self, transition):
+        move = M.Head(transition)()
+        rest = M.Tail(transition)()
+        state = M.Head(rest)()
+        next_state = M.Head(M.Tail(rest)())()
+        return move, state, next_state
+
+
+class VerifyObservablePreserved(M.Edge, _GroundTransitionCheck):
+    """
+    Independently verifies that one move preserves one observable over
+    every ground transition of that move, by machine arithmetic.
+
+    inputs: [move, observable, transitions, registry]
+    results: Pair(verdict, Pair(registry, EmptyList)) where verdict is
+      Pair(PreservesLabel, Pair(move, Pair(observable, EmptyList)))
+    on success (exactly the fact the engel-strategies pack consumes), or
+      Pair(InvariantRefutedLabel, Pair(observable, Pair(move, Pair(reason, EmptyList))))
+    with reason = Pair(before, Pair(after, Pair(transition, EmptyList)))
+    on the first refuting transition. A move with no transitions in the
+    chain is refused rather than vacuously certified: no evidence, no
+    certificate (reason is then EmptyList).
+    """
+
+    def __init__(self, move, observable, transitions, registry):
+        self._init_ground(registry)
+        self.result = self._verify(move, observable, transitions)
+        super().__init__(
+            inputs=M.Pair(
+                move,
+                M.Pair(
+                    observable,
+                    M.Pair(transitions, M.Pair(registry, M.EmptyList)),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def _refuted(self, move, observable, reason):
+        verdict = M.Pair(
+            L.InvariantRefutedLabel,
+            M.Pair(observable, M.Pair(move, M.Pair(reason, M.EmptyList))),
+        )
+        return M.Pair(verdict, M.Pair(self.registry, M.EmptyList))
+
+    def _verify(self, move, observable, transitions):
+        seen_any = M.false_value
+        remaining = transitions
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            transition = M.Head(remaining)()
+            remaining = M.Tail(remaining)()
+            tmove, state, next_state = self._transition_parts(transition)
+            if M.TermEqual(tmove, move)() is M.false_value:
+                continue
+            seen_any = M.truth_value
+            before = self._reading(observable, state)
+            after = self._reading(observable, next_state)
+            if M.IdentityCompare(before, M.EmptyList)() is M.truth_value:
+                return self._refuted(
+                    move, observable,
+                    M.Pair(before, M.Pair(after, M.Pair(transition, M.EmptyList))),
+                )
+            if M.IdentityCompare(after, M.EmptyList)() is M.truth_value:
+                return self._refuted(
+                    move, observable,
+                    M.Pair(before, M.Pair(after, M.Pair(transition, M.EmptyList))),
+                )
+            if M.NatEq(before, after, self.registry)() is M.false_value:
+                return self._refuted(
+                    move, observable,
+                    M.Pair(before, M.Pair(after, M.Pair(transition, M.EmptyList))),
+                )
+        if seen_any is M.false_value:
+            return self._refuted(move, observable, M.EmptyList)
+        verdict = M.Pair(
+            L.PreservesLabel,
+            M.Pair(move, M.Pair(observable, M.EmptyList)),
+        )
+        return M.Pair(verdict, M.Pair(self.registry, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class VerifyMeasureDecrease(M.Edge, _GroundTransitionCheck):
+    """
+    Independently verifies that one move strictly decreases a measure
+    (a linear observable, raw in every intended use) over every ground
+    transition of that move.
+
+    inputs: [move, measure, transitions, registry]
+    results: Pair(verdict, Pair(registry, EmptyList)) where verdict is
+      Pair(StrictlyDecreasesLabel, Pair(move, Pair(measure, EmptyList)))
+    on success (exactly the fact the engel-strategies pack consumes), or
+      Pair(CounterexampleLabel, Pair(move, Pair(measure, Pair(reason, EmptyList))))
+    with reason = Pair(before, Pair(after, Pair(transition, EmptyList)))
+    on the first non-decreasing transition. No transitions for the move
+    is a counterexample with an EmptyList reason: no evidence, no
+    certificate.
+    """
+
+    def __init__(self, move, measure, transitions, registry):
+        self._init_ground(registry)
+        self.result = self._verify(move, measure, transitions, strict=M.truth_value)
+        super().__init__(
+            inputs=M.Pair(
+                move,
+                M.Pair(
+                    measure,
+                    M.Pair(transitions, M.Pair(registry, M.EmptyList)),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def _refused(self, move, measure, reason):
+        verdict = M.Pair(
+            L.CounterexampleLabel,
+            M.Pair(move, M.Pair(measure, M.Pair(reason, M.EmptyList))),
+        )
+        return M.Pair(verdict, M.Pair(self.registry, M.EmptyList))
+
+    def _verify(self, move, measure, transitions, strict):
+        seen_any = M.false_value
+        remaining = transitions
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            transition = M.Head(remaining)()
+            remaining = M.Tail(remaining)()
+            tmove, state, next_state = self._transition_parts(transition)
+            if M.TermEqual(tmove, move)() is M.false_value:
+                continue
+            seen_any = M.truth_value
+            before = self._reading(measure, state)
+            after = self._reading(measure, next_state)
+            reason = M.Pair(
+                before, M.Pair(after, M.Pair(transition, M.EmptyList)))
+            if M.IdentityCompare(before, M.EmptyList)() is M.truth_value:
+                return self._refused(move, measure, reason)
+            if M.IdentityCompare(after, M.EmptyList)() is M.truth_value:
+                return self._refused(move, measure, reason)
+            if strict is M.truth_value:
+                ok = M.NatLess(after, before, self.registry)()
+            else:
+                ok = M.OrAtom(
+                    M.NatLess(after, before, self.registry)(),
+                    M.NatEq(after, before, self.registry)(),
+                )()
+            if ok is M.false_value:
+                return self._refused(move, measure, reason)
+        if seen_any is M.false_value:
+            return self._refused(move, measure, M.EmptyList)
+        if strict is M.truth_value:
+            verdict = M.Pair(
+                L.StrictlyDecreasesLabel,
+                M.Pair(move, M.Pair(measure, M.EmptyList)),
+            )
+        else:
+            verdict = M.Pair(
+                L.NonIncreasesLabel,
+                M.Pair(move, M.Pair(measure, M.EmptyList)),
+            )
+        return M.Pair(verdict, M.Pair(self.registry, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class VerifyMeasureNonIncrease(VerifyMeasureDecrease):
+    """
+    The semi-invariant half of VerifyMeasureDecrease: the measure never
+    rises on any ground transition of the move.
+
+    results: Pair(NonIncreasesLabel, Pair(move, Pair(measure, EmptyList)))
+    on success, the same Counterexample packaging on refusal.
+    """
+
+    def __init__(self, move, measure, transitions, registry):
+        self._init_ground(registry)
+        self.result = self._verify(move, measure, transitions, strict=M.false_value)
+        M.Edge.__init__(
+            self,
+            inputs=M.Pair(
+                move,
+                M.Pair(
+                    measure,
+                    M.Pair(transitions, M.Pair(registry, M.EmptyList)),
+                ),
+            ),
+            results=self.result,
+        )
+
+
+class MinePreservedObservables(M.Edge, _GroundTransitionCheck):
+    """
+    Mines preserved observables over a ground transition relation: each
+    candidate descriptor is evaluated on both endpoints of every
+    transition (all moves), and certified only if machine arithmetic
+    finds equal readings throughout.
+
+    inputs: [transitions, candidates, registry]
+    results: Pair(certified, Pair(refuted, Pair(registry, EmptyList)))
+      certified: chain of the candidate observable terms that are
+        preserved everywhere (input order preserved);
+      refuted: chain of
+        Pair(observable, Pair(transition, Pair(before, Pair(after, EmptyList))))
+        first-refutation witnesses.
+    With no transitions nothing is certified and nothing refuted: the
+    miner does not manufacture an observable out of no evidence.
+    """
+
+    def __init__(self, transitions, candidates, registry):
+        self._init_ground(registry)
+        self.result = self._mine(transitions, candidates)
+        super().__init__(
+            inputs=M.Pair(
+                transitions,
+                M.Pair(candidates, M.Pair(registry, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def _reverse(self, chain):
+        out = M.EmptyList
+        remaining = chain
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            out = M.Pair(M.Head(remaining)(), out)
+            remaining = M.Tail(remaining)()
+        return out
+
+    def _mine(self, transitions, candidates):
+        if M.IdentityCompare(transitions, M.EmptyList)() is M.truth_value:
+            return M.Pair(
+                M.EmptyList,
+                M.Pair(M.EmptyList, M.Pair(self.registry, M.EmptyList)),
+            )
+        certified_rev = M.EmptyList
+        refuted_rev = M.EmptyList
+        remaining_candidates = candidates
+        while M.IdentityCompare(remaining_candidates, M.EmptyList)() is M.false_value:
+            observable = M.Head(remaining_candidates)()
+            remaining_candidates = M.Tail(remaining_candidates)()
+            self._reading_cache = {}
+            witness = M.EmptyList
+            remaining = transitions
+            while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+                transition = M.Head(remaining)()
+                remaining = M.Tail(remaining)()
+                _move, state, next_state = self._transition_parts(transition)
+                before = self._reading(observable, state)
+                after = self._reading(observable, next_state)
+                unequal = M.false_value
+                if M.IdentityCompare(before, M.EmptyList)() is M.truth_value:
+                    unequal = M.truth_value
+                elif M.IdentityCompare(after, M.EmptyList)() is M.truth_value:
+                    unequal = M.truth_value
+                elif M.NatEq(before, after, self.registry)() is M.false_value:
+                    unequal = M.truth_value
+                if unequal is M.truth_value:
+                    witness = M.Pair(
+                        observable,
+                        M.Pair(
+                            transition,
+                            M.Pair(before, M.Pair(after, M.EmptyList)),
+                        ),
+                    )
+                    break
+            if M.IdentityCompare(witness, M.EmptyList)() is M.truth_value:
+                certified_rev = M.Pair(observable, certified_rev)
+            else:
+                refuted_rev = M.Pair(witness, refuted_rev)
+        return M.Pair(
+            self._reverse(certified_rev),
+            M.Pair(
+                self._reverse(refuted_rev),
+                M.Pair(self.registry, M.EmptyList),
+            ),
+        )
+
+    def __call__(self):
+        return self.result
+
+
 __all__ = (
     "InvariantCertificate",
     "InvariantCertificatePhi",
@@ -660,4 +1084,10 @@ __all__ = (
     "MineOperationInvariants",
     "CheckTemplateSatisfaction",
     "ProposeNextRegularityOrStructure",
+    "LinearObservable",
+    "LinearObservableValue",
+    "VerifyObservablePreserved",
+    "VerifyMeasureDecrease",
+    "VerifyMeasureNonIncrease",
+    "MinePreservedObservables",
 )

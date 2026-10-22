@@ -2,7 +2,7 @@
 
 This document specifies the evolutionary architecture, dependency DAG, worker allocation, and synchronization protocols for coordinating Arena agents evolving the Hyge Theorem Prover.
 
-Phases 0–3 (W1–W20) landed by 2026-10-15; their record is §2–§6. **Remaining work is §7 (five-dimension status) and §8 (Phase 4+ DAG).** W21–W26 have landed; W29 has reported a precise negative (test41); W33 landed 2026-10-21 (test45, §4). The next unoccupied allocated suite slot is `test39` (W27). The two post-W22 heads — `arena/c58acfec-cat-theo-machine` (`0b80aed`: W23, W29) and `arena/f0572ef6-cat-theo-machine` (`8fac788`: W24–W26), both fast-forwarded from `arena/717c9822-cat-theo-machine` (`a548d7d`) on 2026-10-19 — were integrated on 2026-10-21 (§6.10); this branch descends from the first of them, via `arena/b94f5f2e-cat-theo-machine`, where W33 landed before the merge.
+Phases 0–3 (W1–W20) landed by 2026-10-15; their record is §2–§6. **Remaining work is §7 (five-dimension status) and §8 (Phase 4+ DAG).** W21–W27 have landed; W29 has reported a precise negative (test41); W33 landed 2026-10-21 (test45, §4); W27 landed 2026-10-22 (test39, §4). The next unoccupied allocated suite slot is `test40` (W28). The two post-W22 heads — `arena/c58acfec-cat-theo-machine` (`0b80aed`: W23, W29) and `arena/f0572ef6-cat-theo-machine` (`8fac788`: W24–W26), both fast-forwarded from `arena/717c9822-cat-theo-machine` (`a548d7d`) on 2026-10-19 — were integrated on 2026-10-21 (§6.10); this branch descends from the first of them, via `arena/b94f5f2e-cat-theo-machine`, where W33 landed before the merge.
 
 ---
 
@@ -94,7 +94,7 @@ Phases 0–3 below are the original trajectory. They are **completed** (2026-10-
 | **W24**| Residue / divisibility schema wiring ✅ | Dim 2 | `packs/funceq-nt.pack.yaml` | W9 ✅ (edges already exist) | ✅ 2026-10-19: eight constant-free schemas (transitivity, gcd's two universal properties, commutativity, Euclid's lemma, residue addition and multiplication); facts are records of the machine's `Divides`/`Gcd`/`Modulo`/`IsCoprime` edges; Checker B verifies the transitivity step and the ledger promotes it; `test36` 41/41. Brief: `delegation/W24-residue-divisibility-wiring.md`. Slot `test36` |
 | **W25**| Curriculum card loader ✅ | Dim 2/3/4 | `curriculum.py`, `labels.py`, `curriculum/` | none | ✅ 2026-10-19: markdown cards parse to machine records; two compile to graph tasks (held-out solved, decoy refused); 22 refused with reasons, 48 Ground 1 gaps reported; `test37` 62/62. Brief: `delegation/W25-curriculum-loader.md`. Slot `test37` |
 | **W26**| Geometry remainder ✅ | Dim 2 | `constructions.py`, `packs/geometry-constructions.pack.yaml` | W8 ✅ W4 ✅ | ✅ 2026-10-19: three constant-free chord/angle schemas plus the `antipode-completion` construction; Checker B verifies the Thales step, the ledger promotes it (evaluator/ablation/holdout), four ablations; `test38` 49/49. Brief: `delegation/W26-geometry-remainder.md`. Slot `test38` |
-| **W27**| Engel remainder | Dim 3 | `packs/engel-strategies.pack.yaml`, `invariant_miner.py`, `search/` | W10 ✅ | Real Engel instances as evaluation data; strategies fire in search. Brief: `delegation/W27-engel-remainder.md`. Slot `test39` |
+| **W27**| Engel remainder ✅ | Dim 3 | `invariant_miner.py`, `planner.py`, `labels.py` (pack untouched) | W10 ✅ | ✅ 2026-10-22: two unnamed instances close — Euclid-by-subtraction `Terminates`, chameleons `Unreachable`×3 — on transition-verified measure/observable facts; the chameleon observable is *mined* (10 certified / 42 refuted, ablation separates nothing); the planner proposes strategy methods from declarations and supplied obligations discharge in `PlannerRun`; root closure inside search is pinned as not-landed (two isolated `search/` blockers); `test39` 53/53. Brief: `delegation/W27-engel-remainder.md`. Slot `test39` |
 | **W28**| FLT $n=3$ UFD + cubic descent | Dim 1 | `playground.py`, `math/arithmetic.py` | W21, W22, W23, W7 `[~]` | Unique factorisation scaffolding used, cubic descent attempted. Brief: `delegation/W28-flt-n3-ufd-descent.md`. Slot `test40` |
 | **W29**| FLT $n=4$ `EveryStateMoves` retry — precise negative | Dim 1 | `validation/test41_flt_n4_everystate.py`; test26 unchanged | W21–W23 ✅, W6 `[~]` | 61/61; adapter repaired and finite numeric fixture solved, but no universal movement producer in all 206 registered rules. The descent remains open. Brief: `delegation/W29-flt-n4-everystate.md`. Slot `test41` |
 | **W30**| Domain packs through the closed loop | Dim 4 | `checker_b.py`, `promotion_ledger.py`, `evaluator.py` | W12 ✅, W24–W27 | Geometry/Engel/funceq derivations earn receipts or stated refusals. Brief: `delegation/W30-domain-promotion-loop.md`. Slot `test42` |
@@ -762,7 +762,97 @@ These arrived during Phase 0/1 execution and are prerequisites or enablers rathe
   recovery by up to `reconnect_grace` plus one heartbeat interval; and a
   coordinator that shuts down while a holder is suspect does not force
   those jobs terminal — as before, it never did for running jobs.
-- [ ] **W27–W28, W30–W32 (Phase 4+, remainder)**: See §8. Slots through `test38`
+- [x] **W27 (Engel remainder)**: Landed 2026-10-22 on
+  `arena/b94f5f2e-cat-theo-machine` (on top of the §6.10 integration merge
+  `ae1297d`), slot `test39` (**53/53**, ~5.4 min). All three brief
+  deliverables are addressed; search firing is partial in a pinned way.
+  *Two unnamed instances*, built as graph facts in the suite (only 2/24
+  curriculum cards compile, so the brief's fallback applies); neither is
+  one of the three named packs, and `packs/engel-strategies.pack.yaml` is
+  untouched (13 rules, re-pinned). (a) Euclid by subtraction on pairs
+  1..12 — 144 states, 132 ground transitions, machine-counted partition
+  66 + 66 moves with the 12 equal pairs moveless. The sum measure's
+  `StrictlyDecreases` claims are verified by machine arithmetic over every
+  transition; the pack threads them to `AllMovesDecrease` and
+  `monovariant_terminates` closes `Terminates`; concrete runs halt at
+  (4, 4) and (1, 1). The first component alone is refuted as a measure
+  with a witnessed counterexample and certified only `NonIncreases`; a
+  move with no transitions earns no certificate. (b) nine chameleons,
+  three colours — 55 states, 108 transitions, every target machine-summed
+  back to the population (closure of the relation is checked, not
+  assumed). All three monochrome targets reach `Unreachable` through the
+  invariance chain; a same-reading state is correctly not obstructed, and
+  withholding one move's `Preserves` fact kills the `Invariant`.
+  *Discovery (landed)*: observables are data. One append-only label,
+  `LinearObservableLabel` (499th label name; snapshot round-trip pinned),
+  heads a descriptor term — coefficient chain, modulus or raw — that
+  `LinearObservableValue` reads by machine arithmetic; the syntactic
+  `Preserves` of `invariance.py` could never evaluate such a thing. The
+  additive `invariant_miner.py` block verifies a descriptor against a
+  ground transition list and emits the literal pack facts
+  (`Preserves` / `StrictlyDecreases` / `NonIncreases`) as certificates, or
+  refutations carrying (before, after, transition) witnesses; empty
+  evidence refuses rather than passing vacuously. `MinePreservedObservables`
+  swept all 52 nonzero {0,1,2} linear forms, raw and mod 3, over the
+  chameleon transitions: **10 certified, 42 refuted**; separation on
+  machine readings selects (0,1,2) mod 3 (the suite does not hardcode
+  which certified form separates). The trivial total is certified and
+  separates nothing, as it should. *Ablation*: add a lone-colour-change
+  move and re-mine — 4 observables survive, none separates. Mining cost
+  is the ~20 ms/op arithmetic rate; a per-state reading cache keyed by
+  state-term identity (transitions reuse the enumerated state objects)
+  and first-failure early exit keep the two sweeps inside the suite's
+  ~5.4 min.
+  *Search firing (partial, pinned)*: `Planner.ProposeStrategyMethods`
+  reads declarations already in the facts — `Monovariant` / `SemiInvariant`
+  + `MoveSet` + `BoundedBelow` under a `Terminates` goal; `MoveSet` +
+  `Reading`×2 + `Apart` under `Unreachable` — and emits method terms
+  term-equal to hand-written ones, proposing nothing from incomplete
+  declarations or under a wrong-shaped goal. `PlannerProblemWithProposals`
+  attaches them (id and root rebuilt at `Zero`, no stale state), and
+  `PlannerStep` now discharges at creation any method child whose goal is
+  already a fact, so a `PlannerRun` *without a pre-built method term*
+  decomposes the proposed `Monovariant` and proves all four obligations.
+  Generator withheld → no alternative, root unproved; one
+  `StrictlyDecreases` fact withheld → exactly that child stays unproved,
+  its sibling still discharges (discharge is per-fact). *Not landed*: the
+  root is not `Proved` inside `PlannerRun`. Assembly is a search job, and
+  two blockers in `search/` were isolated and left unedited (the brief
+  allows planner-side hooks; the search leg is a separate repair):
+  (1) a zero-step success is unrepresentable — a goal already true yields
+  an empty plan component, which the step reads as no-progress and
+  records as failure; this is also why `test1`/`test2` roots are
+  `FailedLabel`, and why in-facts obligations could never discharge
+  before this branch's creation-time discharge; (2) multi-pass
+  fact-saturation on this pack stalls after pass 1, though all three
+  applicability filters admit the threading rule in every variant tested
+  and per-rule application plus `JoinPremises` derive every step by hand
+  (observation-level; suite §[5] records the probes). The instances
+  therefore close by forward chaining, as in test23/test37; the two
+  root-not-`Proved` checks are the pins that should flip when the search
+  leg is repaired.
+  *Authoring hazard found on the way*: `M.TermEqual(a, b) is M.truth_value`
+  without the terminal `()` compares the *uncalled edge object* and is
+  silently `False` — three suite checks failed this way while every
+  equivalent probe (with the call) passed; edge results come from calling
+  the edge, an edge object is never its own result. Check expressions
+  that end `... ) is M.truth_value` with no `()` before `is` are always
+  wrong.
+  *Limits*: finite enumerations only — certificates quantify over the
+  stated transition lists, not over a symbolic move schema; candidates
+  are linear forms with coefficients in {0,1,2} at one modulus per sweep;
+  Checker B / ledger derivation is not claimed (the suite header says so,
+  as test23/test37 do); `main.py`'s hardcoded `"Engel E1"` / `"Engel E2"` /
+  `"Engel coin problem"` agenda entries are untouched per the brief.
+  **Gate**: full run on the final tree, **42/42 suites exit 0**
+  (`test39` 53/53; `test23` 80/80; `test21` 37/37; `test8`, `test7`,
+  `test10` green; the two non-asserting demos rc=0 as always).
+  Files: `invariant_miner.py` (additive block + one import), `planner.py`
+  (proposer hook + creation-time method-child discharge; the stale
+  "Only Pigeonhole and Extremal" comment corrected), `labels.py`
+  (append-only, three sites), `validation/test39_engel_remainder.py`.
+  `core.py`, `search/`, packs, snapshots untouched.
+- [ ] **W28, W30–W32 (Phase 4+, remainder)**: See §8. Slots through `test39`
   plus `test41`, `test45` and supplemental `test46` are occupied; other slots remain as allocated.
 
 ---
@@ -788,7 +878,7 @@ Every Arena agent working on this repository must strictly adhere to the followi
 
    **The exception is conjunctive: both halves must hold.** The code is host-layer, *and* there is no machine analogue for what it does. Being in a harness or a probe is not by itself a licence — if the machine can already answer the question (`Compare`, `IsAtom`, `IsPair`, `IsTree`), then reaching into a payload with `getattr`, `type`, or `.symbol` is a violation wherever it sits. The identity index passes both halves. A probe that read `.symbol` to find an edge by name and `type(x).__name__` to report what came back passed only the first; it was fixed to use `Compare` and `IsAtom`. An earlier draft of this section stated the test as "whether the value crosses into a machine term", which made layer the only condition and would have excused that probe. Do not spend a session on an unscoped purity refactor of host code, and do not cite this rule to reject working host-layer code — but do not cite the host layer to excuse bypassing a predicate the machine already provides.
 3. **No Domain-Specific Hardcoding**: Do not hardcode problem targets or fixed heuristics in search or mining modules.
-4. **Verification Requirement**: Every new worker module or pack must include an automated verification suite in `validation/` with $100\%$ green test results before promotion. There are currently **41** suites — `test1`–`test38` plus `test41`, `test45` and supplemental `test46` (the rest of the Phase 4+ slots `test39`–`test44` remain pre-allocated to their briefs; do not fill numbering gaps with other work, see §8) — each a standalone script. Run one with `PYTHONPATH=<repo-parent> python -u validation/testN_*.py` (the suites insert the package parent onto `sys.path` themselves and import as `cat_theo_machine.*`).
+4. **Verification Requirement**: Every new worker module or pack must include an automated verification suite in `validation/` with $100\%$ green test results before promotion. There are currently **42** suites — `test1`–`test39` plus `test41`, `test45` and supplemental `test46` (the rest of the Phase 4+ slots `test40`, `test42`–`test44` remain pre-allocated to their briefs; do not fill numbering gaps with other work, see §8) — each a standalone script. Run one with `PYTHONPATH=<repo-parent> python -u validation/testN_*.py` (the suites insert the package parent onto `sys.path` themselves and import as `cat_theo_machine.*`).
 5. **Snapshot Root Invariant**: any new machine state that must survive a cold resume has to be registered as a root in `SnapshotCodec.capture()` and restored in `activate()`. Content added through the graph's `nodes`/`edges` context is now covered; state kept only in Python attributes is not, and silently evaporates on reload.
 6. **Suite Slot Discipline**: `validation/` numbering is append-only. Two lineages independently claimed slots 15 and 16 for unrelated suites; the reconciliation below is what happened, and new work must take the next free number rather than reusing a taken one.
 7. **One serialisation of a machine term**: the snapshot codec. The mesh carries references (W2) and, under `--artifacts wire` (W20), the *bytes of snapshot files* that the receiver loads through the codec — never a pickled or otherwise serialised term (`framing.TERM_PAYLOAD_KEYS` rejects the frame). A new transport that wants to move machine state moves a snapshot.
@@ -1292,21 +1382,25 @@ What the machine can do *now*, and what it still cannot, by dimension. Substrate
 - Curriculum held-outs are partly unblocked by W25: `IntegerLabel` / `ResidueLabel` / `CongruentLabel` and 27 more card-cited constructors exist, and two of the 24 cards compile (seven-glasses held-out solved through the Engel invariance schema, domino-board decoy refused). The other 22 still cite 48 absent constructors or lack an obligation generator, so extremal-set combinatorics remains without a held-out card; test22/[31] measures this rather than asserting impossibility.
 - Closure engine is a single-chain saturator (test22/[32]): soundness, not completeness.
 
-**Unblocks.** W27 (Engel remainder, now). W24, W25 and W26 are done. d'Alembert waits on a signed fragment that W22 did not deliver.
+**Unblocks.** W27 landed 2026-10-22 (§4). W24, W25 and W26 are done. d'Alembert waits on a signed fragment that W22 did not deliver.
 
 ### 7.3 Dimension 3 — Engel strategies
 
 **Done.**
 - Strategy principles as *ontology and generic schemas*, not as three named problems: invariance, monovariants, semi-invariants, extremal, box-as-obligation (`packs/engel-strategies.pack.yaml`, `test23`, 80/80). Universality by fixpoint recursion over `MoveSet` (peel the head; empty list closes; a single failing move stops the recursion). Semi-invariant is honestly weaker (`NonIncreases` + obligated `EventuallyDecreases`). Box principle does not conclude a collision — `Pigeonhole` already obligationes the counting. Checkerboard colouring is invariance whose $\phi$ is a parity.
 - Planner method terms `Monovariant`, `SemiInvariant`, `Invariance` with obligation/conclusion records.
+- Two *unnamed* instances close through that machinery (W27, `test39` 53/53): Euclid-by-subtraction `Terminates` (144 states, 132 transitions) and chameleons `Unreachable`×3 (55 states, 108 transitions), built as graph facts in-suite; the pack is untouched (13 rules, re-pinned).
+- Observables are data now: `LinearObservableLabel` heads a descriptor term (coefficient chain, modulus-or-raw) read by machine arithmetic. Ground-transition verifiers in `invariant_miner.py` certify or refute `Preserves` / `StrictlyDecreases` / `NonIncreases` over enumerated transition lists, refusing with (before, after, transition) witnesses; no transitions, no certificate. The chameleon observable (0,1,2) mod 3 was *mined*: 52 candidates swept, 10 certified, 42 refuted; with a lone-colour-change move added, nothing that survives separates (ablation).
+- Strategies are proposed during planning: `ProposeStrategyMethods` turns declarations already in the facts (`Monovariant` + `MoveSet` + `BoundedBelow` under `Terminates`; `MoveSet` + `Reading`×2 + `Apart` under `Unreachable`) into method terms — term-equal to hand-written ones — and proposes nothing from incomplete declarations. `PlannerRun` decomposes the proposal and `PlannerStep` discharges at creation any method child whose goal is already a fact (withheld-fact ablation pinned per-child).
 - Three older instance packs still work (`engel-coins`, `engel-means`, `engel-blackboard`). Curriculum rung builders exist (`curriculum.py`, `test10`) for synthetic graph tasks — not for the markdown cards.
 
 **Not done.**
-- No domain pack drives these rules from a *real Engel problem* that is not named in code. Discovery of a measure or an observable (rather than being handed one) is open. Strategy rules do not fire during ordinary search — nothing proposes them the way the planner methods do.
-- `StrictlyDecreases` / `NonIncreases` / `Preserves` claims are not independently verified as *discovered* claims: W25 hands them to the schema only after machine arithmetic has checked every split of the move, which verifies the premise's arithmetic but not the choice of observable. Held-out/decoy evidence now exists for one problem: seven-glasses closes through `thread_preserving_moves` → `preserving_moves_step` → `preserving_moves_empty` → `invariant_obstruction`; the domino decoy is refused (test37). The remaining 22 cards do not load.
+- Root closure *inside* `PlannerRun` / ordinary search is still open. Proposals fire and every supplied obligation discharges, but plan assembly to the root fails on this pack. Two blockers in `search/` were isolated and left unedited: a zero-step success is unrepresentable (an already-true goal yields an empty plan, recorded as failure — the same reason `test1`/`test2` roots are `FailedLabel`), and multi-pass fact saturation stalls after pass 1 though every rule passes the applicability filters and per-rule application derives each step (`test39` §[5] records the probes; the second blocker is observation-level). W27's two root pins are the checks that should flip when the search leg is repaired.
+- Discovery is over finite enumerations with authored candidate spaces (linear forms, coefficients {0,1,2}, one modulus per sweep). No certificate quantifies over a symbolic move schema, and no domain pack (as opposed to in-suite graph facts) drives these rules from a real Engel problem that is not named in code.
+- `StrictlyDecreases` / `NonIncreases` / `Preserves` claims are not independently verified as *discovered* claims: W25 hands them to the schema only after machine arithmetic has checked every split of the move, which verifies the premise's arithmetic but not the choice of observable. Held-out/decoy evidence now exists for one problem: seven-glasses closes through `thread_preserving_moves` → `preserving_moves_step` → `preserving_moves_empty` → `invariant_obstruction`; the domino decoy is refused (test37). The remaining 22 cards do not load. W27's certificates are the same kind of check, now over every enumerated transition, and the observable *choice* is mined and ablated — but no Checker-B receipt covers these Engel derivations yet (W30's remit).
 - `main.py`'s theorem agenda still hardcodes `"Engel E1"`, `"Engel E2"`, `"Engel coin problem"`. Standing §5.3 tension; do not add more cases in that style.
 
-**Unblocks.** W27 (remainder, now). Measure *discovery* also wants the miner (already there); W25 supplied the first held-out problem (seven-glasses), so a miner can now be asked to find its observable.
+**Unblocks.** W30: two transition-verified Engel derivations are now worth driving through the loop for receipts. The search-assembly repair is substrate work for whoever owns `search/` next; asked-for but not yet attempted: mining the seven-glasses observable (W25's held-out) with the ground-transition verifier, whose candidate space now exists.
 
 ### 7.4 Dimension 5 — Stories, explanations, Socratic tutor
 
@@ -1336,7 +1430,7 @@ What the machine can do *now*, and what it still cannot, by dimension. Substrate
 - Two curriculum cards are evaluation data since W25 (one held-out solved, one decoy refused, test37); the other 22 still have no builder, so corpus-scale evaluation is not yet possible.
 - Nothing yet mines a descent measure or a geometry observable and promotes it.
 
-**Unblocks.** W30 — its receipt gate is met by W24/W26; W27 (and later W28) would widen the set of domain derivations it can drive.
+**Unblocks.** W30 — its receipt gate is met by W24/W26; W27 has landed (§4) and adds two Engel derivations (transition-verified, not yet Checker-B receipted) to the set it can drive; W28 would widen it further.
 
 ### 7.6 Substrate notes that still matter
 
@@ -1424,12 +1518,14 @@ were integrated on 2026-10-21 (§6.10); this tree descends from both.
  │                 test38 49/49. Do not re-dispatch.
  │
  └── W27: Engel remainder                               (Dim 3)
-           Agent: Arena session, brief W27, slot test39
-           Owns:  packs/engel-strategies.pack.yaml, invariant_miner.py,
-                  a search-hook (not a new agenda case in main.py)
-           Effect: at least two unnamed Engel instances solved by the
-                   strategy machinery; strategies proposed during ordinary
-                   search; miner asked to find a measure on one of them.
+           Agent: Arena session, brief W27, slot test39 — landed 2026-10-22
+           Owns:  invariant_miner.py, planner.py, labels.py (append-only);
+                  packs/engel-strategies.pack.yaml untouched
+           Result: two unnamed instances closed; observable mined, not
+                   handed in; strategies proposed in PlannerRun with
+                   supplied obligations discharged; root closure inside
+                   search pinned open (two search/ blockers). test39 53/53.
+                   Do not re-dispatch.
 
       │
       ▼ (Sequential gate: W21 + W22 + W23 green. W24–W27 need not wait.)
@@ -1506,10 +1602,10 @@ were integrated on 2026-10-21 (§6.10); this tree descends from both.
 
 ### 8.1 Dispatch rules for Phase 4+
 
-1. **Start immediately (no prereq gate):** W27, W32. W21–W26 and W33 are done (§4); do not re-dispatch them. File ownership is disjoint except `labels.py` (append-only union, as in §6.2). W22 added the brief-authorised Checker-B grid clause after W21 landed; it preserves witness checking.
+1. **Start immediately (no prereq gate):** W32. W21–W27 and W33 are done (§4); do not re-dispatch them. File ownership is disjoint except `labels.py` (append-only union, as in §6.2). W22 added the brief-authorised Checker-B grid clause after W21 landed; it preserves witness checking.
 2. **W28 may start; W29 has reported.** W21–W23 are green, but test41 closes W29 as a precise negative. Reopen only after the named generic/proof gaps change. Do not treat gcd extraction as unique factorisation or a conditional order proof as a proved descent.
-3. **W30's receipt gate is met** (W24's promoted transitivity step and W26's Thales receipt are domain receipts through the loop); its full cross-domain scope is still richer after W27. Do not run it as a restatement that W8/W10's original suites do not exercise the loop.
-4. **One slot per brief**, already allocated above. `test33`–`test38`, `test41`, `test45` and supplemental `test46` are taken; the next unoccupied allocated slot is `test39` (W27). Do not invent a number for something else.
+3. **W30's receipt gate is met** (W24's promoted transitivity step and W26's Thales receipt are domain receipts through the loop); its full cross-domain scope is richer now that W27 has landed (two transition-verified Engel derivations await receipts). Do not run it as a restatement that W8/W10's original suites do not exercise the loop.
+4. **One slot per brief**, already allocated above. `test33`–`test39`, `test41`, `test45` and supplemental `test46` are taken; the next unoccupied allocated slot is `test40` (W28). Do not invent a number for something else.
 5. **W22 vs W23:** if a session believes it *must* edit the other's files, stop and report; do not take a silent dependency.
 6. Honest `[~]` and precise negatives remain first-class outcomes (W6 is the model).
 7. Work only on the branch the session is pinned to. Do not open a pull request. Report as in `delegation/README.md`.
@@ -1526,5 +1622,5 @@ W33 (`b7a94c6`, chosen because `networking/peer.py` was byte-identical on
 both heads, `b4fcaea`); `f0572ef6` is merged into it as a true merge, so
 both histories survive. The earlier warning against re-dispatching W24–W26
 from the un-integrated tree is thereby discharged: on this tree they are
-landed work (`test36`–`test38`), and the next unoccupied allocated slot is
-`test39` (W27).
+landed work (`test36`–`test38`), and the next unoccupied allocated slot was
+`test39` (W27, since landed).
