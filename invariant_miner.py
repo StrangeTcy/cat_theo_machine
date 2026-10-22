@@ -1070,6 +1070,119 @@ class MinePreservedObservables(M.Edge, _GroundTransitionCheck):
         return self.result
 
 
+class GroundObservableCertificate(M.Edge):
+    """
+    Provenance record a promotion can offer for a ground-verified
+    observable claim (W30).  The term is
+    Pair(GroundObservableCertificateLabel,
+         Pair(verdict_label,
+              Pair(observable, Pair(moves, Pair(transitions, [])))))
+    where verdict_label is PreservesLabel or StrictlyDecreasesLabel.
+    The claim: the matching ground-transition verifier certifies
+    `observable` for every move in `moves` over `transitions`.  The
+    record itself asserts nothing checkable; the promotion ledger's
+    provenance gate re-runs the verifier (below) before trusting it.
+    """
+
+    def __init__(self, verdict_label, observable, moves, transitions):
+        fields = M.Pair(
+            verdict_label,
+            M.Pair(
+                observable,
+                M.Pair(moves, M.Pair(transitions, M.EmptyList)),
+            ),
+        )
+        self.result = M.Pair(L.GroundObservableCertificateLabel, fields)
+        super().__init__(inputs=fields, results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class VerifyGroundObservableCertificate(M.Edge):
+    """
+    Independent re-verification of a GroundObservableCertificate: for
+    every listed move, re-run the ground-transition verifier the
+    certificate names and demand the certified verdict fact back,
+    term for term.  Result is
+    Pair(truth_or_false, Pair(reason, Pair(registry, []))) with reason
+    EmptyList on success and the refusing verdict otherwise.  A
+    malformed certificate, an unrecognised verdict label, or an empty
+    move list refuses -- there is no vacuous passage, matching the
+    verifiers' own no-evidence refusal.
+    """
+
+    def __init__(self, certificate, registry):
+        self.registry = registry
+        self.result = self._verify(certificate)
+        super().__init__(
+            inputs=M.Pair(certificate, M.Pair(registry, M.EmptyList)),
+            results=self.result,
+        )
+
+    def _refuse(self, reason):
+        return M.Pair(
+            M.false_value,
+            M.Pair(reason, M.Pair(self.registry, M.EmptyList)),
+        )
+
+    def _verify(self, certificate):
+        if M.IsPair(certificate)() is M.false_value:
+            return self._refuse(certificate)
+        if (
+            M.IdentityCompare(
+                M.Head(certificate)(), L.GroundObservableCertificateLabel
+            )()
+            is M.false_value
+        ):
+            return self._refuse(certificate)
+        try:
+            fields = M.Tail(certificate)()
+            verdict_label = M.Head(fields)()
+            observable = M.Head(M.Tail(fields)())()
+            moves = M.Head(M.Tail(M.Tail(fields)())())()
+            transitions = M.Head(M.Tail(M.Tail(M.Tail(fields)())())())()
+        except Exception:
+            return self._refuse(certificate)
+        if (
+            M.IdentityCompare(verdict_label, L.PreservesLabel)()
+            is M.truth_value
+        ):
+            verifier = VerifyObservablePreserved
+        elif (
+            M.IdentityCompare(verdict_label, L.StrictlyDecreasesLabel)()
+            is M.truth_value
+        ):
+            verifier = VerifyMeasureDecrease
+        else:
+            return self._refuse(certificate)
+        if M.IdentityCompare(moves, M.EmptyList)() is M.truth_value:
+            return self._refuse(certificate)
+        remaining = moves
+        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            move = M.Head(remaining)()
+            remaining = M.Tail(remaining)()
+            pair = verifier(move, observable, transitions, self.registry)()
+            verdict = M.Head(pair)()
+            self.registry = M.Head(M.Tail(pair)())()
+            expected = M.Pair(
+                verdict_label,
+                M.Pair(move, M.Pair(observable, M.EmptyList)),
+            )
+            if M.Compare(verdict, expected)() is M.false_value:
+                return M.Pair(
+                    M.false_value,
+                    M.Pair(verdict, M.Pair(self.registry, M.EmptyList)),
+                )
+        return M.Pair(
+            M.truth_value,
+            M.Pair(M.EmptyList, M.Pair(self.registry, M.EmptyList)),
+        )
+
+    def __call__(self):
+        return self.result
+
+
 __all__ = (
     "InvariantCertificate",
     "InvariantCertificatePhi",
@@ -1090,4 +1203,6 @@ __all__ = (
     "VerifyMeasureDecrease",
     "VerifyMeasureNonIncrease",
     "MinePreservedObservables",
+    "GroundObservableCertificate",
+    "VerifyGroundObservableCertificate",
 )

@@ -6,7 +6,7 @@ is pinned to its own branch, works there, and reports back. The coordinator impo
 result — see *Reporting back* below.
 
 W1–W20 are done or closed as partial (DAG §4, §6.9). Their briefs stay in this directory
-as history; **do not re-execute them.** W21–W27 have landed; W29 is closed as a precise negative; W33 has landed. Remaining dispatchable work is W28 and W30–W32 (subject to their gates), plus USER/COORD.
+as history; **do not re-execute them.** W21–W27 and W30 have landed; W29 is closed as a precise negative; W33 has landed. Remaining dispatchable work is W28, W31 and W32 (subject to their gates), plus USER/COORD.
 
 Index (open workers only):
 
@@ -21,7 +21,7 @@ Index (open workers only):
 | `W27-engel-remainder.md` | Engel remainder — **done**: two unnamed instances closed, observable mined (ablation separates nothing), strategy proposals fire in `PlannerRun` with supplied obligations discharged; root closure inside search pinned open; DAG §4 W27 | 3 | 4b | W10 ✅; do not re-dispatch | `test39` ✅ |
 | `W28-flt-n3-ufd-descent.md` | Eisenstein UFD + cubic descent | 1 | 5 | W21–W23 ✅, W7 `[~]` — **ready** | `test40` |
 | `W29-flt-n4-everystate.md` | **Closed, precise negative:** EveryStateMoves still open (DAG §4) | 1 | 5 | do not re-dispatch unchanged | `test41` 61/61 |
-| `W30-domain-promotion-loop.md` | Domain packs through Checker B + ledger | 4 | 6 | W12 ✅ + a Phase 4b receipt — **gated** | `test42` |
+| `W30-domain-promotion-loop.md` | Domain packs through Checker B + ledger — **done**: one shared ledger, four promotions across three domains, Engel chains Checker-B receipted, gate-4 certificate re-verification, withheld-rule ablation; DAG §4 W30 | 4 | 6 | W12 ✅ W24–W27 ✅; do not re-dispatch | `test42` ✅ |
 | `W31-dialogue-beyond-arithmetic.md` | Tutor/story beyond arithmetic | 5 | 6 | W15 ✅ W14 ✅ | `test43` |
 | `W32-swarm-boot-cost.md` | Swarm unit-boot cost | Infra | 7 | W16 ✅ — **start now** | `test44` |
 | `W33-mesh-reconnect-accounting.md` | **Done:** severed links are suspect for `reconnect_grace` before they are losses; transient reconnects charge no attempt (DAG §4) | Infra | 7 | done; do not re-dispatch | `test45` ✅ |
@@ -30,8 +30,8 @@ Supplemental follow-up: [`constrained-nat-witnesses.md`](constrained-nat-witness
 records bounded numeric witness search (`test46`, 185/185) and independent
 assignment re-evaluation. A second unbriefed supplemental landed 2026-10-22
 (machine-native playground projections + REPL auto lemma suggestion,
-`test47` 27/27, DAG §4/§6.11). Latest full gate: **43/43 green** after the
-f42b3f12 integration (2026-10-22, DAG §6.11). W29's finite fixture
+`test47` 27/27, DAG §4/§6.11). Latest full gate: **44/44 green** after W30
+landed (2026-10-22, DAG §4 W30; f42b3f12 integration DAG §6.11). W29's finite fixture
 now yields numeric parameters, but EveryStateMoves and the promotion gate remain
 open; this is not parametrisation completeness or an existential proof rule.
 
@@ -43,9 +43,8 @@ W32) with disjoint file ownership except append-only `labels.py`. (The two
 post-W22 heads were integrated on 2026-10-21, DAG §6.10, so
 W21–W27 are all on this tree.) W29 has reported a precise negative; do not
 re-dispatch it until its named generic/proof gaps change. W30's
-receipt gate is met by W24/W26 — its full scope is richer now that W27 has landed.
-W31 can start on existing arithmetic/Engel-pack goals; it is richer after
-W30.
+receipt gate was met by W24/W26 and W30 has since landed (`test42`).
+W31 can start on real domain receipts now, not only arithmetic goals.
 
 Suite slots are **append-only** and pre-allocated above (`test33`–`test45`). Do not
 reuse a number. Historical collisions (15/16, 22, 27) are recorded in DAG §6. The

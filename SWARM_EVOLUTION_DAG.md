@@ -2,7 +2,7 @@
 
 This document specifies the evolutionary architecture, dependency DAG, worker allocation, and synchronization protocols for coordinating Arena agents evolving the Hyge Theorem Prover.
 
-Phases 0–3 (W1–W20) landed by 2026-10-15; their record is §2–§6. **Remaining work is §7 (five-dimension status) and §8 (Phase 4+ DAG).** W21–W27 have landed; W29 has reported a precise negative (test41); W33 landed 2026-10-21 (test45, §4); W27 landed 2026-10-22 (test39, §4). The next unoccupied allocated suite slot is `test40` (W28). The two post-W22 heads — `arena/c58acfec-cat-theo-machine` (`0b80aed`: W23, W29) and `arena/f0572ef6-cat-theo-machine` (`8fac788`: W24–W26), both fast-forwarded from `arena/717c9822-cat-theo-machine` (`a548d7d`) on 2026-10-19 — were integrated on 2026-10-21 (§6.10); this branch descends from the first of them, via `arena/b94f5f2e-cat-theo-machine`, where W33 landed before the merge. A further parallel head, `arena/f42b3f12-cat-theo-machine` (`966e26f`, forked at W33), was integrated on 2026-10-22 after W27 landed (§6.11).
+Phases 0–3 (W1–W20) landed by 2026-10-15; their record is §2–§6. **Remaining work is §7 (five-dimension status) and §8 (Phase 4+ DAG).** W21–W27 and W30 have landed; W29 has reported a precise negative (test41); W33 landed 2026-10-21 (test45, §4); W27 and W30 landed 2026-10-22 (test39, test42, §4). The next unoccupied allocated suite slot is `test40` (W28). The two post-W22 heads — `arena/c58acfec-cat-theo-machine` (`0b80aed`: W23, W29) and `arena/f0572ef6-cat-theo-machine` (`8fac788`: W24–W26), both fast-forwarded from `arena/717c9822-cat-theo-machine` (`a548d7d`) on 2026-10-19 — were integrated on 2026-10-21 (§6.10); this branch descends from the first of them, via `arena/b94f5f2e-cat-theo-machine`, where W33 landed before the merge. A further parallel head, `arena/f42b3f12-cat-theo-machine` (`966e26f`, forked at W33), was integrated on 2026-10-22 after W27 landed (§6.11).
 
 ---
 
@@ -97,7 +97,7 @@ Phases 0–3 below are the original trajectory. They are **completed** (2026-10-
 | **W27**| Engel remainder ✅ | Dim 3 | `invariant_miner.py`, `planner.py`, `labels.py` (pack untouched) | W10 ✅ | ✅ 2026-10-22: two unnamed instances close — Euclid-by-subtraction `Terminates`, chameleons `Unreachable`×3 — on transition-verified measure/observable facts; the chameleon observable is *mined* (10 certified / 42 refuted, ablation separates nothing); the planner proposes strategy methods from declarations and supplied obligations discharge in `PlannerRun`; root closure inside search is pinned as not-landed (two isolated `search/` blockers); `test39` 53/53. Brief: `delegation/W27-engel-remainder.md`. Slot `test39` |
 | **W28**| FLT $n=3$ UFD + cubic descent | Dim 1 | `playground.py`, `math/arithmetic.py` | W21, W22, W23, W7 `[~]` | Unique factorisation scaffolding used, cubic descent attempted. Brief: `delegation/W28-flt-n3-ufd-descent.md`. Slot `test40` |
 | **W29**| FLT $n=4$ `EveryStateMoves` retry — precise negative | Dim 1 | `validation/test41_flt_n4_everystate.py`; test26 unchanged | W21–W23 ✅, W6 `[~]` | 61/61; adapter repaired and finite numeric fixture solved, but no universal movement producer in all 206 registered rules. The descent remains open. Brief: `delegation/W29-flt-n4-everystate.md`. Slot `test41` |
-| **W30**| Domain packs through the closed loop | Dim 4 | `checker_b.py`, `promotion_ledger.py`, `evaluator.py` | W12 ✅, W24–W27 | Geometry/Engel/funceq derivations earn receipts or stated refusals. Brief: `delegation/W30-domain-promotion-loop.md`. Slot `test42` |
+| **W30**| Domain packs through the closed loop ✅ | Dim 4 | `promotion_ledger.py`, `evaluator.py`, `invariant_miner.py`, `labels.py` (`checker_b.py` unchanged) | W12 ✅, W24–W27 ✅ | ✅ 2026-10-22: one shared ledger promotes funceq transitivity, geometry Thales and both Engel closers (versions 1–4); the two W27 Engel chains earn multi-step Checker-B receipts; gate-4 provenance re-verifies ground-observable certificates (forged refused); withheld-rule ablation on two domains; multi-rule macros and premise-consumption pinned as the loop's current shape; `test42` 42/42. Brief: `delegation/W30-domain-promotion-loop.md`. Slot `test42` |
 | **W31**| Tutor/story beyond arithmetic | Dim 5 | `dialogue.py`, `story_renderer.py` | W15 ✅ W14 ✅ | Claims and stories over geometry/Engel/FLT vocabulary. Brief: `delegation/W31-dialogue-beyond-arithmetic.md`. Slot `test43` |
 | **W32**| Swarm unit-boot cost | Infra | `persistence.py`, `search/distributed_engine.py` | W16 ✅ | Cut the 12–30 s per-unit boot that makes swarm speedup negative. Brief: `delegation/W32-swarm-boot-cost.md`. Slot `test44` |
 | **W33**| Mesh reconnect attempt accounting ✅ | Infra | `networking/peer.py` | W2 ✅ W16 ✅ | ✅ 2026-10-21: a severed link makes a member suspect for `reconnect_grace` (default 5 s) — no attempt charged, no terminal record — and only an unresolved suspect becomes `member-lost`; goodbye/heartbeat-timeout stay immediate; the offer watchdog does not charge a suspect owner either. `test45` 20/20. Brief: `delegation/W33-mesh-reconnect-accounting.md`. Slot `test45` |
@@ -234,6 +234,9 @@ These arrived during Phase 0/1 execution and are prerequisites or enablers rathe
     proof that the pipeline works, not the catalogue.
     *Integration note (2026-10-13)*: those modules are present on the integrated branch now; the suite
     still does not exercise them, so the items above remain unmet until someone extends it.
+    *W30 note (2026-10-22)*: Checker-B receipt, ledger record and evaluator ablation for this
+    pack's schemas are now met -- first by W26 (`test38`), and again on the shared cross-domain
+    ledger in `test42`; figure sweeps remain unmet.
   - *Not done*: no cyclic-quadrilateral conclusion schema yet; the circumcircle schema stops at
     vertex incidence and does not yet feed chord/angle facts back into goals.
 - [x] **W9 (IMO Combinatorics, Functional Equations & NT)**: Two independent deliverables
@@ -286,6 +289,8 @@ These arrived during Phase 0/1 execution and are prerequisites or enablers rathe
     held-out/decoy evidence, the ablation and the Checker-B/ledger items of the done-definition
     are **not met by this suite and are not claimed** (the brief's partial-coverage clause).
     On the integrated branch deliverable (a) covers family 1 and those items.
+    *W30 note (2026-10-22)*: the funceq/NT derivations also run through the loop as a domain
+    pack (W24 `test36`; shared-ledger promotion in `test42`).
   - *New labels* (append-only, snapshot-registered): `CauchyAdd`, `CauchyMul`, `NonTrivial`,
     `Value`, `NatSum`, `NatProduct`. `core.py` untouched.
   - *Machine finding recorded during this worker's session*: no machine predicate answers
@@ -352,6 +357,10 @@ These arrived during Phase 0/1 execution and are prerequisites or enablers rathe
     its "existing suites stay green" check covered the four that were.
     *Integration note (2026-10-13)*: those modules are present on the integrated branch now; the suite
     still does not exercise them, so the items above remain unmet until someone extends it.
+    *W30 note (2026-10-22)*: discovery landed with W27 (`test39`), held-out/decoy evidence with
+    W25 (`test37`), and Checker-B receipts + ledger promotion + withheld-rule ablation for the
+    strategy closers with W30 (`test42`); what remains open is root closure inside ordinary
+    search (test39 §[5]).
   - *Not done*: no domain pack drives these rules from a real Engel problem yet; nothing
     verifies a `StrictlyDecreases` / `NonIncreases` / `Preserves` claim; the brief's discovery
     layer (mining a measure or an observable rather than being handed one) is open; and the
@@ -875,8 +884,79 @@ These arrived during Phase 0/1 execution and are prerequisites or enablers rathe
   on this branch. No slot collision: `test47` was the next never-allocated
   number; no brief or W-number was consumed, and no DAG record came with
   the branch — this entry and §6.11 are written by the integrating session.
-- [ ] **W28, W30–W32 (Phase 4+, remainder)**: See §8. Slots through `test39`
-  plus `test41`, `test45` and supplemental `test46` are occupied; other slots remain as allocated.
+- [x] **W30 (Domain packs through the closed loop)**: Landed 2026-10-22 on
+  `arena/b94f5f2e-cat-theo-machine`, slot `test42` (**42/42**, ~2 min).
+  One shared promotion ledger now carries all three Phase 4b domains:
+  funceq/NT divisibility transitivity, geometry Thales, and both Engel
+  closers (`invariant_obstruction`, `monovariant_terminates`) promote
+  onto it in sequence (versions 1–4; fresh instances and holdouts
+  throughout — test36/test38 remain those domains' authoring records).
+  The two W27 Engel chains earn their first Checker-B receipts as
+  multi-step derivations (6-step invariance to `Unreachable`, 5-step
+  monovariant to `Terminates`; GoalMismatch against the same-reading
+  decoy and UnknownRule with the closer untrusted pinned), and a
+  smaller second Euclid instance's `AllMovesDecrease` is receipted the
+  same way to back the terminates holdout. One promoted entry's
+  `ProofReceipt` is re-verified against policy (and refused against a
+  decoy-goal policy).
+  *Two loop strengthenings.* (1) The ledger's provenance gate now also
+  accepts a `GroundObservableCertificate` (new append-only label, the
+  500th; constructor + `VerifyGroundObservableCertificate` in
+  `invariant_miner.py`): it re-runs the named ground-transition verifier
+  for every listed move at promotion time and demands the certified
+  verdict back term for term, so mined premise facts are re-checked
+  when promoted, not only when derived. A forged certificate
+  (φ=(1,0,0)) is refused with `InvariantRefuted`; an empty move list
+  refuses (no vacuous passage). Both Engel promotions carry
+  certificates (preservation over the 108 chameleon transitions;
+  strict decrease over the 132 Euclid transitions). (2)
+  `WithheldRuleAblationTrial` (`evaluator.py`, additive): the candidate
+  must stop evaluating once its rule is actually removed from the
+  trusted set — `AblationTrial` alone only checks the instance is not
+  trivially closed. Pinned `Proved` for the Engel and funceq
+  candidates and `Failed` (correctly) when an unused rule is withheld.
+  *Substrate findings, recorded not repaired.* (a) Knowledge rewrite
+  consumes matched premise facts (`DropMatchedFacts` drops one
+  occurrence per use), so replaying a monotone strategy argument as a
+  derivation lists a fact used by k inferences k times: the chameleon
+  chain lists both `Reading` facts twice (threading + obstruction),
+  the Euclid chain lists `Monovariant` twice. (b) Candidate macros are
+  single-rule-shaped: `ExpandCandidateMacro` seeds `BuildDerivation`
+  with the pattern-match bindings, so patterns must be the rule's own
+  templates (the test36/test38 idiom); a six-step strategy plan under
+  seeded bindings produces un-instantiated steps, which Checker B
+  refuses (`ConclusionMutation` — witnessed while developing this
+  suite). Hence chains are receipted via `VerifyDerivation`, and the
+  ledger promotes the closers, whose threaded premises are the ends of
+  those very chains. (c) `M.Char` is not interned — two `M.Char("P10")`
+  are Compare-equal but identity-distinct atoms; holdouts must bind
+  atoms once (the first version of this suite's Thales holdouts failed
+  exactly there). (d) A no-op step verifies trivially in Checker B
+  (identity current→next reproduces), so a derivation whose last rule
+  never fired is caught only by the goal check — worth knowing when
+  reading `StepVerified`.
+  *Limits*: Checker B verifies derivations from stated premises; the
+  receipts certify the inference chains, while the miner premise facts
+  rest on the transition enumerations (re-run by the certificate gate,
+  but a receipt is not a derivation of the enumeration). Engel
+  promotion covers the two closer schemas, not a general strategy
+  schema; the authoring suites (test21/test23) still do not exercise
+  the loop themselves; no figure sweep (W8's remaining item) and no
+  corpus-scale evaluation (22 cards unbuilt) are claimed; the
+  search-leg assembly gap (test39 §[5]) is untouched. W8/W9/W10's
+  "not claimed" notes are amended in their entries above where now met.
+  **Gate**: full run on the final tree, **44/44 suites exit 0**
+  (`test42` 42/42; `test39` 53/53; `test23` 80/80; the brief's
+  `test7`/`test8`/`test9`/`test28` set and the ledger's other users
+  `test36`/`test38` green; demos rc=0).
+  Files: `promotion_ledger.py` (gate-4 additive branch only),
+  `evaluator.py` (one additive edge + `__all__`), `invariant_miner.py`
+  (certificate constructor + verifier + `__all__`), `labels.py`
+  (append-only, three sites), `validation/test42_domain_promotion_loop.py`.
+  `checker_b.py` unchanged — no checker extension was needed.
+  `core.py`, packs, snapshots untouched.
+- [ ] **W28, W31, W32 (Phase 4+, remainder)**: See §8. Slots through `test39`
+  plus `test41`, `test42`, `test45` and supplementals `test46`, `test47` are occupied; other slots remain as allocated.
 
 ---
 
@@ -901,7 +981,7 @@ Every Arena agent working on this repository must strictly adhere to the followi
 
    **The exception is conjunctive: both halves must hold.** The code is host-layer, *and* there is no machine analogue for what it does. Being in a harness or a probe is not by itself a licence — if the machine can already answer the question (`Compare`, `IsAtom`, `IsPair`, `IsTree`), then reaching into a payload with `getattr`, `type`, or `.symbol` is a violation wherever it sits. The identity index passes both halves. A probe that read `.symbol` to find an edge by name and `type(x).__name__` to report what came back passed only the first; it was fixed to use `Compare` and `IsAtom`. An earlier draft of this section stated the test as "whether the value crosses into a machine term", which made layer the only condition and would have excused that probe. Do not spend a session on an unscoped purity refactor of host code, and do not cite this rule to reject working host-layer code — but do not cite the host layer to excuse bypassing a predicate the machine already provides.
 3. **No Domain-Specific Hardcoding**: Do not hardcode problem targets or fixed heuristics in search or mining modules.
-4. **Verification Requirement**: Every new worker module or pack must include an automated verification suite in `validation/` with $100\%$ green test results before promotion. There are currently **43** suites — `test1`–`test39` plus `test41`, `test45`, supplemental `test46` and supplemental `test47` (the rest of the Phase 4+ slots `test40`, `test42`–`test44` remain pre-allocated to their briefs; do not fill numbering gaps with other work, see §8) — each a standalone script. Run one with `PYTHONPATH=<repo-parent> python -u validation/testN_*.py` (the suites insert the package parent onto `sys.path` themselves and import as `cat_theo_machine.*`).
+4. **Verification Requirement**: Every new worker module or pack must include an automated verification suite in `validation/` with $100\%$ green test results before promotion. There are currently **44** suites — `test1`–`test39` plus `test41`, `test42`, `test45`, supplemental `test46` and supplemental `test47` (the rest of the Phase 4+ slots `test40`, `test43`, `test44` remain pre-allocated to their briefs; do not fill numbering gaps with other work, see §8) — each a standalone script. Run one with `PYTHONPATH=<repo-parent> python -u validation/testN_*.py` (the suites insert the package parent onto `sys.path` themselves and import as `cat_theo_machine.*`).
 5. **Snapshot Root Invariant**: any new machine state that must survive a cold resume has to be registered as a root in `SnapshotCodec.capture()` and restored in `activate()`. Content added through the graph's `nodes`/`edges` context is now covered; state kept only in Python attributes is not, and silently evaporates on reload.
 6. **Suite Slot Discipline**: `validation/` numbering is append-only. Two lineages independently claimed slots 15 and 16 for unrelated suites; the reconciliation below is what happened, and new work must take the next free number rather than reusing a taken one.
 7. **One serialisation of a machine term**: the snapshot codec. The mesh carries references (W2) and, under `--artifacts wire` (W20), the *bytes of snapshot files* that the receiver loads through the codec — never a pickled or otherwise serialised term (`framing.TERM_PAYLOAD_KEYS` rejects the frame). A new transport that wants to move machine state moves a snapshot.
@@ -1477,13 +1557,14 @@ What the machine can do *now*, and what it still cannot, by dimension. Substrate
 - Dual-ledger promotion loop; refuses entries without a receipt (`test9`).
 - Byzantine ledger consensus: verification, not voting; peers re-derive receipts (`test28`).
 - The closed loop exists as machinery.
+- The loop has run over all three Phase 4b domains against one shared ledger (W30, `test42` 42/42): funceq transitivity, geometry Thales and both Engel closers promoted in sequence (versions 1–4); the two W27 Engel chains carry multi-step Checker-B receipts; gate 4 re-verifies ground-observable certificates by re-running the miner verifiers at promotion time (forged certificate refused); a withheld-rule ablation trial exists beside `AblationTrial`'s triviality check.
 
 **Not done.**
-- Most domain workers still do not *drive* the loop end-to-end. W8 and W10 authoring suites explicitly do not claim Checker-B / ledger / ablation, and W6/W7 discoveries are refused (correctly) because a sweep is not a derivation. The loop has now run beyond `test22` family 1, though: W24's divisibility transitivity is Checker-B verified and ledger-promoted (`test36`), and W26's Thales step carries a receipt plus evaluator/ablation/holdout (`test38`). W30 is the worker that generalises this from in-suite exercises to the domain packs as such.
+- Most domain workers still do not *drive* the loop end-to-end. W8 and W10 authoring suites explicitly do not claim Checker-B / ledger / ablation, and W6/W7 discoveries are refused (correctly) because a sweep is not a derivation. The loop has now run beyond `test22` family 1, though: W24's divisibility transitivity is Checker-B verified and ledger-promoted (`test36`), and W26's Thales step carries a receipt plus evaluator/ablation/holdout (`test38`). W30 generalised this to the domain packs on a shared ledger (`test42`); what remains true is that the *authoring* suites (`test21`, `test23`) still do not exercise the loop themselves, and candidate macros remain single-rule-shaped -- multi-step domain arguments are receipted via `VerifyDerivation` and their closers are what the ledger promotes. Knowledge rewrite consumes matched premise facts, so replaying a monotone argument lists a multiply-used fact multiply.
 - Two curriculum cards are evaluation data since W25 (one held-out solved, one decoy refused, test37); the other 22 still have no builder, so corpus-scale evaluation is not yet possible.
-- Nothing yet mines a descent measure or a geometry observable and promotes it.
+- A mined Engel observable is now promoted with its certificate re-verified at the gate (W30); nothing yet mines a *descent measure* (Dim 1) or a geometry observable and promotes it.
 
-**Unblocks.** W30 — its receipt gate is met by W24/W26; W27 has landed (§4) and adds two Engel derivations (transition-verified, not yet Checker-B receipted) to the set it can drive; W28 would widen it further.
+**Unblocks.** W31: real domain receipts -- four promotions on one ledger, plus two multi-step Engel derivations -- now exist for the storyteller/tutor to narrate. W28 would add Dim-1 receipts if the cubic descent ever closes.
 
 ### 7.6 Substrate notes that still matter
 
@@ -1603,11 +1684,12 @@ were integrated on 2026-10-21 (§6.10); this tree descends from both.
 
 [PHASE 6: Closed loop and language]
  ├── W30: Domain packs through Checker B + ledger + ablation     (Dim 4)
- │         Agent: Arena session, brief W30, slot test42
+ │         Agent: Arena session, brief W30, slot test42 — landed 2026-10-22
  │         Prereqs: W12 ✅, and receipts from W24–W27 (W28–W29 if present)
- │         Effect: the closed loop is no longer only a combinatorics-family-1
- │                 demo. Geometry / Engel / funceq (and FLT if receipts exist)
- │                 either promote or refuse for a stated reason.
+ │         Result: one shared ledger, four promotions across the three
+ │                 domains; Engel chains Checker-B receipted; certificate
+ │                 provenance re-verified at gate 4; withheld-rule ablation.
+ │                 test42 42/42. Do not re-dispatch.
  │
  └── W31: Tutor and storyteller beyond arithmetic                (Dim 5)
            Agent: Arena session, brief W31, slot test43
@@ -1655,10 +1737,10 @@ were integrated on 2026-10-21 (§6.10); this tree descends from both.
 
 ### 8.1 Dispatch rules for Phase 4+
 
-1. **Start immediately (no prereq gate):** W32. W21–W27 and W33 are done (§4); do not re-dispatch them. File ownership is disjoint except `labels.py` (append-only union, as in §6.2). W22 added the brief-authorised Checker-B grid clause after W21 landed; it preserves witness checking.
+1. **Start immediately (no prereq gate):** W32. W21–W27, W30 and W33 are done (§4); do not re-dispatch them. File ownership is disjoint except `labels.py` (append-only union, as in §6.2). W22 added the brief-authorised Checker-B grid clause after W21 landed; it preserves witness checking.
 2. **W28 may start; W29 has reported.** W21–W23 are green, but test41 closes W29 as a precise negative. Reopen only after the named generic/proof gaps change. Do not treat gcd extraction as unique factorisation or a conditional order proof as a proved descent.
-3. **W30's receipt gate is met** (W24's promoted transitivity step and W26's Thales receipt are domain receipts through the loop); its full cross-domain scope is richer now that W27 has landed (two transition-verified Engel derivations await receipts). Do not run it as a restatement that W8/W10's original suites do not exercise the loop.
-4. **One slot per brief**, already allocated above. `test33`–`test39`, `test41`, `test45` and supplemental `test46` are taken; the next unoccupied allocated slot is `test40` (W28). Do not invent a number for something else.
+3. **W30 has landed** (`test42`): the shared-ledger promotions exist, gate 4 re-verifies ground-observable certificates, and the loop's current shape is pinned (single-rule macros; premise-consuming replay). W31 is richer now that real domain receipts exist; do not restate the loop over the same instances.
+4. **One slot per brief**, already allocated above. `test33`–`test39`, `test41`, `test42`, `test45` and supplementals `test46`, `test47` are taken; the next unoccupied allocated slot is `test40` (W28). Do not invent a number for something else.
 5. **W22 vs W23:** if a session believes it *must* edit the other's files, stop and report; do not take a silent dependency.
 6. Honest `[~]` and precise negatives remain first-class outcomes (W6 is the model).
 7. Work only on the branch the session is pinned to. Do not open a pull request. Report as in `delegation/README.md`.

@@ -30,3 +30,29 @@ are now met.
 ## Non-goals
 
 New geometry schemas (W26), new Engel instances (W27), FLT (W28/W29), `core.py`.
+
+---
+
+## Outcome (2026-10-22, `arena/b94f5f2e-cat-theo-machine`, slot `test42`)
+
+**Landed in full.** One shared promotion ledger carries all three domains:
+funceq/NT transitivity, geometry Thales, and both Engel closers promote in
+sequence (versions 1–4, fresh instances + holdouts). The two W27 Engel
+chains earn multi-step Checker-B receipts (GoalMismatch / UnknownRule
+refusals pinned). Two loop strengthenings: gate-4 provenance now accepts a
+`GroundObservableCertificate` and re-runs the ground-transition verifier
+at promotion time (forged certificate refused, `InvariantRefuted`), and
+`WithheldRuleAblationTrial` ablates by actually removing the rule
+(`AblationTrial` alone was a triviality check) — brief item 2, on two
+domains plus a no-cry-wolf control. Refusals leave the ledger version
+unchanged. The receipt requirement was not weakened; `checker_b.py` is
+untouched.
+
+Pinned as the loop's current shape (DAG §4 W30): knowledge rewrite
+consumes premises (multiply-used facts are listed multiply in a
+derivation), and candidate macros are single-rule-shaped — strategy
+chains are receipted via `VerifyDerivation`, their closers are what the
+ledger promotes. W8/W9/W10 "not claimed" notes updated in DAG §4.
+
+test42 **42/42**; test7, test8, test9, test28 (brief's set) plus test36,
+test38 green. Details: DAG §4 W30, §7.5.
