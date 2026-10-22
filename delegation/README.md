@@ -6,7 +6,7 @@ is pinned to its own branch, works there, and reports back. The coordinator impo
 result — see *Reporting back* below.
 
 W1–W20 are done or closed as partial (DAG §4, §6.9). Their briefs stay in this directory
-as history; **do not re-execute them.** W21–W23 have landed; W29 is closed as a precise negative; W33 has landed. Remaining dispatchable work is W24–W28 and W30–W32 (subject to their gates), plus USER/COORD.
+as history; **do not re-execute them.** W21–W26 have landed; W29 is closed as a precise negative; W33 has landed. Remaining dispatchable work is W27, W28 and W30–W32 (subject to their gates), plus USER/COORD.
 
 Index (open workers only):
 
@@ -15,9 +15,9 @@ Index (open workers only):
 | `W21-witness-introduction.md` | Existential witness introduction — **done**, see DAG §4 W21 | Substrate / 1 | 4 | none | `test33` ✅ |
 | `W22-algebraic-rewriting.md` | Grid identities → **done via Checker-B-verified grid proofs**; symbolic normalisation remains open (DAG §4) | Substrate / 1 | 4 | none; do not re-dispatch | `test34` ✅ |
 | `W23-factorisation-natless.md` | **Done:** subtraction, gcd cofactors & schema-derived `NatLess` (DAG §4) | Substrate / 1 | 4 | none; do not re-dispatch | `test35` ✅ |
-| `W24-residue-divisibility-wiring.md` | Residue / divisibility schema wiring (was W9(c)) | 2 | 4b | W9 ✅ — **start now** | `test36` |
-| `W25-curriculum-loader.md` | Curriculum card loader | 2/3/4 | 4b | none — **start now** | `test37` |
-| `W26-geometry-remainder.md` | Cyclic-quad / chord-angle + receipts | 2 | 4b | W8 ✅ W4 ✅ — **start now** | `test38` |
+| `W24-residue-divisibility-wiring.md` | Residue / divisibility schema wiring (was W9(c)) — **done**, see DAG §4 W24 | 2 | 4b | W9 ✅ | `test36` ✅ |
+| `W25-curriculum-loader.md` | Curriculum card loader — **done**: 24 cards parse, 2 compile (held-out solved, decoy refused), 22 refused with reasons, 48 Ground 1 gaps reported; DAG §4 W25 | 2/3/4 | 4b | none | `test37` ✅ |
+| `W26-geometry-remainder.md` | Cyclic-quad / chord-angle + receipts — **done**: three constant-free schemas + antipode construction, Checker-B verified, ledger promoted, four ablations; DAG §4 W26 | 2 | 4b | W8 ✅ W4 ✅ | `test38` ✅ |
 | `W27-engel-remainder.md` | Real instances, search firing, measure discovery | 3 | 4b | W10 ✅ — **start now** | `test39` |
 | `W28-flt-n3-ufd-descent.md` | Eisenstein UFD + cubic descent | 1 | 5 | W21–W23 ✅, W7 `[~]` — **ready** | `test40` |
 | `W29-flt-n4-everystate.md` | **Closed, precise negative:** EveryStateMoves still open (DAG §4) | 1 | 5 | do not re-dispatch unchanged | `test41` 61/61 |
@@ -28,24 +28,27 @@ Index (open workers only):
 
 Supplemental follow-up: [`constrained-nat-witnesses.md`](constrained-nat-witnesses.md)
 records bounded numeric witness search (`test46`, 185/185) and independent
-assignment re-evaluation. Latest full gate: **37/37 green**. W29's finite fixture
+assignment re-evaluation. Latest full gate: **41/41 green** on the integrated tree
+(2026-10-21, DAG §6.10). W29's finite fixture
 now yields numeric parameters, but EveryStateMoves and the promotion gate remain
 open; this is not parametrisation completeness or an existential proof rule.
 
 USER-1 (laptop ⇄ Colab WAN trial) and USER-2 (real Neo4j dump decode) are not Arena
 briefs — see DAG §8. COORD merges this line to `master`.
 
-Dispatch order: five independent sessions can start in parallel (W24–W27, W32)
-with disjoint file ownership except append-only `labels.py` — but read the
-lineage warning in DAG §8.2 before taking W24–W26, which have already landed
-on an unmerged branch. W21–W23 have reported
-green, so W28 may start. W29 has now reported a precise negative; do not re-dispatch
-it until its named generic/proof gaps change. W30 waits on a new domain receipt. W31 can start on existing
-arithmetic/Engel-pack goals; it is richer after W30.
+Dispatch order: three independent sessions can start in parallel (W27, W28,
+W32) with disjoint file ownership except append-only `labels.py`. (The two
+post-W22 heads were integrated on 2026-10-21, DAG §6.10, so
+W21–W26 are all on this tree.) W29 has reported a precise negative; do not
+re-dispatch it until its named generic/proof gaps change. W30's
+receipt gate is met by W24/W26 — its full scope is richer once W27 lands.
+W31 can start on existing arithmetic/Engel-pack goals; it is richer after
+W30.
 
 Suite slots are **append-only** and pre-allocated above (`test33`–`test45`). Do not
-reuse a number. Historical collisions (15/16, 22, 27) are recorded in DAG §6. After
-Phase 4+ the next free slot is `test46`.
+reuse a number. Historical collisions (15/16, 22, 27) are recorded in DAG §6. The
+supplemental `test46` is taken (above); the next unoccupied allocated slot is
+`test39` (W27) and the next never-allocated number is `test47`.
 
 ---
 

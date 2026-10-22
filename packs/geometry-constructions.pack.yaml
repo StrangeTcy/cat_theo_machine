@@ -25,6 +25,19 @@ description: >
     circumcircle_admits_vertex every vertex of a triangle lies on the
                                triangle's circumcircle
 
+  W26 adds three chord/angle schemas over the same ontology:
+
+    inscribed_angles_same_arc   two points that see a chord from the same
+                               side of it see it at equal angles (the side
+                               condition is a real premise: opposite sides
+                               give supplementary angles, not equal ones)
+    cyclic_order_opposite_angles opposite angles of a cyclic quadrilateral
+                               are supplementary; the cyclic order is what
+                               makes four points on a circle a quadrilateral
+    semicircle_angle_is_right   a chord that is a diameter is seen at a right
+                               angle from every other point of the circle
+                               (Thales), stated without a measure constant
+
 requires:
   - geometry-ontology
 
@@ -158,3 +171,91 @@ rules:
         - call:
             head: {sym: OnCircleLabel}
             args: [{var: v}, {var: k}]
+
+  # ------------------------------------------------------------------
+  # W26: chord / angle remainder.  Same discipline as W8 -- every rule is
+  # fully variable-typed, names no point, circle or problem, and carries no
+  # constant.  `inscribed_angles_same_arc` needs its side condition: with the
+  # two points on opposite sides of the chord the angles are supplementary,
+  # not equal, so the rule would be unsound without it and does not fire.
+  # ------------------------------------------------------------------
+
+  - id: inscribed_angles_same_arc
+    premises:
+      - call:
+          head: {sym: OnCircleLabel}
+          args: [{var: a}, {var: k}]
+      - call:
+          head: {sym: OnCircleLabel}
+          args: [{var: b}, {var: k}]
+      - call:
+          head: {sym: OnCircleLabel}
+          args: [{var: c}, {var: k}]
+      - call:
+          head: {sym: OnCircleLabel}
+          args: [{var: d}, {var: k}]
+      - call:
+          head: {sym: SameSideOfLineLabel}
+          args:
+            - {var: c}
+            - {var: d}
+            - call:
+                head: {sym: SegmentLabel}
+                args: [{var: a}, {var: b}]
+    replacement:
+      list:
+        - call:
+            head: {sym: EqualAngleLabel}
+            args:
+              - call:
+                  head: {sym: AngleLabel}
+                  args: [{var: a}, {var: c}, {var: b}]
+              - call:
+                  head: {sym: AngleLabel}
+                  args: [{var: a}, {var: d}, {var: b}]
+
+  - id: cyclic_order_opposite_angles
+    # A cyclic order is what makes the four points a quadrilateral rather
+    # than four points on a circle; opposite angles are then supplementary.
+    premises:
+      - call:
+          head: {sym: CyclicOrderLabel}
+          args: [{var: a}, {var: b}, {var: c}, {var: d}, {var: k}]
+    replacement:
+      list:
+        - call:
+            head: {sym: SupplementaryAnglesLabel}
+            args:
+              - call:
+                  head: {sym: AngleLabel}
+                  args: [{var: a}, {var: b}, {var: c}]
+              - call:
+                  head: {sym: AngleLabel}
+                  args: [{var: c}, {var: d}, {var: a}]
+
+  - id: semicircle_angle_is_right
+    # Thales: a chord that is a diameter is seen at a right angle from every
+    # other point of the circle.  Stated relationally (perpendicular
+    # segments), so the rule needs no measure constant.
+    premises:
+      - call:
+          head: {sym: DiameterLineLabel}
+          args:
+            - {var: k}
+            - call:
+                head: {sym: SegmentLabel}
+                args: [{var: a}, {var: b}]
+      - call:
+          head: {sym: OnCircleLabel}
+          args: [{var: c}, {var: k}]
+    replacement:
+      list:
+        - call:
+            head: {sym: PerpendicularLabel}
+            args:
+              - call:
+                  head: {sym: SegmentLabel}
+                  args: [{var: c}, {var: a}]
+              - call:
+                  head: {sym: SegmentLabel}
+                  args: [{var: c}, {var: b}]

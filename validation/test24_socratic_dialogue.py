@@ -116,7 +116,9 @@ pack_engel = runtime.load_pack(os.path.join(REPO, "packs", "engel-strategies.pac
 tutor = D.Tutor(runtime)
 print("    boot %.1fs; packs read by the tutor: %s" % (time.time() - t_boot, ", ".join(p.name for p in tutor.packs)))
 check("the tutor reads both loaded packs", [p.name for p in tutor.packs] == ["funceq-nt", "engel-strategies"])
-check("the tutor's search rules are the packs' MultiRules (38)", len(D.to_list(tutor.rules())) == 38, str(len(D.to_list(tutor.rules()))))
+# 38 until W24 (2026-10-19) added eight residue/divisibility schemas to
+# funceq-nt; the tutor reads every fact-list rule of every loaded pack.
+check("the tutor's search rules are the packs' MultiRules (46)", len(D.to_list(tutor.rules())) == 46, str(len(D.to_list(tutor.rules()))))
 funceq_rules = dict((rid, obj()) for rid, obj in pack_funceq.rule_map.entries)
 engel_rules = dict((rid, obj()) for rid, obj in pack_engel.rule_map.entries)
 print()
@@ -262,7 +264,15 @@ check("  ... 12 assignments checked, hypotheses held on 6", n_checked == 12 and 
 check("  ... the answer says bounded evidence is not a proof", "not a proof" in a_und.text and "VERIFIED" not in a_und.text)
 
 a_div = say(tutor, "if a divides b and b divides c then a divides c")
-check("transitivity of divisibility (true, 3 variables, no rule): UNDECIDED, not upgraded", a_div.kind == "claim-undecided")
+# W24 (2026-10-19) wired the generic divisibility schemas into funceq-nt, so
+# this claim changed verdict: it used to be the honest UNDECIDED control
+# ("true, but no loaded rule proves it").  It is now VERIFIED by the tutor's
+# own bounded search and Checker B, through the pack rule object itself.
+steps_div = D.to_list(P.DerivationSteps(D.to_list(M.Tail(a_div.record)())[0], tutor.registry)()) if a_div.kind == "claim-verified" else []
+check("transitivity of divisibility: now VERIFIED by the W24 schema (it was the"
+      " UNDECIDED control before the wiring)",
+      a_div.kind == "claim-verified" and len(steps_div) == 1
+      and P.ActionRule(P.StepAction(steps_div[0], tutor.registry)())() is funceq_rules["divisibility_transitive"])
 a_div2 = say(tutor, "if a divides b then b divides a")
 check("its converse is REFUTED", a_div2.kind == "claim-refuted")
 
@@ -338,11 +348,22 @@ steps_e = D.to_list(P.DerivationSteps(D.to_list(M.Tail(a_e5.record)())[0], tutor
 check("  ... Checker B verifies the one-step monovariant_terminates derivation", a_e5.kind == "claim-verified" and len(steps_e) == 1
       and P.ActionRule(P.StepAction(steps_e[0], tutor.registry)())() is engel_rules["monovariant_terminates"])
 
-print("    -- a goal no rule concludes --")
+print("    -- a goal the new schemas can conclude --")
 a_r6 = say(tutor, "focus on: a divides b")
-check("Divides(a, b): rung-6 (negative) question -- look for a counterexample first", is_label(D.question_rung(a_r6.record), L.Rung6NegativeLabel))
+# Before W24 no rule concluded Divides(_); this was the rung-6 negative
+# control.  The four new schemas make it a rung-2 join, which is the honest
+# change; the negative path is pinned separately below on a premise-only head.
+check("Divides(a, b): now a rung-2 question -- four loaded schemas can conclude it",
+      is_label(D.question_rung(a_r6.record), L.Rung2JoinLabel) and "4 loaded rules" in a_r6.text)
 a_r6c = say(tutor, "check")
-check("  ... and 'check' refutes it", a_r6c.kind == "claim-refuted")
+check("  ... and 'check' still refutes the universal claim", a_r6c.kind == "claim-refuted")
+
+print("    -- a goal no rule concludes --")
+neg_goal = D.fact(L.BoundedBelowLabel, m_atom, M.Char("b"))
+a_r6n = tutor.set_focus_goal(neg_goal, EMPTY)
+check("BoundedBelow(m, b) is premise-only in both packs: rung-6 (negative)"
+      " question -- look for a counterexample first",
+      is_label(D.question_rung(a_r6n.record), L.Rung6NegativeLabel))
 print()
 
 # ---------------------------------------------------------------------------
@@ -410,7 +431,7 @@ try:
 except Exception as exc:  # noqa: BLE001 - reported as a failed check
     out = "EXC " + repr(exc)
 print("    live mode round trip %.1fs" % (time.time() - t_repl))
-check("'load pack funceq-nt' is a REPL command and tells the tutor", "loaded pack funceq-nt (25 rules)" in out)
+check("'load pack funceq-nt' is a REPL command and tells the tutor", "loaded pack funceq-nt (33 rules)" in out)
 check("concept inspection answers through the REPL", "'quaternion' is not represented" in out)
 check("a claim is VERIFIED through the REPL with the pack loaded there", "VERIFIED: a 1-step derivation" in out and "prod_odd_odd" in out)
 check("the tutor's fall-through reaches the pre-existing \"no, I can't prove that\"", "no, I can't prove that" in out)

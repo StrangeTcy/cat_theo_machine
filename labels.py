@@ -1803,6 +1803,214 @@ class NatWitnessInvalidLabel(ConstructorLabel):
 
 class UnboundVariableLabel(ConstructorLabel):
     pass
+
+
+# --- W25: curriculum card vocabulary (append-only) --------------------------
+# The constructors the corpus cards name in their "missing constructors"
+# sections.  Adding the vocabulary makes a card's proposition *statable* as a
+# machine term (Ground 1); it makes nothing provable by itself.
+
+class IntegerLabel(ConstructorLabel):
+    pass
+
+
+class IntegersLabel(ConstructorLabel):
+    pass
+
+
+class RemainderLabel(ConstructorLabel):
+    pass
+
+
+class ResidueLabel(ConstructorLabel):
+    pass
+
+
+class CongruentLabel(ConstructorLabel):
+    pass
+
+
+class PrefixSumLabel(ConstructorLabel):
+    pass
+
+
+class SubsetLabel(ConstructorLabel):
+    pass
+
+
+class ColoringLabel(ConstructorLabel):
+    pass
+
+
+class CheckerboardLabel(ConstructorLabel):
+    pass
+
+
+class DominoLabel(ConstructorLabel):
+    pass
+
+
+class CellLabel(ConstructorLabel):
+    pass
+
+
+class SquareLabel(ConstructorLabel):
+    pass
+
+
+class BoardLabel(ConstructorLabel):
+    pass
+
+
+class CornerLabel(ConstructorLabel):
+    pass
+
+
+class ColorLabel(ConstructorLabel):
+    pass
+
+
+class PathLabel(ConstructorLabel):
+    pass
+
+
+class CycleLabel(ConstructorLabel):
+    pass
+
+
+class GraphLabel(ConstructorLabel):
+    pass
+
+
+class VertexLabel(ConstructorLabel):
+    pass
+
+
+class EdgeLabel(ConstructorLabel):
+    pass
+
+
+class DegreeLabel(ConstructorLabel):
+    pass
+
+
+class GlassLabel(ConstructorLabel):
+    pass
+
+
+class UprightLabel(ConstructorLabel):
+    pass
+
+
+class FlipLabel(ConstructorLabel):
+    pass
+
+
+class MoveLabel(ConstructorLabel):
+    pass
+
+
+class CountUprightLabel(ConstructorLabel):
+    pass
+
+
+class StripLabel(ConstructorLabel):
+    pass
+
+
+class TileLabel(ConstructorLabel):
+    pass
+
+
+class GridLabel(ConstructorLabel):
+    pass
+
+
+class TilingLabel(ConstructorLabel):
+    pass
+
+
+# --- W25: card records, coverage and verdicts -----------------------------
+
+class CardRecordLabel(ConstructorLabel):
+    pass
+
+
+class Ground1GapLabel(ConstructorLabel):
+    pass
+
+
+class CardTaskLabel(ConstructorLabel):
+    pass
+
+
+class CardSolvedLabel(ConstructorLabel):
+    pass
+
+
+class CardRejectedLabel(ConstructorLabel):
+    pass
+
+
+class CardOpenLabel(ConstructorLabel):
+    pass
+
+
+class CardNoBuilderLabel(ConstructorLabel):
+    pass
+
+
+class CardSplitCheckLabel(ConstructorLabel):
+    pass
+
+
+class ColorCountLabel(ConstructorLabel):
+    pass
+
+
+class TileRequiredLabel(ConstructorLabel):
+    pass
+
+
+class CardLoaderResultLabel(ConstructorLabel):
+    pass
+
+
+# --- W26: cyclic-quadrilateral and chord/angle vocabulary (append-only) -----
+# W8's geometry vocabulary stopped at angle equality, incidence and the
+# circumcircle.  These six relations are what a chord/angle argument needs to
+# state its own conclusions; none of them is a construction, a measure or a
+# table, and none carries a constant.
+
+class PerpendicularLabel(ConstructorLabel):
+    pass
+
+
+class DiameterLineLabel(ConstructorLabel):
+    pass
+
+
+class CentreOfLabel(ConstructorLabel):
+    pass
+
+
+class SameSideOfLineLabel(ConstructorLabel):
+    pass
+
+
+class SupplementaryAnglesLabel(ConstructorLabel):
+    pass
+
+
+class CyclicOrderLabel(ConstructorLabel):
+    pass
+
+
+class GeometryRemainderLabel(ConstructorLabel):
+    pass
+
+
+
 TreeLabel = TreeLabel()
 ZeroLabel = ZeroLabel()
 SuccLabel = SuccLabel()
@@ -2252,6 +2460,56 @@ PolynomialGridActionLabel = PolynomialGridActionLabel()
 PolynomialGridRuleLabel = PolynomialGridRuleLabel()
 NatSuccessorLabel = NatSuccessorLabel()
 CoprimeCofactorsLabel = CoprimeCofactorsLabel()
+
+IntegerLabel = IntegerLabel()
+IntegersLabel = IntegersLabel()
+RemainderLabel = RemainderLabel()
+ResidueLabel = ResidueLabel()
+CongruentLabel = CongruentLabel()
+PrefixSumLabel = PrefixSumLabel()
+SubsetLabel = SubsetLabel()
+ColoringLabel = ColoringLabel()
+CheckerboardLabel = CheckerboardLabel()
+DominoLabel = DominoLabel()
+CellLabel = CellLabel()
+SquareLabel = SquareLabel()
+BoardLabel = BoardLabel()
+CornerLabel = CornerLabel()
+ColorLabel = ColorLabel()
+PathLabel = PathLabel()
+CycleLabel = CycleLabel()
+GraphLabel = GraphLabel()
+VertexLabel = VertexLabel()
+EdgeLabel = EdgeLabel()
+DegreeLabel = DegreeLabel()
+GlassLabel = GlassLabel()
+UprightLabel = UprightLabel()
+FlipLabel = FlipLabel()
+MoveLabel = MoveLabel()
+CountUprightLabel = CountUprightLabel()
+StripLabel = StripLabel()
+TileLabel = TileLabel()
+GridLabel = GridLabel()
+TilingLabel = TilingLabel()
+CardRecordLabel = CardRecordLabel()
+Ground1GapLabel = Ground1GapLabel()
+CardTaskLabel = CardTaskLabel()
+CardSolvedLabel = CardSolvedLabel()
+CardRejectedLabel = CardRejectedLabel()
+CardOpenLabel = CardOpenLabel()
+CardNoBuilderLabel = CardNoBuilderLabel()
+CardSplitCheckLabel = CardSplitCheckLabel()
+ColorCountLabel = ColorCountLabel()
+TileRequiredLabel = TileRequiredLabel()
+CardLoaderResultLabel = CardLoaderResultLabel()
+
+PerpendicularLabel = PerpendicularLabel()
+DiameterLineLabel = DiameterLineLabel()
+CentreOfLabel = CentreOfLabel()
+SameSideOfLineLabel = SameSideOfLineLabel()
+SupplementaryAnglesLabel = SupplementaryAnglesLabel()
+CyclicOrderLabel = CyclicOrderLabel()
+GeometryRemainderLabel = GeometryRemainderLabel()
 
 
 def sync_from_namespace(namespace):
@@ -2705,6 +2963,54 @@ def sync_from_namespace(namespace):
         "PolynomialGridRuleLabel",
         "NatSuccessorLabel",
         "CoprimeCofactorsLabel",
+        "IntegerLabel",
+        "IntegersLabel",
+        "RemainderLabel",
+        "ResidueLabel",
+        "CongruentLabel",
+        "PrefixSumLabel",
+        "SubsetLabel",
+        "ColoringLabel",
+        "CheckerboardLabel",
+        "DominoLabel",
+        "CellLabel",
+        "SquareLabel",
+        "BoardLabel",
+        "CornerLabel",
+        "ColorLabel",
+        "PathLabel",
+        "CycleLabel",
+        "GraphLabel",
+        "VertexLabel",
+        "EdgeLabel",
+        "DegreeLabel",
+        "GlassLabel",
+        "UprightLabel",
+        "FlipLabel",
+        "MoveLabel",
+        "CountUprightLabel",
+        "StripLabel",
+        "TileLabel",
+        "GridLabel",
+        "TilingLabel",
+        "CardRecordLabel",
+        "Ground1GapLabel",
+        "CardTaskLabel",
+        "CardSolvedLabel",
+        "CardRejectedLabel",
+        "CardOpenLabel",
+        "CardNoBuilderLabel",
+        "CardSplitCheckLabel",
+        "ColorCountLabel",
+        "TileRequiredLabel",
+        "CardLoaderResultLabel",
+        "PerpendicularLabel",
+        "DiameterLineLabel",
+        "CentreOfLabel",
+        "SameSideOfLineLabel",
+        "SupplementaryAnglesLabel",
+        "CyclicOrderLabel",
+        "GeometryRemainderLabel",
     ):
         if name in namespace:
             globals()[name] = namespace[name]
