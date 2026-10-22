@@ -1871,8 +1871,60 @@ def run_live_mode(debug: bool = False):
                 print("[machine] No active proof derivation in current session. Solve a theorem or goal first.")
         elif cmd.startswith("fact:") or cmd.startswith("rule:") or cmd.startswith("word:"):
             print(f"[machine] Ingested declarative knowledge into hypergraph context: {raw}")
-        elif cmd.startswith("call this ") or cmd.startswith("yes, call this ") or cmd.startswith("name this ") or cmd.startswith("call it "):
-            name_part = _strip_naming_prefix(raw, ("call this ", "yes, call this ", "name this ", "call it "))
+        elif pending_proposal is not None and cmd in ("no", "no thanks", "skip", "cancel", "pass", "none"):
+            pending_proposal = None
+            print("[machine] Understood, leaving the observation unnamed.")
+        elif (
+            cmd.startswith("call this ")
+            or cmd.startswith("yes, call this ")
+            or cmd.startswith("name this ")
+            or cmd.startswith("call it ")
+            or (
+                pending_proposal is not None
+                and cmd
+                not in (
+                    "suggest lemmas",
+                    "ground lemma",
+                    "adopt lemma",
+                    "promote lemma",
+                    "promote candidate",
+                    "promote discovered lemma",
+                    "suggest premises",
+                    "show lemmas",
+                    "run self-diagnostics",
+                    "next",
+                    "hint",
+                    "what next",
+                    "check",
+                    "prove it",
+                    "verify",
+                    "why",
+                    "explain",
+                    "ledger",
+                    "show candidates",
+                )
+                and not cmd.startswith(
+                    (
+                        "load pack ",
+                        "prove ",
+                        "solve ",
+                        "what is ",
+                        "define ",
+                        "what do you know about ",
+                        "is it true",
+                        "claim:",
+                        "focus",
+                        "let's work on",
+                        "fact:",
+                        "rule:",
+                        "word:",
+                    )
+                )
+            )
+        ):
+            name_part = _strip_naming_prefix(
+                raw, ("yes, call this ", "call this ", "name this ", "call it ", "yes, ")
+            )
 
             # Append to talk_lessons.log
             log_line = f"Lesson named: '{name_part}' | Discovery: {pending_proposal}\n"
@@ -1927,61 +1979,70 @@ def run_live_mode(debug: bool = False):
             pending_proposal = None
         elif cmd == "suggest lemmas":
             print("[machine] Running internal introspection and Cartesian playground sweep...")
-            reg = M.FromContextGetConstructors(runtime.graph)()
-            bound_res = M.NatFromRep(M.GMPRep(6), reg)()
-            bound_nat = M.Head(bound_res)()
-            reg1 = M.Head(M.Tail(bound_res)())()
-
-            domain_res = PG.BuildNatRange(M.Zero, bound_nat, reg1)()
-            domain = M.Head(domain_res)()
-            reg2 = M.Head(M.Tail(domain_res)())()
-
-            # Active operations chain
-            ops_chain = M.Pair(
-                M.Pair(M.Char("add"), M.Pair(ApplyAddPair.apply, M.EmptyList)),
-                M.Pair(
-                    M.Pair(M.Char("mul"), M.Pair(ApplyMultiplyPair.apply, M.EmptyList)),
-                    M.EmptyList,
-                ),
-            )
-
-            ledger = runtime.graph.promotion_ledger
-            if ledger is None:
-                ledger = M.EmptyList
-            prop_res = Miner.ProposeNextRegularityOrStructure(ops_chain, domain, ledger, reg2)()
-            prop_status = M.Head(prop_res)()
-            prop_rec = M.Head(M.Tail(prop_res)())()
-
-            if M.IdentityCompare(prop_status, Lmod.ObservedRegularityLabel)() is M.truth_value:
-                op_char = M.Head(M.Tail(prop_rec)())()
-                law_char = M.Head(M.Tail(M.Tail(prop_rec)())())()
-                op_str = op_char()
-                law_str = law_char()
-                pending_proposal = f"{op_str} {law_str}"
-                print(f"[machine] Observed: for tested elements (0, 1, 2, 3, 4, 5), {op_str}(a, b) == {op_str}(b, a).")
-                print("[machine] Would you care to give it a name?")
-            elif M.IdentityCompare(prop_status, Lmod.AlgebraicTemplateLabel)() is M.truth_value:
-                pending_proposal = "algebraic structure over tested operations and laws"
-                print(PG.run_playground_interactive(runtime.graph))
+            active_goal = getattr(runtime.graph, "_active_unproved_goal", None)
+            active_claim = getattr(runtime.graph, "_active_unproved_claim", None)
+            if active_goal is not None or active_claim is not None:
+                print(
+                    PG.run_playground_interactive(
+                        runtime.graph,
+                        goal_text=active_goal,
+                        tutor=_get_tutor(),
+                    )
+                )
             else:
-                print(PG.run_playground_interactive(runtime.graph))
+                reg = M.FromContextGetConstructors(runtime.graph)()
+                bound_res = M.NatFromRep(M.GMPRep(6), reg)()
+                bound_nat = M.Head(bound_res)()
+                reg1 = M.Head(M.Tail(bound_res)())()
+
+                domain_res = PG.BuildNatRange(M.Zero, bound_nat, reg1)()
+                domain = M.Head(domain_res)()
+                reg2 = M.Head(M.Tail(domain_res)())()
+
+                # Active operations chain
+                ops_chain = M.Pair(
+                    M.Pair(M.Char("add"), M.Pair(ApplyAddPair.apply, M.EmptyList)),
+                    M.Pair(
+                        M.Pair(M.Char("mul"), M.Pair(ApplyMultiplyPair.apply, M.EmptyList)),
+                        M.EmptyList,
+                    ),
+                )
+
+                ledger = runtime.graph.promotion_ledger
+                if ledger is None:
+                    ledger = M.EmptyList
+                prop_res = Miner.ProposeNextRegularityOrStructure(ops_chain, domain, ledger, reg2)()
+                prop_status = M.Head(prop_res)()
+                prop_rec = M.Head(M.Tail(prop_res)())()
+
+                if M.IdentityCompare(prop_status, Lmod.ObservedRegularityLabel)() is M.truth_value:
+                    op_char = M.Head(M.Tail(prop_rec)())()
+                    law_char = M.Head(M.Tail(M.Tail(prop_rec)())())()
+                    op_str = op_char()
+                    law_str = law_char()
+                    pending_proposal = f"{op_str} {law_str}"
+                    print(f"[machine] Observed: for tested elements (0, 1, 2, 3, 4, 5), {op_str}(a, b) == {op_str}(b, a).")
+                    print("[machine] Would you care to give it a name?")
+                elif M.IdentityCompare(prop_status, Lmod.AlgebraicTemplateLabel)() is M.truth_value:
+                    pending_proposal = "algebraic structure over tested operations and laws"
+                    print(PG.run_playground_interactive(runtime.graph, tutor=_get_tutor()))
+                else:
+                    print(PG.run_playground_interactive(runtime.graph, tutor=_get_tutor()))
         elif cmd in ("ground lemma", "adopt lemma", "promote lemma", "promote candidate", "promote discovered lemma"):
             print("[machine] Initiating autonomous promotion cycle for discovered Cartesian obstruction invariant...")
-            reg = M.FromContextGetConstructors(runtime.graph)()
-            bound_res = M.NatFromRep(M.GMPRep(11), reg)()
-            bound_nat = M.Head(bound_res)()
-            reg1 = M.Head(M.Tail(bound_res)())()
-
-            mod_res = M.NatFromRep(M.GMPRep(4), reg1)()
-            mod_nat = M.Head(mod_res)()
-            reg2 = M.Head(M.Tail(mod_res)())()
-
-            sweep_res = PG.RunPlaygroundCartesianSweep(bound_nat, mod_nat, reg2)()
-            inv_rec = M.Head(sweep_res)()
-            reg3 = M.Head(M.Tail(sweep_res)())()
+            reg3 = M.FromContextGetConstructors(runtime.graph)()
+            inv_rec = getattr(runtime.graph, "_last_discovered_invariant", None)
+            if inv_rec is None:
+                PG.run_playground_interactive(runtime.graph, tutor=_get_tutor())
+                reg3 = M.FromContextGetConstructors(runtime.graph)()
+                inv_rec = getattr(runtime.graph, "_last_discovered_invariant", None)
 
             res_mod = M.Head(M.Tail(inv_rec)())()
             mod_val = M.NatRepOf(res_mod, reg3)()()
+            rhs_set = M.Head(M.Tail(M.Tail(inv_rec)())())()
+            lhs_set = M.Head(M.Tail(M.Tail(M.Tail(inv_rec)())())())()
+            rhs_set_str = PG._format_set_chain(rhs_set, reg3)
+            lhs_set_str = PG._format_set_chain(lhs_set, reg3)
 
             lemma_name = f"mod_{mod_val}_disjoint_image_obstruction"
             cand_id = M.Char(lemma_name)
@@ -1997,27 +2058,31 @@ def run_live_mode(debug: bool = False):
                 M.EmptyList,
             )()
 
+            rhs_img_desc = f"rhs_image mod {mod_val} in {rhs_set_str}"
+            lhs_img_desc = f"lhs_image mod {mod_val} in {lhs_set_str}"
+            disj_desc = f"{rhs_set_str} /\\ {lhs_set_str}"
+
             step1_res = P.Step(
-                M.Char("domain 0..10"),
-                P.RewriteAction(P.Rule(M.Char("x in Nat"), M.Char("x^2 mod 4 in {0, 1}"))(), M.EmptyList)(),
-                M.Char("x^2 mod 4 in {0, 1}"),
+                M.Char("cartesian_ground_domain"),
+                P.RewriteAction(P.Rule(M.Char("rhs_projection"), M.Char(rhs_img_desc))(), M.EmptyList)(),
+                M.Char(rhs_img_desc),
                 reg3,
             )()
             s1 = M.Head(step1_res)()
             reg4 = M.Head(M.Tail(step1_res)())()
 
             step2_res = P.Step(
-                M.Char("x^2 mod 4 in {0, 1}"),
-                P.RewriteAction(P.Rule(M.Char("odd(x, y)"), M.Char("(x^2 + y^2) mod 4 = 2"))(), M.EmptyList)(),
-                M.Char("(x^2 + y^2) mod 4 = 2"),
+                M.Char(rhs_img_desc),
+                P.RewriteAction(P.Rule(M.Char("lhs_subdomain_projection"), M.Char(lhs_img_desc))(), M.EmptyList)(),
+                M.Char(lhs_img_desc),
                 reg4,
             )()
             s2 = M.Head(step2_res)()
             reg5 = M.Head(M.Tail(step2_res)())()
 
             step3_res = P.Step(
-                M.Char("(x^2 + y^2) mod 4 = 2"),
-                P.RewriteAction(P.Rule(M.Char("{0, 1} /\\ {2}"), M.Char("DisjointImageObstruction"))(), M.EmptyList)(),
+                M.Char(lhs_img_desc),
+                P.RewriteAction(P.Rule(M.Char(disj_desc), M.Char("DisjointImageObstruction"))(), M.EmptyList)(),
                 M.Char("DisjointImageObstruction"),
                 reg5,
             )()
@@ -2036,7 +2101,7 @@ def run_live_mode(debug: bool = False):
                 M.Pair(
                     cand_id,
                     M.Pair(
-                        M.Char("domain 0..10"),
+                        M.Char("cartesian_ground_domain"),
                         M.Pair(
                             M.Char("DisjointImageObstruction"),
                             M.Pair(derivation, reg6),
@@ -2063,7 +2128,18 @@ def run_live_mode(debug: bool = False):
             print("[machine] Verified by Independent Checker B. Ablation & holdout tests passed.")
             print(f"[machine] Promoted: {lemma_name} -> Active Certified Ledger (version 1).")
         elif cmd == "suggest premises":
-            print("[machine] Abduction: no open search goals currently require missing premise synthesis.")
+            active_goal = getattr(runtime.graph, "_active_unproved_goal", None)
+            active_claim = getattr(runtime.graph, "_active_unproved_claim", None)
+            if active_goal is not None or active_claim is not None:
+                print(
+                    PG.run_playground_interactive(
+                        runtime.graph,
+                        goal_text=active_goal,
+                        tutor=_get_tutor(),
+                    )
+                )
+            else:
+                print("[machine] Abduction: no open search goals currently require missing premise synthesis.")
         elif cmd == "show lemmas":
             ledger = runtime.graph.promotion_ledger
             if ledger is not None:
@@ -2094,9 +2170,22 @@ def run_live_mode(debug: bool = False):
             # focus + Socratic questions, ledger transparency.  Its explicit
             # fall-through keeps the pre-existing behaviour below.
             clean_cmd = cmd.strip().rstrip("?.!")
-            tutor_answer = _get_tutor().ask(clean_cmd)
+            tutor = _get_tutor()
+            tutor_answer = tutor.ask(clean_cmd)
             if tutor_answer.kind != "fallthrough":
                 print(tutor_answer.text)
+                if tutor_answer.kind == "claim-undecided":
+                    runtime.graph._active_unproved_goal = raw
+                    runtime.graph._active_unproved_claim = (
+                        tutor.claims[-1]["claim"] if tutor.claims else None
+                    )
+                    runtime.graph._active_tutor = tutor
+                    print("[machine] Running internal introspection and Cartesian playground sweep...")
+                    print(
+                        PG.run_playground_interactive(
+                            runtime.graph, goal_text=raw, tutor=tutor
+                        )
+                    )
                 continue
 
             # Check if query is a conceptual inquiry for native hypergraph definitions
@@ -2123,8 +2212,28 @@ def run_live_mode(debug: bool = False):
                     print(f"[machine] Task ({task_rung}) proved in {dt:.4f} seconds (binding: {binding}).")
                 else:
                     print("[machine] no, I can't prove that")
+                    if PG.is_proof_or_math_goal(raw):
+                        runtime.graph._active_unproved_goal = raw
+                        runtime.graph._active_unproved_claim = None
+                        runtime.graph._active_tutor = tutor
+                        print("[machine] Running internal introspection and Cartesian playground sweep...")
+                        print(
+                            PG.run_playground_interactive(
+                                runtime.graph, goal_text=raw, tutor=tutor
+                            )
+                        )
             else:
                 print("[machine] no, I can't prove that")
+                if PG.is_proof_or_math_goal(raw):
+                    runtime.graph._active_unproved_goal = raw
+                    runtime.graph._active_unproved_claim = None
+                    runtime.graph._active_tutor = tutor
+                    print("[machine] Running internal introspection and Cartesian playground sweep...")
+                    print(
+                        PG.run_playground_interactive(
+                            runtime.graph, goal_text=raw, tutor=tutor
+                        )
+                    )
 
 
 def _consensus_scenario(runtime):
