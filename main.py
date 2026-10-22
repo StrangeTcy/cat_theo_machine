@@ -1977,10 +1977,8 @@ def run_live_mode(debug: bool = False):
                 ops_chain = M.Head(built_ops)()
 
                 op_names = ""
-                op_count = 0
                 op_cursor = ops_chain
                 while M.IdentityCompare(op_cursor, M.EmptyList)() is M.false_value:
-                    op_count = op_count + 1
                     op_entry = M.Head(op_cursor)()
                     op_name_text = M.Head(op_entry)()()
                     op_names = (
@@ -1990,9 +1988,14 @@ def run_live_mode(debug: bool = False):
                     )
                     op_cursor = M.Tail(op_cursor)()
 
+                # The operation count is a machine Nat read off the register,
+                # rendered for the trace only at the host output boundary.
+                count_res = PG.ChainLength(ops_chain, reg2)()
+                op_count_rep = M.NatRepOf(M.Head(count_res)(), reg2)()()
+
                 PG.PlaygroundDebugEmit(M.Char(
                     "constructing the natural tensor: 6 x 6 domain (0..5)^2 x "
-                    + str(op_count)
+                    + str(op_count_rep)
                     + " operations ("
                     + op_names
                     + ") x 3 candidate laws (commutativity, associativity, identity) in 1 process..."

@@ -2699,9 +2699,13 @@ class BuildNatOperationRegister(M.Edge):
                 parameters = inspect.signature(cls.__init__).parameters
             except (TypeError, ValueError):
                 continue
-            arity = len(
-                [p for p in parameters if p not in ("self", "registry")]
-            )
+            arity = 0
+            for parameter_name in parameters:
+                if parameter_name == "self":
+                    continue
+                if parameter_name == "registry":
+                    continue
+                arity = arity + 1
             if arity != 2:
                 continue
             label = self._operation_label(M.Char(name))
