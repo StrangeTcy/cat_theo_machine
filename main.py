@@ -2008,6 +2008,9 @@ def run_live_mode(debug: bool = False):
                     ),
                 )
 
+                PG._pg_debug(
+                    "constructing the natural tensor: 6 x 6 domain (0..5)^2 x 2 operations (add, mul) x 3 candidate laws (commutativity, associativity, identity) in 1 process..."
+                )
                 ledger = runtime.graph.promotion_ledger
                 if ledger is None:
                     ledger = M.EmptyList

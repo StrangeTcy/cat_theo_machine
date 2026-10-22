@@ -148,6 +148,7 @@ for _log_cand in (os.path.join(PARENT, "talk_lessons.log"), os.path.join(REPO, "
         os.remove(_log_cand)
 check("live mode prints \"no, I can't prove that\"", "[machine] no, I can't prove that" in out_live)
 check("live mode automatically runs playground sweep without 'suggest lemmas'", "[machine] Running internal introspection and Cartesian playground sweep..." in out_live)
+check("live mode emits [debug: cartesian_playground process <pid>] natural tensor trace", "[debug: cartesian_playground process " in out_live and "constructing the natural tensor:" in out_live)
 check("live mode auto-suggestion analyzes x^n + y^n = z^n (n = 3 and n = 4)", "Instance n = 3: x^3 + y^3 = z^3" in out_live and "Instance n = 4: x^4 + y^4 = z^4" in out_live)
 check("subsequent 'ground lemma' promotes the dynamically discovered mod_7 invariant (not hardcoded mod_4)", "Promoted: mod_7_disjoint_image_obstruction -> Active Certified Ledger" in out_live)
 check("undecided tutor claim ('if a is even then a + 1 is odd') also auto-suggests backward obligation Odd(1)", "Backward Rule Candidate: 'sum_even_odd' concludes Odd(a+1) given missing premise(s): Odd(1)" in out_live)

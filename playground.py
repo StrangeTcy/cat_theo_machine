@@ -7,10 +7,20 @@
 # ============================================================
 from __future__ import annotations
 
+import multiprocessing
+import os
+
 from . import constructors as C
 from . import labels as L
 from . import machine as M
 from .math import arithmetic as A
+
+
+def _pg_debug(msg):
+    print(
+        f"[debug: cartesian_playground process {os.getpid()}]: {msg}",
+        flush=True,
+    )
 
 
 class ChainLength(M.Edge):
@@ -833,10 +843,18 @@ class DiscoverExprObstructions(M.Edge):
         registry,
         eval_cache=None,
         max_discoveries=2,
+        debug_trace=False,
     ):
         self.registry = registry
         self.result = self._discover(
-            lhs, rhs, bound_nat, moduli_chain, registry, eval_cache, max_discoveries
+            lhs,
+            rhs,
+            bound_nat,
+            moduli_chain,
+            registry,
+            eval_cache,
+            max_discoveries,
+            debug_trace,
         )
         super().__init__(
             inputs=M.Pair(
@@ -853,7 +871,15 @@ class DiscoverExprObstructions(M.Edge):
         )
 
     def _discover(
-        self, lhs, rhs, bound_nat, moduli_chain, registry, eval_cache, max_discoveries
+        self,
+        lhs,
+        rhs,
+        bound_nat,
+        moduli_chain,
+        registry,
+        eval_cache,
+        max_discoveries,
+        debug_trace,
     ):
         range_res = BuildNatRange(M.Zero, bound_nat, registry)()
         domain = M.Head(range_res)()
@@ -985,6 +1011,7 @@ class DiscoverExprObstructions(M.Edge):
             if max_discoveries is not None and disc_count >= max_discoveries:
                 break
             m_nat = M.Head(cur_m)()
+            m_val = M.NatRepOf(m_nat, reg)()() if debug_trace else 0
 
             # Pre-reduce each unique component table modulo m_nat once
             mod_table_cache = {}
@@ -1085,6 +1112,10 @@ class DiscoverExprObstructions(M.Edge):
                 disj_all = M.Head(rel_all)()
                 reg = M.Head(M.Tail(M.Tail(rel_all)())())()
                 if disj_all is M.truth_value:
+                    if debug_trace:
+                        _pg_debug(
+                            f"modulus m = {m_val} (unrestricted): rhs image {_format_set_chain(rhs_all, reg)} /\\ lhs image {_format_set_chain(lhs_all, reg)} = empty -> separating obstruction discovered"
+                        )
                     rec = M.Pair(
                         L.DiscoveredInvariantLabel,
                         M.Pair(
@@ -1111,6 +1142,7 @@ class DiscoverExprObstructions(M.Edge):
             # Clauses 2 & 3: Prime-divisor unit subdomains (p | m, p does not divide v)
             p_divs = _prime_divisors_of_mod(m_nat, domain, reg)
             cur_p = p_divs
+            found_at_m = False
             while M.IdentityCompare(cur_p, M.EmptyList)() is M.false_value:
                 p_nat = M.Head(cur_p)()
                 p_key = M.NatRepOf(p_nat, reg)()()
@@ -1128,6 +1160,11 @@ class DiscoverExprObstructions(M.Edge):
                         reg = M.Head(M.Tail(M.Tail(rel_c2)())())()
                         if disj_c2 is M.truth_value:
                             clause2_hit = M.truth_value
+                            found_at_m = True
+                            if debug_trace:
+                                _pg_debug(
+                                    f"modulus m = {m_val} (prime divisor p = {p_key}, lhs unit subdomain): rhs image {_format_set_chain(rhs_all, reg)} /\\ lhs image {_format_set_chain(lhs_p, reg)} = empty -> separating obstruction discovered"
+                                )
                             rec = M.Pair(
                                 L.DiscoveredInvariantLabel,
                                 M.Pair(
@@ -1162,6 +1199,11 @@ class DiscoverExprObstructions(M.Edge):
                             disj_c3 = M.Head(rel_c3)()
                             reg = M.Head(M.Tail(M.Tail(rel_c3)())())()
                             if disj_c3 is M.truth_value:
+                                found_at_m = True
+                                if debug_trace:
+                                    _pg_debug(
+                                        f"modulus m = {m_val} (prime divisor p = {p_key}, all-vars unit subdomain): rhs image {_format_set_chain(rhs_p, reg)} /\\ lhs image {_format_set_chain(lhs_p, reg)} = empty -> separating obstruction discovered"
+                                    )
                                 rec = M.Pair(
                                     L.DiscoveredInvariantLabel,
                                     M.Pair(
@@ -1184,6 +1226,12 @@ class DiscoverExprObstructions(M.Edge):
                                 discoveries = _chain_append_end(discoveries, rec)
                                 disc_count += 1
                 cur_p = M.Tail(cur_p)()
+
+            if debug_trace and not found_at_m:
+                p_list = _set_chain_to_sorted_ints(p_divs, reg)
+                _pg_debug(
+                    f"modulus m = {m_val} (prime divisors {p_list}): rhs image {_format_set_chain(rhs_all, reg)} overlaps lhs image {_format_set_chain(lhs_all, reg)} (no disjoint subdomain)"
+                )
 
             cur_m = M.Tail(cur_m)()
 
@@ -1796,6 +1844,171 @@ def _format_discoveries_for_equation(
     return lines
 
 
+def _discoveries_to_plain_list(discoveries, reg):
+    out = []
+    cur = discoveries
+    while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
+        rec = M.Head(cur)()
+        mod_nat = M.Head(M.Tail(rec)())()
+        rhs_set = M.Head(M.Tail(M.Tail(rec)())())()
+        lhs_set = M.Head(M.Tail(M.Tail(M.Tail(rec)())())())()
+        tail_meta = M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(rec)())())())())()
+        filter_kind = "lhs_not_divisible"
+        div_val = 0
+        if M.IdentityCompare(tail_meta, M.EmptyList)() is M.false_value:
+            filter_kind = str(M.Head(tail_meta)()())
+            div_nat = M.Head(M.Tail(tail_meta)())()
+            if M.IdentityCompare(div_nat, M.Zero)() is M.false_value:
+                div_val = M.NatRepOf(div_nat, reg)()()
+        mod_val = M.NatRepOf(mod_nat, reg)()()
+        rhs_vals = _set_chain_to_sorted_ints(rhs_set, reg)
+        lhs_vals = _set_chain_to_sorted_ints(lhs_set, reg)
+        out.append((mod_val, rhs_vals, lhs_vals, filter_kind, div_val))
+        cur = M.Tail(cur)()
+    return out
+
+
+def _reconstruct_plain_discoveries(plain_list, reg):
+    chain = M.EmptyList
+    cur_reg = reg
+    for mod_val, rhs_vals, lhs_vals, filter_kind, div_val in plain_list:
+        m_res = M.NatFromRep(M.GMPRep(mod_val), cur_reg)()
+        m_nat = M.Head(m_res)()
+        cur_reg = M.Head(M.Tail(m_res)())()
+
+        rhs_chain = M.EmptyList
+        for v in rhs_vals:
+            v_res = M.NatFromRep(M.GMPRep(v), cur_reg)()
+            v_nat = M.Head(v_res)()
+            cur_reg = M.Head(M.Tail(v_res)())()
+            rhs_chain = _chain_append_end(rhs_chain, v_nat)
+
+        lhs_chain = M.EmptyList
+        for v in lhs_vals:
+            v_res = M.NatFromRep(M.GMPRep(v), cur_reg)()
+            v_nat = M.Head(v_res)()
+            cur_reg = M.Head(M.Tail(v_res)())()
+            lhs_chain = _chain_append_end(lhs_chain, v_nat)
+
+        if div_val == 0:
+            div_nat = M.Zero
+        else:
+            d_res = M.NatFromRep(M.GMPRep(div_val), cur_reg)()
+            div_nat = M.Head(d_res)()
+            cur_reg = M.Head(M.Tail(d_res)())()
+
+        rec = M.Pair(
+            L.DiscoveredInvariantLabel,
+            M.Pair(
+                m_nat,
+                M.Pair(
+                    rhs_chain,
+                    M.Pair(
+                        lhs_chain,
+                        M.Pair(
+                            M.truth_value,
+                            M.Pair(
+                                M.Char(filter_kind),
+                                M.Pair(div_nat, M.EmptyList),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        chain = _chain_append_end(chain, rec)
+    return chain, cur_reg
+
+
+def _parallel_instance_sweep_worker(task_spec, out_queue):
+    """
+    Top-level multiprocessing worker for sweeping one concrete exponent
+    instance of a parametric equation across candidate moduli.
+    """
+    goal_text = task_spec["goal_text"]
+    exp_val = task_spec["exp_val"]
+    max_mod = task_spec["max_mod"]
+    positive_only = task_spec["positive_only"]
+
+    reg = M.AllConstructors
+    spec = parse_surface_goal_spec(goal_text, reg)
+    lhs = spec["lhs"]
+    rhs = spec["rhs"]
+    base_vars = spec["base_vars"]
+    exp_var = M.Head(spec["exp_vars"])()
+    exp_name = str(exp_var())
+    reg = spec["registry"]
+
+    bound_res = M.NatFromRep(M.GMPRep(max_mod), reg)()
+    bound_nat = M.Head(bound_res)()
+    reg = M.Head(M.Tail(bound_res)())()
+
+    dom_res = BuildNatRange(M.Zero, bound_nat, reg)()
+    domain = M.Head(dom_res)()
+    reg = M.Head(M.Tail(dom_res)())()
+    moduli_chain = _chain_append_end(M.Tail(M.Tail(domain)())(), bound_nat)
+
+    e_res = M.NatFromRep(M.GMPRep(exp_val), reg)()
+    e_nat = M.Head(e_res)()
+    reg = M.Head(M.Tail(e_res)())()
+
+    lhs_e = M.Head(SubstituteExprVar(lhs, exp_var, e_nat, reg)())()
+    rhs_e = M.Head(SubstituteExprVar(rhs, exp_var, e_nat, reg)())()
+    lhs_e_str = RenderNatExpr(lhs_e, reg)
+    rhs_e_str = RenderNatExpr(rhs_e, reg)
+    var_names = _vars_chain_to_names(base_vars)
+    arity_dims = " x ".join([str(max_mod)] * max(1, len(var_names)))
+    tested_mods = _set_chain_to_sorted_ints(moduli_chain, reg)
+
+    _pg_debug(
+        f"worker started for {exp_name} = {exp_val} ({lhs_e_str} = {rhs_e_str}): constructing the natural tensor: {arity_dims} x {len(tested_mods)} moduli {tested_mods}..."
+    )
+
+    eval_cache = []
+    disc_res = DiscoverExprObstructions(
+        lhs_e,
+        rhs_e,
+        bound_nat,
+        moduli_chain,
+        reg,
+        eval_cache=eval_cache,
+        debug_trace=True,
+    )()
+    disc_chain = M.Head(disc_res)()
+    reg = M.Head(M.Tail(disc_res)())()
+    witness, reg = _find_concrete_witness_from_tables(
+        lhs_e, rhs_e, base_vars, bound_nat, positive_only, reg, eval_cache=eval_cache
+    )
+
+    plain_disc = _discoveries_to_plain_list(disc_chain, reg)
+    formatted_lines = [
+        f"  [Instance {exp_name} = {exp_val}: {lhs_e_str} = {rhs_e_str}]"
+    ]
+    formatted_lines.extend(
+        _format_discoveries_for_equation(
+            lhs_e,
+            rhs_e,
+            disc_chain,
+            moduli_chain,
+            max_mod,
+            witness,
+            reg,
+            indent="    ",
+        )
+    )
+    _pg_debug(
+        f"worker completed {exp_name} = {exp_val} ({len(plain_disc)} separating moduli discovered)."
+    )
+    out_queue.put(
+        {
+            "exp_val": exp_val,
+            "plain_disc": plain_disc,
+            "formatted_lines": formatted_lines,
+            "worker_pid": os.getpid(),
+        }
+    )
+
+
 def run_playground_interactive(graph, goal_text=None, tutor=None):
     """
     Runs the dynamic, goal-directed Cartesian exploration sweep over the active
@@ -1857,54 +2070,130 @@ def run_playground_interactive(graph, goal_text=None, tutor=None):
             reg = M.Head(M.Tail(exp_range_res)())()
 
             exp_ints = _set_chain_to_sorted_ints(exp_chain, reg)
+            tested_mods = _set_chain_to_sorted_ints(moduli_chain, reg)
+            var_names = _vars_chain_to_names(base_vars)
+            arity_dims = " x ".join([str(max_mod)] * max(1, len(var_names)))
             lhs_pat_str = RenderNatExpr(lhs, reg)
             rhs_pat_str = RenderNatExpr(rhs, reg)
+
+            cpu_cap = multiprocessing.cpu_count() or 1
+            worker_count = min(len(exp_ints), cpu_cap)
+            _pg_debug(
+                f"constructing the natural tensor: {arity_dims} x {len(exp_ints)} exponent instances ({exp_name} in {exp_ints}) x {len(tested_mods)} moduli {tested_mods}; dispatching {worker_count} worker process(es) (CPU cores: {cpu_cap})..."
+            )
 
             lines = [
                 f"[machine] Cartesian Playground Sweep for {lhs_pat_str} = {rhs_pat_str} (parameter {exp_name} >= {start_exp}, testing {exp_name} in {exp_ints} over domain 0..{max_mod - 1}):"
             ]
 
-            eval_cache = []
             all_discoveries = M.EmptyList
-            cur_e = exp_chain
-            while M.IdentityCompare(cur_e, M.EmptyList)() is M.false_value:
-                e_nat = M.Head(cur_e)()
-                e_val = M.NatRepOf(e_nat, reg)()()
-                lhs_e = M.Head(SubstituteExprVar(lhs, exp_var, e_nat, reg)())()
-                rhs_e = M.Head(SubstituteExprVar(rhs, exp_var, e_nat, reg)())()
-
-                disc_res = DiscoverExprObstructions(
-                    lhs_e, rhs_e, bound_nat, moduli_chain, reg, eval_cache=eval_cache
-                )()
-                disc_chain = M.Head(disc_res)()
-                reg = M.Head(M.Tail(disc_res)())()
-                witness, reg = _find_concrete_witness_from_tables(
-                    lhs_e, rhs_e, base_vars, bound_nat, positive_only, reg, eval_cache=eval_cache
-                )
-
-                cur_d = disc_chain
-                while M.IdentityCompare(cur_d, M.EmptyList)() is M.false_value:
-                    all_discoveries = _chain_append_end(
-                        all_discoveries, M.Head(cur_d)()
+            used_parallel = False
+            if worker_count >= 2:
+                try:
+                    start_methods = multiprocessing.get_all_start_methods()
+                    mp_ctx = multiprocessing.get_context(
+                        "fork" if "fork" in start_methods else "spawn"
                     )
-                    cur_d = M.Tail(cur_d)()
+                    out_queue = mp_ctx.Queue()
+                    procs = []
+                    for e_val in exp_ints:
+                        task_spec = {
+                            "goal_text": active_goal,
+                            "exp_val": e_val,
+                            "max_mod": max_mod,
+                            "positive_only": positive_only,
+                        }
+                        p = mp_ctx.Process(
+                            target=_parallel_instance_sweep_worker,
+                            args=(task_spec, out_queue),
+                        )
+                        p.start()
+                        procs.append(p)
 
-                lines.append(
-                    f"  [Instance {exp_name} = {e_val}: {RenderNatExpr(lhs_e, reg)} = {RenderNatExpr(rhs_e, reg)}]"
-                )
-                lines.extend(
-                    _format_discoveries_for_equation(
+                    results_by_exp = {}
+                    for _ in procs:
+                        res_item = out_queue.get(timeout=120)
+                        results_by_exp[res_item["exp_val"]] = res_item
+
+                    for p in procs:
+                        p.join(timeout=10)
+
+                    if len(results_by_exp) == len(exp_ints):
+                        used_parallel = True
+                        worker_pids = [
+                            results_by_exp[e_val]["worker_pid"]
+                            for e_val in exp_ints
+                        ]
+                        total_plain = []
+                        for e_val in exp_ints:
+                            item = results_by_exp[e_val]
+                            lines.extend(item["formatted_lines"])
+                            total_plain.extend(item["plain_disc"])
+                        all_discoveries, reg = _reconstruct_plain_discoveries(
+                            total_plain, reg
+                        )
+                        _pg_debug(
+                            f"joined {len(worker_pids)} worker processes (PIDs: {worker_pids}); synthesized {len(total_plain)} modular obstruction invariants."
+                        )
+                except Exception:
+                    used_parallel = False
+
+            if not used_parallel:
+                eval_cache = []
+                cur_e = exp_chain
+                while M.IdentityCompare(cur_e, M.EmptyList)() is M.false_value:
+                    e_nat = M.Head(cur_e)()
+                    e_val = M.NatRepOf(e_nat, reg)()()
+                    lhs_e = M.Head(SubstituteExprVar(lhs, exp_var, e_nat, reg)())()
+                    rhs_e = M.Head(SubstituteExprVar(rhs, exp_var, e_nat, reg)())()
+
+                    _pg_debug(
+                        f"evaluating instance {exp_name} = {e_val} ({RenderNatExpr(lhs_e, reg)} = {RenderNatExpr(rhs_e, reg)}) in-process..."
+                    )
+                    disc_res = DiscoverExprObstructions(
                         lhs_e,
                         rhs_e,
-                        disc_chain,
+                        bound_nat,
                         moduli_chain,
-                        max_mod,
-                        witness,
                         reg,
-                        indent="    ",
+                        eval_cache=eval_cache,
+                        debug_trace=True,
+                    )()
+                    disc_chain = M.Head(disc_res)()
+                    reg = M.Head(M.Tail(disc_res)())()
+                    witness, reg = _find_concrete_witness_from_tables(
+                        lhs_e,
+                        rhs_e,
+                        base_vars,
+                        bound_nat,
+                        positive_only,
+                        reg,
+                        eval_cache=eval_cache,
                     )
-                )
-                cur_e = M.Tail(cur_e)()
+
+                    cur_d = disc_chain
+                    while M.IdentityCompare(cur_d, M.EmptyList)() is M.false_value:
+                        all_discoveries = _chain_append_end(
+                            all_discoveries, M.Head(cur_d)()
+                        )
+                        cur_d = M.Tail(cur_d)()
+
+                    lines.append(
+                        f"  [Instance {exp_name} = {e_val}: {RenderNatExpr(lhs_e, reg)} = {RenderNatExpr(rhs_e, reg)}]"
+                    )
+                    lines.extend(
+                        _format_discoveries_for_equation(
+                            lhs_e,
+                            rhs_e,
+                            disc_chain,
+                            moduli_chain,
+                            max_mod,
+                            witness,
+                            reg,
+                            indent="    ",
+                        )
+                    )
+                    cur_e = M.Tail(cur_e)()
 
             if M.IdentityCompare(all_discoveries, M.EmptyList)() is M.false_value:
                 graph._last_discovered_invariant = M.Head(all_discoveries)()
@@ -1916,6 +2205,12 @@ def run_playground_interactive(graph, goal_text=None, tutor=None):
 
         # Case B: Concrete polynomial identity claim (no_solutions is False)
         if not no_solutions:
+            lhs_str = RenderNatExpr(lhs, reg)
+            rhs_str = RenderNatExpr(rhs, reg)
+            var_names = _vars_chain_to_names(base_vars)
+            _pg_debug(
+                f"constructing degree-bounded polynomial grid for {lhs_str} = {rhs_str} over variables {var_names} (1 process)..."
+            )
             grid_res = PolynomialIdentityByGrid(lhs, rhs, base_vars, reg)()
             grid_rec = M.Head(grid_res)()
             reg = M.Head(M.Tail(grid_res)())()
@@ -1931,9 +2226,10 @@ def run_playground_interactive(graph, goal_text=None, tutor=None):
                     M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(fields)())())())())()
                 )()
             )()
-            lhs_str = RenderNatExpr(lhs, reg)
-            rhs_str = RenderNatExpr(rhs, reg)
             grid_count_val = M.NatRepOf(grid_count_nat, reg)()()
+            _pg_debug(
+                f"evaluated {grid_count_val} degree-bounded grid points for {lhs_str} = {rhs_str} (identity holds: {verdict is M.truth_value})."
+            )
 
             if verdict is M.truth_value:
                 return "\n".join(
@@ -1945,8 +2241,6 @@ def run_playground_interactive(graph, goal_text=None, tutor=None):
                     ]
                 )
             if verdict is M.false_value:
-                var_names = _vars_chain_to_names(base_vars)
-                w_vals = _set_chain_to_sorted_ints(M.EmptyList, reg)
                 w_cur = witness_tup
                 w_pairs = []
                 idx = 0
@@ -1974,18 +2268,35 @@ def run_playground_interactive(graph, goal_text=None, tutor=None):
         reg = M.Head(M.Tail(dom_res)())()
         moduli_chain = M.Tail(M.Tail(domain)())()  # 2..9
 
+        lhs_str = RenderNatExpr(lhs, reg)
+        rhs_str = RenderNatExpr(rhs, reg)
+        var_names = _vars_chain_to_names(base_vars)
+        arity_dims = " x ".join(["10"] * max(1, len(var_names)))
+        tested_mods = _set_chain_to_sorted_ints(moduli_chain, reg)
+        _pg_debug(
+            f"constructing the natural tensor for {lhs_str} = {rhs_str}: {arity_dims} x {len(tested_mods)} moduli {tested_mods} (1 process)..."
+        )
+
         eval_cache = []
         disc_res = DiscoverExprObstructions(
-            lhs, rhs, bound_nat, moduli_chain, reg, eval_cache=eval_cache
+            lhs,
+            rhs,
+            bound_nat,
+            moduli_chain,
+            reg,
+            eval_cache=eval_cache,
+            debug_trace=True,
         )()
         disc_chain = M.Head(disc_res)()
         reg = M.Head(M.Tail(disc_res)())()
         witness, reg = _find_concrete_witness_from_tables(
             lhs, rhs, base_vars, bound_nat, positive_only, reg, eval_cache=eval_cache
         )
+        if witness is not None:
+            _pg_debug(
+                f"bounded witness search found concrete solution: {witness}"
+            )
 
-        lhs_str = RenderNatExpr(lhs, reg)
-        rhs_str = RenderNatExpr(rhs, reg)
         lines = [
             f"[machine] Cartesian Playground Sweep for {lhs_str} = {rhs_str} (domain 0..9):"
         ]
@@ -2012,6 +2323,9 @@ def run_playground_interactive(graph, goal_text=None, tutor=None):
             Dlg.BackwardObligations(goal_fact, known_facts, active_tutor.rules())()
         )
         claim_str = active_tutor.claim_text(active_claim)
+        _pg_debug(
+            f"analyzing backward rule obligations for undecided claim '{claim_str}' across {len(obls)} candidate rules (1 process)..."
+        )
         lines = [
             f"[machine] Cartesian Playground & Backward Obligation Analysis for '{claim_str}':"
         ]
@@ -2041,6 +2355,9 @@ def run_playground_interactive(graph, goal_text=None, tutor=None):
     # 3. Default benchmark exploration when no specific goal has been posed yet:
     #    dynamically discovers the separating modulus across candidate moduli 2..5
     #    via DiscoverSeparatingModulus (never hardcoded to modulus 4).
+    _pg_debug(
+        "constructing the natural tensor: 11 x 11 domain (0..10)^2 x 4 candidate moduli [2, 3, 4, 5] (1 process)..."
+    )
     bound_res = M.NatFromRep(M.GMPRep(11), registry)()
     bound_nat = M.Head(bound_res)()
     reg1 = M.Head(M.Tail(bound_res)())()
@@ -2085,6 +2402,9 @@ def run_playground_interactive(graph, goal_text=None, tutor=None):
 
     res_mod = M.Head(M.Tail(inv_rec)())()
     mod_val = M.NatRepOf(res_mod, reg6)()()
+    _pg_debug(
+        f"discovered separating modulus m = {mod_val} across candidate moduli [2, 3, 4, 5]."
+    )
 
     sq_set = M.Head(M.Tail(M.Tail(inv_rec)())())()
     odd_sum_set = M.Head(M.Tail(M.Tail(M.Tail(inv_rec)())())())()
