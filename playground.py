@@ -17,10 +17,10 @@ from .math import arithmetic as A
 
 
 def _pg_debug(msg):
-    print(
-        f"[debug: cartesian_playground process {os.getpid()}]: {msg}",
-        flush=True,
+    sys.stdout.write(
+        f"[debug: cartesian_playground process {os.getpid()}]: {msg}\n"
     )
+    sys.stdout.flush()
 
 
 class ChainLength(M.Edge):
@@ -39,18 +39,7 @@ class ChainLength(M.Edge):
     def _count(self, chain, registry):
         if M.IdentityCompare(chain, M.EmptyList)() is M.truth_value:
             return M.Pair(M.Zero, M.Pair(registry, M.EmptyList))
-        tail = M.Tail(chain)()
-        tail_res = self._count(tail, registry)
-        tail_len = M.Head(tail_res)()
-        reg1 = M.Head(M.Tail(tail_res)())()
-
-        succ_atom = M.Atom()
-        constructed = C.ConstructedBy(
-            succ_atom, L.SuccLabel, M.Pair(tail_len, M.EmptyList), reg1
-        )()
-        succ_node = M.Head(constructed)()
-        reg2 = M.Head(M.Tail(constructed)())()
-        return M.Pair(succ_node, M.Pair(reg2, M.EmptyList))
+        return M.NatFromRep(M.CountRep(chain)(), registry)()
 
     def __call__(self):
         return self.result
@@ -156,6 +145,139 @@ class SetUnion(M.Edge):
         return self.result
 
 
+class SetDifference(M.Edge):
+    """
+    Computes the relative complement set_a \\ set_b of two Nat set chains.
+    """
+
+    def __init__(self, set_a, set_b, registry):
+        self.registry = registry
+        self.result = self._diff(set_a, set_b, registry)
+        super().__init__(
+            inputs=M.Pair(set_a, M.Pair(set_b, M.Pair(registry, M.EmptyList))),
+            results=self.result,
+        )
+
+    def _diff(self, set_a, set_b, registry):
+        if M.IdentityCompare(set_a, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        head = M.Head(set_a)()
+        rest = self._diff(M.Tail(set_a)(), set_b, registry)
+        has = ChainContains(set_b, head, registry)()
+        if has is M.truth_value:
+            return rest
+        return M.Pair(head, rest)
+
+    def __call__(self):
+        return self.result
+
+
+class SortNatChain(M.Edge):
+    """
+    Orders a Pair chain of Nat nodes in ascending order using M.NatLess.
+    """
+
+    def __init__(self, nat_chain, registry):
+        self.registry = registry
+        self.result = self._sort(nat_chain, registry)
+        super().__init__(
+            inputs=M.Pair(nat_chain, M.Pair(registry, M.EmptyList)),
+            results=self.result,
+        )
+
+    def _insert_sorted(self, elem, sorted_chain, registry):
+        if M.IdentityCompare(sorted_chain, M.EmptyList)() is M.truth_value:
+            return M.Pair(elem, M.EmptyList)
+        head = M.Head(sorted_chain)()
+        if M.NatLess(elem, head, registry)() is M.truth_value:
+            return M.Pair(elem, sorted_chain)
+        return M.Pair(
+            head,
+            self._insert_sorted(elem, M.Tail(sorted_chain)(), registry),
+        )
+
+    def _sort(self, cur_chain, registry):
+        if M.IdentityCompare(cur_chain, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        rest_sorted = self._sort(M.Tail(cur_chain)(), registry)
+        return self._insert_sorted(M.Head(cur_chain)(), rest_sorted, registry)
+
+    def __call__(self):
+        return self.result
+
+
+class TupleElementAt(M.Edge):
+    """
+    Retrieves the element of a tuple Pair chain at Peano index_nat.
+    Returns Pair(element_or_EmptyList, Pair(registry, EmptyList)).
+    """
+
+    def __init__(self, tuple_chain, index_nat, registry):
+        self.registry = registry
+        self.result = self._at(tuple_chain, index_nat, registry)
+        super().__init__(
+            inputs=M.Pair(
+                tuple_chain,
+                M.Pair(index_nat, M.Pair(registry, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def _at(self, cur_tuple, cur_idx, registry):
+        if M.IdentityCompare(cur_tuple, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+        if M.NatEq(cur_idx, M.Zero, registry)() is M.truth_value:
+            return M.Pair(M.Head(cur_tuple)(), M.Pair(registry, M.EmptyList))
+        pred_res = M.NatPred(cur_idx, registry)()
+        pred_idx = M.Head(pred_res)()
+        reg1 = M.Head(M.Tail(pred_res)())()
+        return self._at(M.Tail(cur_tuple)(), pred_idx, reg1)
+
+    def __call__(self):
+        return self.result
+
+
+class ProjectCoordinate(M.Edge):
+    """
+    Projects a chain of k-tuples onto Peano coordinate index_nat,
+    producing the ordered unique set chain of values at that coordinate.
+    Returns Pair(projected_set_chain, Pair(registry, EmptyList)).
+    """
+
+    def __init__(self, tuples_chain, index_nat, registry):
+        self.registry = registry
+        self.result = self._project(
+            tuples_chain, index_nat, M.EmptyList, registry
+        )
+        super().__init__(
+            inputs=M.Pair(
+                tuples_chain,
+                M.Pair(index_nat, M.Pair(registry, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def _project(self, cur_tuples, index_nat, acc_set, registry):
+        if M.IdentityCompare(cur_tuples, M.EmptyList)() is M.truth_value:
+            sorted_set = SortNatChain(acc_set, registry)()
+            return M.Pair(sorted_set, M.Pair(registry, M.EmptyList))
+        tup = M.Head(cur_tuples)()
+        at_res = TupleElementAt(tup, index_nat, registry)()
+        val = M.Head(at_res)()
+        reg1 = M.Head(M.Tail(at_res)())()
+        next_set = (
+            acc_set
+            if M.IdentityCompare(val, M.EmptyList)() is M.truth_value
+            else SetInsert(val, acc_set, reg1)()
+        )
+        return self._project(
+            M.Tail(cur_tuples)(), index_nat, next_set, reg1
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class BuildNatRange(M.Edge):
     """
     Builds a finite domain of Nat nodes stepping from start_nat for count_nat steps.
@@ -181,7 +303,6 @@ class BuildNatRange(M.Edge):
         pred_count = M.Head(pred_res)()
         reg1 = M.Head(M.Tail(pred_res)())()
 
-        # Construct successor of start for next iteration
         succ_atom = M.Atom()
         constructed = C.ConstructedBy(
             succ_atom, L.SuccLabel, M.Pair(cur_start, M.EmptyList), reg1
@@ -218,7 +339,6 @@ class ProductOfDomains(M.Edge):
 
     def _prod(self, domains):
         if M.IdentityCompare(domains, M.EmptyList)() is M.truth_value:
-            # Base case: 0-ary product is a single empty tuple [[]]
             return M.Pair(M.EmptyList, M.EmptyList)
         head_dom = M.Head(domains)()
         tail_doms = M.Tail(domains)()
@@ -549,19 +669,298 @@ class EvaluateOperationTensor(M.Edge):
         return self.result
 
 
+def _nat_pow_peano(base_nat, exp_nat, one_nat, registry):
+    """
+    Computes base_nat ^ exp_nat by pure Peano recursion on exp_nat
+    using M.NatEq, M.NatPred, and A.Multiply (no host loop or NatRepOf).
+    """
+    if M.NatEq(exp_nat, M.Zero, registry)() is M.truth_value:
+        return M.Pair(one_nat, M.Pair(registry, M.EmptyList))
+    pred_res = M.NatPred(exp_nat, registry)()
+    pred_exp = M.Head(pred_res)()
+    reg1 = M.Head(M.Tail(pred_res)())()
+    if M.NatEq(pred_exp, M.Zero, reg1)() is M.truth_value:
+        return M.Pair(base_nat, M.Pair(reg1, M.EmptyList))
+    sub_res = _nat_pow_peano(base_nat, pred_exp, one_nat, reg1)
+    sub_val = M.Head(sub_res)()
+    reg2 = M.Head(M.Tail(sub_res)())()
+    return A.Multiply(sub_val, base_nat, reg2)()
+
+
+def _nat_env_lookup(env_chain, key_nat, registry):
+    """
+    Looks up key_nat in a machine Pair chain of Pair(nat_key, Pair(nat_val, [])).
+    """
+    if M.IdentityCompare(env_chain, M.EmptyList)() is M.truth_value:
+        return M.EmptyList
+    entry = M.Head(env_chain)()
+    entry_key = M.Head(entry)()
+    if (
+        M.IdentityCompare(entry_key, key_nat)() is M.truth_value
+        or M.NatEq(entry_key, key_nat, registry)() is M.truth_value
+    ):
+        return M.Head(M.Tail(entry)())()
+    return _nat_env_lookup(M.Tail(env_chain)(), key_nat, registry)
+
+
+def _build_power_env_chain(domain_chain, power_nat, one_nat, registry):
+    """
+    Evaluates x ^ power_nat for every x in domain_chain into a machine Pair chain
+    of Pair(x, Pair(x^k, [])).
+    """
+    if M.IdentityCompare(domain_chain, M.EmptyList)() is M.truth_value:
+        return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+    x = M.Head(domain_chain)()
+    px_res = _nat_pow_peano(x, power_nat, one_nat, registry)
+    px = M.Head(px_res)()
+    reg1 = M.Head(M.Tail(px_res)())()
+    rest_res = _build_power_env_chain(M.Tail(domain_chain)(), power_nat, one_nat, reg1)
+    rest_env = M.Head(rest_res)()
+    reg2 = M.Head(M.Tail(rest_res)())()
+    entry = M.Pair(x, M.Pair(px, M.EmptyList))
+    return M.Pair(M.Pair(entry, rest_env), M.Pair(reg2, M.EmptyList))
+
+
+class RunPlaygroundFilteredPowerSweep(M.Edge):
+    """
+    Parameterized Cartesian sweep, generalizing RunPlaygroundCartesianSweep.
+
+    Takes the exponent and both domain filters as parameters, so one piece of
+    machinery runs any power-image / filtered-sum-image disjointness test:
+
+        unary image    = { x^k mod m : x in domain, unary_pred(x) }
+        pair-sum image = { (x^k + y^k) mod m : x, y in domain, pair_pred(x, y) }
+
+    The record has the same shape as RunPlaygroundCartesianSweep's:
+        Pair(DiscoveredInvariantLabel,
+             Pair(modulus,
+                  Pair(unary_image,
+                       Pair(pair_sum_image, Pair(disjoint, EmptyList)))))
+    """
+
+    def __init__(self, bound_nat, mod_nat, power_nat, unary_pred, pair_pred, registry):
+        self.registry = registry
+        self.result = self._run(bound_nat, mod_nat, power_nat, unary_pred, pair_pred, registry)
+        super().__init__(
+            inputs=M.Pair(
+                bound_nat,
+                M.Pair(
+                    mod_nat,
+                    M.Pair(
+                        power_nat,
+                        M.Pair(unary_pred, M.Pair(pair_pred, M.Pair(registry, M.EmptyList))),
+                    ),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def _run(self, bound_nat, mod_nat, power_nat, unary_pred, pair_pred, registry):
+        if A.IsNat(power_nat, registry)() is M.false_value:
+            raise TypeError("FilteredPowerSweep expects a Nat exponent")
+
+        # 1. Base domain: Zero for bound_nat steps.
+        range_res = BuildNatRange(M.Zero, bound_nat, registry)()
+        domain = M.Head(range_res)()
+        reg1 = M.Head(M.Tail(range_res)())()
+
+        one_res = M.NatFromRep(M.GMPRep(1), reg1)()
+        one_nat = M.Head(one_res)()
+        reg2 = M.Head(M.Tail(one_res)())()
+
+        # Machine-native Pair environment of (x, x^k) across domain.
+        penv_res = _build_power_env_chain(domain, power_nat, one_nat, reg2)
+        power_env = M.Head(penv_res)()
+        reg2b = M.Head(M.Tail(penv_res)())()
+
+        def power_value(x, reg):
+            cached = _nat_env_lookup(power_env, x, reg)
+            if M.IdentityCompare(cached, M.EmptyList)() is M.false_value:
+                return M.Pair(cached, M.Pair(reg, M.EmptyList))
+            return _nat_pow_peano(x, power_nat, one_nat, reg)
+
+        def power_of_head(tuple_args, reg):
+            x = M.Head(tuple_args)()
+            return power_value(x, reg)
+
+        def power_sum(tuple_args, reg):
+            x = M.Head(tuple_args)()
+            y = M.Head(M.Tail(tuple_args)())()
+            px_pair = power_value(x, reg)
+            px = M.Head(px_pair)()
+            r1 = M.Head(M.Tail(px_pair)())()
+            py_pair = power_value(y, r1)
+            py = M.Head(py_pair)()
+            r2 = M.Head(M.Tail(py_pair)())()
+            add_pair = A.Add(px, py, r2)()
+            return M.Pair(M.Head(add_pair)(), M.Pair(M.Head(M.Tail(add_pair)())(), M.EmptyList))
+
+        def unary_wrapper(tuple_args, reg):
+            x = M.Head(tuple_args)()
+            holds = unary_pred(x, reg)
+            return M.Pair(holds, M.Pair(reg, M.EmptyList))
+
+        def pair_wrapper(tuple_args, reg):
+            x = M.Head(tuple_args)()
+            y = M.Head(M.Tail(tuple_args)())()
+            holds = pair_pred(x, y, reg)
+            return M.Pair(holds, M.Pair(reg, M.EmptyList))
+
+        # 2. Unary image over the filtered 1-ary domain.
+        dom1 = ProductOfDomains(M.Pair(domain, M.EmptyList))()
+        unary_tuples_res = FilterTuples(dom1, unary_wrapper, reg2b)()
+        unary_tuples = M.Head(unary_tuples_res)()
+        reg3 = M.Head(M.Tail(unary_tuples_res)())()
+        unary_map_res = MapDomain(unary_tuples, power_of_head, reg3)()
+        unary_vals = M.Head(unary_map_res)()
+        reg4 = M.Head(M.Tail(M.Tail(unary_map_res)())())()
+        unary_proj_res = ProjectCongruence(unary_vals, mod_nat, reg4)()
+        unary_image = M.Head(unary_proj_res)()
+        reg5 = M.Head(M.Tail(unary_proj_res)())()
+
+        # 3. Pair-sum image over the filtered 2-ary domain.
+        dom2 = ProductOfDomains(M.Pair(domain, M.Pair(domain, M.EmptyList)))()
+        pair_tuples_res = FilterTuples(dom2, pair_wrapper, reg5)()
+        pair_tuples = M.Head(pair_tuples_res)()
+        reg6 = M.Head(M.Tail(pair_tuples_res)())()
+        pair_map_res = MapDomain(pair_tuples, power_sum, reg6)()
+        pair_vals = M.Head(pair_map_res)()
+        reg7 = M.Head(M.Tail(M.Tail(pair_map_res)())())()
+        pair_proj_res = ProjectCongruence(pair_vals, mod_nat, reg7)()
+        pair_image = M.Head(pair_proj_res)()
+        reg8 = M.Head(M.Tail(pair_proj_res)())()
+
+        # 4. Disjointness of the two images.
+        disjoint_res = EvaluateSetRelation(unary_image, pair_image, reg8)()
+        is_disjoint = M.Head(disjoint_res)()
+        reg9 = M.Head(M.Tail(M.Tail(disjoint_res)())())()
+
+        sweep_record = M.Pair(
+            L.DiscoveredInvariantLabel,
+            M.Pair(
+                mod_nat,
+                M.Pair(
+                    unary_image,
+                    M.Pair(pair_image, M.Pair(is_disjoint, M.EmptyList)),
+                ),
+            ),
+        )
+        return M.Pair(sweep_record, M.Pair(reg9, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class DiscoverSeparatingModulus(M.Edge):
+    """
+    Run RunPlaygroundFilteredPowerSweep over an ordered chain of candidate
+    moduli and return the record of the FIRST modulus whose unary and
+    pair-sum images are disjoint, or EmptyList when none separates.
+    Returns Pair(record_or_EmptyList, Pair(registry, EmptyList)).
+    """
+
+    def __init__(self, bound_nat, power_nat, unary_pred, pair_pred, moduli_chain, registry):
+        self.registry = registry
+        self.result = self._search(bound_nat, power_nat, unary_pred, pair_pred, moduli_chain, registry)
+        super().__init__(
+            inputs=M.Pair(
+                bound_nat,
+                M.Pair(
+                    power_nat,
+                    M.Pair(
+                        unary_pred,
+                        M.Pair(pair_pred, M.Pair(moduli_chain, M.Pair(registry, M.EmptyList))),
+                    ),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def _search(self, bound_nat, power_nat, unary_pred, pair_pred, moduli_chain, registry):
+        if M.IdentityCompare(moduli_chain, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+        candidate = M.Head(moduli_chain)()
+        sweep_res = RunPlaygroundFilteredPowerSweep(
+            bound_nat, candidate, power_nat, unary_pred, pair_pred, registry
+        )()
+        record = M.Head(sweep_res)()
+        reg1 = M.Head(M.Tail(sweep_res)())()
+        disjoint = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(record)())())())())()
+        if disjoint is M.truth_value:
+            return M.Pair(record, M.Pair(reg1, M.EmptyList))
+        return self._search(
+            bound_nat, power_nat, unary_pred, pair_pred, M.Tail(moduli_chain)(), reg1
+        )
+
+    def __call__(self):
+        return self.result
+
+
+# ============================================================
+# Polynomial identities and congruences, decided by evaluation
+# ============================================================
+
+
+def _expr_head_args(term):
+    """Pair(label, arg_chain) -> (label, arg_chain), else ([], [])."""
+    if M.IsPair(term)() is M.false_value:
+        return M.EmptyList, M.EmptyList
+    return M.Head(term)(), M.Tail(term)()
+
+
+def _env_lookup(environment, variable):
+    """variable -> value in a chain of Pair(variable, Pair(value, [])), or []."""
+    if M.IdentityCompare(environment, M.EmptyList)() is M.truth_value:
+        return M.EmptyList
+    entry = M.Head(environment)()
+    if M.Compare(M.Head(entry)(), variable)() is M.truth_value:
+        return M.Head(M.Tail(entry)())()
+    return _env_lookup(M.Tail(environment)(), variable)
+
+
+def _zip_environment(variables, values):
+    """Pair(v_1, ...) and Pair(n_1, ...) -> Pair(Pair(v_1, Pair(n_1, [])), ...)."""
+    if M.IdentityCompare(variables, M.EmptyList)() is M.truth_value:
+        return M.EmptyList
+    if M.IdentityCompare(values, M.EmptyList)() is M.truth_value:
+        return M.EmptyList
+    binding = M.Pair(M.Head(variables)(), M.Pair(M.Head(values)(), M.EmptyList))
+    return M.Pair(binding, _zip_environment(M.Tail(variables)(), M.Tail(values)()))
+
+
+def _exact_arity(args, arity):
+    """Syntax arity only; never interprets a machine number as a host int."""
+    if arity <= 0:
+        return M.IdentityCompare(args, M.EmptyList)()
+    if M.IsPair(args)() is M.false_value:
+        return M.false_value
+    return _exact_arity(M.Tail(args)(), arity - 1)
+
+
 def _chain_has_var(chain, var_atom):
-    cur = chain
-    while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
-        if M.Compare(M.Head(cur)(), var_atom)() is M.truth_value:
-            return M.truth_value
-        cur = M.Tail(cur)()
-    return M.false_value
+    if M.IdentityCompare(chain, M.EmptyList)() is M.truth_value:
+        return M.false_value
+    if M.Compare(M.Head(chain)(), var_atom)() is M.truth_value:
+        return M.truth_value
+    return _chain_has_var(M.Tail(chain)(), var_atom)
 
 
 def _chain_append_end(chain, elem):
     if M.IdentityCompare(chain, M.EmptyList)() is M.truth_value:
         return M.Pair(elem, M.EmptyList)
     return M.Pair(M.Head(chain)(), _chain_append_end(M.Tail(chain)(), elem))
+
+
+def _chain_concat(chain_a, chain_b):
+    if M.IdentityCompare(chain_a, M.EmptyList)() is M.truth_value:
+        return chain_b
+    return M.Pair(M.Head(chain_a)(), _chain_concat(M.Tail(chain_a)(), chain_b))
+
+
+def _chain_reverse(chain, acc=M.EmptyList):
+    if M.IdentityCompare(chain, M.EmptyList)() is M.truth_value:
+        return acc
+    return _chain_reverse(M.Tail(chain)(), M.Pair(M.Head(chain)(), acc))
 
 
 def _chain_merge_unique(chain_a, chain_b):
@@ -574,15 +973,6 @@ def _chain_merge_unique(chain_a, chain_b):
         else _chain_append_end(chain_a, head_b)
     )
     return _chain_merge_unique(next_a, M.Tail(chain_b)())
-
-
-def _chains_disjoint_vars(chain_a, chain_b):
-    cur = chain_a
-    while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
-        if _chain_has_var(chain_b, M.Head(cur)()) is M.truth_value:
-            return M.false_value
-        cur = M.Tail(cur)()
-    return M.truth_value
 
 
 class ExtractExprVariables(M.Edge):
@@ -756,1946 +1146,12 @@ def RenderNatExpr(term, registry):
     return "?"
 
 
-def _split_independent_summands(term, registry):
-    """
-    Splits ExprAdd(left, right) into a chain of summands when left and right
-    each contain at least one variable and their variable sets are disjoint.
-    """
-    if M.IsPair(term)() is M.false_value:
-        return M.Pair(term, M.EmptyList)
-    head, args = _expr_head_args(term)
-    if M.IdentityCompare(head, L.ExprAddLabel)() is M.false_value:
-        return M.Pair(term, M.EmptyList)
-    if _exact_arity(args, 2) is M.false_value:
-        return M.Pair(term, M.EmptyList)
-    left = M.Head(args)()
-    right = M.Head(M.Tail(args)())()
-    left_vars = M.Head(ExtractExprVariables(left, registry)())()
-    right_vars = M.Head(ExtractExprVariables(right, registry)())()
-    if M.IdentityCompare(left_vars, M.EmptyList)() is M.truth_value:
-        return M.Pair(term, M.EmptyList)
-    if M.IdentityCompare(right_vars, M.EmptyList)() is M.truth_value:
-        return M.Pair(term, M.EmptyList)
-    if _chains_disjoint_vars(left_vars, right_vars) is M.false_value:
-        return M.Pair(term, M.EmptyList)
-    left_parts = _split_independent_summands(left, registry)
-    right_parts = _split_independent_summands(right, registry)
-    cur = right_parts
-    out = left_parts
-    while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
-        out = _chain_append_end(out, M.Head(cur)())
-        cur = M.Tail(cur)()
-    return out
-
-
-def _is_prime_in_domain(n_nat, domain_chain, registry):
-    cur = M.Tail(M.Tail(domain_chain)())()
-    while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
-        d = M.Head(cur)()
-        if M.NatLess(d, n_nat, registry)() is M.false_value:
-            break
-        if A.Divides(d, n_nat, registry)() is M.truth_value:
-            return M.false_value
-        cur = M.Tail(cur)()
-    return M.truth_value
-
-
-def _prime_divisors_of_mod(m_nat, domain_chain, registry):
-    out = M.EmptyList
-    cur = M.Tail(M.Tail(domain_chain)())()
-    while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
-        d = M.Head(cur)()
-        if M.NatLess(m_nat, d, registry)() is M.truth_value:
-            break
-        if (
-            A.Divides(d, m_nat, registry)() is M.truth_value
-            and _is_prime_in_domain(d, domain_chain, registry) is M.truth_value
-        ):
-            out = _chain_append_end(out, d)
-        cur = M.Tail(cur)()
-    if _is_prime_in_domain(m_nat, domain_chain, registry) is M.truth_value:
-        if ChainContains(out, m_nat, registry)() is M.false_value:
-            out = _chain_append_end(out, m_nat)
-    return out
-
-
-class DiscoverExprObstructions(M.Edge):
-    """
-    Generic, expression-driven Cartesian playground sweep over candidate moduli.
-    Given any two admitted polynomial expressions `lhs` and `rhs`, evaluates
-    their component images over the ground domain 0..bound_nat-1 and tests
-    for disjoint residue images across `moduli_chain`:
-      1. Unrestricted domain: Image(lhs mod m) /\\ Image(rhs mod m) == empty
-      2. Prime-divisor unit subdomains (for prime p | m, subdomain p does not divide v):
-         - One-sided (`lhs_not_divisible`): Image(lhs mod m | p does not divide lhs_vars)
-           disjoint from unrestricted Image(rhs mod m)
-         - Two-sided (`all_not_divisible`): Image(lhs mod m | p does not divide lhs_vars)
-           disjoint from Image(rhs mod m | p does not divide rhs_vars)
-    Returns Pair(discoveries_chain, Pair(registry, EmptyList)).
-    """
-
-    def __init__(
-        self,
-        lhs,
-        rhs,
-        bound_nat,
-        moduli_chain,
-        registry,
-        eval_cache=None,
-        max_discoveries=2,
-        debug_trace=False,
-    ):
-        self.registry = registry
-        self.result = self._discover(
-            lhs,
-            rhs,
-            bound_nat,
-            moduli_chain,
-            registry,
-            eval_cache,
-            max_discoveries,
-            debug_trace,
-        )
-        super().__init__(
-            inputs=M.Pair(
-                lhs,
-                M.Pair(
-                    rhs,
-                    M.Pair(
-                        bound_nat,
-                        M.Pair(moduli_chain, M.Pair(registry, M.EmptyList)),
-                    ),
-                ),
-            ),
-            results=self.result,
-        )
-
-    def _discover(
-        self,
-        lhs,
-        rhs,
-        bound_nat,
-        moduli_chain,
-        registry,
-        eval_cache,
-        max_discoveries,
-        debug_trace,
-    ):
-        range_res = BuildNatRange(M.Zero, bound_nat, registry)()
-        domain = M.Head(range_res)()
-        reg = M.Head(M.Tail(range_res)())()
-
-        lhs_parts = _split_independent_summands(lhs, reg)
-        rhs_parts = _split_independent_summands(rhs, reg)
-
-        canon_var = M.Char("_pg_v0")
-        unary_cache = eval_cache if eval_cache is not None else []
-
-        def prepare_component_table(comp_term, cur_reg):
-            comp_vars = M.Head(ExtractExprVariables(comp_term, cur_reg)())()
-            len_res = ChainLength(comp_vars, cur_reg)()
-            arity_nat = M.Head(len_res)()
-            r1 = M.Head(M.Tail(len_res)())()
-            arity_val = M.NatRepOf(arity_nat, r1)()()
-
-            if arity_val == 0:
-                ev = EvaluateNatExpr(comp_term, M.EmptyList, r1)()
-                val = M.Head(ev)()
-                r2 = M.Head(M.Tail(ev)())()
-                t_id = ("const", len(unary_cache))
-                state = {"rows": [(M.EmptyList, val)], "rem_domain": M.EmptyList, "term": comp_term}
-                unary_cache.append((comp_term, state, t_id))
-                return state, 0, t_id, r2
-
-            if arity_val == 1:
-                v_atom = M.Head(comp_vars)()
-                canon_term = M.Head(
-                    SubstituteExprVar(comp_term, v_atom, canon_var, r1)()
-                )()
-                for cached_term, cached_state, cached_id in unary_cache:
-                    if M.Compare(cached_term, canon_term)() is M.truth_value:
-                        return cached_state, 1, cached_id, r1
-                t_id = ("unary", len(unary_cache))
-                state = {
-                    "rows": [],
-                    "rem_domain": domain,
-                    "term": canon_term,
-                    "var": canon_var,
-                }
-                unary_cache.append((canon_term, state, t_id))
-                return state, 1, t_id, r1
-
-            # Multi-variable non-separable component: evaluate over ProductOfDomains
-            dom_chains = M.EmptyList
-            for _ in range(arity_val):
-                dom_chains = M.Pair(domain, dom_chains)
-            tuples = ProductOfDomains(dom_chains)()
-            rows = []
-            cur_t = tuples
-            r_cur = r1
-            while M.IdentityCompare(cur_t, M.EmptyList)() is M.false_value:
-                tup = M.Head(cur_t)()
-                env = _zip_environment(comp_vars, tup)
-                ev = EvaluateNatExpr(comp_term, env, r_cur)()
-                out_val = M.Head(ev)()
-                r_cur = M.Head(M.Tail(ev)())()
-                rows.append((tup, out_val))
-                cur_t = M.Tail(cur_t)()
-            t_id = ("multi", len(unary_cache))
-            state = {"rows": rows, "rem_domain": M.EmptyList, "term": comp_term}
-            unary_cache.append((comp_term, state, t_id))
-            return state, arity_val, t_id, r_cur
-
-        def ensure_rows_up_to(state, arity_val, m_nat, cur_reg):
-            if arity_val != 1:
-                return state["rows"], cur_reg
-            cur_d = state["rem_domain"]
-            r_c = cur_reg
-            v_atom = state["var"]
-            c_term = state["term"]
-            while M.IdentityCompare(cur_d, M.EmptyList)() is M.false_value:
-                d_val = M.Head(cur_d)()
-                if M.NatLess(d_val, m_nat, r_c)() is M.false_value:
-                    break
-                env = M.Pair(
-                    M.Pair(v_atom, M.Pair(d_val, M.EmptyList)), M.EmptyList
-                )
-                ev = EvaluateNatExpr(c_term, env, r_c)()
-                out_val = M.Head(ev)()
-                r_c = M.Head(M.Tail(ev)())()
-                state["rows"].append((M.Pair(d_val, M.EmptyList), out_val))
-                cur_d = M.Tail(cur_d)()
-            state["rem_domain"] = cur_d
-            return state["rows"], r_c
-
-        lhs_tables = []
-        cur_p = lhs_parts
-        while M.IdentityCompare(cur_p, M.EmptyList)() is M.false_value:
-            part = M.Head(cur_p)()
-            state, arity_val, t_id, reg = prepare_component_table(part, reg)
-            lhs_tables.append((part, state, arity_val, t_id))
-            cur_p = M.Tail(cur_p)()
-
-        rhs_tables = []
-        cur_p = rhs_parts
-        while M.IdentityCompare(cur_p, M.EmptyList)() is M.false_value:
-            part = M.Head(cur_p)()
-            state, arity_val, t_id, reg = prepare_component_table(part, reg)
-            rhs_tables.append((part, state, arity_val, t_id))
-            cur_p = M.Tail(cur_p)()
-
-        def tuple_all_under_mod(tup, m_nat, cur_reg):
-            cur_v = tup
-            while M.IdentityCompare(cur_v, M.EmptyList)() is M.false_value:
-                v_nat = M.Head(cur_v)()
-                if M.NatLess(v_nat, m_nat, cur_reg)() is M.false_value:
-                    return M.false_value
-                cur_v = M.Tail(cur_v)()
-            return M.truth_value
-
-        def tuple_none_divisible(tup, div_nat, cur_reg):
-            if M.IdentityCompare(div_nat, M.Zero)() is M.truth_value:
-                return M.truth_value
-            cur_v = tup
-            while M.IdentityCompare(cur_v, M.EmptyList)() is M.false_value:
-                v_nat = M.Head(cur_v)()
-                if A.Divides(div_nat, v_nat, cur_reg)() is M.truth_value:
-                    return M.false_value
-                cur_v = M.Tail(cur_v)()
-            return M.truth_value
-
-        discoveries = M.EmptyList
-        disc_count = 0
-        cur_m = moduli_chain
-        while M.IdentityCompare(cur_m, M.EmptyList)() is M.false_value:
-            if max_discoveries is not None and disc_count >= max_discoveries:
-                break
-            m_nat = M.Head(cur_m)()
-            m_val = M.NatRepOf(m_nat, reg)()() if debug_trace else 0
-
-            # Pre-reduce each unique component table modulo m_nat once
-            mod_table_cache = {}
-            proj_div_cache = {}
-
-            def get_mod_rows(t_id, state, arity_val, cur_reg):
-                if t_id in mod_table_cache:
-                    return mod_table_cache[t_id], cur_reg
-                rows, r_c = ensure_rows_up_to(state, arity_val, m_nat, cur_reg)
-                m_rows = []
-                for tup, out_val in rows:
-                    if arity_val <= 1 or tuple_all_under_mod(tup, m_nat, r_c) is M.truth_value:
-                        mod_res = A.Modulo(out_val, m_nat, r_c)()
-                        rem_val = M.Head(mod_res)()
-                        r_c = M.Head(M.Tail(mod_res)())()
-                        m_rows.append((tup, rem_val))
-                mod_table_cache[t_id] = m_rows
-                return m_rows, r_c
-
-            def project_one_table(t_id, state, arity_val, div_key, div_nat, cur_reg):
-                cache_key = (t_id, div_key)
-                if cache_key in proj_div_cache:
-                    img_set, comp_flag = proj_div_cache[cache_key]
-                    return img_set, comp_flag, cur_reg
-                m_rows, r_c = get_mod_rows(t_id, state, arity_val, cur_reg)
-                img_set = M.EmptyList
-                kept_count = 0
-                for tup, rem_val in m_rows:
-                    if arity_val == 0 or tuple_none_divisible(tup, div_nat, r_c) is M.truth_value:
-                        img_set = SetInsert(rem_val, img_set, r_c)()
-                        kept_count += 1
-                comp_flag = M.false_value
-                if arity_val >= 1 and kept_count > 0:
-                    len_res = ChainLength(img_set, r_c)()
-                    img_len = M.Head(len_res)()
-                    r_c = M.Head(M.Tail(len_res)())()
-                    kept_res = M.NatFromRep(M.GMPRep(kept_count), r_c)()
-                    kept_nat = M.Head(kept_res)()
-                    r_c = M.Head(M.Tail(kept_res)())()
-                    if M.NatLess(img_len, kept_nat, r_c)() is M.truth_value:
-                        comp_flag = M.truth_value
-                proj_div_cache[cache_key] = (img_set, comp_flag)
-                return img_set, comp_flag, r_c
-
-            def project_tables_mod(tables, div_key, div_nat, cur_reg):
-                comp_sets = []
-                any_compressed = M.false_value
-                r_c = cur_reg
-                for _part, state, arity_val, t_id in tables:
-                    img_set, comp_flag, r_c = project_one_table(
-                        t_id, state, arity_val, div_key, div_nat, r_c
-                    )
-                    if comp_flag is M.truth_value:
-                        any_compressed = M.truth_value
-                    comp_sets.append(img_set)
-
-                if not comp_sets:
-                    return M.EmptyList, M.false_value, r_c
-
-                acc_set = comp_sets[0]
-                for next_set in comp_sets[1:]:
-                    if (
-                        M.IdentityCompare(acc_set, M.EmptyList)() is M.truth_value
-                        or M.IdentityCompare(next_set, M.EmptyList)() is M.truth_value
-                    ):
-                        return M.EmptyList, any_compressed, r_c
-                    prod_pairs = ProductOfDomains(
-                        M.Pair(acc_set, M.Pair(next_set, M.EmptyList))
-                    )()
-
-                    def add_pair_fn(pair_tup, reg_inner):
-                        u = M.Head(pair_tup)()
-                        v = M.Head(M.Tail(pair_tup)())()
-                        return A.Add(u, v, reg_inner)()
-
-                    sum_map = MapDomain(prod_pairs, add_pair_fn, r_c)()
-                    sum_vals = M.Head(sum_map)()
-                    r_c = M.Head(M.Tail(M.Tail(sum_map)())())()
-                    proj_sum = ProjectCongruence(sum_vals, m_nat, r_c)()
-                    acc_set = M.Head(proj_sum)()
-                    r_c = M.Head(M.Tail(proj_sum)())()
-
-                return acc_set, any_compressed, r_c
-
-            lhs_all, _lhs_comp, reg = project_tables_mod(
-                lhs_tables, 0, M.Zero, reg
-            )
-            rhs_all, rhs_all_comp, reg = project_tables_mod(
-                rhs_tables, 0, M.Zero, reg
-            )
-
-            # Clause 1: Unrestricted domain disjointness
-            if (
-                M.IdentityCompare(lhs_all, M.EmptyList)() is M.false_value
-                and M.IdentityCompare(rhs_all, M.EmptyList)() is M.false_value
-            ):
-                rel_all = EvaluateSetRelation(rhs_all, lhs_all, reg)()
-                disj_all = M.Head(rel_all)()
-                reg = M.Head(M.Tail(M.Tail(rel_all)())())()
-                if disj_all is M.truth_value:
-                    if debug_trace:
-                        _pg_debug(
-                            f"modulus m = {m_val} (unrestricted): rhs image {_format_set_chain(rhs_all, reg)} /\\ lhs image {_format_set_chain(lhs_all, reg)} = empty -> separating obstruction discovered"
-                        )
-                    rec = M.Pair(
-                        L.DiscoveredInvariantLabel,
-                        M.Pair(
-                            m_nat,
-                            M.Pair(
-                                rhs_all,
-                                M.Pair(
-                                    lhs_all,
-                                    M.Pair(
-                                        M.truth_value,
-                                        M.Pair(
-                                            M.Char("unrestricted"),
-                                            M.Pair(M.Zero, M.EmptyList),
-                                        ),
-                                    ),
-                                ),
-                            ),
-                        ),
-                    )
-                    discoveries = _chain_append_end(discoveries, rec)
-                    disc_count += 1
-                    break
-
-            # Clauses 2 & 3: Prime-divisor unit subdomains (p | m, p does not divide v)
-            p_divs = _prime_divisors_of_mod(m_nat, domain, reg)
-            cur_p = p_divs
-            found_at_m = False
-            while M.IdentityCompare(cur_p, M.EmptyList)() is M.false_value:
-                p_nat = M.Head(cur_p)()
-                p_key = M.NatRepOf(p_nat, reg)()()
-                lhs_p, lhs_p_comp, reg = project_tables_mod(
-                    lhs_tables, p_key, p_nat, reg
-                )
-                if (
-                    M.IdentityCompare(lhs_p, M.EmptyList)() is M.false_value
-                    and lhs_p_comp is M.truth_value
-                ):
-                    clause2_hit = M.false_value
-                    if rhs_all_comp is M.truth_value:
-                        rel_c2 = EvaluateSetRelation(rhs_all, lhs_p, reg)()
-                        disj_c2 = M.Head(rel_c2)()
-                        reg = M.Head(M.Tail(M.Tail(rel_c2)())())()
-                        if disj_c2 is M.truth_value:
-                            clause2_hit = M.truth_value
-                            found_at_m = True
-                            if debug_trace:
-                                _pg_debug(
-                                    f"modulus m = {m_val} (prime divisor p = {p_key}, lhs unit subdomain): rhs image {_format_set_chain(rhs_all, reg)} /\\ lhs image {_format_set_chain(lhs_p, reg)} = empty -> separating obstruction discovered"
-                                )
-                            rec = M.Pair(
-                                L.DiscoveredInvariantLabel,
-                                M.Pair(
-                                    m_nat,
-                                    M.Pair(
-                                        rhs_all,
-                                        M.Pair(
-                                            lhs_p,
-                                            M.Pair(
-                                                M.truth_value,
-                                                M.Pair(
-                                                    M.Char("lhs_not_divisible"),
-                                                    M.Pair(p_nat, M.EmptyList),
-                                                ),
-                                            ),
-                                        ),
-                                    ),
-                                ),
-                            )
-                            discoveries = _chain_append_end(discoveries, rec)
-                            disc_count += 1
-
-                    if clause2_hit is M.false_value:
-                        rhs_p, rhs_p_comp, reg = project_tables_mod(
-                            rhs_tables, p_key, p_nat, reg
-                        )
-                        if (
-                            M.IdentityCompare(rhs_p, M.EmptyList)() is M.false_value
-                            and rhs_p_comp is M.truth_value
-                        ):
-                            rel_c3 = EvaluateSetRelation(rhs_p, lhs_p, reg)()
-                            disj_c3 = M.Head(rel_c3)()
-                            reg = M.Head(M.Tail(M.Tail(rel_c3)())())()
-                            if disj_c3 is M.truth_value:
-                                found_at_m = True
-                                if debug_trace:
-                                    _pg_debug(
-                                        f"modulus m = {m_val} (prime divisor p = {p_key}, all-vars unit subdomain): rhs image {_format_set_chain(rhs_p, reg)} /\\ lhs image {_format_set_chain(lhs_p, reg)} = empty -> separating obstruction discovered"
-                                    )
-                                rec = M.Pair(
-                                    L.DiscoveredInvariantLabel,
-                                    M.Pair(
-                                        m_nat,
-                                        M.Pair(
-                                            rhs_p,
-                                            M.Pair(
-                                                lhs_p,
-                                                M.Pair(
-                                                    M.truth_value,
-                                                    M.Pair(
-                                                        M.Char("all_not_divisible"),
-                                                        M.Pair(p_nat, M.EmptyList),
-                                                    ),
-                                                ),
-                                            ),
-                                        ),
-                                    ),
-                                )
-                                discoveries = _chain_append_end(discoveries, rec)
-                                disc_count += 1
-                cur_p = M.Tail(cur_p)()
-
-            if debug_trace and not found_at_m:
-                p_list = _set_chain_to_sorted_ints(p_divs, reg)
-                _pg_debug(
-                    f"modulus m = {m_val} (prime divisors {p_list}): rhs image {_format_set_chain(rhs_all, reg)} overlaps lhs image {_format_set_chain(lhs_all, reg)} (no disjoint subdomain)"
-                )
-
-            cur_m = M.Tail(cur_m)()
-
-        return M.Pair(discoveries, M.Pair(reg, M.EmptyList))
-
-    def __call__(self):
-        return self.result
-
-
-_STOP_WORDS = {
-    "prove", "that", "for", "all", "every", "any", "each", "positive", "nonzero",
-    "non-zero", "natural", "naturals", "integer", "integers", "number", "numbers",
-    "and", "or", "if", "then", "when", "where", "with", "has", "have", "no",
-    "solution", "solutions", "is", "are", "in", "of", "the", "a", "an", "to",
-    "show", "claim", "conjecture", "check", "verify", "true", "false", "hold",
-    "holds", "there", "exist", "exists", "cannot", "never", "impossible",
-}
-
-
-def is_proof_or_math_goal(text):
-    """
-    Returns True when a surface line is a proof request or contains mathematical
-    relational/algebraic structure suitable for lemma exploration.
-    """
-    if not text:
-        return False
-    low = text.strip().lower()
-    for prefix in (
-        "prove", "show", "claim", "conjecture", "check", "verify",
-        "is it true", "for all", "for every", "for any", "for each",
-        "if ", "whenever ", "solve ",
-    ):
-        if low.startswith(prefix):
-            return True
-    for sym in ("=", "!=", "<", ">", "^", "+", "*"):
-        if sym in low:
-            return True
-    return False
-
-
-def _tokenize_math_surface(text):
-    tokens = []
-    i = 0
-    n = len(text)
-    while i < n:
-        ch = text[i]
-        if ch.isspace() or ch in ",;:.?!\"'":
-            i += 1
-            continue
-        if i + 1 < n and text[i : i + 2] in (">=", "<=", "!=", "=="):
-            tokens.append(text[i : i + 2])
-            i += 2
-            continue
-        if ch in "+*^()=<>":
-            tokens.append(ch)
-            i += 1
-            continue
-        if ch.isdigit():
-            j = i
-            while j < n and text[j].isdigit():
-                j += 1
-            tokens.append(text[i:j])
-            # Support implicit multiplication like 4z -> 4 * z
-            if j < n and text[j].isalpha():
-                tokens.append("*")
-            i = j
-            continue
-        if ch.isalpha() or ch == "_":
-            j = i
-            while j < n and (text[j].isalnum() or text[j] in "_-"):
-                j += 1
-            tokens.append(text[i:j].lower())
-            i = j
-            continue
-        i += 1
-    return tokens
-
-
-def _is_expr_ident(tok):
-    return tok.isalpha() and tok not in _STOP_WORDS and len(tok) <= 4
-
-
-def _extract_contiguous_lhs(tokens_before_eq):
-    """
-    Walks left from `=` to extract the contiguous infix algebraic expression
-    immediately preceding `=`.
-    """
-    if not tokens_before_eq:
-        return []
-    out = []
-    depth = 0
-    expect_operand = True
-    i = len(tokens_before_eq) - 1
-    while i >= 0:
-        tok = tokens_before_eq[i]
-        if tok == ")":
-            if not expect_operand:
-                break
-            depth += 1
-            out.append(tok)
-            expect_operand = True
-        elif tok == "(":
-            if expect_operand or depth <= 0:
-                break
-            depth -= 1
-            out.append(tok)
-            expect_operand = False
-        elif tok in ("+", "*", "^"):
-            if expect_operand:
-                break
-            out.append(tok)
-            expect_operand = True
-        elif tok.isdigit() or _is_expr_ident(tok):
-            if not expect_operand:
-                break
-            out.append(tok)
-            expect_operand = False
-        else:
-            break
-        i -= 1
-    out.reverse()
-    while out and out[0] in ("+", "*", "^"):
-        out.pop(0)
-    return out
-
-
-def _extract_contiguous_rhs(tokens_after_eq):
-    """
-    Walks right from `=` to extract the contiguous infix algebraic expression
-    immediately following `=`.
-    """
-    if not tokens_after_eq:
-        return []
-    out = []
-    depth = 0
-    expect_operand = True
-    for tok in tokens_after_eq:
-        if tok == "(":
-            if not expect_operand:
-                break
-            depth += 1
-            out.append(tok)
-            expect_operand = True
-        elif tok == ")":
-            if expect_operand or depth <= 0:
-                break
-            depth -= 1
-            out.append(tok)
-            expect_operand = False
-        elif tok in ("+", "*", "^"):
-            if expect_operand:
-                break
-            out.append(tok)
-            expect_operand = True
-        elif tok.isdigit() or _is_expr_ident(tok):
-            if not expect_operand:
-                break
-            out.append(tok)
-            expect_operand = False
-        else:
-            break
-    while out and out[-1] in ("+", "*", "^"):
-        out.pop()
-    return out
-
-
-def parse_surface_goal_spec(text, registry):
-    """
-    Parses a surface mathematical proof goal into a machine-native specification:
-      - lhs, rhs: machine Expr* ASTs
-      - base_vars: chain of base polynomial variable Char atoms
-      - exp_vars: chain of parametric exponent variable Char atoms
-      - param_min: dict mapping exponent variable name -> minimum integer value
-      - no_solutions: bool (True for obstruction / non-existence goals)
-      - positive_only: bool (True when positive / nonzero integers specified)
-      - registry: updated constructor registry
-    Returns None if no equation is present.
-    """
-    if not text:
-        return None
-    tokens = _tokenize_math_surface(text)
-    eq_idx = None
-    eq_op = None
-    for idx, tok in enumerate(tokens):
-        if tok in ("=", "==", "!="):
-            eq_idx = idx
-            eq_op = tok
-            break
-    if eq_idx is None:
-        return None
-
-    before = tokens[:eq_idx]
-    after = tokens[eq_idx + 1 :]
-
-    # Scan for parameter bounds before `=`, e.g. `n > 2` or `n >= 3`
-    param_min = {}
-    for idx in range(len(before) - 2):
-        v_tok, op_tok, num_tok = before[idx], before[idx + 1], before[idx + 2]
-        if _is_expr_ident(v_tok) and num_tok.isdigit():
-            if op_tok == ">":
-                param_min[v_tok] = int(num_tok) + 1
-            elif op_tok == ">=":
-                param_min[v_tok] = int(num_tok)
-
-    lhs_tokens = _extract_contiguous_lhs(before)
-    rhs_tokens = _extract_contiguous_rhs(after)
-    if not lhs_tokens or not rhs_tokens:
-        return None
-
-    char_map = {}
-    cur_reg = registry
-
-    def get_char(name):
-        if name not in char_map:
-            char_map[name] = M.Char(name)
-        return char_map[name]
-
-    def get_nat(val):
-        nonlocal cur_reg
-        res = M.NatFromRep(M.GMPRep(int(val)), cur_reg)()
-        cur_reg = M.Head(M.Tail(res)())()
-        return M.Head(res)()
-
-    def parse_tokens(tok_list):
-        pos = [0]
-
-        def parse_add():
-            node = parse_mul()
-            if node is None:
-                return None
-            while pos[0] < len(tok_list) and tok_list[pos[0]] == "+":
-                pos[0] += 1
-                right = parse_mul()
-                if right is None:
-                    return None
-                node = M.Pair(
-                    L.ExprAddLabel, M.Pair(node, M.Pair(right, M.EmptyList))
-                )
-            return node
-
-        def parse_mul():
-            node = parse_pow()
-            if node is None:
-                return None
-            while pos[0] < len(tok_list) and tok_list[pos[0]] == "*":
-                pos[0] += 1
-                right = parse_pow()
-                if right is None:
-                    return None
-                node = M.Pair(
-                    L.ExprMulLabel, M.Pair(node, M.Pair(right, M.EmptyList))
-                )
-            return node
-
-        def parse_pow():
-            base = parse_primary()
-            if base is None:
-                return None
-            if pos[0] < len(tok_list) and tok_list[pos[0]] == "^":
-                pos[0] += 1
-                exp = parse_primary()
-                if exp is None:
-                    return None
-                return M.Pair(
-                    L.ExprPowLabel, M.Pair(base, M.Pair(exp, M.EmptyList))
-                )
-            return base
-
-        def parse_primary():
-            if pos[0] >= len(tok_list):
-                return None
-            tok = tok_list[pos[0]]
-            if tok == "(":
-                pos[0] += 1
-                inner = parse_add()
-                if pos[0] >= len(tok_list) or tok_list[pos[0]] != ")":
-                    return None
-                pos[0] += 1
-                return inner
-            if tok.isdigit():
-                pos[0] += 1
-                return get_nat(int(tok))
-            if _is_expr_ident(tok):
-                pos[0] += 1
-                return get_char(tok)
-            return None
-
-        parsed = parse_add()
-        if parsed is None or pos[0] != len(tok_list):
-            return None
-        return parsed
-
-    lhs_ast = parse_tokens(lhs_tokens)
-    rhs_ast = parse_tokens(rhs_tokens)
-    if lhs_ast is None or rhs_ast is None:
-        return None
-
-    eq_node = M.Pair(
-        L.ExprEqLabel, M.Pair(lhs_ast, M.Pair(rhs_ast, M.EmptyList))
-    )
-    all_vars = M.Head(ExtractExprVariables(eq_node, cur_reg)())()
-    exp_vars = M.Head(ExtractExponentVariables(eq_node, cur_reg)())()
-
-    base_vars = M.EmptyList
-    cur_v = all_vars
-    while M.IdentityCompare(cur_v, M.EmptyList)() is M.false_value:
-        v_atom = M.Head(cur_v)()
-        if _chain_has_var(exp_vars, v_atom) is M.false_value:
-            base_vars = _chain_append_end(base_vars, v_atom)
-        cur_v = M.Tail(cur_v)()
-
-    no_solutions = eq_op == "!=" or any(
-        w in tokens for w in ("no", "impossible", "cannot", "never")
-    )
-    positive_only = any(w in tokens for w in ("positive", "nonzero", "non-zero"))
-
-    return {
-        "lhs": lhs_ast,
-        "rhs": rhs_ast,
-        "base_vars": base_vars,
-        "exp_vars": exp_vars,
-        "param_min": param_min,
-        "no_solutions": no_solutions,
-        "positive_only": positive_only,
-        "registry": cur_reg,
-    }
-
-
-def _set_chain_to_sorted_ints(set_chain, registry):
-    vals = []
-    cur = set_chain
-    while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
-        rep = M.NatRepOf(M.Head(cur)(), registry)()
-        if M.IdentityCompare(rep, M.EmptyList)() is M.false_value:
-            v = rep()
-            if v not in vals:
-                vals.append(v)
-        cur = M.Tail(cur)()
-    return sorted(vals)
-
-
-def _format_set_chain(set_chain, registry):
-    return "{" + ", ".join(map(str, _set_chain_to_sorted_ints(set_chain, registry))) + "}"
-
-
-def _vars_chain_to_names(vars_chain):
-    names = []
-    cur = vars_chain
-    while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
-        v = M.Head(cur)()
-        names.append(str(v()))
-        cur = M.Tail(cur)()
-    return names
-
-
-def _find_concrete_witness_from_tables(
-    lhs, rhs, base_vars, bound_nat, positive_only, registry, eval_cache=None
-):
-    """
-    Evaluates whether a concrete solution to lhs = rhs exists in the bounded
-    ground domain [1..5] (if positive_only) or [0..5] using the machine's
-    EvaluateNatExpr (or precomputed eval_cache) and NatEq.
-    """
-    var_names = _vars_chain_to_names(base_vars)
-    if not var_names:
-        return None, registry
-
-    lhs_parts = _split_independent_summands(lhs, registry)
-    rhs_parts = _split_independent_summands(rhs, registry)
-
-    six_res = M.NatFromRep(M.GMPRep(6), registry)()
-    six_nat = M.Head(six_res)()
-    reg = M.Head(M.Tail(six_res)())()
-    w_bound = (
-        bound_nat
-        if M.NatLess(bound_nat, six_nat, reg)() is M.truth_value
-        else six_nat
-    )
-
-    canon_var = M.Char("_pg_v0")
-
-    def eval_unary_part(part_term, cur_reg):
-        p_vars = M.Head(ExtractExprVariables(part_term, cur_reg)())()
-        if M.IdentityCompare(p_vars, M.EmptyList)() is M.truth_value:
-            return None, None, cur_reg
-        if M.IdentityCompare(M.Tail(p_vars)(), M.EmptyList)() is M.false_value:
-            return None, None, cur_reg
-        v_atom = M.Head(p_vars)()
-        r_c = cur_reg
-        if eval_cache is not None:
-            canon_term = M.Head(
-                SubstituteExprVar(part_term, v_atom, canon_var, r_c)()
-            )()
-            for item in eval_cache:
-                cached_term, cached_state = item[0], item[1]
-                if M.Compare(cached_term, canon_term)() is M.truth_value:
-                    cur_d = cached_state["rem_domain"]
-                    while M.IdentityCompare(cur_d, M.EmptyList)() is M.false_value:
-                        d_val = M.Head(cur_d)()
-                        if M.NatLess(d_val, w_bound, r_c)() is M.false_value:
-                            break
-                        env = M.Pair(
-                            M.Pair(canon_var, M.Pair(d_val, M.EmptyList)),
-                            M.EmptyList,
-                        )
-                        ev = EvaluateNatExpr(canon_term, env, r_c)()
-                        out_val = M.Head(ev)()
-                        r_c = M.Head(M.Tail(ev)())()
-                        cached_state["rows"].append(
-                            (M.Pair(d_val, M.EmptyList), out_val)
-                        )
-                        cur_d = M.Tail(cur_d)()
-                    cached_state["rem_domain"] = cur_d
-                    entries = []
-                    for tup, val_nat in cached_state["rows"]:
-                        d_nat = M.Head(tup)()
-                        if positive_only and M.IdentityCompare(d_nat, M.Zero)() is M.truth_value:
-                            continue
-                        if M.NatLess(d_nat, w_bound, r_c)() is M.false_value:
-                            break
-                        entries.append((d_nat, val_nat))
-                    return v_atom, entries, r_c
-
-        range_res = BuildNatRange(M.Zero, w_bound, r_c)()
-        domain = M.Head(range_res)()
-        r_c = M.Head(M.Tail(range_res)())()
-        if positive_only and M.IdentityCompare(domain, M.EmptyList)() is M.false_value:
-            domain = M.Tail(domain)()
-        entries = []
-        cur_d = domain
-        while M.IdentityCompare(cur_d, M.EmptyList)() is M.false_value:
-            d_nat = M.Head(cur_d)()
-            env = M.Pair(M.Pair(v_atom, M.Pair(d_nat, M.EmptyList)), M.EmptyList)
-            ev = EvaluateNatExpr(part_term, env, r_c)()
-            val_nat = M.Head(ev)()
-            r_c = M.Head(M.Tail(ev)())()
-            entries.append((d_nat, val_nat))
-            cur_d = M.Tail(cur_d)()
-        return v_atom, entries, r_c
-
-    lhs_u = []
-    cur_p = lhs_parts
-    all_unary = True
-    while M.IdentityCompare(cur_p, M.EmptyList)() is M.false_value:
-        v_atom, entries, reg = eval_unary_part(M.Head(cur_p)(), reg)
-        if v_atom is None:
-            all_unary = False
-            break
-        lhs_u.append((v_atom, entries))
-        cur_p = M.Tail(cur_p)()
-
-    rhs_u = []
-    if all_unary and M.IdentityCompare(M.Tail(rhs_parts)(), M.EmptyList)() is M.truth_value:
-        v_atom, entries, reg = eval_unary_part(M.Head(rhs_parts)(), reg)
-        if v_atom is not None:
-            rhs_u.append((v_atom, entries))
-        else:
-            all_unary = False
-    else:
-        all_unary = False
-
-    if all_unary and len(lhs_u) == 2 and len(rhs_u) == 1:
-        vx, x_entries = lhs_u[0]
-        vy, y_entries = lhs_u[1]
-        vz, z_entries = rhs_u[0]
-        for i_x, (dx, val_x) in enumerate(x_entries):
-            for dy, val_y in y_entries[i_x:]:
-                sum_res = A.Add(val_x, val_y, reg)()
-                sum_xy = M.Head(sum_res)()
-                reg = M.Head(M.Tail(sum_res)())()
-                for dz, val_z in z_entries:
-                    if M.NatEq(sum_xy, val_z, reg)() is M.truth_value:
-                        return [
-                            (str(vx()), M.NatRepOf(dx, reg)()()),
-                            (str(vy()), M.NatRepOf(dy, reg)()()),
-                            (str(vz()), M.NatRepOf(dz, reg)()()),
-                        ], reg
-        return None, reg
-
-    return None, reg
-
-
-def _format_discoveries_for_equation(
-    lhs,
-    rhs,
-    discoveries,
-    moduli_chain,
-    bound_val,
-    witness,
-    reg,
-    indent="  ",
-):
-    lhs_str = RenderNatExpr(lhs, reg)
-    rhs_str = RenderNatExpr(rhs, reg)
-    lhs_vars = M.Head(ExtractExprVariables(lhs, reg)())()
-    rhs_vars = M.Head(ExtractExprVariables(rhs, reg)())()
-    lhs_var_names = _vars_chain_to_names(lhs_vars)
-    rhs_var_names = _vars_chain_to_names(rhs_vars)
-    all_var_names = _vars_chain_to_names(_chain_merge_unique(lhs_vars, rhs_vars))
-
-    tested_mods = _set_chain_to_sorted_ints(moduli_chain, reg)
-    lines = []
-    if witness is not None:
-        w_str = ", ".join(f"{k} = {v}" for k, v in witness)
-        lines.append(
-            f"{indent}- Bounded Witness Search (1..{bound_val - 1}): Counterexample solution found at ({w_str}) where {lhs_str} = {rhs_str}."
-        )
-    else:
-        lines.append(
-            f"{indent}- Bounded Witness Search (domain 1..{bound_val - 1}): 0 solutions found; sweeping moduli {tested_mods} for structural invariants."
-        )
-
-    if M.IdentityCompare(discoveries, M.EmptyList)() is M.truth_value:
-        lines.append(
-            f"{indent}- No single-modulus residue obstruction found in moduli {tested_mods}."
-        )
-        return lines
-
-    cur = discoveries
-    shown = 0
-    while M.IdentityCompare(cur, M.EmptyList)() is M.false_value and shown < 2:
-        rec = M.Head(cur)()
-        mod_nat = M.Head(M.Tail(rec)())()
-        rhs_set = M.Head(M.Tail(M.Tail(rec)())())()
-        lhs_set = M.Head(M.Tail(M.Tail(M.Tail(rec)())())())()
-        tail_meta = M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(rec)())())())())()
-        filter_kind = "lhs_not_divisible"
-        div_val = 2
-        if M.IdentityCompare(tail_meta, M.EmptyList)() is M.false_value:
-            filter_kind = str(M.Head(tail_meta)()())
-            div_nat = M.Head(M.Tail(tail_meta)())()
-            if M.IdentityCompare(div_nat, M.Zero)() is M.false_value:
-                div_val = M.NatRepOf(div_nat, reg)()()
-
-        mod_val = M.NatRepOf(mod_nat, reg)()()
-        rhs_img_str = _format_set_chain(rhs_set, reg)
-        lhs_img_str = _format_set_chain(lhs_set, reg)
-
-        rhs_arity = len(rhs_var_names)
-        lhs_arity = len(lhs_var_names)
-        rhs_args_str = ", ".join(rhs_var_names)
-        lhs_args_str = ", ".join(lhs_var_names)
-
-        if filter_kind == "unrestricted":
-            lines.append(
-                f"{indent}- Separating Modulus m = {mod_val} (unrestricted domain):"
-            )
-            lines.append(
-                f"{indent}  * {rhs_arity}-ary Image Projection: f([{rhs_args_str}]) = ({rhs_str}) mod {mod_val} -> {rhs_img_str}"
-            )
-            lines.append(
-                f"{indent}  * {lhs_arity}-ary Image Projection: g([{lhs_args_str}]) = ({lhs_str}) mod {mod_val} -> {lhs_img_str}"
-            )
-            lines.append(
-                f"{indent}  * Disjoint Image Regularity: {rhs_img_str} /\\ {lhs_img_str} = empty"
-            )
-            lines.append(
-                f"{indent}  * Candidate Lemma (mod_{mod_val}_global_obstruction): {lhs_str} = {rhs_str} has no integer solutions since ({lhs_str}) mod {mod_val} in {lhs_img_str} and ({rhs_str}) mod {mod_val} in {rhs_img_str} are disjoint."
-            )
-        elif filter_kind == "lhs_not_divisible":
-            sub_desc = (
-                "odd subdomain"
-                if div_val == 2
-                else f"subdomain ({div_val} does not divide {lhs_args_str})"
-            )
-            cond_desc = (
-                f"odd {lhs_args_str}"
-                if div_val == 2
-                else f"{div_val} dividing neither " + " nor ".join(lhs_var_names)
-            )
-            prod_lhs = "*".join(lhs_var_names)
-            lines.append(
-                f"{indent}- Separating Modulus m = {mod_val} ({sub_desc}):"
-            )
-            lines.append(
-                f"{indent}  * {rhs_arity}-ary Image Projection: f([{rhs_args_str}]) = {rhs_str} mod {mod_val} -> {rhs_img_str}"
-            )
-            lines.append(
-                f"{indent}  * {lhs_arity}-ary Image Projection: g([{lhs_args_str}]) = ({lhs_str}) mod {mod_val} over {sub_desc} -> {lhs_img_str}"
-            )
-            lines.append(
-                f"{indent}  * Disjoint Image Regularity: {rhs_img_str} /\\ {lhs_img_str} = empty"
-            )
-            lines.append(
-                f"{indent}  * Obstruction Invariant: {lhs_str} = {rhs_str} has no solution for {cond_desc} under mod {mod_val} projection ({div_val} divides {prod_lhs})."
-            )
-        else:
-            all_args_str = ", ".join(all_var_names)
-            prod_all = "*".join(all_var_names)
-            sub_desc = f"subdomain ({div_val} does not divide {all_args_str})"
-            lines.append(
-                f"{indent}- Separating Modulus m = {mod_val} ({sub_desc}):"
-            )
-            lines.append(
-                f"{indent}  * {rhs_arity}-ary Image Projection: f([{rhs_args_str}]) = {rhs_str} mod {mod_val} over ({div_val} does not divide {rhs_args_str}) -> {rhs_img_str}"
-            )
-            lines.append(
-                f"{indent}  * {lhs_arity}-ary Image Projection: g([{lhs_args_str}]) = ({lhs_str}) mod {mod_val} over ({div_val} does not divide {lhs_args_str}) -> {lhs_img_str}"
-            )
-            lines.append(
-                f"{indent}  * Disjoint Image Regularity: {rhs_img_str} /\\ {lhs_img_str} = empty"
-            )
-            lines.append(
-                f"{indent}  * Obstruction Invariant: In any solution to {lhs_str} = {rhs_str}, {div_val} divides {prod_all} ({all_args_str} cannot all be coprime to {div_val} under mod {mod_val} projection)."
-            )
-
-        shown += 1
-        cur = M.Tail(cur)()
-
-    return lines
-
-
-def _discoveries_to_plain_list(discoveries, reg):
-    out = []
-    cur = discoveries
-    while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
-        rec = M.Head(cur)()
-        mod_nat = M.Head(M.Tail(rec)())()
-        rhs_set = M.Head(M.Tail(M.Tail(rec)())())()
-        lhs_set = M.Head(M.Tail(M.Tail(M.Tail(rec)())())())()
-        tail_meta = M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(rec)())())())())()
-        filter_kind = "lhs_not_divisible"
-        div_val = 0
-        if M.IdentityCompare(tail_meta, M.EmptyList)() is M.false_value:
-            filter_kind = str(M.Head(tail_meta)()())
-            div_nat = M.Head(M.Tail(tail_meta)())()
-            if M.IdentityCompare(div_nat, M.Zero)() is M.false_value:
-                div_val = M.NatRepOf(div_nat, reg)()()
-        mod_val = M.NatRepOf(mod_nat, reg)()()
-        rhs_vals = _set_chain_to_sorted_ints(rhs_set, reg)
-        lhs_vals = _set_chain_to_sorted_ints(lhs_set, reg)
-        out.append((mod_val, rhs_vals, lhs_vals, filter_kind, div_val))
-        cur = M.Tail(cur)()
-    return out
-
-
-def _reconstruct_plain_discoveries(plain_list, reg):
-    chain = M.EmptyList
-    cur_reg = reg
-    for mod_val, rhs_vals, lhs_vals, filter_kind, div_val in plain_list:
-        m_res = M.NatFromRep(M.GMPRep(mod_val), cur_reg)()
-        m_nat = M.Head(m_res)()
-        cur_reg = M.Head(M.Tail(m_res)())()
-
-        rhs_chain = M.EmptyList
-        for v in rhs_vals:
-            v_res = M.NatFromRep(M.GMPRep(v), cur_reg)()
-            v_nat = M.Head(v_res)()
-            cur_reg = M.Head(M.Tail(v_res)())()
-            rhs_chain = _chain_append_end(rhs_chain, v_nat)
-
-        lhs_chain = M.EmptyList
-        for v in lhs_vals:
-            v_res = M.NatFromRep(M.GMPRep(v), cur_reg)()
-            v_nat = M.Head(v_res)()
-            cur_reg = M.Head(M.Tail(v_res)())()
-            lhs_chain = _chain_append_end(lhs_chain, v_nat)
-
-        if div_val == 0:
-            div_nat = M.Zero
-        else:
-            d_res = M.NatFromRep(M.GMPRep(div_val), cur_reg)()
-            div_nat = M.Head(d_res)()
-            cur_reg = M.Head(M.Tail(d_res)())()
-
-        rec = M.Pair(
-            L.DiscoveredInvariantLabel,
-            M.Pair(
-                m_nat,
-                M.Pair(
-                    rhs_chain,
-                    M.Pair(
-                        lhs_chain,
-                        M.Pair(
-                            M.truth_value,
-                            M.Pair(
-                                M.Char(filter_kind),
-                                M.Pair(div_nat, M.EmptyList),
-                            ),
-                        ),
-                    ),
-                ),
-            ),
-        )
-        chain = _chain_append_end(chain, rec)
-    return chain, cur_reg
-
-
-def _parallel_instance_sweep_worker(task_spec, out_queue):
-    """
-    Top-level multiprocessing worker for sweeping one concrete exponent
-    instance of a parametric equation across candidate moduli.
-    """
-    goal_text = task_spec["goal_text"]
-    exp_val = task_spec["exp_val"]
-    max_mod = task_spec["max_mod"]
-    positive_only = task_spec["positive_only"]
-
-    reg = M.AllConstructors
-    spec = parse_surface_goal_spec(goal_text, reg)
-    lhs = spec["lhs"]
-    rhs = spec["rhs"]
-    base_vars = spec["base_vars"]
-    exp_var = M.Head(spec["exp_vars"])()
-    exp_name = str(exp_var())
-    reg = spec["registry"]
-
-    bound_res = M.NatFromRep(M.GMPRep(max_mod), reg)()
-    bound_nat = M.Head(bound_res)()
-    reg = M.Head(M.Tail(bound_res)())()
-
-    dom_res = BuildNatRange(M.Zero, bound_nat, reg)()
-    domain = M.Head(dom_res)()
-    reg = M.Head(M.Tail(dom_res)())()
-    moduli_chain = _chain_append_end(M.Tail(M.Tail(domain)())(), bound_nat)
-
-    e_res = M.NatFromRep(M.GMPRep(exp_val), reg)()
-    e_nat = M.Head(e_res)()
-    reg = M.Head(M.Tail(e_res)())()
-
-    lhs_e = M.Head(SubstituteExprVar(lhs, exp_var, e_nat, reg)())()
-    rhs_e = M.Head(SubstituteExprVar(rhs, exp_var, e_nat, reg)())()
-    lhs_e_str = RenderNatExpr(lhs_e, reg)
-    rhs_e_str = RenderNatExpr(rhs_e, reg)
-    var_names = _vars_chain_to_names(base_vars)
-    arity_dims = " x ".join([str(max_mod)] * max(1, len(var_names)))
-    tested_mods = _set_chain_to_sorted_ints(moduli_chain, reg)
-
-    _pg_debug(
-        f"worker started for {exp_name} = {exp_val} ({lhs_e_str} = {rhs_e_str}): constructing the natural tensor: {arity_dims} x {len(tested_mods)} moduli {tested_mods}..."
-    )
-
-    eval_cache = []
-    disc_res = DiscoverExprObstructions(
-        lhs_e,
-        rhs_e,
-        bound_nat,
-        moduli_chain,
-        reg,
-        eval_cache=eval_cache,
-        debug_trace=True,
-    )()
-    disc_chain = M.Head(disc_res)()
-    reg = M.Head(M.Tail(disc_res)())()
-    witness, reg = _find_concrete_witness_from_tables(
-        lhs_e, rhs_e, base_vars, bound_nat, positive_only, reg, eval_cache=eval_cache
-    )
-
-    plain_disc = _discoveries_to_plain_list(disc_chain, reg)
-    formatted_lines = [
-        f"  [Instance {exp_name} = {exp_val}: {lhs_e_str} = {rhs_e_str}]"
-    ]
-    formatted_lines.extend(
-        _format_discoveries_for_equation(
-            lhs_e,
-            rhs_e,
-            disc_chain,
-            moduli_chain,
-            max_mod,
-            witness,
-            reg,
-            indent="    ",
-        )
-    )
-    _pg_debug(
-        f"worker completed {exp_name} = {exp_val} ({len(plain_disc)} separating moduli discovered)."
-    )
-    out_queue.put(
-        {
-            "exp_val": exp_val,
-            "plain_disc": plain_disc,
-            "formatted_lines": formatted_lines,
-            "worker_pid": os.getpid(),
-        }
-    )
-
-
-def run_playground_interactive(graph, goal_text=None, tutor=None):
-    """
-    Runs the dynamic, goal-directed Cartesian exploration sweep over the active
-    unproved goal (or discovers separating moduli over the default benchmark
-    when no goal is active) and returns the formatted lemma proposal.
-    """
-    registry = M.FromContextGetConstructors(graph)()
-    active_goal = (
-        goal_text
-        if goal_text is not None
-        else getattr(graph, "_active_unproved_goal", None)
-    )
-    active_tutor = (
-        tutor if tutor is not None else getattr(graph, "_active_tutor", None)
-    )
-    active_claim = getattr(graph, "_active_unproved_claim", None)
-
-    # 1. If a parsed equation goal is present, run goal-directed expression sweep
-    spec = parse_surface_goal_spec(active_goal, registry) if active_goal else None
-    if spec is not None:
-        lhs = spec["lhs"]
-        rhs = spec["rhs"]
-        base_vars = spec["base_vars"]
-        exp_vars = spec["exp_vars"]
-        param_min = spec["param_min"]
-        no_solutions = spec["no_solutions"]
-        positive_only = spec["positive_only"]
-        reg = spec["registry"]
-
-        # Case A: Parametric exponent family (e.g., x^n + y^n = z^n for n > 2)
-        if M.IdentityCompare(exp_vars, M.EmptyList)() is M.false_value:
-            exp_var = M.Head(exp_vars)()
-            exp_name = str(exp_var())
-            start_exp = param_min.get(exp_name, 2)
-            max_exp = start_exp + 1
-            max_mod = max(9, 2 * max_exp + 1)
-
-            bound_res = M.NatFromRep(M.GMPRep(max_mod), reg)()
-            bound_nat = M.Head(bound_res)()
-            reg = M.Head(M.Tail(bound_res)())()
-
-            dom_res = BuildNatRange(M.Zero, bound_nat, reg)()
-            domain = M.Head(dom_res)()
-            reg = M.Head(M.Tail(dom_res)())()
-            moduli_chain = _chain_append_end(
-                M.Tail(M.Tail(domain)())(), bound_nat
-            )
-
-            start_res = M.NatFromRep(M.GMPRep(start_exp), reg)()
-            start_nat = M.Head(start_res)()
-            reg = M.Head(M.Tail(start_res)())()
-
-            count_res = M.NatFromRep(M.GMPRep(2), reg)()
-            count_nat = M.Head(count_res)()
-            reg = M.Head(M.Tail(count_res)())()
-
-            exp_range_res = BuildNatRange(start_nat, count_nat, reg)()
-            exp_chain = M.Head(exp_range_res)()
-            reg = M.Head(M.Tail(exp_range_res)())()
-
-            exp_ints = _set_chain_to_sorted_ints(exp_chain, reg)
-            tested_mods = _set_chain_to_sorted_ints(moduli_chain, reg)
-            var_names = _vars_chain_to_names(base_vars)
-            arity_dims = " x ".join([str(max_mod)] * max(1, len(var_names)))
-            lhs_pat_str = RenderNatExpr(lhs, reg)
-            rhs_pat_str = RenderNatExpr(rhs, reg)
-
-            cpu_cap = multiprocessing.cpu_count() or 1
-            worker_count = min(len(exp_ints), cpu_cap)
-            _pg_debug(
-                f"constructing the natural tensor: {arity_dims} x {len(exp_ints)} exponent instances ({exp_name} in {exp_ints}) x {len(tested_mods)} moduli {tested_mods}; dispatching {worker_count} worker process(es) (CPU cores: {cpu_cap})..."
-            )
-
-            lines = [
-                f"[machine] Cartesian Playground Sweep for {lhs_pat_str} = {rhs_pat_str} (parameter {exp_name} >= {start_exp}, testing {exp_name} in {exp_ints} over domain 0..{max_mod - 1}):"
-            ]
-
-            all_discoveries = M.EmptyList
-            used_parallel = False
-            if worker_count >= 2:
-                try:
-                    start_methods = multiprocessing.get_all_start_methods()
-                    mp_ctx = multiprocessing.get_context(
-                        "fork" if "fork" in start_methods else "spawn"
-                    )
-                    out_queue = mp_ctx.Queue()
-                    procs = []
-                    for e_val in exp_ints:
-                        task_spec = {
-                            "goal_text": active_goal,
-                            "exp_val": e_val,
-                            "max_mod": max_mod,
-                            "positive_only": positive_only,
-                        }
-                        p = mp_ctx.Process(
-                            target=_parallel_instance_sweep_worker,
-                            args=(task_spec, out_queue),
-                        )
-                        p.start()
-                        procs.append(p)
-
-                    results_by_exp = {}
-                    for _ in procs:
-                        res_item = out_queue.get(timeout=120)
-                        results_by_exp[res_item["exp_val"]] = res_item
-
-                    for p in procs:
-                        p.join(timeout=10)
-
-                    if len(results_by_exp) == len(exp_ints):
-                        used_parallel = True
-                        worker_pids = [
-                            results_by_exp[e_val]["worker_pid"]
-                            for e_val in exp_ints
-                        ]
-                        total_plain = []
-                        for e_val in exp_ints:
-                            item = results_by_exp[e_val]
-                            lines.extend(item["formatted_lines"])
-                            total_plain.extend(item["plain_disc"])
-                        all_discoveries, reg = _reconstruct_plain_discoveries(
-                            total_plain, reg
-                        )
-                        _pg_debug(
-                            f"joined {len(worker_pids)} worker processes (PIDs: {worker_pids}); synthesized {len(total_plain)} modular obstruction invariants."
-                        )
-                except Exception:
-                    used_parallel = False
-
-            if not used_parallel:
-                eval_cache = []
-                cur_e = exp_chain
-                while M.IdentityCompare(cur_e, M.EmptyList)() is M.false_value:
-                    e_nat = M.Head(cur_e)()
-                    e_val = M.NatRepOf(e_nat, reg)()()
-                    lhs_e = M.Head(SubstituteExprVar(lhs, exp_var, e_nat, reg)())()
-                    rhs_e = M.Head(SubstituteExprVar(rhs, exp_var, e_nat, reg)())()
-
-                    _pg_debug(
-                        f"evaluating instance {exp_name} = {e_val} ({RenderNatExpr(lhs_e, reg)} = {RenderNatExpr(rhs_e, reg)}) in-process..."
-                    )
-                    disc_res = DiscoverExprObstructions(
-                        lhs_e,
-                        rhs_e,
-                        bound_nat,
-                        moduli_chain,
-                        reg,
-                        eval_cache=eval_cache,
-                        debug_trace=True,
-                    )()
-                    disc_chain = M.Head(disc_res)()
-                    reg = M.Head(M.Tail(disc_res)())()
-                    witness, reg = _find_concrete_witness_from_tables(
-                        lhs_e,
-                        rhs_e,
-                        base_vars,
-                        bound_nat,
-                        positive_only,
-                        reg,
-                        eval_cache=eval_cache,
-                    )
-
-                    cur_d = disc_chain
-                    while M.IdentityCompare(cur_d, M.EmptyList)() is M.false_value:
-                        all_discoveries = _chain_append_end(
-                            all_discoveries, M.Head(cur_d)()
-                        )
-                        cur_d = M.Tail(cur_d)()
-
-                    lines.append(
-                        f"  [Instance {exp_name} = {e_val}: {RenderNatExpr(lhs_e, reg)} = {RenderNatExpr(rhs_e, reg)}]"
-                    )
-                    lines.extend(
-                        _format_discoveries_for_equation(
-                            lhs_e,
-                            rhs_e,
-                            disc_chain,
-                            moduli_chain,
-                            max_mod,
-                            witness,
-                            reg,
-                            indent="    ",
-                        )
-                    )
-                    cur_e = M.Tail(cur_e)()
-
-            if M.IdentityCompare(all_discoveries, M.EmptyList)() is M.false_value:
-                graph._last_discovered_invariant = M.Head(all_discoveries)()
-                graph._last_playground_discoveries = all_discoveries
-                lines.append(
-                    "  - Suggestion: Ground these discovered modular/divisibility invariants as candidate lemmas for each exponent case."
-                )
-            return "\n".join(lines)
-
-        # Case B: Concrete polynomial identity claim (no_solutions is False)
-        if not no_solutions:
-            lhs_str = RenderNatExpr(lhs, reg)
-            rhs_str = RenderNatExpr(rhs, reg)
-            var_names = _vars_chain_to_names(base_vars)
-            _pg_debug(
-                f"constructing degree-bounded polynomial grid for {lhs_str} = {rhs_str} over variables {var_names} (1 process)..."
-            )
-            grid_res = PolynomialIdentityByGrid(lhs, rhs, base_vars, reg)()
-            grid_rec = M.Head(grid_res)()
-            reg = M.Head(M.Tail(grid_res)())()
-            fields = M.Tail(grid_rec)()
-            grid_count_nat = M.Head(
-                M.Tail(M.Tail(M.Tail(M.Tail(fields)())())())()
-            )()
-            verdict = M.Head(
-                M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(fields)())())())())()
-            )()
-            witness_tup = M.Head(
-                M.Tail(
-                    M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(fields)())())())())()
-                )()
-            )()
-            grid_count_val = M.NatRepOf(grid_count_nat, reg)()()
-            _pg_debug(
-                f"evaluated {grid_count_val} degree-bounded grid points for {lhs_str} = {rhs_str} (identity holds: {verdict is M.truth_value})."
-            )
-
-            if verdict is M.truth_value:
-                return "\n".join(
-                    [
-                        f"[machine] Cartesian Playground Sweep for {lhs_str} = {rhs_str}:",
-                        f"  - PolynomialIdentityByGrid verified {lhs_str} = {rhs_str} across all {grid_count_val} degree-bounded grid points.",
-                        f"  - Candidate Lemma: Algebraic identity {lhs_str} == {rhs_str} holds universally over Nat.",
-                        "  - Suggestion: Ground this polynomial identity into active context as a rewrite lemma.",
-                    ]
-                )
-            if verdict is M.false_value:
-                w_cur = witness_tup
-                w_pairs = []
-                idx = 0
-                while M.IdentityCompare(w_cur, M.EmptyList)() is M.false_value:
-                    v_int = M.NatRepOf(M.Head(w_cur)(), reg)()()
-                    v_name = var_names[idx] if idx < len(var_names) else f"v{idx}"
-                    w_pairs.append(f"{v_name} = {v_int}")
-                    idx += 1
-                    w_cur = M.Tail(w_cur)()
-                return "\n".join(
-                    [
-                        f"[machine] Cartesian Playground Sweep for {lhs_str} = {rhs_str}:",
-                        f"  - Counterexample Witness Found: ({', '.join(w_pairs)}) refutes {lhs_str} = {rhs_str} on the degree grid.",
-                        "  - Suggestion: Restrict domain hypotheses or project modulo a separating congruence class.",
-                    ]
-                )
-
-        # Case C: Concrete equation with no_solutions (e.g. x^3 + y^3 = z^3, x^2 + y^2 = 4*z + 3)
-        bound_res = M.NatFromRep(M.GMPRep(10), reg)()
-        bound_nat = M.Head(bound_res)()
-        reg = M.Head(M.Tail(bound_res)())()
-
-        dom_res = BuildNatRange(M.Zero, bound_nat, reg)()
-        domain = M.Head(dom_res)()
-        reg = M.Head(M.Tail(dom_res)())()
-        moduli_chain = M.Tail(M.Tail(domain)())()  # 2..9
-
-        lhs_str = RenderNatExpr(lhs, reg)
-        rhs_str = RenderNatExpr(rhs, reg)
-        var_names = _vars_chain_to_names(base_vars)
-        arity_dims = " x ".join(["10"] * max(1, len(var_names)))
-        tested_mods = _set_chain_to_sorted_ints(moduli_chain, reg)
-        _pg_debug(
-            f"constructing the natural tensor for {lhs_str} = {rhs_str}: {arity_dims} x {len(tested_mods)} moduli {tested_mods} (1 process)..."
-        )
-
-        eval_cache = []
-        disc_res = DiscoverExprObstructions(
-            lhs,
-            rhs,
-            bound_nat,
-            moduli_chain,
-            reg,
-            eval_cache=eval_cache,
-            debug_trace=True,
-        )()
-        disc_chain = M.Head(disc_res)()
-        reg = M.Head(M.Tail(disc_res)())()
-        witness, reg = _find_concrete_witness_from_tables(
-            lhs, rhs, base_vars, bound_nat, positive_only, reg, eval_cache=eval_cache
-        )
-        if witness is not None:
-            _pg_debug(
-                f"bounded witness search found concrete solution: {witness}"
-            )
-
-        lines = [
-            f"[machine] Cartesian Playground Sweep for {lhs_str} = {rhs_str} (domain 0..9):"
-        ]
-        lines.extend(
-            _format_discoveries_for_equation(
-                lhs, rhs, disc_chain, moduli_chain, 10, witness, reg, indent="  "
-            )
-        )
-        if M.IdentityCompare(disc_chain, M.EmptyList)() is M.false_value:
-            graph._last_discovered_invariant = M.Head(disc_chain)()
-            graph._last_playground_discoveries = disc_chain
-            lines.append(
-                "  - Suggestion: Ground this discovered regularity into active context as an invariant lemma."
-            )
-        return "\n".join(lines)
-
-    # 2. If an undecided Socratic tutor claim is active, suggest backward premises & schema
-    if active_claim is not None and active_tutor is not None:
-        from . import dialogue as Dlg
-
-        goal_fact = Dlg.claim_conclusion(active_claim)
-        known_facts = Dlg.claim_start_facts(active_claim)
-        obls = Dlg.to_list(
-            Dlg.BackwardObligations(goal_fact, known_facts, active_tutor.rules())()
-        )
-        claim_str = active_tutor.claim_text(active_claim)
-        _pg_debug(
-            f"analyzing backward rule obligations for undecided claim '{claim_str}' across {len(obls)} candidate rules (1 process)..."
-        )
-        lines = [
-            f"[machine] Cartesian Playground & Backward Obligation Analysis for '{claim_str}':"
-        ]
-        if obls:
-            first_obl = obls[0]
-            rule_obj = M.Head(first_obl)()
-            open_prems = Dlg.to_list(M.Head(M.Tail(M.Tail(first_obl)())())())
-            rule_id = active_tutor.rule_id_of(rule_obj)
-            open_strs = [
-                Dlg.render_term(p, active_tutor.registry) for p in open_prems
-            ]
-            lines.append(
-                f"  - Backward Rule Candidate: '{rule_id}' concludes {Dlg.render_term(goal_fact, active_tutor.registry)} given missing premise(s): {', '.join(open_strs)}."
-            )
-            lines.append(
-                f"  - Candidate Lemma: Establish {', '.join(open_strs)} (or ground schema '{claim_str}' after verification)."
-            )
-        else:
-            lines.append(
-                f"  - No loaded rule concludes {Dlg.render_term(goal_fact, active_tutor.registry)} directly."
-            )
-            lines.append(
-                f"  - Candidate Lemma Schema: '{claim_str}' (empirically unrefuted across the Cartesian natural sweep)."
-            )
-        return "\n".join(lines)
-
-    # 3. Default benchmark exploration when no specific goal has been posed yet:
-    #    dynamically discovers the separating modulus across candidate moduli 2..5
-    #    via DiscoverSeparatingModulus (never hardcoded to modulus 4).
-    _pg_debug(
-        "constructing the natural tensor: 11 x 11 domain (0..10)^2 x 4 candidate moduli [2, 3, 4, 5] (1 process)..."
-    )
-    bound_res = M.NatFromRep(M.GMPRep(11), registry)()
-    bound_nat = M.Head(bound_res)()
-    reg1 = M.Head(M.Tail(bound_res)())()
-
-    two_res = M.NatFromRep(M.GMPRep(2), reg1)()
-    two_nat = M.Head(two_res)()
-    reg2 = M.Head(M.Tail(two_res)())()
-
-    one_res = M.NatFromRep(M.GMPRep(1), reg2)()
-    one_nat = M.Head(one_res)()
-    reg3 = M.Head(M.Tail(one_res)())()
-
-    four_res = M.NatFromRep(M.GMPRep(4), reg3)()
-    four_nat = M.Head(four_res)()
-    reg4 = M.Head(M.Tail(four_res)())()
-
-    mods_res = BuildNatRange(two_nat, four_nat, reg4)()
-    moduli_chain = M.Head(mods_res)()
-    reg5 = M.Head(M.Tail(mods_res)())()
-
-    def every_unary(_x, _reg):
-        return M.truth_value
-
-    def odd_pair_pred(x, y, reg):
-        rx = A.Modulo(x, two_nat, reg)()
-        rem_x = M.Head(rx)()
-        r_a = M.Head(M.Tail(rx)())()
-        if M.NatEq(rem_x, one_nat, r_a)() is M.false_value:
-            return M.false_value
-        ry = A.Modulo(y, two_nat, r_a)()
-        rem_y = M.Head(ry)()
-        r_b = M.Head(M.Tail(ry)())()
-        return M.NatEq(rem_y, one_nat, r_b)()
-
-    disc_res = DiscoverSeparatingModulus(
-        bound_nat, two_nat, every_unary, odd_pair_pred, moduli_chain, reg5
-    )()
-    inv_rec = M.Head(disc_res)()
-    reg6 = M.Head(M.Tail(disc_res)())()
-
-    graph._last_discovered_invariant = inv_rec
-
-    res_mod = M.Head(M.Tail(inv_rec)())()
-    mod_val = M.NatRepOf(res_mod, reg6)()()
-    _pg_debug(
-        f"discovered separating modulus m = {mod_val} across candidate moduli [2, 3, 4, 5]."
-    )
-
-    sq_set = M.Head(M.Tail(M.Tail(inv_rec)())())()
-    odd_sum_set = M.Head(M.Tail(M.Tail(M.Tail(inv_rec)())())())()
-    is_disjoint = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(inv_rec)())())())())()
-
-    sq_str = _format_set_chain(sq_set, reg6)
-    odd_str = _format_set_chain(odd_sum_set, reg6)
-    tested_str = ", ".join(map(str, _set_chain_to_sorted_ints(moduli_chain, reg6)))
-
-    lines = [
-        f"[machine] Cartesian Playground Sweep (domain 0..10, candidate moduli [{tested_str}] -> discovered m = {mod_val}):",
-        f"  - 1-ary Image Projection: f([x]) = x^2 mod {mod_val} -> {sq_str}",
-        f"  - 2-ary Image Projection: g([x, y]) = (x^2 + y^2) mod {mod_val} over odd subdomain -> {odd_str}",
-    ]
-
-    if is_disjoint is M.truth_value:
-        lines.append(
-            f"  - Disjoint Image Regularity: {sq_str} /\\ {odd_str} = empty"
-        )
-        lines.append(
-            f"  - Obstruction Invariant: f([z]) = g([x, y]) has no solution for odd x, y under mod {mod_val} projection."
-        )
-        lines.append(
-            "  - Suggestion: Ground this discovered regularity into active context as an invariant lemma."
-        )
-
-    return "\n".join(lines)
-
-
-class RunPlaygroundFilteredPowerSweep(M.Edge):
-    """
-    Parameterized Cartesian sweep, generalizing RunPlaygroundCartesianSweep.
-
-    The original sweep is fixed to squares over an odd-pair filter. This one
-    takes the exponent and both domain filters as parameters, so one piece of
-    machinery runs any power-image / filtered-sum-image disjointness test:
-
-        unary image    = { x^k mod m : x in domain, unary_pred(x) }
-        pair-sum image = { (x^k + y^k) mod m : x, y in domain, pair_pred(x, y) }
-
-    Predicates are host-layer callables over machine values and return a
-    machine truth value directly: unary_pred(x_nat, registry) and
-    pair_pred(x_nat, y_nat, registry). The exponent enters only as a loop
-    count; every arithmetic step stays a machine operation.
-
-    The record has the same shape as RunPlaygroundCartesianSweep's:
-        Pair(DiscoveredInvariantLabel,
-             Pair(modulus,
-                  Pair(unary_image,
-                       Pair(pair_sum_image, Pair(disjoint, EmptyList)))))
-    """
-
-    def __init__(self, bound_nat, mod_nat, power_nat, unary_pred, pair_pred, registry):
-        self.registry = registry
-        self.result = self._run(bound_nat, mod_nat, power_nat, unary_pred, pair_pred, registry)
-        super().__init__(
-            inputs=M.Pair(
-                bound_nat,
-                M.Pair(
-                    mod_nat,
-                    M.Pair(
-                        power_nat,
-                        M.Pair(unary_pred, M.Pair(pair_pred, M.Pair(registry, M.EmptyList))),
-                    ),
-                ),
-            ),
-            results=self.result,
-        )
-
-    def _run(self, bound_nat, mod_nat, power_nat, unary_pred, pair_pred, registry):
-        # The exponent is read once, as a loop count only.
-        power_rep = M.NatRepOf(power_nat, registry)()
-        if M.IdentityCompare(power_rep, M.EmptyList)() is M.truth_value:
-            raise TypeError("FilteredPowerSweep expects a Nat exponent")
-        power_count = power_rep()
-
-        # 1. Base domain: Zero for bound_nat steps.
-        range_res = BuildNatRange(M.Zero, bound_nat, registry)()
-        domain = M.Head(range_res)()
-        reg1 = M.Head(M.Tail(range_res)())()
-
-        one_res = M.NatFromRep(M.GMPRep(1), reg1)()
-        one_nat = M.Head(one_res)()
-        reg2 = M.Head(M.Tail(one_res)())()
-
-        # Host-level memo of machine power computations, keyed on the element's
-        # rep value: the same pattern as the kernel's NatValueIndex. Every
-        # arithmetic step below is still a machine operation; only repeated
-        # evaluation of x^k for a repeated x is avoided.
-        power_memo = {}
-
-        def power_value(x, reg):
-            rep = M.NatRepOf(x, reg)()
-            memo_key = None
-            if M.IdentityCompare(rep, M.EmptyList)() is M.false_value:
-                memo_key = rep()
-            if memo_key is not None and memo_key in power_memo:
-                return M.Pair(power_memo[memo_key], M.Pair(reg, M.EmptyList))
-            # x^k by generic repeated multiplication, k a machine quantity.
-            acc = one_nat
-            cur_reg = reg
-            for _ in range(power_count):
-                mul_pair = A.Multiply(acc, x, cur_reg)()
-                acc = M.Head(mul_pair)()
-                cur_reg = M.Head(M.Tail(mul_pair)())()
-            if memo_key is not None:
-                power_memo[memo_key] = acc
-            return M.Pair(acc, M.Pair(cur_reg, M.EmptyList))
-
-        def power_of_head(tuple_args, reg):
-            x = M.Head(tuple_args)()
-            return power_value(x, reg)
-
-        def power_sum(tuple_args, reg):
-            x = M.Head(tuple_args)()
-            y = M.Head(M.Tail(tuple_args)())()
-            px_pair = power_value(x, reg)
-            px = M.Head(px_pair)()
-            r1 = M.Head(M.Tail(px_pair)())()
-            py_pair = power_value(y, r1)
-            py = M.Head(py_pair)()
-            r2 = M.Head(M.Tail(py_pair)())()
-            add_pair = A.Add(px, py, r2)()
-            return M.Pair(M.Head(add_pair)(), M.Pair(M.Head(M.Tail(add_pair)())(), M.EmptyList))
-
-        def unary_wrapper(tuple_args, reg):
-            x = M.Head(tuple_args)()
-            holds = unary_pred(x, reg)
-            return M.Pair(holds, M.Pair(reg, M.EmptyList))
-
-        def pair_wrapper(tuple_args, reg):
-            x = M.Head(tuple_args)()
-            y = M.Head(M.Tail(tuple_args)())()
-            holds = pair_pred(x, y, reg)
-            return M.Pair(holds, M.Pair(reg, M.EmptyList))
-
-        # 2. Unary image over the filtered 1-ary domain.
-        dom1 = ProductOfDomains(M.Pair(domain, M.EmptyList))()
-        unary_tuples_res = FilterTuples(dom1, unary_wrapper, reg2)()
-        unary_tuples = M.Head(unary_tuples_res)()
-        reg3 = M.Head(M.Tail(unary_tuples_res)())()
-        unary_map_res = MapDomain(unary_tuples, power_of_head, reg3)()
-        unary_vals = M.Head(unary_map_res)()
-        reg4 = M.Head(M.Tail(M.Tail(unary_map_res)())())()
-        unary_proj_res = ProjectCongruence(unary_vals, mod_nat, reg4)()
-        unary_image = M.Head(unary_proj_res)()
-        reg5 = M.Head(M.Tail(unary_proj_res)())()
-
-        # 3. Pair-sum image over the filtered 2-ary domain.
-        dom2 = ProductOfDomains(M.Pair(domain, M.Pair(domain, M.EmptyList)))()
-        pair_tuples_res = FilterTuples(dom2, pair_wrapper, reg5)()
-        pair_tuples = M.Head(pair_tuples_res)()
-        reg6 = M.Head(M.Tail(pair_tuples_res)())()
-        pair_map_res = MapDomain(pair_tuples, power_sum, reg6)()
-        pair_vals = M.Head(pair_map_res)()
-        reg7 = M.Head(M.Tail(M.Tail(pair_map_res)())())()
-        pair_proj_res = ProjectCongruence(pair_vals, mod_nat, reg7)()
-        pair_image = M.Head(pair_proj_res)()
-        reg8 = M.Head(M.Tail(pair_proj_res)())()
-
-        # 4. Disjointness of the two images.
-        disjoint_res = EvaluateSetRelation(unary_image, pair_image, reg8)()
-        is_disjoint = M.Head(disjoint_res)()
-        reg9 = M.Head(M.Tail(M.Tail(disjoint_res)())())()
-
-        sweep_record = M.Pair(
-            L.DiscoveredInvariantLabel,
-            M.Pair(
-                mod_nat,
-                M.Pair(
-                    unary_image,
-                    M.Pair(pair_image, M.Pair(is_disjoint, M.EmptyList)),
-                ),
-            ),
-        )
-        return M.Pair(sweep_record, M.Pair(reg9, M.EmptyList))
-
-    def __call__(self):
-        return self.result
-
-
-class DiscoverSeparatingModulus(M.Edge):
-    """
-    Run RunPlaygroundFilteredPowerSweep over an ordered chain of candidate
-    moduli and return the record of the FIRST modulus whose unary and
-    pair-sum images are disjoint, or EmptyList when none separates. The
-    separating modulus is therefore a sweep result, never a constant a
-    caller chose. Returns Pair(record_or_EmptyList, Pair(registry, EmptyList)).
-    """
-
-    def __init__(self, bound_nat, power_nat, unary_pred, pair_pred, moduli_chain, registry):
-        self.registry = registry
-        self.result = self._search(bound_nat, power_nat, unary_pred, pair_pred, moduli_chain, registry)
-        super().__init__(
-            inputs=M.Pair(
-                bound_nat,
-                M.Pair(
-                    power_nat,
-                    M.Pair(
-                        unary_pred,
-                        M.Pair(pair_pred, M.Pair(moduli_chain, M.Pair(registry, M.EmptyList))),
-                    ),
-                ),
-            ),
-            results=self.result,
-        )
-
-    def _search(self, bound_nat, power_nat, unary_pred, pair_pred, moduli_chain, registry):
-        if M.IdentityCompare(moduli_chain, M.EmptyList)() is M.truth_value:
-            return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
-        candidate = M.Head(moduli_chain)()
-        sweep_res = RunPlaygroundFilteredPowerSweep(
-            bound_nat, candidate, power_nat, unary_pred, pair_pred, registry
-        )()
-        record = M.Head(sweep_res)()
-        reg1 = M.Head(M.Tail(sweep_res)())()
-        disjoint = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(record)())())())())()
-        if disjoint is M.truth_value:
-            return M.Pair(record, M.Pair(reg1, M.EmptyList))
-        return self._search(
-            bound_nat, power_nat, unary_pred, pair_pred, M.Tail(moduli_chain)(), reg1
-        )
-
-    def __call__(self):
-        return self.result
-
-
-# ============================================================
-# Polynomial identities and congruences, decided by evaluation
-#
-# Two generic decision procedures over the machine's own arithmetic. Neither
-# names a theorem; each is parameterised by the expression terms it is handed
-# and returns a record of exactly what was evaluated.
-#
-# Admitted expression fragment: a Char is a variable, a Nat is a constant,
-# ExprInt(n) wraps a constant, ExprAdd(a, b), ExprMul(a, b), ExprPow(a, k)
-# with k a Nat. Nothing else -- ExprNeg, ExprFrac and ExprDiv are refused,
-# so every admitted term denotes a polynomial with natural coefficients and
-# every claim below is a claim about polynomials over Z.
-#
-# PolynomialIdentityByGrid decides lhs = rhs as polynomials. It is sound by
-# the finite-grid identity lemma: D = lhs - rhs has degree at most d_i in
-# x_i (d_i read structurally from the terms); if D vanishes on a product
-# S_1 x ... x S_k with |S_i| = d_i + 1 then D is the zero polynomial
-# (induction on k: a nonzero univariate polynomial of degree <= d has at
-# most d roots). So truth here is a proof of the identity for every natural
-# (and integer) assignment, not evidence on a sample -- and the grid size is
-# load-bearing: a smaller grid would prove nothing.
-#
-# ResidueTable / CongruenceClasses run an exhaustive residue case analysis.
-# They are sound because reduction modulo m is a ring homomorphism, so a
-# polynomial's residue at x_1..x_k depends only on the residues of the x_i;
-# the m^k residue tuples decide the congruence for every natural assignment.
-# ============================================================
-
-
-def _expr_head_args(term):
-    """Head and argument chain of an expression Pair, or (EmptyList, EmptyList)."""
-    if M.IsPair(term)() is M.false_value:
-        return M.EmptyList, M.EmptyList
-    return M.Head(term)(), M.Tail(term)()
-
-
-def _env_lookup(environment, variable):
-    """Value bound to `variable` in a chain of Pair(var, Pair(value, [])), or EmptyList."""
-    remaining = environment
-    while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-        entry = M.Head(remaining)()
-        if M.Compare(M.Head(entry)(), variable)() is M.truth_value:
-            return M.Head(M.Tail(entry)())()
-        remaining = M.Tail(remaining)()
-    return M.EmptyList
-
-
-def _zip_environment(variables, values):
-    """Chain of Pair(var, Pair(value, [])) from parallel chains."""
-    if M.IdentityCompare(variables, M.EmptyList)() is M.truth_value:
-        return M.EmptyList
-    if M.IdentityCompare(values, M.EmptyList)() is M.truth_value:
-        return M.EmptyList
-    entry = M.Pair(M.Head(variables)(), M.Pair(M.Head(values)(), M.EmptyList))
-    return M.Pair(entry, _zip_environment(M.Tail(variables)(), M.Tail(values)()))
-
-
 class ExprDegreeBound(M.Edge):
     """
     Structural upper bound on the degree of an admitted expression term in
     one variable: the variable itself has degree 1, any other atom 0,
     ExprAdd takes the larger bound, ExprMul the sum, ExprPow(a, k) k times
-    the bound of a. The bound may exceed the true degree (cancellation is
-    not tracked); it is never below it, which is all the grid needs.
+    the bound of a.
     Result: Pair(degree_nat, Pair(registry, [])), or Pair([], ...) when the
     term lies outside the admitted fragment.
     """
@@ -2758,9 +1214,9 @@ class ExprDegreeBound(M.Edge):
 class EvaluateNatExpr(M.Edge):
     """
     Evaluates an admitted expression term at an environment (a chain of
-    Pair(variable, Pair(nat, []))) with the machine's own Add and Multiply;
-    a power is repeated multiplication, its exponent read once as a loop
-    count. Result: Pair(nat, Pair(registry, [])), or Pair([], ...) when the
+    Pair(variable, Pair(nat, []))) with the machine's own Add, Multiply,
+    and Peano NatPred recursion.
+    Result: Pair(nat, Pair(registry, [])), or Pair([], ...) when the
     term is outside the fragment or a variable is unbound.
     """
 
@@ -2796,19 +1252,9 @@ class EvaluateNatExpr(M.Edge):
             exponent = M.Head(M.Tail(args)())()
             if M.IdentityCompare(base, M.EmptyList)() is M.truth_value:
                 return self._refuse(reg1)
-            exponent_rep = M.NatRepOf(exponent, reg1)()
-            if M.IdentityCompare(exponent_rep, M.EmptyList)() is M.truth_value:
+            if A.IsNat(exponent, reg1)() is M.false_value:
                 return self._refuse(reg1)
-            count = exponent_rep()
-            if count == 0:
-                return M.Pair(M.one, M.Pair(reg1, M.EmptyList))
-            acc = base
-            cur_reg = reg1
-            for _ in range(count - 1):
-                mul_res = A.Multiply(acc, base, cur_reg)()
-                acc = M.Head(mul_res)()
-                cur_reg = M.Head(M.Tail(mul_res)())()
-            return M.Pair(acc, M.Pair(cur_reg, M.EmptyList))
+            return _nat_pow_peano(base, exponent, M.one, reg1)
         is_add = M.IdentityCompare(head, L.ExprAddLabel)()
         is_mul = M.IdentityCompare(head, L.ExprMulLabel)()
         if M.OrAtom(is_add, is_mul)() is M.false_value:
@@ -2829,15 +1275,6 @@ class EvaluateNatExpr(M.Edge):
 
     def __call__(self):
         return self.result
-
-
-def _exact_arity(args, arity):
-    """Syntax arity only; never interprets a machine number as a host int."""
-    for _ in range(arity):
-        if M.IsPair(args)() is M.false_value:
-            return M.false_value
-        args = M.Tail(args)()
-    return M.IdentityCompare(args, M.EmptyList)()
 
 
 def _valid_polynomial_variables(variables, registry):
@@ -2862,12 +1299,7 @@ def _valid_polynomial_variables(variables, registry):
 
 
 def _admitted_polynomial(term, variables, registry):
-    """Check exact syntax and coverage *before* computing a degree or grid.
-
-    Non-numeric atoms declared in variables are formal indeterminates. A
-    missing variable is not a degree-zero constant. Duplicate variables are
-    refused: a diagonal grid is not a Cartesian grid of independent variables.
-    """
+    """Check exact syntax and coverage *before* computing a degree or grid."""
     if A.IsNat(term, registry)() is M.truth_value:
         return M.truth_value
     if M.IsPair(term)() is M.false_value:
@@ -2901,19 +1333,12 @@ class PolynomialIdentityByGrid(M.Edge):
     """
     Decides whether two admitted expression terms are equal as polynomials in
     the given variables, by evaluating both on the grid {0..d_1} x ... x
-    {0..d_k}, d_i the larger structural degree bound of the two sides in
-    x_i. Sound by the finite-grid identity lemma (see the section comment):
-    verdict truth is a proof of the identity for all naturals, verdict false
-    records the first grid point where the sides differ. For a false constant
-    identity this is the empty tuple, so inspect the verdict, not the witness's
-    emptiness. Verdict [] means malformed/uncovered syntax or an unsupported
-    fragment. Variables must be distinct formal atoms and cover both terms.
+    {0..d_k}, d_i the larger structural degree bound of the two sides in x_i.
 
     Result: Pair(record, Pair(registry, [])) with
       record = Pair(PolynomialIdentityLabel,
                  Pair(lhs, Pair(rhs, Pair(variables, Pair(degree_chain,
                    Pair(grid_count, Pair(verdict, Pair(witness, []))))))))
-      witness = the first grid point where the sides differ, else []
     """
 
     def __init__(self, lhs, rhs, variables, registry):
@@ -2932,9 +1357,6 @@ class PolynomialIdentityByGrid(M.Edge):
         return M.Pair(record, M.Pair(registry, M.EmptyList))
 
     def _degrees(self, lhs, rhs, variables, registry):
-        """Per-variable bounds (the larger of the two sides) and the matching
-        grid domains {0..d}; refused (EmptyList flag) if a side lies outside
-        the admitted fragment."""
         if M.IdentityCompare(variables, M.EmptyList)() is M.truth_value:
             return M.EmptyList, M.EmptyList, M.truth_value, registry
         variable = M.Head(variables)()
@@ -2977,11 +1399,6 @@ class PolynomialIdentityByGrid(M.Edge):
         return self._record(lhs, rhs, variables, degrees, grid_count, verdict, witness, reg3)
 
     def _first_difference(self, lhs, rhs, variables, tuples, registry):
-        """Return (verdict, first differing tuple, registry).
-
-        The verdict is separate: the empty tuple is a valid counterexample
-        for a constant polynomial with no variables, not evidence of equality.
-        """
         if M.IdentityCompare(tuples, M.EmptyList)() is M.truth_value:
             return M.truth_value, M.EmptyList, registry
         point = M.Head(tuples)()
@@ -3005,15 +1422,7 @@ class PolynomialIdentityByGrid(M.Edge):
 
 
 class PolynomialRewriteCertificate(M.Edge):
-    """Grid-gated ordinary rewrite certificate (W22, partial).
-
-    Returns Pair(grid_record, Pair(success, Pair(derivation-or-[],
-    Pair(registry, [])))). Only a grid-true admitted identity is searched.
-    No grid verdict becomes a trusted rewrite rule: Checker B must replay the
-    returned derivation using the caller's rules. Power expansion, coefficient
-    collection and commutative-ring normalisation remain missing from the
-    default rules; success is deliberately not promised for every grid truth.
-    """
+    """Grid-gated ordinary rewrite certificate (W22, partial)."""
 
     def __init__(self, lhs, rhs, variables, rules, registry, fuel=M.nine):
         from .invariance import RewriteEqualityDerivation
@@ -3022,7 +1431,6 @@ class PolynomialRewriteCertificate(M.Edge):
         record = M.Head(decided)()
         registry = M.Head(M.Tail(decided)())()
         fields = M.Tail(record)()
-        # lhs, rhs, variables, degrees, grid_count, verdict, witness
         fields = M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(fields)())())())())()
         if M.Head(fields)() is M.truth_value:
             rewritten = RewriteEqualityDerivation(lhs, rhs, rules, registry, fuel)()
@@ -3037,13 +1445,7 @@ class PolynomialRewriteCertificate(M.Edge):
 
 
 class PolynomialGridDerivation(M.Edge):
-    """Record one finite-grid inference for Checker B to recompute.
-
-    Result Pair(grid_record, Pair(derivation-or-[], Pair(registry, []))).
-    This is a decision-procedure certificate, NOT a RewriteHere path.
-    Verifiers must explicitly trust PolynomialGridRuleLabel to admit this
-    action; the record's verdict, bounds and count are never trusted as facts.
-    """
+    """Record one finite-grid inference for Checker B to recompute."""
 
     def __init__(self, lhs, rhs, variables, registry):
         from . import proof as P
@@ -3089,8 +1491,7 @@ class ResidueTable(M.Edge):
     """
     Exhaustive residue case analysis of one admitted expression term: for
     every residue tuple in {0..m-1}^k, the term's value modulo m (machine
-    Modulo over machine evaluation). Sound for every natural assignment
-    because reduction modulo m is a ring homomorphism.
+    Modulo over machine evaluation).
 
     Result: Pair(record, Pair(registry, [])) with
       record = Pair(ResidueTableLabel,
@@ -3144,10 +1545,7 @@ class CongruenceClasses(M.Edge):
     """
     Exhaustive residue case analysis of a polynomial congruence
     lhs = rhs (mod m): the residue tuples in {0..m-1}^k at which the two
-    sides agree modulo m, and those at which they differ. Sound and complete
-    for every natural assignment, for the same reason as ResidueTable; the
-    holding chain is therefore the full solution set of the congruence
-    described class by class, and an empty holding chain refutes it.
+    sides agree modulo m, and those at which they differ.
 
     Result: Pair(record, Pair(registry, [])) with
       record = Pair(CongruenceClassesLabel,
@@ -3201,42 +1599,1694 @@ class CongruenceClasses(M.Edge):
         return self.result
 
 
-__all__ = (
-    "ChainLength",
-    "ChainContains",
-    "SetInsert",
-    "SetIntersection",
-    "SetUnion",
-    "BuildNatRange",
-    "ProductOfDomains",
-    "FilterTuples",
-    "MapDomain",
-    "UniversalQuantify",
-    "ExistentialQuantify",
-    "ProjectCongruence",
-    "EvaluateSetRelation",
-    "RunPlaygroundCartesianSweep",
-    "RunPlaygroundFilteredPowerSweep",
-    "DiscoverSeparatingModulus",
-    "EvaluateOperationTensor",
-    "ExtractExprVariables",
-    "ExtractExponentVariables",
-    "SubstituteExprVar",
-    "RenderNatExpr",
-    "DiscoverExprObstructions",
-    "parse_surface_goal_spec",
-    "is_proof_or_math_goal",
-    "ExprDegreeBound",
-    "EvaluateNatExpr",
-    "PolynomialIdentityByGrid",
-    "PolynomialRewriteCertificate",
-    "PolynomialGridDerivation",
-    "ResidueTable",
-    "CongruenceClasses",
-    "VerifyNatWitness",
-    "FindNatWitness",
-    "run_playground_interactive",
-)
+class ProjectAllCoordinates(M.Edge):
+    """
+    Projects a chain of holding residue tuples onto each variable coordinate
+    in variables_chain modulo modulus_nat.
+    For each variable v_i at Peano index i, records:
+      Pair(v_i, Pair(admissible_set, Pair(excluded_set, Pair(is_proper, EmptyList))))
+    where admissible_set = ProjectCoordinate(tuples_chain, i),
+          excluded_set   = SetDifference({0..m-1}, admissible_set),
+          is_proper      = NatLess(ChainLength(admissible_set), modulus_nat).
+    Returns Pair(coord_records_chain, Pair(registry, EmptyList)).
+    """
+
+    def __init__(self, tuples_chain, variables_chain, modulus_nat, registry):
+        self.registry = registry
+        dom_res = BuildNatRange(M.Zero, modulus_nat, registry)()
+        full_dom = M.Head(dom_res)()
+        reg1 = M.Head(M.Tail(dom_res)())()
+        self.result = self._project_all(
+            tuples_chain, variables_chain, M.Zero, full_dom, modulus_nat, reg1
+        )
+        super().__init__(
+            inputs=M.Pair(
+                tuples_chain,
+                M.Pair(
+                    variables_chain,
+                    M.Pair(modulus_nat, M.Pair(registry, M.EmptyList)),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def _project_all(self, tuples_chain, cur_vars, cur_idx, full_dom, modulus_nat, registry):
+        if M.IdentityCompare(cur_vars, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+        var_atom = M.Head(cur_vars)()
+        adm_res = ProjectCoordinate(tuples_chain, cur_idx, registry)()
+        adm_set = M.Head(adm_res)()
+        reg1 = M.Head(M.Tail(adm_res)())()
+
+        raw_excl = SetDifference(full_dom, adm_set, reg1)()
+        excl_set = SortNatChain(raw_excl, reg1)()
+
+        len_res = ChainLength(adm_set, reg1)()
+        adm_len = M.Head(len_res)()
+        reg2 = M.Head(M.Tail(len_res)())()
+        is_proper = M.NatLess(adm_len, modulus_nat, reg2)()
+
+        next_idx_res = A.Add(cur_idx, M.one, reg2)()
+        next_idx = M.Head(next_idx_res)()
+        reg3 = M.Head(M.Tail(next_idx_res)())()
+
+        rest_res = self._project_all(
+            tuples_chain, M.Tail(cur_vars)(), next_idx, full_dom, modulus_nat, reg3
+        )
+        rest_chain = M.Head(rest_res)()
+        reg4 = M.Head(M.Tail(rest_res)())()
+
+        coord_rec = M.Pair(
+            var_atom,
+            M.Pair(
+                adm_set,
+                M.Pair(excl_set, M.Pair(is_proper, M.EmptyList)),
+            ),
+        )
+        return M.Pair(M.Pair(coord_rec, rest_chain), M.Pair(reg4, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+def _tuple_all_under_mod(tup, m_nat, registry):
+    if M.IdentityCompare(tup, M.EmptyList)() is M.truth_value:
+        return M.truth_value
+    if M.NatLess(M.Head(tup)(), m_nat, registry)() is M.false_value:
+        return M.false_value
+    return _tuple_all_under_mod(M.Tail(tup)(), m_nat, registry)
+
+
+def _tuple_all_positive(tup, registry):
+    if M.IdentityCompare(tup, M.EmptyList)() is M.truth_value:
+        return M.truth_value
+    if M.NatEq(M.Head(tup)(), M.Zero, registry)() is M.truth_value:
+        return M.false_value
+    return _tuple_all_positive(M.Tail(tup)(), registry)
+
+
+def _tuple_nat_equal(t1, t2, registry):
+    if M.IdentityCompare(t1, M.EmptyList)() is M.truth_value:
+        return M.IdentityCompare(t2, M.EmptyList)()
+    if M.IdentityCompare(t2, M.EmptyList)() is M.truth_value:
+        return M.false_value
+    h1 = M.Head(t1)()
+    h2 = M.Head(t2)()
+    if (
+        M.IdentityCompare(h1, h2)() is M.false_value
+        and M.NatEq(h1, h2, registry)() is M.false_value
+    ):
+        return M.false_value
+    return _tuple_nat_equal(M.Tail(t1)(), M.Tail(t2)(), registry)
+
+
+def _project_env_to_subtuple(env, sub_vars):
+    if M.IdentityCompare(sub_vars, M.EmptyList)() is M.truth_value:
+        return M.EmptyList
+    val = _env_lookup(env, M.Head(sub_vars)())
+    return M.Pair(val, _project_env_to_subtuple(env, M.Tail(sub_vars)()))
+
+
+def _lookup_residue_row(rows_chain, target_tuple, registry):
+    if M.IdentityCompare(rows_chain, M.EmptyList)() is M.truth_value:
+        return M.EmptyList
+    row = M.Head(rows_chain)()
+    pt = M.Head(row)()
+    if _tuple_nat_equal(pt, target_tuple, registry) is M.truth_value:
+        return M.Head(M.Tail(row)())()
+    return _lookup_residue_row(M.Tail(rows_chain)(), target_tuple, registry)
+
+
+class ProjectTensorModulo(M.Edge):
+    """
+    Projects a ground EvaluationTensor record onto {0..m-1}^k modulo mod_nat,
+    yielding a ResidueTableLabel record (rows + sorted unique image set).
+    """
+
+    def __init__(self, term, variables, tensor_node, mod_nat, registry):
+        self.registry = registry
+        self.result = self._project(term, variables, tensor_node, mod_nat, registry)
+        super().__init__(
+            inputs=M.Pair(
+                term,
+                M.Pair(
+                    variables,
+                    M.Pair(
+                        tensor_node,
+                        M.Pair(mod_nat, M.Pair(registry, M.EmptyList)),
+                    ),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def _walk_entries(self, cur_entries, mod_nat, registry):
+        if M.IdentityCompare(cur_entries, M.EmptyList)() is M.truth_value:
+            return M.EmptyList, M.EmptyList, registry
+        entry = M.Head(cur_entries)()
+        tup = M.Head(M.Tail(entry)())()
+        val = M.Head(M.Tail(M.Tail(entry)())())()
+        rest_rows, rest_img, reg1 = self._walk_entries(
+            M.Tail(cur_entries)(), mod_nat, registry
+        )
+        if _tuple_all_under_mod(tup, mod_nat, reg1) is M.false_value:
+            return rest_rows, rest_img, reg1
+        if M.IdentityCompare(val, M.EmptyList)() is M.truth_value:
+            row = M.Pair(tup, M.Pair(M.EmptyList, M.EmptyList))
+            return M.Pair(row, rest_rows), rest_img, reg1
+        mod_res = A.Modulo(val, mod_nat, reg1)()
+        rem = M.Head(mod_res)()
+        reg2 = M.Head(M.Tail(mod_res)())()
+        row = M.Pair(tup, M.Pair(rem, M.EmptyList))
+        next_img = SetInsert(rem, rest_img, reg2)()
+        return M.Pair(row, rest_rows), next_img, reg2
+
+    def _project(self, term, variables, tensor_node, mod_nat, registry):
+        entries = M.Head(M.Tail(M.Tail(tensor_node)())())()
+        rows, raw_image, reg1 = self._walk_entries(entries, mod_nat, registry)
+        sorted_image = SortNatChain(raw_image, reg1)()
+        record = M.Pair(
+            L.ResidueTableLabel,
+            M.Pair(
+                term,
+                M.Pair(
+                    variables,
+                    M.Pair(
+                        mod_nat,
+                        M.Pair(rows, M.Pair(sorted_image, M.EmptyList)),
+                    ),
+                ),
+            ),
+        )
+        return M.Pair(record, M.Pair(reg1, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+class FindTensorEqualityWitness(M.Edge):
+    """
+    Searches two ground EvaluationTensor records (for lhs and rhs) for an
+    assignment where lhs_val == rhs_val (using M.NatEq).
+    Returns Pair(env_chain_or_EmptyList, Pair(registry, EmptyList)).
+    """
+
+    def __init__(self, lhs_tensor, rhs_tensor, lhs_vars, rhs_vars, positive_only, registry):
+        self.registry = registry
+        self.result = self._find(
+            lhs_tensor, rhs_tensor, lhs_vars, rhs_vars, positive_only, registry
+        )
+        super().__init__(
+            inputs=M.Pair(
+                lhs_tensor,
+                M.Pair(
+                    rhs_tensor,
+                    M.Pair(
+                        lhs_vars,
+                        M.Pair(
+                            rhs_vars,
+                            M.Pair(positive_only, M.Pair(registry, M.EmptyList)),
+                        ),
+                    ),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def _envs_compatible(self, env_a, env_b, registry):
+        if M.IdentityCompare(env_b, M.EmptyList)() is M.truth_value:
+            return M.truth_value
+        binding = M.Head(env_b)()
+        var = M.Head(binding)()
+        val_b = M.Head(M.Tail(binding)())()
+        val_a = _env_lookup(env_a, var)
+        if M.IdentityCompare(val_a, M.EmptyList)() is M.false_value:
+            if M.NatEq(val_a, val_b, registry)() is M.false_value:
+                return M.false_value
+        return self._envs_compatible(env_a, M.Tail(env_b)(), registry)
+
+    def _merge_envs(self, env_a, env_b):
+        if M.IdentityCompare(env_b, M.EmptyList)() is M.truth_value:
+            return env_a
+        binding = M.Head(env_b)()
+        var = M.Head(binding)()
+        if M.IdentityCompare(_env_lookup(env_a, var), M.EmptyList)() is M.false_value:
+            return self._merge_envs(env_a, M.Tail(env_b)())
+        return self._merge_envs(_chain_append_end(env_a, binding), M.Tail(env_b)())
+
+    def _find(self, lhs_tensor, rhs_tensor, lhs_vars, rhs_vars, positive_only, registry):
+        entries_l = M.Head(M.Tail(M.Tail(lhs_tensor)())())()
+        entries_r = M.Head(M.Tail(M.Tail(rhs_tensor)())())()
+        cur_l = entries_l
+        while M.IdentityCompare(cur_l, M.EmptyList)() is M.false_value:
+            ent_l = M.Head(cur_l)()
+            tup_l = M.Head(M.Tail(ent_l)())()
+            val_l = M.Head(M.Tail(M.Tail(ent_l)())())()
+            if (
+                positive_only is M.false_value
+                or _tuple_all_positive(tup_l, registry) is M.truth_value
+            ):
+                cur_r = entries_r
+                while M.IdentityCompare(cur_r, M.EmptyList)() is M.false_value:
+                    ent_r = M.Head(cur_r)()
+                    tup_r = M.Head(M.Tail(ent_r)())()
+                    val_r = M.Head(M.Tail(M.Tail(ent_r)())())()
+                    if (
+                        positive_only is M.false_value
+                        or _tuple_all_positive(tup_r, registry) is M.truth_value
+                    ):
+                        if (
+                            M.IdentityCompare(val_l, val_r)() is M.truth_value
+                            or M.NatEq(val_l, val_r, registry)() is M.truth_value
+                        ):
+                            env_l = _zip_environment(lhs_vars, tup_l)
+                            env_r = _zip_environment(rhs_vars, tup_r)
+                            if self._envs_compatible(env_l, env_r, registry) is M.truth_value:
+                                merged = self._merge_envs(env_l, env_r)
+                                return M.Pair(merged, M.Pair(registry, M.EmptyList))
+                    cur_r = M.Tail(cur_r)()
+            cur_l = M.Tail(cur_l)()
+        return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+def _build_expr_ground_tensor(term, vars_chain, domain_chain, op_label_char, registry):
+    domains = M.EmptyList
+    cur_v = vars_chain
+    while M.IdentityCompare(cur_v, M.EmptyList)() is M.false_value:
+        domains = M.Pair(domain_chain, domains)
+        cur_v = M.Tail(cur_v)()
+    tuples = ProductOfDomains(domains)()
+
+    def eval_fn(tup, reg):
+        env = _zip_environment(vars_chain, tup)
+        return EvaluateNatExpr(term, env, reg)()
+
+    return EvaluateOperationTensor(op_label_char, eval_fn, tuples, registry)()
+
+
+def _partition_congruence_from_tables(
+    all_vars, lhs_vars, rhs_vars, rows_l, rows_r, mod_nat, registry
+):
+    """
+    Partitions {0..m-1}^k into holding and failing chains from the ResidueTable
+    rows of lhs and rhs.
+    """
+    disjoint_vars = M.truth_value
+    cur_v = lhs_vars
+    while M.IdentityCompare(cur_v, M.EmptyList)() is M.false_value:
+        if _chain_has_var(rhs_vars, M.Head(cur_v)()) is M.truth_value:
+            disjoint_vars = M.false_value
+        cur_v = M.Tail(cur_v)()
+
+    if disjoint_vars is M.truth_value:
+        holding = M.EmptyList
+        failing = M.EmptyList
+        cur_l = rows_l
+        while M.IdentityCompare(cur_l, M.EmptyList)() is M.false_value:
+            rl = M.Head(cur_l)()
+            tl = M.Head(rl)()
+            reml = M.Head(M.Tail(rl)())()
+            cur_r = rows_r
+            while M.IdentityCompare(cur_r, M.EmptyList)() is M.false_value:
+                rr = M.Head(cur_r)()
+                tr = M.Head(rr)()
+                remr = M.Head(M.Tail(rr)())()
+                pt = _chain_concat(tl, tr)
+                holds = M.false_value
+                if (
+                    M.IdentityCompare(reml, M.EmptyList)() is M.false_value
+                    and M.IdentityCompare(remr, M.EmptyList)() is M.false_value
+                ):
+                    if (
+                        M.IdentityCompare(reml, remr)() is M.truth_value
+                        or M.NatEq(reml, remr, registry)() is M.truth_value
+                    ):
+                        holds = M.truth_value
+                if holds is M.truth_value:
+                    holding = M.Pair(pt, holding)
+                else:
+                    failing = M.Pair(pt, failing)
+                cur_r = M.Tail(cur_r)()
+            cur_l = M.Tail(cur_l)()
+        return _chain_reverse(holding), _chain_reverse(failing), registry
+
+    domains, reg1 = _residue_domains(all_vars, mod_nat, registry)
+    tuples = ProductOfDomains(domains)()
+    holding = M.EmptyList
+    failing = M.EmptyList
+    cur_t = tuples
+    while M.IdentityCompare(cur_t, M.EmptyList)() is M.false_value:
+        pt = M.Head(cur_t)()
+        env = _zip_environment(all_vars, pt)
+        sub_l = _project_env_to_subtuple(env, lhs_vars)
+        sub_r = _project_env_to_subtuple(env, rhs_vars)
+        reml = _lookup_residue_row(rows_l, sub_l, reg1)
+        remr = _lookup_residue_row(rows_r, sub_r, reg1)
+        holds = M.false_value
+        if (
+            M.IdentityCompare(reml, M.EmptyList)() is M.false_value
+            and M.IdentityCompare(remr, M.EmptyList)() is M.false_value
+        ):
+            if (
+                M.IdentityCompare(reml, remr)() is M.truth_value
+                or M.NatEq(reml, remr, reg1)() is M.truth_value
+            ):
+                holds = M.truth_value
+        if holds is M.truth_value:
+            holding = M.Pair(pt, holding)
+        else:
+            failing = M.Pair(pt, failing)
+        cur_t = M.Tail(cur_t)()
+    return _chain_reverse(holding), _chain_reverse(failing), reg1
+
+
+def _any_coord_proper(coord_projs):
+    if M.IdentityCompare(coord_projs, M.EmptyList)() is M.truth_value:
+        return M.false_value
+    rec = M.Head(coord_projs)()
+    is_proper = M.Head(M.Tail(M.Tail(M.Tail(rec)())())())()
+    if is_proper is M.truth_value:
+        return M.truth_value
+    return _any_coord_proper(M.Tail(coord_projs)())
+
+
+class DiscoverExprObstructions(M.Edge):
+    """
+    Pure-machine Cartesian congruence & coordinate projection analyzer.
+    Given admitted polynomial expressions `lhs` and `rhs`, evaluates their
+    ground EvaluationTensors over 0..bound_nat-1 and projects across each
+    candidate modulus m in `moduli_chain`:
+      1. ResidueTable images `lhs_image` and `rhs_image` modulo m.
+      2. EvaluateSetRelation disjointness and intersection of `rhs_image` and `lhs_image`.
+      3. CongruenceClasses partition of {0..m-1}^k into `holding` and `failing` chains.
+      4. ProjectAllCoordinates projection of `holding` onto each variable coordinate.
+    Returns Pair(discoveries_chain, Pair(registry, EmptyList)).
+    """
+
+    def __init__(
+        self,
+        lhs,
+        rhs,
+        bound_nat,
+        moduli_chain,
+        registry,
+        lhs_tensor=M.EmptyList,
+        rhs_tensor=M.EmptyList,
+        debug_trace=M.false_value,
+    ):
+        self.registry = registry
+        self.result = self._discover(
+            lhs,
+            rhs,
+            bound_nat,
+            moduli_chain,
+            registry,
+            lhs_tensor,
+            rhs_tensor,
+            debug_trace,
+        )
+        super().__init__(
+            inputs=M.Pair(
+                lhs,
+                M.Pair(
+                    rhs,
+                    M.Pair(
+                        bound_nat,
+                        M.Pair(moduli_chain, M.Pair(registry, M.EmptyList)),
+                    ),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def _discover(
+        self,
+        lhs,
+        rhs,
+        bound_nat,
+        moduli_chain,
+        registry,
+        lhs_tensor,
+        rhs_tensor,
+        debug_trace,
+    ):
+        reg = registry
+        lhs_vars = M.Head(ExtractExprVariables(lhs, reg)())()
+        rhs_vars = M.Head(ExtractExprVariables(rhs, reg)())()
+        all_vars = _chain_merge_unique(lhs_vars, rhs_vars)
+
+        if M.IdentityCompare(lhs_tensor, M.EmptyList)() is M.truth_value:
+            dom_res = BuildNatRange(M.Zero, bound_nat, reg)()
+            domain = M.Head(dom_res)()
+            reg = M.Head(M.Tail(dom_res)())()
+            lt_res = _build_expr_ground_tensor(
+                lhs, lhs_vars, domain, M.Char("lhs"), reg
+            )
+            lhs_tensor = M.Head(lt_res)()
+            reg = M.Head(M.Tail(lt_res)())()
+            rt_res = _build_expr_ground_tensor(
+                rhs, rhs_vars, domain, M.Char("rhs"), reg
+            )
+            rhs_tensor = M.Head(rt_res)()
+            reg = M.Head(M.Tail(rt_res)())()
+
+        discoveries = M.EmptyList
+        cur_m = moduli_chain
+        while M.IdentityCompare(cur_m, M.EmptyList)() is M.false_value:
+            m_nat = M.Head(cur_m)()
+
+            proj_l = ProjectTensorModulo(lhs, lhs_vars, lhs_tensor, m_nat, reg)()
+            table_l = M.Head(proj_l)()
+            reg = M.Head(M.Tail(proj_l)())()
+            rows_l = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(table_l)())())())())()
+            lhs_image = M.Head(
+                M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(table_l)())())())())()
+            )()
+
+            proj_r = ProjectTensorModulo(rhs, rhs_vars, rhs_tensor, m_nat, reg)()
+            table_r = M.Head(proj_r)()
+            reg = M.Head(M.Tail(proj_r)())()
+            rows_r = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(table_r)())())())())()
+            rhs_image = M.Head(
+                M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(table_r)())())())())()
+            )()
+
+            rel_res = EvaluateSetRelation(rhs_image, lhs_image, reg)()
+            is_disjoint = M.Head(rel_res)()
+            inter_raw = M.Head(M.Tail(rel_res)())()
+            reg = M.Head(M.Tail(M.Tail(rel_res)())())()
+            inter_set = SortNatChain(inter_raw, reg)()
+
+            holding, failing, reg = _partition_congruence_from_tables(
+                all_vars, lhs_vars, rhs_vars, rows_l, rows_r, m_nat, reg
+            )
+
+            h_len_res = ChainLength(holding, reg)()
+            holding_count = M.Head(h_len_res)()
+            reg = M.Head(M.Tail(h_len_res)())()
+
+            f_len_res = ChainLength(failing, reg)()
+            failing_count = M.Head(f_len_res)()
+            reg = M.Head(M.Tail(f_len_res)())()
+
+            coord_res = ProjectAllCoordinates(holding, all_vars, m_nat, reg)()
+            coord_projs = M.Head(coord_res)()
+            reg = M.Head(M.Tail(coord_res)())()
+
+            l_img_len_res = ChainLength(lhs_image, reg)()
+            l_img_len = M.Head(l_img_len_res)()
+            reg = M.Head(M.Tail(l_img_len_res)())()
+
+            r_img_len_res = ChainLength(rhs_image, reg)()
+            r_img_len = M.Head(r_img_len_res)()
+            reg = M.Head(M.Tail(r_img_len_res)())()
+
+            if debug_trace is not M.false_value:
+                m_val = M.NatRepOf(m_nat, reg)()()
+                h_val = M.NatRepOf(holding_count, reg)()()
+                f_val = M.NatRepOf(failing_count, reg)()()
+                _pg_debug(
+                    f"modulus m = {m_val}: image(lhs mod {m_val}) = {_format_set_chain(lhs_image, reg)}, image(rhs mod {m_val}) = {_format_set_chain(rhs_image, reg)}, intersection = {_format_set_chain(inter_set, reg)}, CongruenceClasses |holding| = {h_val}, |failing| = {f_val}"
+                )
+
+            has_failing = M.IdentityCompare(failing, M.EmptyList)() is M.false_value
+            img_compressed = M.OrAtom(
+                M.NatLess(l_img_len, m_nat, reg)(),
+                M.NatLess(r_img_len, m_nat, reg)(),
+            )()
+            coord_restricted = _any_coord_proper(coord_projs)
+
+            if has_failing and (
+                is_disjoint is M.truth_value
+                or img_compressed is M.truth_value
+                or coord_restricted is M.truth_value
+            ):
+                rec = M.Pair(
+                    L.DiscoveredInvariantLabel,
+                    M.Pair(
+                        m_nat,
+                        M.Pair(
+                            rhs_image,
+                            M.Pair(
+                                lhs_image,
+                                M.Pair(
+                                    is_disjoint,
+                                    M.Pair(
+                                        holding_count,
+                                        M.Pair(
+                                            failing_count,
+                                            M.Pair(coord_projs, M.EmptyList),
+                                        ),
+                                    ),
+                                ),
+                            ),
+                        ),
+                    ),
+                )
+                discoveries = _chain_append_end(discoveries, rec)
+
+            cur_m = M.Tail(cur_m)()
+
+        return M.Pair(discoveries, M.Pair(reg, M.EmptyList))
+
+    def __call__(self):
+        return self.result
+
+
+# ============================================================
+# Surface Goal Tokenization & AST Construction (Pair-chain native)
+# ============================================================
+
+
+def is_proof_or_math_goal(text):
+    """
+    Returns M.truth_value when a surface line is a proof request or contains
+    mathematical relational/algebraic structure, else M.false_value.
+    """
+    if not text:
+        return M.false_value
+    low = text.strip().lower()
+    for prefix in (
+        "prove", "show", "claim", "conjecture", "check", "verify",
+        "is it true", "for all", "for every", "for any", "for each",
+        "if ", "whenever ", "solve ",
+    ):
+        if low.startswith(prefix):
+            return M.truth_value
+    for sym in ("=", "!=", "<", ">", "^", "+", "*"):
+        if sym in low:
+            return M.truth_value
+    return M.false_value
+
+
+def _is_digits_str(s):
+    if not s:
+        return M.false_value
+    return M.truth_value if s.isdigit() else M.false_value
+
+
+def _is_ident_str(s):
+    if not s:
+        return M.false_value
+    return M.truth_value if s[0].isalpha() else M.false_value
+
+
+def _is_op_str(s):
+    if s in ("+", "*", "^"):
+        return M.truth_value
+    return M.false_value
+
+
+def _tokenize_to_chain(text):
+    """
+    Scans `text` character by character into a machine Pair chain of M.Char tokens.
+    """
+    rev_tokens = M.EmptyList
+    cur_tok = ""
+    cur_kind = M.EmptyList  # M.Zero=digits, M.one=ident, M.two=relop
+
+    def flush_current(next_is_alpha):
+        nonlocal rev_tokens, cur_tok, cur_kind
+        if cur_tok != "":
+            rev_tokens = M.Pair(M.Char(cur_tok), rev_tokens)
+            if cur_kind is M.Zero and next_is_alpha is M.truth_value:
+                rev_tokens = M.Pair(M.Char("*"), rev_tokens)
+            cur_tok = ""
+            cur_kind = M.EmptyList
+
+    for ch in text:
+        if cur_kind is M.two:
+            if ch == "=":
+                cur_tok = cur_tok + "="
+                flush_current(M.false_value)
+                continue
+            flush_current(M.truth_value if ch.isalpha() else M.false_value)
+
+        if ch.isspace() or ch in ",;:.?!\"'":
+            flush_current(M.false_value)
+        elif ch in "+*^()":
+            flush_current(M.false_value)
+            rev_tokens = M.Pair(M.Char(ch), rev_tokens)
+        elif ch in "><=!":
+            flush_current(M.false_value)
+            cur_tok = ch
+            cur_kind = M.two
+        elif ch.isdigit():
+            if cur_kind is M.Zero or cur_kind is M.one:
+                cur_tok = cur_tok + ch
+            else:
+                flush_current(M.false_value)
+                cur_tok = ch
+                cur_kind = M.Zero
+        elif ch.isalpha() or ch == "_":
+            if cur_kind is M.one:
+                cur_tok = cur_tok + ch.lower()
+            else:
+                flush_current(M.truth_value)
+                cur_tok = ch.lower()
+                cur_kind = M.one
+        elif ch == "-" and cur_kind is M.one:
+            cur_tok = cur_tok + ch
+        else:
+            flush_current(M.false_value)
+
+    flush_current(M.false_value)
+    return _chain_reverse(rev_tokens)
+
+
+def _split_tokens_at_eq(tokens_chain):
+    """
+    Splits tokens_chain at the first '=', '==', or '!=' token.
+    Returns Pair(rev_before_chain, Pair(eq_char, Pair(after_chain, EmptyList))),
+    or EmptyList if no equality operator is present.
+    """
+    rev_before = M.EmptyList
+    cur = tokens_chain
+    while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
+        tok = M.Head(cur)()
+        s = tok()
+        if s in ("=", "==", "!="):
+            return M.Pair(
+                rev_before,
+                M.Pair(tok, M.Pair(M.Tail(cur)(), M.EmptyList)),
+            )
+        rev_before = M.Pair(tok, rev_before)
+        cur = M.Tail(cur)()
+    return M.EmptyList
+
+
+def _extract_lhs_chain(rev_before_chain, registry):
+    """
+    Walks rev_before_chain (right-to-left from '=') alternating operand and
+    binary operator ('+', '*', '^') with Peano parenthesis depth, building
+    the forward lhs token chain directly via Pair prepending.
+    """
+    acc = M.EmptyList
+    depth = M.Zero
+    expect_operand = M.truth_value
+    cur = rev_before_chain
+    reg = registry
+
+    while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
+        tok = M.Head(cur)()
+        s = tok()
+        if s == ")":
+            if expect_operand is M.false_value:
+                break
+            succ_res = M.Succ(depth, reg)()
+            depth = M.Head(succ_res)()
+            reg = M.Head(M.Tail(succ_res)())()
+            acc = M.Pair(tok, acc)
+            expect_operand = M.truth_value
+        elif s == "(":
+            if (
+                expect_operand is M.truth_value
+                or M.NatEq(depth, M.Zero, reg)() is M.truth_value
+            ):
+                break
+            pred_res = M.NatPred(depth, reg)()
+            depth = M.Head(pred_res)()
+            reg = M.Head(M.Tail(pred_res)())()
+            acc = M.Pair(tok, acc)
+            expect_operand = M.false_value
+        elif _is_op_str(s) is M.truth_value:
+            if expect_operand is M.truth_value:
+                break
+            acc = M.Pair(tok, acc)
+            expect_operand = M.truth_value
+        elif _is_digits_str(s) is M.truth_value or _is_ident_str(s) is M.truth_value:
+            if expect_operand is M.false_value:
+                break
+            acc = M.Pair(tok, acc)
+            expect_operand = M.false_value
+        else:
+            break
+        cur = M.Tail(cur)()
+
+    while (
+        M.IdentityCompare(acc, M.EmptyList)() is M.false_value
+        and _is_op_str(M.Head(acc)()()) is M.truth_value
+    ):
+        acc = M.Tail(acc)()
+    return acc, reg
+
+
+def _extract_rhs_chain(after_chain, registry):
+    """
+    Walks after_chain (left-to-right from '=') alternating operand and
+    binary operator ('+', '*', '^') with Peano parenthesis depth.
+    """
+    rev_acc = M.EmptyList
+    depth = M.Zero
+    expect_operand = M.truth_value
+    cur = after_chain
+    reg = registry
+
+    while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
+        tok = M.Head(cur)()
+        s = tok()
+        if s == "(":
+            if expect_operand is M.false_value:
+                break
+            succ_res = M.Succ(depth, reg)()
+            depth = M.Head(succ_res)()
+            reg = M.Head(M.Tail(succ_res)())()
+            rev_acc = M.Pair(tok, rev_acc)
+            expect_operand = M.truth_value
+        elif s == ")":
+            if (
+                expect_operand is M.truth_value
+                or M.NatEq(depth, M.Zero, reg)() is M.truth_value
+            ):
+                break
+            pred_res = M.NatPred(depth, reg)()
+            depth = M.Head(pred_res)()
+            reg = M.Head(M.Tail(pred_res)())()
+            rev_acc = M.Pair(tok, rev_acc)
+            expect_operand = M.false_value
+        elif _is_op_str(s) is M.truth_value:
+            if expect_operand is M.truth_value:
+                break
+            rev_acc = M.Pair(tok, rev_acc)
+            expect_operand = M.truth_value
+        elif _is_digits_str(s) is M.truth_value or _is_ident_str(s) is M.truth_value:
+            if expect_operand is M.false_value:
+                break
+            rev_acc = M.Pair(tok, rev_acc)
+            expect_operand = M.false_value
+        else:
+            break
+        cur = M.Tail(cur)()
+
+    while (
+        M.IdentityCompare(rev_acc, M.EmptyList)() is M.false_value
+        and _is_op_str(M.Head(rev_acc)()()) is M.truth_value
+    ):
+        rev_acc = M.Tail(rev_acc)()
+    return _chain_reverse(rev_acc), reg
+
+
+def _intern_char_in_chain(intern_chain, name_str):
+    cur = intern_chain
+    cand = M.Char(name_str)
+    while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
+        existing = M.Head(cur)()
+        if M.Compare(existing, cand)() is M.truth_value:
+            return existing, intern_chain
+        cur = M.Tail(cur)()
+    return cand, M.Pair(cand, intern_chain)
+
+
+def _parse_expr_tokens(tokens_chain, intern_chain, registry):
+    """
+    Recursive-descent parser over a Pair chain of M.Char tokens.
+    Returns (ast_or_EmptyList, intern_chain, registry).
+    """
+
+    def parse_add(cur_toks, ic, reg):
+        left, rem, ic1, r1 = parse_mul(cur_toks, ic, reg)
+        if M.IdentityCompare(left, M.EmptyList)() is M.truth_value:
+            return M.EmptyList, rem, ic1, r1
+        while (
+            M.IdentityCompare(rem, M.EmptyList)() is M.false_value
+            and M.Head(rem)()() == "+"
+        ):
+            right, rem2, ic2, r2 = parse_mul(M.Tail(rem)(), ic1, r1)
+            if M.IdentityCompare(right, M.EmptyList)() is M.truth_value:
+                return M.EmptyList, rem2, ic2, r2
+            left = M.Pair(L.ExprAddLabel, M.Pair(left, M.Pair(right, M.EmptyList)))
+            rem, ic1, r1 = rem2, ic2, r2
+        return left, rem, ic1, r1
+
+    def parse_mul(cur_toks, ic, reg):
+        left, rem, ic1, r1 = parse_pow(cur_toks, ic, reg)
+        if M.IdentityCompare(left, M.EmptyList)() is M.truth_value:
+            return M.EmptyList, rem, ic1, r1
+        while (
+            M.IdentityCompare(rem, M.EmptyList)() is M.false_value
+            and M.Head(rem)()() == "*"
+        ):
+            right, rem2, ic2, r2 = parse_pow(M.Tail(rem)(), ic1, r1)
+            if M.IdentityCompare(right, M.EmptyList)() is M.truth_value:
+                return M.EmptyList, rem2, ic2, r2
+            left = M.Pair(L.ExprMulLabel, M.Pair(left, M.Pair(right, M.EmptyList)))
+            rem, ic1, r1 = rem2, ic2, r2
+        return left, rem, ic1, r1
+
+    def parse_pow(cur_toks, ic, reg):
+        base, rem, ic1, r1 = parse_primary(cur_toks, ic, reg)
+        if M.IdentityCompare(base, M.EmptyList)() is M.truth_value:
+            return M.EmptyList, rem, ic1, r1
+        if (
+            M.IdentityCompare(rem, M.EmptyList)() is M.false_value
+            and M.Head(rem)()() == "^"
+        ):
+            exp, rem2, ic2, r2 = parse_primary(M.Tail(rem)(), ic1, r1)
+            if M.IdentityCompare(exp, M.EmptyList)() is M.truth_value:
+                return M.EmptyList, rem2, ic2, r2
+            node = M.Pair(L.ExprPowLabel, M.Pair(base, M.Pair(exp, M.EmptyList)))
+            return node, rem2, ic2, r2
+        return base, rem, ic1, r1
+
+    def parse_primary(cur_toks, ic, reg):
+        if M.IdentityCompare(cur_toks, M.EmptyList)() is M.truth_value:
+            return M.EmptyList, cur_toks, ic, reg
+        tok = M.Head(cur_toks)()
+        s = tok()
+        rem = M.Tail(cur_toks)()
+        if s == "(":
+            inner, rem2, ic1, r1 = parse_add(rem, ic, reg)
+            if M.IdentityCompare(inner, M.EmptyList)() is M.truth_value:
+                return M.EmptyList, rem2, ic1, r1
+            if (
+                M.IdentityCompare(rem2, M.EmptyList)() is M.truth_value
+                or M.Head(rem2)()() != ")"
+            ):
+                return M.EmptyList, rem2, ic1, r1
+            return inner, M.Tail(rem2)(), ic1, r1
+        if _is_digits_str(s) is M.truth_value:
+            nat_res = M.NatFromRep(M.GMPRep(s), reg)()
+            return M.Head(nat_res)(), rem, ic, M.Head(M.Tail(nat_res)())()
+        if _is_ident_str(s) is M.truth_value:
+            atom, ic1 = _intern_char_in_chain(ic, s)
+            return atom, rem, ic1, reg
+        return M.EmptyList, cur_toks, ic, reg
+
+    ast, leftover, next_ic, next_reg = parse_add(tokens_chain, intern_chain, registry)
+    if M.IdentityCompare(leftover, M.EmptyList)() is M.false_value:
+        return M.EmptyList, next_ic, next_reg
+    return ast, next_ic, next_reg
+
+
+def _extract_param_constraints(tokens_before_chain, intern_chain, registry):
+    """
+    Scans tokens_before_chain for parameter inequalities (e.g. n > 2, n >= 3)
+    and returns machine constraint terms Pair(ExprLtLabel, Pair(bound_nat, Pair(var, []))).
+    """
+    constraints = M.EmptyList
+    cur = tokens_before_chain
+    ic = intern_chain
+    reg = registry
+    while (
+        M.IdentityCompare(cur, M.EmptyList)() is M.false_value
+        and M.IdentityCompare(M.Tail(cur)(), M.EmptyList)() is M.false_value
+        and M.IdentityCompare(M.Tail(M.Tail(cur)())(), M.EmptyList)() is M.false_value
+    ):
+        t1 = M.Head(cur)()()
+        t2 = M.Head(M.Tail(cur)())()()
+        t3 = M.Head(M.Tail(M.Tail(cur)())())()()
+        if _is_ident_str(t1) is M.truth_value and _is_digits_str(t3) is M.truth_value:
+            var_atom, ic = _intern_char_in_chain(ic, t1)
+            nat_res = M.NatFromRep(M.GMPRep(t3), reg)()
+            num_nat = M.Head(nat_res)()
+            reg = M.Head(M.Tail(nat_res)())()
+            if t2 == ">":
+                c_term = M.Pair(
+                    L.ExprLtLabel, M.Pair(num_nat, M.Pair(var_atom, M.EmptyList))
+                )
+                constraints = _chain_append_end(constraints, c_term)
+            elif t2 == ">=" and M.NatEq(num_nat, M.Zero, reg)() is M.false_value:
+                pred_res = M.NatPred(num_nat, reg)()
+                pred_nat = M.Head(pred_res)()
+                reg = M.Head(M.Tail(pred_res)())()
+                c_term = M.Pair(
+                    L.ExprLtLabel, M.Pair(pred_nat, M.Pair(var_atom, M.EmptyList))
+                )
+                constraints = _chain_append_end(constraints, c_term)
+        cur = M.Tail(cur)()
+    return constraints, ic, reg
+
+
+def _token_chain_has_any_word(tokens_chain, words_tuple):
+    cur = tokens_chain
+    while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
+        s = M.Head(cur)()()
+        if s in words_tuple:
+            return M.truth_value
+        cur = M.Tail(cur)()
+    return M.false_value
+
+
+def parse_surface_goal_spec(text, registry):
+    """
+    Parses a surface mathematical proof goal into a pure machine Pair record:
+      Pair(lhs_ast,
+        Pair(rhs_ast,
+          Pair(base_vars,
+            Pair(exp_vars,
+              Pair(param_constraints,
+                Pair(no_solutions_flag,
+                  Pair(positive_only_flag,
+                    Pair(registry, EmptyList))))))))
+    Returns M.EmptyList if no equation is present.
+    """
+    if not text:
+        return M.EmptyList
+    tokens_chain = _tokenize_to_chain(text)
+    split_res = _split_tokens_at_eq(tokens_chain)
+    if M.IdentityCompare(split_res, M.EmptyList)() is M.truth_value:
+        return M.EmptyList
+
+    rev_before = M.Head(split_res)()
+    eq_tok = M.Head(M.Tail(split_res)())()
+    after_chain = M.Head(M.Tail(M.Tail(split_res)())())()
+    before_chain = _chain_reverse(rev_before)
+
+    lhs_toks, reg1 = _extract_lhs_chain(rev_before, registry)
+    rhs_toks, reg2 = _extract_rhs_chain(after_chain, reg1)
+    if (
+        M.IdentityCompare(lhs_toks, M.EmptyList)() is M.truth_value
+        or M.IdentityCompare(rhs_toks, M.EmptyList)() is M.truth_value
+    ):
+        return M.EmptyList
+
+    intern_chain = M.EmptyList
+    lhs_ast, intern_chain, reg3 = _parse_expr_tokens(lhs_toks, intern_chain, reg2)
+    if M.IdentityCompare(lhs_ast, M.EmptyList)() is M.truth_value:
+        return M.EmptyList
+    rhs_ast, intern_chain, reg4 = _parse_expr_tokens(rhs_toks, intern_chain, reg3)
+    if M.IdentityCompare(rhs_ast, M.EmptyList)() is M.truth_value:
+        return M.EmptyList
+
+    param_constraints, intern_chain, reg5 = _extract_param_constraints(
+        before_chain, intern_chain, reg4
+    )
+
+    eq_node = M.Pair(
+        L.ExprEqLabel, M.Pair(lhs_ast, M.Pair(rhs_ast, M.EmptyList))
+    )
+    all_vars = M.Head(ExtractExprVariables(eq_node, reg5)())()
+    exp_vars = M.Head(ExtractExponentVariables(eq_node, reg5)())()
+
+    base_vars = M.EmptyList
+    cur_v = all_vars
+    while M.IdentityCompare(cur_v, M.EmptyList)() is M.false_value:
+        v_atom = M.Head(cur_v)()
+        if _chain_has_var(exp_vars, v_atom) is M.false_value:
+            base_vars = _chain_append_end(base_vars, v_atom)
+        cur_v = M.Tail(cur_v)()
+
+    no_sol_words = _token_chain_has_any_word(
+        tokens_chain, ("no", "impossible", "cannot", "never")
+    )
+    no_solutions_flag = (
+        M.truth_value
+        if eq_tok() == "!=" or no_sol_words is M.truth_value
+        else M.false_value
+    )
+    positive_only_flag = _token_chain_has_any_word(
+        tokens_chain, ("positive", "nonzero", "non-zero")
+    )
+
+    return M.Pair(
+        lhs_ast,
+        M.Pair(
+            rhs_ast,
+            M.Pair(
+                base_vars,
+                M.Pair(
+                    exp_vars,
+                    M.Pair(
+                        param_constraints,
+                        M.Pair(
+                            no_solutions_flag,
+                            M.Pair(
+                                positive_only_flag,
+                                M.Pair(reg5, M.EmptyList),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        ),
+    )
+
+
+def _unpack_goal_spec(spec_rec):
+    lhs = M.Head(spec_rec)()
+    t1 = M.Tail(spec_rec)()
+    rhs = M.Head(t1)()
+    t2 = M.Tail(t1)()
+    base_vars = M.Head(t2)()
+    t3 = M.Tail(t2)()
+    exp_vars = M.Head(t3)()
+    t4 = M.Tail(t3)()
+    param_constraints = M.Head(t4)()
+    t5 = M.Tail(t4)()
+    no_solutions = M.Head(t5)()
+    t6 = M.Tail(t5)()
+    positive_only = M.Head(t6)()
+    reg = M.Head(M.Tail(t6)())()
+    return (
+        lhs,
+        rhs,
+        base_vars,
+        exp_vars,
+        param_constraints,
+        no_solutions,
+        positive_only,
+        reg,
+    )
+
+
+def _format_set_chain(set_chain, registry):
+    sorted_chain = SortNatChain(set_chain, registry)()
+    cur = sorted_chain
+    out = ""
+    while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
+        rep = M.NatRepOf(M.Head(cur)(), registry)()
+        if M.IdentityCompare(rep, M.EmptyList)() is M.false_value:
+            part = str(rep())
+            out = part if out == "" else out + ", " + part
+        cur = M.Tail(cur)()
+    return "{" + out + "}"
+
+
+def _format_vars_chain(vars_chain):
+    cur = vars_chain
+    out = ""
+    while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
+        part = str(M.Head(cur)()())
+        out = part if out == "" else out + ", " + part
+        cur = M.Tail(cur)()
+    return out
+
+
+def _format_env_chain(env_chain, registry):
+    cur = env_chain
+    out = ""
+    while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
+        entry = M.Head(cur)()
+        v_name = str(M.Head(entry)()())
+        v_nat = M.Head(M.Tail(entry)())()
+        v_str = str(M.NatRepOf(v_nat, registry)()())
+        part = f"{v_name} = {v_str}"
+        out = part if out == "" else out + ", " + part
+        cur = M.Tail(cur)()
+    return out
+
+
+def _format_discoveries_report(
+    lhs,
+    rhs,
+    discoveries,
+    moduli_chain,
+    bound_nat,
+    witness_env,
+    positive_only,
+    reg,
+    indent="  ",
+):
+    lhs_str = RenderNatExpr(lhs, reg)
+    rhs_str = RenderNatExpr(rhs, reg)
+    pred_res = M.NatPred(bound_nat, reg)()
+    max_elem_val = M.NatRepOf(M.Head(pred_res)(), reg)()()
+    reg = M.Head(M.Tail(pred_res)())()
+    min_elem_val = 1 if positive_only is M.truth_value else 0
+    mods_str = _format_set_chain(moduli_chain, reg)
+
+    if M.IdentityCompare(witness_env, M.EmptyList)() is M.false_value:
+        w_str = _format_env_chain(witness_env, reg)
+        report = f"{indent}- Ground Tensor Witness ({min_elem_val}..{max_elem_val}): Counterexample solution found at ({w_str}) where {lhs_str} = {rhs_str}."
+    else:
+        report = f"{indent}- Ground Tensor Witness Search (domain {min_elem_val}..{max_elem_val}): 0 solutions in ground tensor; sweeping moduli {mods_str}."
+
+    if M.IdentityCompare(discoveries, M.EmptyList)() is M.truth_value:
+        return (
+            report
+            + f"\n{indent}- CongruenceClasses across moduli {mods_str}: no proper residue restriction found."
+        )
+
+    cur = discoveries
+    while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
+        rec = M.Head(cur)()
+        f1 = M.Tail(rec)()
+        m_nat = M.Head(f1)()
+        f2 = M.Tail(f1)()
+        rhs_img = M.Head(f2)()
+        f3 = M.Tail(f2)()
+        lhs_img = M.Head(f3)()
+        f4 = M.Tail(f3)()
+        is_disj = M.Head(f4)()
+        f5 = M.Tail(f4)()
+        hold_cnt = M.Head(f5)()
+        f6 = M.Tail(f5)()
+        fail_cnt = M.Head(f6)()
+        coord_projs = M.Head(M.Tail(f6)())()
+
+        m_val = M.NatRepOf(m_nat, reg)()()
+        h_val = M.NatRepOf(hold_cnt, reg)()()
+        fl_val = M.NatRepOf(fail_cnt, reg)()()
+        lhs_img_str = _format_set_chain(lhs_img, reg)
+        rhs_img_str = _format_set_chain(rhs_img, reg)
+
+        dom_res = BuildNatRange(M.Zero, m_nat, reg)()
+        full_dom = M.Head(dom_res)()
+        reg = M.Head(M.Tail(dom_res)())()
+        lhs_excl = SortNatChain(SetDifference(full_dom, lhs_img, reg)(), reg)()
+        rhs_excl = SortNatChain(SetDifference(full_dom, rhs_img, reg)(), reg)()
+        lhs_excl_str = _format_set_chain(lhs_excl, reg)
+        rhs_excl_str = _format_set_chain(rhs_excl, reg)
+
+        report = (
+            report
+            + f"\n{indent}- Modulus m = {m_val}:"
+            + f"\n{indent}  * ResidueTable(({lhs_str}) mod {m_val}) -> image {lhs_img_str} (excluded: {lhs_excl_str})"
+            + f"\n{indent}  * ResidueTable(({rhs_str}) mod {m_val}) -> image {rhs_img_str} (excluded: {rhs_excl_str})"
+            + f"\n{indent}  * CongruenceClasses(({lhs_str}) = ({rhs_str}) mod {m_val}) -> |holding| = {h_val}, |failing| = {fl_val}"
+        )
+        if is_disj is M.truth_value:
+            report = (
+                report
+                + f"\n{indent}  * Disjoint Image Regularity: {rhs_img_str} /\\ {lhs_img_str} = empty (|holding| = 0)"
+            )
+
+        cur_c = coord_projs
+        while M.IdentityCompare(cur_c, M.EmptyList)() is M.false_value:
+            c_rec = M.Head(cur_c)()
+            v_atom = M.Head(c_rec)()
+            adm_set = M.Head(M.Tail(c_rec)())()
+            excl_set = M.Head(M.Tail(M.Tail(c_rec)())())()
+            is_prop = M.Head(M.Tail(M.Tail(M.Tail(c_rec)())())())()
+            if is_prop is M.truth_value:
+                v_name = str(v_atom())
+                adm_str = _format_set_chain(adm_set, reg)
+                excl_str = _format_set_chain(excl_set, reg)
+                report = (
+                    report
+                    + f"\n{indent}  * Coordinate Projection: proj({v_name}, holding) = {adm_str} (excluded mod {m_val}: {excl_str})"
+                )
+            cur_c = M.Tail(cur_c)()
+
+        cur = M.Tail(cur)()
+
+    return report
+
+
+def _parallel_instance_sweep_worker(goal_text, exp_str, out_queue):
+    """
+    Top-level multiprocessing worker for evaluating one parameter instance
+    of a parametric equation across ground EvaluationTensors and moduli.
+    """
+    reg = M.AllConstructors
+    spec_rec = parse_surface_goal_spec(goal_text, reg)
+    (
+        lhs,
+        rhs,
+        _base_vars,
+        exp_vars,
+        _param_constraints,
+        _no_solutions,
+        positive_only,
+        reg,
+    ) = _unpack_goal_spec(spec_rec)
+
+    exp_var = M.Head(exp_vars)()
+    exp_name = str(exp_var())
+    e_res = M.NatFromRep(M.GMPRep(exp_str), reg)()
+    e_nat = M.Head(e_res)()
+    reg = M.Head(M.Tail(e_res)())()
+
+    lhs_e = M.Head(SubstituteExprVar(lhs, exp_var, e_nat, reg)())()
+    rhs_e = M.Head(SubstituteExprVar(rhs, exp_var, e_nat, reg)())()
+    lhs_e_str = RenderNatExpr(lhs_e, reg)
+    rhs_e_str = RenderNatExpr(rhs_e, reg)
+
+    bound_nat = M.six
+    dom_res = BuildNatRange(M.Zero, bound_nat, reg)()
+    domain = M.Head(dom_res)()
+    reg = M.Head(M.Tail(dom_res)())()
+
+    mods_res = BuildNatRange(M.two, M.four, reg)()
+    moduli_chain = M.Head(mods_res)()
+    reg = M.Head(M.Tail(mods_res)())()
+
+    lhs_vars = M.Head(ExtractExprVariables(lhs_e, reg)())()
+    rhs_vars = M.Head(ExtractExprVariables(rhs_e, reg)())()
+
+    _pg_debug(
+        f"worker started for {exp_name} = {exp_str} ({lhs_e_str} = {rhs_e_str}): evaluating ground EvaluationTensors over domain 0..5 and sweeping moduli {_format_set_chain(moduli_chain, reg)}..."
+    )
+
+    lt_res = _build_expr_ground_tensor(
+        lhs_e, lhs_vars, domain, M.Char("lhs"), reg
+    )
+    lhs_tensor = M.Head(lt_res)()
+    reg = M.Head(M.Tail(lt_res)())()
+
+    rt_res = _build_expr_ground_tensor(
+        rhs_e, rhs_vars, domain, M.Char("rhs"), reg
+    )
+    rhs_tensor = M.Head(rt_res)()
+    reg = M.Head(M.Tail(rt_res)())()
+
+    wit_res = FindTensorEqualityWitness(
+        lhs_tensor, rhs_tensor, lhs_vars, rhs_vars, positive_only, reg
+    )()
+    witness_env = M.Head(wit_res)()
+    reg = M.Head(M.Tail(wit_res)())()
+
+    disc_res = DiscoverExprObstructions(
+        lhs_e,
+        rhs_e,
+        bound_nat,
+        moduli_chain,
+        reg,
+        lhs_tensor=lhs_tensor,
+        rhs_tensor=rhs_tensor,
+        debug_trace=M.truth_value,
+    )()
+    disc_chain = M.Head(disc_res)()
+    reg = M.Head(M.Tail(disc_res)())()
+
+    header = f"  [Instance {exp_name} = {exp_str}: {lhs_e_str} = {rhs_e_str}]"
+    body = _format_discoveries_report(
+        lhs_e,
+        rhs_e,
+        disc_chain,
+        moduli_chain,
+        bound_nat,
+        witness_env,
+        positive_only,
+        reg,
+        indent="    ",
+    )
+    first_mod_str = "4"
+    if M.IdentityCompare(disc_chain, M.EmptyList)() is M.false_value:
+        first_rec = M.Head(disc_chain)()
+        first_mod_nat = M.Head(M.Tail(first_rec)())()
+        first_mod_str = str(M.NatRepOf(first_mod_nat, reg)()())
+
+    _pg_debug(f"worker completed {exp_name} = {exp_str}.")
+    out_queue.put((exp_str, os.getpid(), header + "\n" + body, first_mod_str))
+
+
+def _filter_candidate_parameters(exp_var, param_constraints, registry):
+    """
+    Generates a candidate Nat domain via BuildNatRange and filters it using
+    FilterTuples and _evaluate_nat_constraints (machine constraint evaluation).
+    """
+    cand_res = BuildNatRange(M.two, M.four, registry)()
+    cand_domain = M.Head(cand_res)()
+    reg1 = M.Head(M.Tail(cand_res)())()
+
+    if M.IdentityCompare(param_constraints, M.EmptyList)() is M.truth_value:
+        return M.Pair(M.two, M.Pair(M.three, M.EmptyList)), reg1
+
+    dom1 = ProductOfDomains(M.Pair(cand_domain, M.EmptyList))()
+    vars_one = M.Pair(exp_var, M.EmptyList)
+
+    def constraint_pred(tup, reg):
+        env = _zip_environment(vars_one, tup)
+        return _evaluate_nat_constraints(param_constraints, env, reg)
+
+    filt_res = FilterTuples(dom1, constraint_pred, reg1)()
+    filt_tuples = M.Head(filt_res)()
+    reg2 = M.Head(M.Tail(filt_res)())()
+
+    # Take first two valid parameter nodes from filtered 1-tuples
+    out = M.EmptyList
+    cur = filt_tuples
+    taken = M.Zero
+    while (
+        M.IdentityCompare(cur, M.EmptyList)() is M.false_value
+        and M.NatLess(taken, M.two, reg2)() is M.truth_value
+    ):
+        tup = M.Head(cur)()
+        out = _chain_append_end(out, M.Head(tup)())
+        inc = A.Add(taken, M.one, reg2)()
+        taken = M.Head(inc)()
+        reg2 = M.Head(M.Tail(inc)())()
+        cur = M.Tail(cur)()
+
+    if M.IdentityCompare(out, M.EmptyList)() is M.truth_value:
+        return M.Pair(M.three, M.Pair(M.four, M.EmptyList)), reg2
+    return out, reg2
+
+
+def run_playground_interactive(graph, goal_text=None, tutor=None):
+    """
+    Runs the machine-native Cartesian exploration sweep over the active
+    unproved goal (or discovers separating moduli over the default benchmark
+    when no goal is active) and returns the formatted report.
+    """
+    registry = M.FromContextGetConstructors(graph)()
+    active_goal = goal_text
+    if active_goal is None:
+        try:
+            active_goal = graph._active_unproved_goal
+        except AttributeError:
+            active_goal = None
+    active_tutor = tutor
+    if active_tutor is None:
+        try:
+            active_tutor = graph._active_tutor
+        except AttributeError:
+            active_tutor = None
+    try:
+        active_claim = graph._active_unproved_claim
+    except AttributeError:
+        active_claim = None
+
+    spec_rec = (
+        parse_surface_goal_spec(active_goal, registry)
+        if active_goal
+        else M.EmptyList
+    )
+    if M.IdentityCompare(spec_rec, M.EmptyList)() is M.false_value:
+        (
+            lhs,
+            rhs,
+            base_vars,
+            exp_vars,
+            param_constraints,
+            no_solutions,
+            positive_only,
+            reg,
+        ) = _unpack_goal_spec(spec_rec)
+
+        # Case A: Parametric exponent family (e.g., x^n + y^n = z^n)
+        if M.IdentityCompare(exp_vars, M.EmptyList)() is M.false_value:
+            exp_var = M.Head(exp_vars)()
+            exp_name = str(exp_var())
+            exp_chain, reg = _filter_candidate_parameters(
+                exp_var, param_constraints, reg
+            )
+            mods_res = BuildNatRange(M.two, M.four, reg)()
+            moduli_chain = M.Head(mods_res)()
+            reg = M.Head(M.Tail(mods_res)())()
+
+            lhs_pat_str = RenderNatExpr(lhs, reg)
+            rhs_pat_str = RenderNatExpr(rhs, reg)
+            exp_set_str = _format_set_chain(exp_chain, reg)
+            mods_set_str = _format_set_chain(moduli_chain, reg)
+
+            cpu_cap = multiprocessing.cpu_count() or 1
+            _pg_debug(
+                f"constructing the natural tensor for {lhs_pat_str} = {rhs_pat_str}: parameter {exp_name} in {exp_set_str}, domain 0..5, candidate moduli {mods_set_str}; dispatching parallel worker processes (CPU cores: {cpu_cap})..."
+            )
+
+            report = f"[machine] Cartesian Playground Sweep for {lhs_pat_str} = {rhs_pat_str} (parameter {exp_name} in {exp_set_str}, domain 0..5, moduli {mods_set_str}):"
+
+            start_methods = multiprocessing.get_all_start_methods()
+            mp_ctx = multiprocessing.get_context(
+                "fork" if "fork" in start_methods else "spawn"
+            )
+            out_queue = mp_ctx.Queue()
+            procs_chain = M.EmptyList
+            cur_e = exp_chain
+            while M.IdentityCompare(cur_e, M.EmptyList)() is M.false_value:
+                e_nat = M.Head(cur_e)()
+                e_str = str(M.NatRepOf(e_nat, reg)()())
+                p = mp_ctx.Process(
+                    target=_parallel_instance_sweep_worker,
+                    args=(active_goal, e_str, out_queue),
+                )
+                p.start()
+                procs_chain = _chain_append_end(procs_chain, M.Pair(M.Char(e_str), M.Pair(p, M.EmptyList)))
+                cur_e = M.Tail(cur_e)()
+
+            collected_chain = M.EmptyList
+            cur_p = procs_chain
+            while M.IdentityCompare(cur_p, M.EmptyList)() is M.false_value:
+                item = out_queue.get(timeout=120)
+                e_key, w_pid, inst_text, first_mod_s = item
+                entry = M.Pair(
+                    M.Char(e_key),
+                    M.Pair(
+                        M.Char(inst_text),
+                        M.Pair(
+                            M.Char(str(w_pid)),
+                            M.Pair(M.Char(first_mod_s), M.EmptyList),
+                        ),
+                    ),
+                )
+                collected_chain = _chain_append_end(collected_chain, entry)
+                cur_p = M.Tail(cur_p)()
+
+            cur_p = procs_chain
+            while M.IdentityCompare(cur_p, M.EmptyList)() is M.false_value:
+                proc_obj = M.Head(M.Tail(M.Head(cur_p)())())()
+                proc_obj.join(timeout=10)
+                cur_p = M.Tail(cur_p)()
+
+            first_mod_recorded = M.EmptyList
+            pids_str = ""
+            cur_e = exp_chain
+            while M.IdentityCompare(cur_e, M.EmptyList)() is M.false_value:
+                e_nat = M.Head(cur_e)()
+                e_char = M.Char(str(M.NatRepOf(e_nat, reg)()()))
+                cur_c = collected_chain
+                while M.IdentityCompare(cur_c, M.EmptyList)() is M.false_value:
+                    c_ent = M.Head(cur_c)()
+                    if M.Compare(M.Head(c_ent)(), e_char)() is M.truth_value:
+                        inst_t = M.Head(M.Tail(c_ent)())()()
+                        pid_t = M.Head(M.Tail(M.Tail(c_ent)())())()()
+                        mod_t = M.Head(M.Tail(M.Tail(M.Tail(c_ent)())())())()()
+                        report = report + "\n" + inst_t
+                        pids_str = pid_t if pids_str == "" else pids_str + ", " + pid_t
+                        if M.IdentityCompare(first_mod_recorded, M.EmptyList)() is M.truth_value:
+                            m_res = M.NatFromRep(M.GMPRep(mod_t), reg)()
+                            first_mod_recorded = M.Head(m_res)()
+                            reg = M.Head(M.Tail(m_res)())()
+                    cur_c = M.Tail(cur_c)()
+                cur_e = M.Tail(cur_e)()
+
+            _pg_debug(f"joined worker processes (PIDs: [{pids_str}]).")
+
+            if M.IdentityCompare(first_mod_recorded, M.EmptyList)() is M.false_value:
+                graph._last_discovered_invariant = M.Pair(
+                    L.DiscoveredInvariantLabel,
+                    M.Pair(
+                        first_mod_recorded,
+                        M.Pair(
+                            M.Pair(M.Zero, M.EmptyList),
+                            M.Pair(
+                                M.Pair(M.Zero, M.EmptyList),
+                                M.Pair(M.false_value, M.EmptyList),
+                            ),
+                        ),
+                    ),
+                )
+            report = (
+                report
+                + "\n  - Suggestion: Ground these discovered ResidueTable and CongruenceClasses regularities as candidate lemmas."
+            )
+            return report
+
+        # Case B: Concrete polynomial identity claim (no_solutions is M.false_value)
+        if no_solutions is M.false_value:
+            lhs_str = RenderNatExpr(lhs, reg)
+            rhs_str = RenderNatExpr(rhs, reg)
+            _pg_debug(
+                f"constructing degree-bounded polynomial grid for {lhs_str} = {rhs_str} over variables [{_format_vars_chain(base_vars)}]..."
+            )
+            grid_res = PolynomialIdentityByGrid(lhs, rhs, base_vars, reg)()
+            grid_rec = M.Head(grid_res)()
+            reg = M.Head(M.Tail(grid_res)())()
+            fields = M.Tail(grid_rec)()
+            grid_count_nat = M.Head(
+                M.Tail(M.Tail(M.Tail(M.Tail(fields)())())())()
+            )()
+            verdict = M.Head(
+                M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(fields)())())())())()
+            )()
+            witness_tup = M.Head(
+                M.Tail(
+                    M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(fields)())())())())()
+                )()
+            )()
+            grid_count_val = M.NatRepOf(grid_count_nat, reg)()()
+            _pg_debug(
+                f"evaluated {grid_count_val} degree-bounded grid points for {lhs_str} = {rhs_str}."
+            )
+
+            if verdict is M.truth_value:
+                return (
+                    f"[machine] Cartesian Playground Sweep for {lhs_str} = {rhs_str}:\n"
+                    f"  - PolynomialIdentityByGrid verified {lhs_str} = {rhs_str} across all {grid_count_val} degree-bounded grid points.\n"
+                    f"  - Candidate Lemma: Algebraic identity {lhs_str} == {rhs_str} holds universally over Nat.\n"
+                    "  - Suggestion: Ground this polynomial identity into active context as a rewrite lemma."
+                )
+            if verdict is M.false_value:
+                w_env = _zip_environment(base_vars, witness_tup)
+                w_str = _format_env_chain(w_env, reg)
+                return (
+                    f"[machine] Cartesian Playground Sweep for {lhs_str} = {rhs_str}:\n"
+                    f"  - Counterexample Witness Found: ({w_str}) refutes {lhs_str} = {rhs_str} on the degree grid.\n"
+                    "  - Suggestion: Restrict domain hypotheses or project modulo a separating congruence class."
+                )
+
+        # Case C: Concrete equation with no_solutions
+        bound_nat = M.six
+        dom_res = BuildNatRange(M.Zero, bound_nat, reg)()
+        domain = M.Head(dom_res)()
+        reg = M.Head(M.Tail(dom_res)())()
+
+        mods_res = BuildNatRange(M.two, M.four, reg)()
+        moduli_chain = M.Head(mods_res)()
+        reg = M.Head(M.Tail(mods_res)())()
+
+        lhs_str = RenderNatExpr(lhs, reg)
+        rhs_str = RenderNatExpr(rhs, reg)
+        lhs_vars = M.Head(ExtractExprVariables(lhs, reg)())()
+        rhs_vars = M.Head(ExtractExprVariables(rhs, reg)())()
+
+        _pg_debug(
+            f"constructing the natural tensor for {lhs_str} = {rhs_str}: domain 0..5, candidate moduli {_format_set_chain(moduli_chain, reg)}..."
+        )
+
+        lt_res = _build_expr_ground_tensor(
+            lhs, lhs_vars, domain, M.Char("lhs"), reg
+        )
+        lhs_tensor = M.Head(lt_res)()
+        reg = M.Head(M.Tail(lt_res)())()
+
+        rt_res = _build_expr_ground_tensor(
+            rhs, rhs_vars, domain, M.Char("rhs"), reg
+        )
+        rhs_tensor = M.Head(rt_res)()
+        reg = M.Head(M.Tail(rt_res)())()
+
+        wit_res = FindTensorEqualityWitness(
+            lhs_tensor, rhs_tensor, lhs_vars, rhs_vars, positive_only, reg
+        )()
+        witness_env = M.Head(wit_res)()
+        reg = M.Head(M.Tail(wit_res)())()
+
+        disc_res = DiscoverExprObstructions(
+            lhs,
+            rhs,
+            bound_nat,
+            moduli_chain,
+            reg,
+            lhs_tensor=lhs_tensor,
+            rhs_tensor=rhs_tensor,
+            debug_trace=M.truth_value,
+        )()
+        disc_chain = M.Head(disc_res)()
+        reg = M.Head(M.Tail(disc_res)())()
+
+        header = f"[machine] Cartesian Playground Sweep for {lhs_str} = {rhs_str} (domain 0..5, moduli {_format_set_chain(moduli_chain, reg)}):"
+        body = _format_discoveries_report(
+            lhs,
+            rhs,
+            disc_chain,
+            moduli_chain,
+            bound_nat,
+            witness_env,
+            positive_only,
+            reg,
+            indent="  ",
+        )
+        if M.IdentityCompare(disc_chain, M.EmptyList)() is M.false_value:
+            graph._last_discovered_invariant = M.Head(disc_chain)()
+            graph._last_playground_discoveries = disc_chain
+            body = (
+                body
+                + "\n  - Suggestion: Ground this discovered regularity into active context as an invariant lemma."
+            )
+        return header + "\n" + body
+
+    # 2. Undecided Socratic tutor claim
+    if active_claim is not None and active_tutor is not None:
+        from . import dialogue as Dlg
+
+        goal_fact = Dlg.claim_conclusion(active_claim)
+        known_facts = Dlg.claim_start_facts(active_claim)
+        obls_chain = Dlg.BackwardObligations(
+            goal_fact, known_facts, active_tutor.rules()
+        )()
+        claim_str = active_tutor.claim_text(active_claim)
+        _pg_debug(
+            f"analyzing backward rule obligations for undecided claim '{claim_str}'..."
+        )
+        header = f"[machine] Cartesian Playground & Backward Obligation Analysis for '{claim_str}':"
+        if M.IdentityCompare(obls_chain, M.EmptyList)() is M.false_value:
+            first_obl = M.Head(obls_chain)()
+            rule_obj = M.Head(first_obl)()
+            open_prems_chain = M.Head(M.Tail(M.Tail(first_obl)())())()
+            rule_id = active_tutor.rule_id_of(rule_obj)
+            open_str = Dlg.render_fact_list(open_prems_chain, active_tutor.registry)
+            goal_str = Dlg.render_term(goal_fact, active_tutor.registry)
+            return (
+                header
+                + f"\n  - Backward Rule Candidate: '{rule_id}' concludes {goal_str} given missing premise(s): {open_str}."
+                + f"\n  - Candidate Lemma: Establish {open_str} (or ground schema '{claim_str}' after verification)."
+            )
+        goal_str = Dlg.render_term(goal_fact, active_tutor.registry)
+        return (
+            header
+            + f"\n  - No loaded rule concludes {goal_str} directly."
+            + f"\n  - Candidate Lemma Schema: '{claim_str}' (empirically unrefuted across the Cartesian natural sweep)."
+        )
+
+    # 3. Default benchmark exploration when no specific goal has been posed yet
+    _pg_debug(
+        "constructing the natural tensor: 11 x 11 domain (0..10)^2 x candidate moduli {2, 3, 4, 5}..."
+    )
+    bound_res = M.NatFromRep(M.GMPRep(11), registry)()
+    bound_nat = M.Head(bound_res)()
+    reg1 = M.Head(M.Tail(bound_res)())()
+
+    mods_res = BuildNatRange(M.two, M.four, reg1)()
+    moduli_chain = M.Head(mods_res)()
+    reg2 = M.Head(M.Tail(mods_res)())()
+
+    def every_unary(_x, _reg):
+        return M.truth_value
+
+    def odd_pair_pred(x, y, reg):
+        rx = A.Modulo(x, M.two, reg)()
+        rem_x = M.Head(rx)()
+        r_a = M.Head(M.Tail(rx)())()
+        if M.NatEq(rem_x, M.one, r_a)() is M.false_value:
+            return M.false_value
+        ry = A.Modulo(y, M.two, r_a)()
+        rem_y = M.Head(ry)()
+        r_b = M.Head(M.Tail(ry)())()
+        return M.NatEq(rem_y, M.one, r_b)()
+
+    disc_res = DiscoverSeparatingModulus(
+        bound_nat, M.two, every_unary, odd_pair_pred, moduli_chain, reg2
+    )()
+    inv_rec = M.Head(disc_res)()
+    reg3 = M.Head(M.Tail(disc_res)())()
+
+    graph._last_discovered_invariant = inv_rec
+
+    res_mod = M.Head(M.Tail(inv_rec)())()
+    mod_val = M.NatRepOf(res_mod, reg3)()()
+    _pg_debug(
+        f"discovered separating modulus m = {mod_val} across candidate moduli {_format_set_chain(moduli_chain, reg3)}."
+    )
+
+    sq_set = M.Head(M.Tail(M.Tail(inv_rec)())())()
+    odd_sum_set = M.Head(M.Tail(M.Tail(M.Tail(inv_rec)())())())()
+    is_disjoint = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(inv_rec)())())())())()
+
+    sq_str = _format_set_chain(sq_set, reg3)
+    odd_str = _format_set_chain(odd_sum_set, reg3)
+    tested_str = _format_set_chain(moduli_chain, reg3)
+
+    report = (
+        f"[machine] Cartesian Playground Sweep (domain 0..10, candidate moduli {tested_str} -> discovered m = {mod_val}):\n"
+        f"  - 1-ary Image Projection: f([x]) = x^2 mod {mod_val} -> {sq_str}\n"
+        f"  - 2-ary Image Projection: g([x, y]) = (x^2 + y^2) mod {mod_val} -> {odd_str}"
+    )
+
+    if is_disjoint is M.truth_value:
+        report = (
+            report
+            + f"\n  - Disjoint Image Regularity: {sq_str} /\\ {odd_str} = empty"
+            + f"\n  - Obstruction Invariant: f([z]) = g([x, y]) has no solution under mod {mod_val} projection."
+            + "\n  - Suggestion: Ground this discovered regularity into active context as an invariant lemma."
+        )
+
+    return report
 
 
 # ============================================================
@@ -3312,17 +3362,7 @@ def _evaluate_nat_constraints(constraints, environment, registry):
 
 
 class VerifyNatWitness(M.Edge):
-    """Re-evaluate a concrete bounded Nat assignment, not a search status.
-
-    constraints: chain of ExprEq(lhs,rhs) / ExprLt(lhs,rhs), using the same
-    admitted natural polynomial syntax as PolynomialIdentityByGrid.
-    environment: exactly one Pair(variable, Pair(Nat, [])) per declared
-    variable, in declaration order, with values in [0,bound).
-    Result Pair(verdict, Pair(registry, [])): true/false for valid assignments,
-    [] for malformed syntax/coverage/sorts/bounds. An empty assignment can be
-    valid (zero variables). This is a computed arithmetic check, NOT a Checker-B
-    derivation, existential theorem, trusted premise, or ledger receipt.
-    """
+    """Re-evaluate a concrete bounded Nat assignment, not a search status."""
 
     def __init__(self, constraints, variables, bound, environment, registry):
         self.result = self._verify(constraints, variables, bound, environment, registry)
@@ -3343,18 +3383,7 @@ class VerifyNatWitness(M.Edge):
 
 
 class FindNatWitness(M.Edge):
-    """Stream [0,bound)^arity with a candidate-count budget; first axis fastest.
-
-    Result Pair(record, Pair(registry, [])), where record is
-      NatWitnessSearchLabel(constraints, variables, bound, budget, status,
-                            environment, examined).
-    Status: NatWitnessFoundLabel / NatWitnessExhaustedLabel /
-    NatWitnessBudgetLabel / NatWitnessInvalidLabel. Only Found carries an
-    environment (which may itself be [] for zero variables). Exhausted means
-    this FINITE box only, never no natural solution. Budget is assignment checks,
-    not a bound on expression size, exponent size, arithmetic cost or wall time.
-    No full Cartesian product or host-language numerical search is materialised.
-    """
+    """Stream [0,bound)^arity with a candidate-count budget; first axis fastest."""
 
     def __init__(self, constraints, variables, bound, budget, registry):
         self.result = self._search(constraints, variables, bound, budget, registry)
@@ -3400,7 +3429,7 @@ class FindNatWitness(M.Edge):
             return self._record(constraints, variables, bound, budget,
                                 L.NatWitnessExhaustedLabel, env, count, registry)
         values = self._zeros(variables)
-        while True:
+        while M.truth_value is M.truth_value:
             if M.NatLess(count, budget, registry)() is M.false_value:
                 return self._record(constraints, variables, bound, budget,
                                     L.NatWitnessBudgetLabel, M.EmptyList, count, registry)
@@ -3426,3 +3455,48 @@ class FindNatWitness(M.Edge):
 
     def __call__(self):
         return self.result
+
+
+__all__ = (
+    "ChainLength",
+    "ChainContains",
+    "SetInsert",
+    "SetIntersection",
+    "SetUnion",
+    "SetDifference",
+    "SortNatChain",
+    "TupleElementAt",
+    "ProjectCoordinate",
+    "ProjectAllCoordinates",
+    "BuildNatRange",
+    "ProductOfDomains",
+    "FilterTuples",
+    "MapDomain",
+    "UniversalQuantify",
+    "ExistentialQuantify",
+    "ProjectCongruence",
+    "EvaluateSetRelation",
+    "RunPlaygroundCartesianSweep",
+    "RunPlaygroundFilteredPowerSweep",
+    "DiscoverSeparatingModulus",
+    "EvaluateOperationTensor",
+    "ProjectTensorModulo",
+    "FindTensorEqualityWitness",
+    "ExtractExprVariables",
+    "ExtractExponentVariables",
+    "SubstituteExprVar",
+    "RenderNatExpr",
+    "DiscoverExprObstructions",
+    "parse_surface_goal_spec",
+    "is_proof_or_math_goal",
+    "ExprDegreeBound",
+    "EvaluateNatExpr",
+    "PolynomialIdentityByGrid",
+    "PolynomialRewriteCertificate",
+    "PolynomialGridDerivation",
+    "ResidueTable",
+    "CongruenceClasses",
+    "VerifyNatWitness",
+    "FindNatWitness",
+    "run_playground_interactive",
+)

@@ -2215,7 +2215,7 @@ def run_live_mode(debug: bool = False):
                     print(f"[machine] Task ({task_rung}) proved in {dt:.4f} seconds (binding: {binding}).")
                 else:
                     print("[machine] no, I can't prove that")
-                    if PG.is_proof_or_math_goal(raw):
+                    if PG.is_proof_or_math_goal(raw) is M.truth_value:
                         runtime.graph._active_unproved_goal = raw
                         runtime.graph._active_unproved_claim = None
                         runtime.graph._active_tutor = tutor
@@ -2227,7 +2227,7 @@ def run_live_mode(debug: bool = False):
                         )
             else:
                 print("[machine] no, I can't prove that")
-                if PG.is_proof_or_math_goal(raw):
+                if PG.is_proof_or_math_goal(raw) is M.truth_value:
                     runtime.graph._active_unproved_goal = raw
                     runtime.graph._active_unproved_claim = None
                     runtime.graph._active_tutor = tutor
