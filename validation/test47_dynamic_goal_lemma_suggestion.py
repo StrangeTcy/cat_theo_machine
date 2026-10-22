@@ -128,9 +128,9 @@ check(
 print()
 
 # ---------------------------------------------------------------------------
-# [3] Pure-machine ResidueTable, CongruenceClasses, and Coordinate Projections
+# [3] Pure-machine residue images, congruence partitions, and Coordinate Projections
 # ---------------------------------------------------------------------------
-print("[3] Goal-directed sweeps via ResidueTable, CongruenceClasses, and ProjectAllCoordinates")
+print("[3] Goal-directed sweeps via residue images, congruence partitions, and ProjectAllCoordinates")
 
 g_flt = make_fresh_runtime().graph
 out_flt = PG.RunPlaygroundInteractive(
@@ -143,13 +143,13 @@ check(
     and "[Instance n = 4: x^4 + y^4 = z^4]" in out_flt,
 )
 check(
-    "n = 3 reports ResidueTable((z^3) mod 4) -> image {0, 1, 3} (excluded: {2})",
-    "ResidueTable((z^3) mod 4) -> image {0, 1, 3} (excluded: {2})" in out_flt,
+    "n = 3 reports image of (z^3) mod 4 = {0, 1, 3} (excluded: {2})",
+    "image of (z^3) mod 4 = {0, 1, 3} (excluded: {2})" in out_flt,
 )
 check(
-    "n = 4 reports ResidueTable((x^4 + y^4) mod 4) -> image {0, 1, 2} and CongruenceClasses |holding| = 24, |failing| = 40",
-    "ResidueTable((x^4 + y^4) mod 4) -> image {0, 1, 2} (excluded: {3})" in out_flt
-    and "CongruenceClasses((x^4 + y^4) = (z^4) mod 4) -> |holding| = 24, |failing| = 40" in out_flt,
+    "n = 4 reports image of (x^4 + y^4) mod 4 = {0, 1, 2} and |holding| = 24, |failing| = 40",
+    "image of (x^4 + y^4) mod 4 = {0, 1, 2} (excluded: {3})" in out_flt
+    and "(x^4 + y^4) = (z^4) mod 4: |holding| = 24, |failing| = 40" in out_flt,
 )
 
 g_disj = make_fresh_runtime().graph

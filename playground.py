@@ -1666,7 +1666,7 @@ class ExprDegreeBound(M.Edge):
     one variable: the variable itself has degree 1, any other atom 0,
     ExprAdd takes the larger bound, ExprMul the sum, ExprPow(a, k) k times
     the bound of a.
-    Result: Pair(degree_nat, Pair(registry, [])), or Pair([], ...) when the
+    Result: Pair(degree_nat, Pair(registry, EmptyList)), or Pair(EmptyList, ...) when the
     term lies outside the admitted fragment.
     """
 
@@ -1730,9 +1730,9 @@ class ExprDegreeBound(M.Edge):
 class EvaluateNatExpr(M.Edge):
     """
     Evaluates an admitted expression term at an environment (a chain of
-    Pair(variable, Pair(nat, []))) with the machine's own Add, Multiply,
+    Pair(variable, Pair(nat, EmptyList))) with the machine's own Add, Multiply,
     and Peano NatPred recursion.
-    Result: Pair(nat, Pair(registry, [])), or Pair([], ...) when the
+    Result: Pair(nat, Pair(registry, EmptyList)), or Pair(EmptyList, ...) when the
     term is outside the fragment or a variable is unbound.
     """
 
@@ -1895,10 +1895,10 @@ class PolynomialIdentityByGrid(M.Edge):
     the given variables, by evaluating both on the grid {0..d_1} x ... x
     {0..d_k}, d_i the larger structural degree bound of the two sides in x_i.
 
-    Result: Pair(record, Pair(registry, [])) with
+    Result: Pair(record, Pair(registry, EmptyList)) with
       record = Pair(PolynomialIdentityLabel,
                  Pair(lhs, Pair(rhs, Pair(variables, Pair(degree_chain,
-                   Pair(grid_count, Pair(verdict, Pair(witness, []))))))))
+                   Pair(grid_count, Pair(verdict, Pair(witness, EmptyList))))))))
     """
 
     def __init__(self, lhs, rhs, variables, registry):
@@ -2086,11 +2086,8 @@ class ResidueTable(M.Edge):
     every residue tuple in {0..m-1}^k, the term's value modulo m (machine
     Modulo over machine evaluation).
 
-    Result: Pair(record, Pair(registry, [])) with
-      record = Pair(ResidueTableLabel,
-                 Pair(term, Pair(variables, Pair(modulus,
-                   Pair(rows, Pair(image, []))))))
-      rows   = chain of Pair(residue_tuple, Pair(residue, [])), grid order
+    Result: Pair(rows, Pair(image, Pair(registry, EmptyList))) with
+      rows   = chain of Pair(residue_tuple, Pair(residue, EmptyList)), grid order
       image  = the set of residues that occur
     """
 
@@ -2126,11 +2123,7 @@ class ResidueTable(M.Edge):
         reg1 = M.Head(M.Tail(domains_res)())()
         tuples = ProductOfDomains(domains)()
         rows, image, reg2 = self._rows(term, variables, modulus, tuples, reg1)
-        record = M.Pair(
-            L.ResidueTableLabel,
-            M.Pair(term, M.Pair(variables, M.Pair(modulus, M.Pair(rows, M.Pair(image, M.EmptyList))))),
-        )
-        return M.Pair(record, M.Pair(reg2, M.EmptyList))
+        return M.Pair(rows, M.Pair(image, M.Pair(reg2, M.EmptyList)))
 
     def __call__(self):
         return self.result
@@ -2142,10 +2135,7 @@ class CongruenceClasses(M.Edge):
     lhs = rhs (mod m): the residue tuples in {0..m-1}^k at which the two
     sides agree modulo m, and those at which they differ.
 
-    Result: Pair(record, Pair(registry, [])) with
-      record = Pair(CongruenceClassesLabel,
-                 Pair(lhs, Pair(rhs, Pair(variables, Pair(modulus,
-                   Pair(holding, Pair(failing, [])))))))
+    Result: Pair(holding, Pair(failing, Pair(registry, EmptyList))).
     """
 
     def __init__(self, lhs, rhs, variables, modulus, registry):
@@ -2162,11 +2152,7 @@ class CongruenceClasses(M.Edge):
         reg1 = M.Head(M.Tail(domains_res)())()
         tuples = ProductOfDomains(domains)()
         holding, failing, reg2 = self._partition(lhs, rhs, variables, modulus, tuples, reg1)
-        record = M.Pair(
-            L.CongruenceClassesLabel,
-            M.Pair(lhs, M.Pair(rhs, M.Pair(variables, M.Pair(modulus, M.Pair(holding, M.Pair(failing, M.EmptyList)))))),
-        )
-        return M.Pair(record, M.Pair(reg2, M.EmptyList))
+        return M.Pair(holding, M.Pair(failing, M.Pair(reg2, M.EmptyList)))
 
     def _partition(self, lhs, rhs, variables, modulus, tuples, registry):
         if M.IdentityCompare(tuples, M.EmptyList)() is M.truth_value:
@@ -2386,7 +2372,7 @@ class ProjectEnvToSubtuple(M.Edge):
 
 class LookupResidueRow(M.Edge):
     """
-    Looks a residue tuple up in a ResidueTable row chain (a chain of
+    Looks a residue tuple up in a residue row chain (a chain of
     Pair(tuple, Pair(residue, EmptyList))); EmptyList when absent.
     """
 
@@ -2417,7 +2403,8 @@ class LookupResidueRow(M.Edge):
 class ProjectTensorModulo(M.Edge):
     """
     Projects a ground EvaluationTensor record onto {0..m-1}^k modulo mod_nat,
-    yielding a ResidueTableLabel record (rows + sorted unique image set).
+    yielding the residue rows paired with the sorted unique image set, in the
+    MapDomain result shape: Pair(rows, Pair(image, Pair(registry, EmptyList))).
     """
 
     def __init__(self, term, variables, tensor_node, mod_nat, registry):
@@ -2462,20 +2449,7 @@ class ProjectTensorModulo(M.Edge):
         entries = M.Head(M.Tail(M.Tail(tensor_node)())())()
         rows, raw_image, reg1 = self._walk_entries(entries, mod_nat, registry)
         sorted_image = SortNatChain(raw_image, reg1)()
-        record = M.Pair(
-            L.ResidueTableLabel,
-            M.Pair(
-                term,
-                M.Pair(
-                    variables,
-                    M.Pair(
-                        mod_nat,
-                        M.Pair(rows, M.Pair(sorted_image, M.EmptyList)),
-                    ),
-                ),
-            ),
-        )
-        return M.Pair(record, M.Pair(reg1, M.EmptyList))
+        return M.Pair(rows, M.Pair(sorted_image, M.Pair(reg1, M.EmptyList)))
 
     def __call__(self):
         return self.result
@@ -2631,9 +2605,9 @@ class DiscoverExprObstructions(M.Edge):
     Given admitted polynomial expressions `lhs` and `rhs`, evaluates their
     ground EvaluationTensors over 0..bound_nat-1 and projects across each
     candidate modulus m in `moduli_chain`:
-      1. ResidueTable images `lhs_image` and `rhs_image` modulo m.
+      1. the images of `lhs` and `rhs` modulo m.
       2. EvaluateSetRelation disjointness and intersection of `rhs_image` and `lhs_image`.
-      3. CongruenceClasses partition of {0..m-1}^k into `holding` and `failing` chains.
+      3. the partition of {0..m-1}^k into `holding` and `failing` chains.
       4. ProjectAllCoordinates projection of `holding` onto each variable coordinate.
     Returns Pair(discoveries_chain, Pair(registry, EmptyList)).
     """
@@ -2711,20 +2685,14 @@ class DiscoverExprObstructions(M.Edge):
             m_nat = M.Head(cur_m)()
 
             proj_l = ProjectTensorModulo(lhs, lhs_vars, lhs_tensor, m_nat, reg)()
-            table_l = M.Head(proj_l)()
-            reg = M.Head(M.Tail(proj_l)())()
-            rows_l = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(table_l)())())())())()
-            lhs_image = M.Head(
-                M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(table_l)())())())())()
-            )()
+            rows_l = M.Head(proj_l)()
+            lhs_image = M.Head(M.Tail(proj_l)())()
+            reg = M.Head(M.Tail(M.Tail(proj_l)())())()
 
             proj_r = ProjectTensorModulo(rhs, rhs_vars, rhs_tensor, m_nat, reg)()
-            table_r = M.Head(proj_r)()
-            reg = M.Head(M.Tail(proj_r)())()
-            rows_r = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(table_r)())())())())()
-            rhs_image = M.Head(
-                M.Tail(M.Tail(M.Tail(M.Tail(M.Tail(table_r)())())())())()
-            )()
+            rows_r = M.Head(proj_r)()
+            rhs_image = M.Head(M.Tail(proj_r)())()
+            reg = M.Head(M.Tail(M.Tail(proj_r)())())()
 
             rel_res = EvaluateSetRelation(rhs_image, lhs_image, reg)()
             is_disjoint = M.Head(rel_res)()
@@ -2764,7 +2732,7 @@ class DiscoverExprObstructions(M.Edge):
                 h_val = M.NatRepOf(holding_count, reg)()()
                 f_val = M.NatRepOf(failing_count, reg)()()
                 PlaygroundDebugEmit(M.Char(
-                    f"modulus m = {m_val}: image(lhs mod {m_val}) = {FormatSetChain(lhs_image, reg)()}, image(rhs mod {m_val}) = {FormatSetChain(rhs_image, reg)()}, intersection = {FormatSetChain(inter_set, reg)()}, CongruenceClasses |holding| = {h_val}, |failing| = {f_val}"
+                    f"modulus m = {m_val}: image(lhs mod {m_val}) = {FormatSetChain(lhs_image, reg)()}, image(rhs mod {m_val}) = {FormatSetChain(rhs_image, reg)()}, intersection = {FormatSetChain(inter_set, reg)()}, holding = {h_val}, failing = {f_val}"
                 ))()
 
             has_failing = M.NotAtom(
@@ -2837,7 +2805,7 @@ class DiscoverExprObstructions(M.Edge):
     ):
         """
         Partitions {0..m-1}^k into holding and failing chains from the
-        ResidueTable rows of lhs and rhs.
+        residue rows of lhs and rhs.
         """
         disjoint_vars = M.truth_value
         cur_v = lhs_vars
@@ -4011,7 +3979,7 @@ class FormatDiscoveriesReport(M.Edge):
         if M.IdentityCompare(discoveries, M.EmptyList)() is M.truth_value:
             return (
                 report
-                + f"\n{indent}- CongruenceClasses across moduli {mods_str}: no proper residue restriction found."
+                + f"\n{indent}- across moduli {mods_str}: no proper residue restriction found."
             )
 
         cur = discoveries
@@ -4048,9 +4016,9 @@ class FormatDiscoveriesReport(M.Edge):
             report = (
                 report
                 + f"\n{indent}- Modulus m = {m_val}:"
-                + f"\n{indent}  * ResidueTable(({lhs_str}) mod {m_val}) -> image {lhs_img_str} (excluded: {lhs_excl_str})"
-                + f"\n{indent}  * ResidueTable(({rhs_str}) mod {m_val}) -> image {rhs_img_str} (excluded: {rhs_excl_str})"
-                + f"\n{indent}  * CongruenceClasses(({lhs_str}) = ({rhs_str}) mod {m_val}) -> |holding| = {h_val}, |failing| = {fl_val}"
+                + f"\n{indent}  * image of ({lhs_str}) mod {m_val} = {lhs_img_str} (excluded: {lhs_excl_str})"
+                + f"\n{indent}  * image of ({rhs_str}) mod {m_val} = {rhs_img_str} (excluded: {rhs_excl_str})"
+                + f"\n{indent}  * ({lhs_str}) = ({rhs_str}) mod {m_val}: |holding| = {h_val}, |failing| = {fl_val}"
             )
             if is_disj is M.truth_value:
                 report = (
@@ -4432,7 +4400,7 @@ class RunPlaygroundInteractive(M.Edge):
                     )
                 report = (
                     report
-                    + "\n  - Suggestion: Ground these discovered ResidueTable and CongruenceClasses regularities as candidate lemmas."
+                    + "\n  - Suggestion: Ground these discovered residue regularities as candidate lemmas."
                 )
                 return report
 

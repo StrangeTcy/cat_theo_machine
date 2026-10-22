@@ -309,23 +309,23 @@ t1 = time.time()
 m = M.Char("m")
 
 sq_res = PG.ResidueTable(pw(x, TWO), chain([x]), MODULUS, reg)()
-reg = M.Head(M.Tail(sq_res)())()
-sq_record = M.Head(sq_res)()
-sq_parts = to_list(M.Tail(sq_record)())
-rows = [(tuple_values(M.Head(row)()), nv(M.Head(M.Tail(row)())())) for row in to_list(sq_parts[3])]
-check("ResidueTable of x^2 mod 4 has the four classes", head_is(sq_record, L.ResidueTableLabel) and len(rows) == 4, str(rows))
+rows_chain = M.Head(sq_res)()
+image_chain = M.Head(M.Tail(sq_res)())()
+reg = M.Head(M.Tail(M.Tail(sq_res)())())()
+rows = [(tuple_values(M.Head(row)()), nv(M.Head(M.Tail(row)())())) for row in to_list(rows_chain)]
+check("x^2 mod 4 has the four classes", len(rows) == 4, str(rows))
 odd_rows = [r for cls, r in rows if cls[0] % 2 == 1]
 check("  ... every odd class squares to 1: odd squares are 1 mod 4 -- DERIVED", odd_rows == [1, 1], str(rows))
-check("  ... the image is {0, 1}", sorted(nv(v) for v in to_list(sq_parts[4])) == [0, 1])
+check("  ... the image is {0, 1}", sorted(nv(v) for v in to_list(image_chain)) == [0, 1])
 
 # p = x^2 with x odd, so p = 1 (mod 4); the equation p + n^2 = m^2 forces
 cong_res = PG.CongruenceClasses(add(ONE, pw(n, TWO)), pw(m, TWO), chain([m, n]), MODULUS, reg)()
-reg = M.Head(M.Tail(cong_res)())()
-cong_record = M.Head(cong_res)()
-cong_parts = to_list(M.Tail(cong_record)())
-holding = sorted(tuple_values(t) for t in to_list(cong_parts[4]))
-failing = to_list(cong_parts[5])
-check("CongruenceClasses of 1 + n^2 = m^2 (mod 4): 16 classes partitioned", head_is(cong_record, L.CongruenceClassesLabel) and len(holding) + len(failing) == 16)
+holding_chain = M.Head(cong_res)()
+failing_chain = M.Head(M.Tail(cong_res)())()
+reg = M.Head(M.Tail(M.Tail(cong_res)())())()
+holding = sorted(tuple_values(t) for t in to_list(holding_chain))
+failing = to_list(failing_chain)
+check("1 + n^2 = m^2 (mod 4): 16 classes partitioned", len(holding) + len(failing) == 16)
 check("  ... the holding classes are exactly m odd, n even: " + str(holding) + " -- DERIVED",
       holding == [[1, 0], [1, 2], [3, 0], [3, 2]], str(holding))
 check("  ... so in x^2 + n^2 = m^2 with x odd, m is odd and n is even (the parity split the descent needs)",
