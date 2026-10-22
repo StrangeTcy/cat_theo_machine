@@ -6,8 +6,17 @@ import os
 import pickle
 import sys
 import tempfile
+import threading
 import time
-import gmpy2
+try:
+    import gmpy2
+except ImportError:
+    class _GMPY2Fallback:
+        def mpz(self, val):
+            if val == "":
+                return 0
+            return int(val)
+    gmpy2 = _GMPY2Fallback()
 
 from . import machine as M
 from . import context as Ctxmod
@@ -24,6 +33,14 @@ from . import rewrite_rules as Rmod
 from . import search as Smod
 from . import theorem_rules as Tmod
 from . import trees as T
+from . import planner as Plannermod
+from . import graph_task as GraphTaskmod
+from . import curriculum as Curriculummod
+from . import checker_b as CheckerBmod
+from . import evaluator as Evaluatormod
+from . import invariant_miner as InvariantMinermod
+from . import promotion_ledger as PromotionLedgermod
+from . import surface_bridge as SurfaceBridgemod
 
 SNAPSHOT_SYMBOL_NAMES = [
     "EmptyList",
@@ -64,6 +81,47 @@ SNAPSHOT_SYMBOL_NAMES = [
     "NonEmptyLabel",
     "AttainsLabel",
     "ExtremalAtLabel",
+    "MonovariantLabel",
+    "SemiInvariantLabel",
+    "StrictlyDecreasesLabel",
+    "AllMovesDecreaseLabel",
+    "MoveSetLabel",
+    "MonovariantMethodLabel",
+    "InvarianceMethodLabel",
+    "MeasureLabel",
+    "DirectionLabel",
+    "MovesDecreasingLabel",
+    "MovesPreservingLabel",
+    "MovesNonIncreasingLabel",
+    "NonIncreasesLabel",
+    "AllMovesNonIncreaseLabel",
+    "EventuallyDecreasesLabel",
+    "SemiInvariantMethodLabel",
+    "EqualAngleLabel",
+    "BisectorFromLabel",
+    "PointOnLabel",
+    "CircumcircleOfLabel",
+    "OnCircleLabel",
+    "ConstructionSchemaLabel",
+    "ConstructionMethodLabel",
+    "CauchyAddLabel",
+    "CauchyMulLabel",
+    "NonTrivialLabel",
+    "ValueLabel",
+    "NatSumLabel",
+    "NatProductLabel",
+    "ConsensusPeerLabel",
+    "DeliveryReportLabel",
+    "AdmissionAdmittedLabel",
+    "AdmissionRejectedLabel",
+    "ReceiptFailedLocallyLabel",
+    "DuplicateEntryLabel",
+    "VersionGapLabel",
+    "StaleSnapshotLabel",
+    "SnapshotAdoptedLabel",
+    "UnknownTargetLabel",
+    "ReadingLabel",
+    "TerminatesLabel",
     "VariationLabel",
     "BetterLabel",
     "ExistsLabel",
@@ -265,6 +323,10 @@ SNAPSHOT_SYMBOL_NAMES = [
     "nine",
 ]
 
+for _lbl_name, _lbl_val in vars(Lmod).items():
+    if (_lbl_name.endswith("Label") or _lbl_name.endswith("Tag")) and _lbl_name != "ConstructorLabel" and _lbl_name not in SNAPSHOT_SYMBOL_NAMES:
+        SNAPSHOT_SYMBOL_NAMES.append(_lbl_name)
+
 
 def _restore_constructor_registry_shard_worker(snapshot_path, shard_index, shard_count, output_path):
     """Spawn-safe worker for restoring a shard of constructor_registry.
@@ -405,6 +467,23 @@ def _restore_constructor_registry_shard_worker(snapshot_path, shard_index, shard
         os.replace(temp_path, output_path)
 
 
+def _upgrade_resave_enabled():
+    """Whether activating a legacy snapshot may rewrite the file it was loaded from.
+
+    Reading a snapshot used to rewrite it in place with no output at all, so a
+    committed fixture could change underneath a test run and an inspection boot
+    cost a full capture plus write. Set HYGE_SNAPSHOT_UPGRADE_RESAVE=0 to load
+    without mutating the source file.
+
+    Returns a machine truth value: this gates control flow inside activate(),
+    which expresses every other decision of this kind as truth_value/false_value.
+    """
+    value = os.environ.get("HYGE_SNAPSHOT_UPGRADE_RESAVE", "1").strip().lower()
+    if value in ("0", "false", "no", "off"):
+        return M.false_value
+    return M.truth_value
+
+
 class SnapshotState:
     def __init__(self, roots, symbols, root_ids, symbol_ids, id_to_obj, records, needs_upgrade):
         self.roots = roots
@@ -430,12 +509,26 @@ class SnapshotCodec:
         "search_jobs",
         "search_memo",
         "nat_value_index",
+        "planner_state",
+        "graph_tasks",
+        "promotion_ledger",
+        "invariant_catalog",
     ]
 
     def __init__(self, namespace, symbol_names=None):
         self.namespace = namespace
         self.symbol_names = symbol_names if symbol_names is not None else SNAPSHOT_SYMBOL_NAMES
         self.obj_to_id = {}
+        # Identity index: id(obj) -> oid. Keeps _captured_object_id O(1).
+        # obj_to_id holds strong references to every captured object, so no
+        # id() can be recycled while the index is live.
+        #
+        # Sanctioned host-layer Python under SWARM_EVOLUTION_DAG.md §5.2, which
+        # requires both halves of its exception: this is codec/host code, and
+        # there is no machine analogue -- object identity is a Python-level fact
+        # and an anonymous Atom carries no term-derived key to index by. It is
+        # what makes capture ~16,000 objects/s instead of ~620.
+        self._ids_by_pyid = {}
         self.next_id = 1
 
     def _restore_tree_root_worker(queue, state, namespace, root_name, registry):
@@ -469,11 +562,7 @@ class SnapshotCodec:
         return self._ns_get("IdentityCompare")(marker, obj)() is self._ns_get("truth_value")
 
     def _captured_object_id(self, target):
-        for obj in self.obj_to_id:
-            oid = self.obj_to_id[obj]
-            if obj is target:
-                return oid
-        return None
+        return self._ids_by_pyid.get(id(target))
 
     def _scalar_payload(self, x):
         try:
@@ -510,6 +599,23 @@ class SnapshotCodec:
                 if self.namespace["IsTree"](tree)() is self.namespace["truth_value"]:
                     return M.truth_value
         except Exception:
+            pass
+        # The runtime namespace does not carry "IsTree": trees.IsTree is never
+        # re-exported into machine's namespace, so the lookup above is always a
+        # miss and the general Tree case fell through to SearchPatriciaIsTree,
+        # which only recognizes search patricia trees. Every non-empty all_rules
+        # was therefore judged legacy, and every boot rewrote the snapshot it had
+        # just loaded. Ask the module directly; IsTree tests Head(tree) against
+        # TreeLabel, which a legacy TreeNode (head is a key) fails.
+        # Narrow catch: IsTree calls tree() and takes Head of the result, so the
+        # only expected failures are a root that is not a machine value at all.
+        # A blanket "except Exception" here would report a genuine fault as
+        # "not a tree" and send the boot down the legacy rebuild path, which is
+        # the same silent-misdiagnosis shape as the bug this branch fixes.
+        try:
+            if T.IsTree(tree)() is M.truth_value:
+                return M.truth_value
+        except (AttributeError, TypeError):
             pass
         try:
             if "SearchPatriciaIsTree" in self.namespace:
@@ -945,13 +1051,19 @@ class SnapshotCodec:
         return self._decode_scalar(payload["value"])
 
     def _child_refs(self, obj):
+        refs = ()
         if self._is_pair_object(obj):
             return (obj.head.value, obj.tail.value)
         if self._is_edge_object(obj) is self._ns_get("truth_value"):
-            return (obj.inputs, obj.results, obj.value)
-        if obj.value is None:
-            return ()
-        return (obj.value,)
+            refs = (obj.inputs, obj.results, obj.value)
+        elif obj.value is not None:
+            refs = (obj.value,)
+        try:
+            if obj.constructor is not None:
+                refs = refs + (obj.constructor,)
+        except Exception:
+            pass
+        return refs
 
     def _intern(self, obj):
         # Non-recursive intern. Use a machine Pair chain as the work queue so we
@@ -986,6 +1098,7 @@ class SnapshotCodec:
             oid = self.next_id
             self.next_id += 1
             self.obj_to_id[current] = oid
+            self._ids_by_pyid[id(current)] = oid
 
             for child in self._child_refs(current):
                 if child is None:
@@ -1000,51 +1113,62 @@ class SnapshotCodec:
 
     def _record_for(self, obj):
         oid = self.obj_to_id[obj]
-        namespace_name = None
-        for name in self.namespace:
-            if self.namespace[name] is obj:
-                namespace_name = name
-                break
+        namespace_name = self._name_by_objid.get(id(obj))
         if namespace_name is not None:
             return {
                 "id": oid,
                 "name": namespace_name,
             }
 
+        rec = None
         if self._is_pair_object(obj):
-            return {
+            rec = {
                 "id": oid,
                 "head": self._encode_field(obj.head.value),
                 "tail": self._encode_field(obj.tail.value),
             }
-
-        if self._is_edge_object(obj) is self._ns_get("truth_value"):
-            return {
+        elif self._is_edge_object(obj) is self._ns_get("truth_value"):
+            rec = {
                 "id": oid,
                 "inputs": self._encode_field(obj.inputs),
                 "results": self._encode_field(obj.results),
                 "value": self._encode_field(obj.value),
             }
+        else:
+            try:
+                symbol = obj.symbol
+            except Exception:
+                symbol = None
+            if symbol is not None:
+                rec = {
+                    "id": oid,
+                    "symbol": symbol,
+                    "value": self._encode_field(obj.value),
+                }
+            else:
+                rec = {
+                    "id": oid,
+                    "value": self._encode_field(obj.value),
+                }
 
         try:
-            symbol = obj.symbol
+            if obj.constructor is not None:
+                rec["constructor"] = self._encode_field(obj.constructor)
         except Exception:
-            symbol = None
-        if symbol is not None:
-            return {
-                "id": oid,
-                "symbol": symbol,
-                "value": self._encode_field(obj.value),
-            }
+            pass
 
-        return {
-            "id": oid,
-            "value": self._encode_field(obj.value),
-        }
+        return rec
 
     def _capture_from_roots(self, roots):
         self.obj_to_id = {}
+        self._ids_by_pyid = {}
         self.next_id = 1
+
+        # Reverse lookup for symbol detection in _record_for. Built once per
+        # capture, first name wins, mirroring the previous namespace scan.
+        self._name_by_objid = {}
+        for name in self.namespace:
+            self._name_by_objid.setdefault(id(self.namespace[name]), name)
 
         for name in roots:
             self._intern(roots[name])
@@ -1086,6 +1210,8 @@ class SnapshotCodec:
             "rule_order": graph.rule_order,
             "derivations": graph.derivations,
             "derivation_schemata": graph.derivation_schemata,
+            "nodes": graph.nodes,
+            "edges": graph.edges,
             "search_history": graph.search_history,
             "search_comparisons": graph.search_comparisons,
             "search_comparison_jobs": graph.search_comparison_jobs,
@@ -1093,6 +1219,13 @@ class SnapshotCodec:
             "search_memo": graph.search_memo,
             "nat_value_index": graph.nat_value_index,
         }
+        for attr in ("planner_state", "graph_tasks", "promotion_ledger", "invariant_catalog"):
+            try:
+                val = vars(graph).get(attr, None)
+                if val is not None:
+                    roots[attr] = val
+            except Exception:
+                pass
         if extra_roots is not None:
             for name in extra_roots:
                 roots[name] = extra_roots[name]
@@ -1162,6 +1295,9 @@ class SnapshotCodec:
                 obj._snapshot_edge_marker = obj
             else:
                 obj.value = self._decode_field(record["value"], id_to_obj)
+
+            if "constructor" in record:
+                obj.constructor = self._decode_field(record["constructor"], id_to_obj)
 
         roots = {}
         for name in snapshot["roots"]:
@@ -1263,6 +1399,8 @@ class SnapshotCodec:
             print("DEBUG: activate: replacing graph context...", flush=True)
         graph._replace_context(
             constructors=rebuilt_registry,
+            nodes=state.roots.get("nodes", self._ns_get("EmptyList")),
+            edges=state.roots.get("edges", self._ns_get("EmptyList")),
             all_rules=rebuilt_all_rules,
             rule_order=state.roots["rule_order"],
             derivations=rebuilt_derivations,
@@ -1275,6 +1413,11 @@ class SnapshotCodec:
             nat_value_index=rebuilt_nat_value_index,
         )
         self.namespace["AllConstructors"] = graph.constructor_registry
+
+        # Restore extended roots if present in snapshot state
+        for attr in ("planner_state", "graph_tasks", "promotion_ledger", "invariant_catalog"):
+            if attr in state.roots:
+                setattr(graph, attr, state.roots[attr])
 
         graph.refresh_context()
 
@@ -1295,12 +1438,20 @@ class SnapshotCodec:
                     needs_upgrade = M.truth_value
                     break
             if needs_upgrade is M.truth_value:
-                if debug is M.truth_value:
-                    print("DEBUG: activate: saving upgraded snapshot...", flush=True)
-                t_save0 = time.monotonic()
-                self.save(graph, snapshot_path)
-                if debug is M.truth_value:
-                    print(f"DEBUG: activate: upgraded snapshot saved ({time.monotonic() - t_save0:.2f}s)", flush=True)
+                if _upgrade_resave_enabled() is M.truth_value:
+                    print("snapshot upgrade: rewriting in place -> " + snapshot_path, flush=True)
+                    if debug is M.truth_value:
+                        print("DEBUG: activate: saving upgraded snapshot...", flush=True)
+                    t_save0 = time.monotonic()
+                    self.save(graph, snapshot_path)
+                    if debug is M.truth_value:
+                        print(f"DEBUG: activate: upgraded snapshot saved ({time.monotonic() - t_save0:.2f}s)", flush=True)
+                else:
+                    print(
+                        "snapshot upgrade: in-place rewrite skipped "
+                        "(HYGE_SNAPSHOT_UPGRADE_RESAVE=0)",
+                        flush=True,
+                    )
 
         return graph
 
@@ -1324,6 +1475,14 @@ def _runtime_namespace_for_restore():
     namespace.update(vars(Rmod))
     namespace.update(vars(Smod))
     namespace.update(vars(Tmod))
+    namespace.update(vars(Plannermod))
+    namespace.update(vars(GraphTaskmod))
+    namespace.update(vars(Curriculummod))
+    namespace.update(vars(CheckerBmod))
+    namespace.update(vars(Evaluatormod))
+    namespace.update(vars(InvariantMinermod))
+    namespace.update(vars(PromotionLedgermod))
+    namespace.update(vars(SurfaceBridgemod))
     for name in (
         "Zero",
         "one",
@@ -1369,13 +1528,68 @@ def _restore_tree_root_from_snapshot_file(snapshot_path: str, root_name: str):
     return codec._restore_tree_root(state, root_name, rebuilt_registry)
 
 
+# The handoff from a spawned restore worker back to the parent is a pickle, and
+# `pickle` serialises nesting recursively: a cons-list pickles at a Python depth
+# proportional to its length.  `all_rules` is such a list, its length is the
+# rule count, and the rule count grows with every pack.  A spawned worker starts
+# at the interpreter's default limit (1000 frames), which a full pack boot's rule
+# list outgrew once the integrated packs were merged: the rebuild itself
+# succeeded and the worker then died with "maximum recursion depth exceeded"
+# while writing the answer, so every unit snapshot a swarm plan wrote became
+# unbootable.  The handoff therefore runs on a thread with a generous stack and
+# raises the recursion limit only as far as the payload demands (doubling on
+# demand up to a cap that is still an error, never a hang).  Unpickling in the
+# parent keeps its own value stack and is unaffected.
+_HANDOFF_THREAD_STACK_BYTES = 512 * 1024 * 1024
+_HANDOFF_RECURSION_CAP = 1 << 18
+
+
+def _write_handoff(output_path: str, payload):
+    """Atomically pickle `payload` to `output_path`, however deeply it nests."""
+    temp_path = output_path + ".tmp"
+    outcome = {}
+
+    def run():
+        limit = sys.getrecursionlimit()
+        while True:
+            try:
+                with open(temp_path, "wb") as f:
+                    pickle.dump(payload, f)
+                outcome["ok"] = True
+                return
+            except RecursionError:
+                if limit >= _HANDOFF_RECURSION_CAP:
+                    outcome["error"] = "handoff payload nests deeper than %d frames" % limit
+                    return
+                limit = limit * 2
+                sys.setrecursionlimit(limit)
+
+    previous_stack = threading.stack_size()
+    started = False
+    try:
+        threading.stack_size(_HANDOFF_THREAD_STACK_BYTES)
+        worker = threading.Thread(target=run, name="hyge-restore-handoff")
+        worker.start()
+        started = True
+        worker.join()
+    except (RuntimeError, ValueError):
+        # No room for a big-stack thread (or the platform refuses the size):
+        # the limit-doubling loop on the current stack is still better than the
+        # bare default, and a failure is reported through the same payload.
+        if not started:
+            run()
+    finally:
+        threading.stack_size(previous_stack)
+    if "ok" not in outcome:
+        with open(temp_path, "wb") as f:
+            pickle.dump(("err", outcome.get("error", "handoff failed")), f)
+    os.replace(temp_path, output_path)
+
+
 def _restore_tree_root_from_snapshot_file_worker(snapshot_path: str, root_name: str, output_path: str):
     try:
         result = _restore_tree_root_from_snapshot_file(snapshot_path, root_name)
-        temp_path = output_path + ".tmp"
-        with open(temp_path, "wb") as f:
-            pickle.dump(("ok", result), f)
-        os.replace(temp_path, output_path)
+        _write_handoff(output_path, ("ok", result))
     except Exception as exc:
         temp_path = output_path + ".tmp"
         with open(temp_path, "wb") as f:

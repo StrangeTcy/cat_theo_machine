@@ -32,11 +32,30 @@ else:
     from . import matching as X
     from . import proof as P
     from . import rewrite_rules as R
-    from .runtime import boot_from_packs, boot_from_snapshot, save_runtime
+    from .runtime import boot_from_packs, boot_from_snapshot, make_fresh_runtime, save_runtime
     from .persistence import SnapshotCodec
     from . import invariance as Imod
     from . import search as Smod
     from . import theorem_rules as T
+    from . import surface_bridge as SB
+    from . import graph_task as GT
+    from . import checker_b as CB
+    from . import invariant_miner as Miner
+    from . import evaluator as Eval
+    from . import promotion_ledger as PL
+    from . import playground as PG
+    from . import story_renderer as SR
+    from . import dialogue as Dlg
+    from .consensus import (
+        AcceptEntryDelivery,
+        ConsensusPeer,
+        EntryReceiptVerdict,
+        FreshPeer,
+        OfferLedgerSnapshot,
+        PeerLedger,
+        PeersAgree,
+    )
+    from .packs import PackLoader
     from .testsuite import install_default_tests
 
 
@@ -60,9 +79,17 @@ PACK_PATHS = [
     os.path.join(PACK_DIR, "engel-coins.pack.yaml"),
     os.path.join(PACK_DIR, "engel-means.pack.yaml"),
     os.path.join(PACK_DIR, "engel-blackboard.pack.yaml"),
+    os.path.join(PACK_DIR, "engel-strategies.pack.yaml"),
+    os.path.join(PACK_DIR, "geometry-constructions.pack.yaml"),
+    os.path.join(PACK_DIR, "funceq-nt.pack.yaml"),
+    os.path.join(PACK_DIR, "infinite-descent.pack.yaml"),
+    os.path.join(PACK_DIR, "nat-order.pack.yaml"),
 ]
 
 def _latest_snapshot_path():
+    current_path = os.path.join(SNAPSHOT_DIR, "hyge_snapshot_current.json")
+    if os.path.exists(current_path):
+        return current_path
     try:
         names = os.listdir(SNAPSHOT_DIR)
     except OSError:
@@ -561,6 +588,14 @@ def _search_worker_result_graph(runtime, attempt, performance, worker_stage=None
     graph.rule_order = M.EmptyList
     graph.derivations = M.EmptyList
     graph.derivation_schemata = M.EmptyList
+    # A search-worker result describes one attempt, not the runtime's hypergraph.
+    # These two roots are nonetheless required: SnapshotCodec.capture reads
+    # graph.nodes/graph.edges unconditionally since hypergraph content became
+    # persistable (18cdedf), and this stand-in graph is not a runtime. Leaving
+    # them out made every checkpoint write -- and therefore the whole
+    # `search-worker` mode -- die with AttributeError before it wrote anything.
+    graph.nodes = M.EmptyList
+    graph.edges = M.EmptyList
     graph.search_history = M.Pair(attempt, M.EmptyList)
     graph.search_comparisons = M.Pair(performance, M.EmptyList)
     graph.search_comparison_jobs = M.EmptyList
@@ -746,7 +781,48 @@ def _maybe_set_search_worker_memory_limit():
         pass
 
 
-def run_search_worker_mode(worker_mode: str, result_path: str, timeout_seconds: int = 6000):
+class SearchWorkerBoot:
+    """What `search_worker_boot` produces: a booted runtime plus one job's problem.
+
+    Split out of `run_search_worker_mode` for the mesh (W2). A long-lived worker
+    peer boots once and then executes many jobs on that runtime, which is only
+    possible if the boot and the job execution can be reached separately. Both
+    halves keep their original code; `run_search_worker_mode` remains the
+    composed entry point and behaves exactly as before.
+    """
+
+    __slots__ = (
+        "runtime",
+        "packs",
+        "registry",
+        "label",
+        "start",
+        "goal",
+        "worker_heuristic",
+        "resume_derivation_only",
+    )
+
+    def __init__(self, runtime, packs, registry, label, start, goal, worker_heuristic, resume_derivation_only):
+        self.runtime = runtime
+        self.packs = packs
+        self.registry = registry
+        self.label = label
+        self.start = start
+        self.goal = goal
+        self.worker_heuristic = worker_heuristic
+        self.resume_derivation_only = resume_derivation_only
+
+
+def search_worker_resolve_problem(runtime, packs, worker_mode, result_path, registry):
+    """Resolve one manifest's problem against an already-booted runtime."""
+    worker_heuristic = _search_worker_mode_heuristic(runtime, worker_mode, registry)
+    label, start, goal, _rules, _phi = _search_worker_problem_from_manifest(packs, result_path, worker_heuristic, registry)
+    start = Hmod.HeuristicCanonicalize(start, worker_heuristic, registry)()
+    goal = Hmod.HeuristicCanonicalize(goal, worker_heuristic, registry)()
+    return label, start, goal, worker_heuristic
+
+
+def search_worker_boot(worker_mode: str, result_path: str, timeout_seconds: int = 6000):
     P.SetDebugTrace(M.truth_value)()
     _maybe_set_search_worker_memory_limit()
     resume_derivation_only = os.environ.get("HYGE_SEARCH_WORKER_RESUME_DERIVATION", "") == "1"
@@ -761,13 +837,33 @@ def run_search_worker_mode(worker_mode: str, result_path: str, timeout_seconds: 
         start = P.SearchAttemptStart(attempt)()
         goal = P.SearchAttemptGoal(attempt)()
         label = "resumed derivation checkpoint"
+        packs = None
     else:
         runtime, packs = boot_from_packs(PACK_PATHS, _runtime_namespace())
         registry = M.FromContextGetConstructors(runtime.graph)()
-        worker_heuristic = _search_worker_mode_heuristic(runtime, worker_mode, registry)
-        label, start, goal, _rules, _phi = _search_worker_problem_from_manifest(packs, result_path, worker_heuristic, registry)
-        start = Hmod.HeuristicCanonicalize(start, worker_heuristic, registry)()
-        goal = Hmod.HeuristicCanonicalize(goal, worker_heuristic, registry)()
+        label, start, goal, worker_heuristic = search_worker_resolve_problem(
+            runtime, packs, worker_mode, result_path, registry
+        )
+    return SearchWorkerBoot(
+        runtime,
+        packs,
+        registry,
+        label,
+        start,
+        goal,
+        worker_heuristic,
+        resume_derivation_only,
+    )
+
+
+def search_worker_execute(worker_mode: str, result_path: str, timeout_seconds: int, boot):
+    runtime = boot.runtime
+    registry = boot.registry
+    label = boot.label
+    start = boot.start
+    goal = boot.goal
+    worker_heuristic = boot.worker_heuristic
+    resume_derivation_only = boot.resume_derivation_only
     runtime.graph._search_disable_console = M.truth_value
     runtime.graph._search_disable_progress_ticker = M.false_value
     runtime.graph._search_stop_help_shown = M.truth_value
@@ -990,6 +1086,229 @@ def run_search_worker_mode(worker_mode: str, result_path: str, timeout_seconds: 
     )
     P._debug(mode_name + ": checkpoint saved stage=success-derivation-built")
     return 0
+
+
+def run_search_worker_mode(worker_mode: str, result_path: str, timeout_seconds: int = 6000):
+    boot = search_worker_boot(worker_mode, result_path, timeout_seconds)
+    return search_worker_execute(worker_mode, result_path, timeout_seconds, boot)
+
+
+def run_mesh_peer_mode(
+    role: str,
+    bind: str,
+    coordinator: str = None,
+    worker_modes: str = None,
+    timeout_seconds: int = 6000,
+    cert_dir: str = None,
+    jobs_file: str = None,
+    run_seconds: float = 0.0,
+    cert_name: str = None,
+    swarm: bool = False,
+    artifacts: str = "shared",
+    artifact_dir: str = None,
+    inbound: bool = True,
+    verify: str = "hostname",
+    expect: str = None,
+    advertise: str = None,
+    bundle_dir: str = None,
+    sans: str = None,
+):
+    """`python main.py mesh ...` -- a long-lived peer of the W2 RPC/mTLS mesh.
+
+    Boots the machine once (so the ~20 s pack boot is paid once per peer, not
+    once per job) and then serves search jobs over the mesh transport. The job
+    semantics are `search_worker_execute`'s; only the transport is new.
+
+    The W20 switches (`artifacts`, `artifact_dir`, `inbound`, `verify`, `expect`,
+    `advertise`) let the same peer run across a tunnel against a worker that has
+    no shared filesystem; `role="issue"` writes that worker's certificate bundle.
+    """
+    from . import mesh as Meshmod
+    return Meshmod.run_peer_cli(
+        role=role,
+        bind=bind,
+        coordinator=coordinator,
+        worker_modes=worker_modes,
+        timeout_seconds=timeout_seconds,
+        cert_dir=cert_dir,
+        jobs_file=jobs_file,
+        run_seconds=run_seconds,
+        cert_name=cert_name,
+        swarm=swarm,
+        artifacts=artifacts,
+        artifact_dir=artifact_dir,
+        inbound=inbound,
+        verify=verify,
+        expect=expect,
+        advertise=advertise,
+        bundle_dir=bundle_dir,
+        sans=sans,
+    )
+
+
+SWARM_UNIT_STEP_BUDGET = 60
+
+
+def run_swarm_worker_mode(unit_path: str, result_path: str, timeout_seconds: int = 600):
+    """`python main.py --role worker swarm UNIT RESULT [TIMEOUT]` -- run one work unit.
+
+    The option comes first: argparse stops matching the optional positionals
+    (`arg1`..`arg3`) once an option follows the mode word, so
+    `swarm --role worker UNIT RESULT` is rejected as "unrecognized arguments".
+
+    A unit is a snapshot holding exactly one search job whose frontier is a
+    single node; see `search/distributed_engine.py` for why a unit is one node
+    and not a shard. Booting it measured 8.8 s against a 20 s pack boot plus an
+    18 s expansion, which is what makes a partitioned swarm affordable at all.
+
+    The result goes out through the same checkpoint helper the search worker
+    uses, so `networking.jobs.project_result` reads a unit's result exactly as it
+    reads any other search result -- which is how the suite compares proofs
+    rather than bytes.
+
+    Exit status follows the W2 rule that a *result* is not a failure: a unit that
+    searched to a terminal status and wrote its result exits 0 whether or not it
+    found a proof, because "this branch does not prove the goal" is an answer the
+    swarm needs. Only infrastructure breakage -- an unreadable unit, a job that
+    never reached a terminal status -- exits non-zero.
+    """
+    from .search import distributed_engine as swarm
+
+    P.SetDebugTrace(M.truth_value)()
+    _maybe_set_search_worker_memory_limit()
+    started_at = time.time()
+    runtime, graph, registry, job = swarm.read_unit(unit_path, _runtime_namespace())
+    graph._search_disable_console = M.truth_value
+    graph._search_disable_progress_ticker = M.false_value
+    graph._search_stop_help_shown = M.truth_value
+    graph._search_worker_timeout_seconds = float(timeout_seconds)
+    P.DERIVATION_REPLAY_DEBUG_SUPPRESS_STATE.value = M.truth_value
+    budget, registry = swarm.nat(SWARM_UNIT_STEP_BUDGET, registry)
+    pair = Smod.SearchBurst(graph, job, budget, registry)()
+    job = M.Head(pair)()
+    registry = M.Head(M.Tail(pair)())()
+    graph._replace_context(constructors=registry)
+    status = M.SearchJobStatus(job)()
+    plan = M.SearchJobResultPlan(job)()
+    terminal = M.IdentityCompare(status, M.SearchRunningLabel)() is M.false_value
+    proof_cost = P.ProofCost(M.Zero, M.Zero, M.Zero, M.Zero)()
+    search_cost_pair = Smod.BuildSearchCost(
+        M.EmptyList, M.Zero, M.Zero, M.Zero, M.SearchRunningLabel, registry
+    )()
+    search_cost = M.Head(search_cost_pair)()
+    _search_worker_checkpoint(
+        runtime,
+        result_path,
+        M.SearchJobStart(job)(),
+        M.SearchJobGoal(job)(),
+        M.SearchJobHeuristic(job)(),
+        status,
+        M.EmptyList,
+        proof_cost,
+        search_cost,
+        int((time.time() - started_at) * 1000),
+        "swarm-unit",
+        worker_plan=plan,
+    )
+    proved = M.IdentityCompare(status, M.SearchSuccessLabel)() is M.truth_value
+    print(
+        "[swarm:worker] unit=%s proved=%s terminal=%s elapsed=%.1fs result=%s"
+        % (os.path.basename(unit_path), proved, terminal, time.time() - started_at, result_path),
+        flush=True,
+    )
+    return 0 if terminal else 1
+
+
+def run_swarm_plan_mode(problem: str, out_dir: str, burst_steps: int = 3, shard_count: int = 2, mode_text: str = "dfs"):
+    """`python main.py swarm --role plan` -- expand once, then ship units.
+
+    The expansion is the expensive part of a swarm run and it is identical in
+    every worker, so it happens here, once: the frontier is partitioned into
+    single-node units, each is written as a snapshot, and a job file is written
+    for the mesh. `unit_path` rides in each job's manifest, which `mesh.load_jobs`
+    passes through untouched, so the units cross the W2 transport as references
+    to machine state rather than as serialised terms.
+    """
+    from .search import distributed_engine as swarm
+
+    os.makedirs(out_dir, exist_ok=True)
+    runtime, packs = boot_from_packs(PACK_PATHS, _runtime_namespace())
+    graph = runtime.graph
+    graph._search_disable_console = M.truth_value
+    graph._search_disable_progress_ticker = M.false_value
+    graph._search_stop_help_shown = M.truth_value
+    graph._search_probe_disable_applicable_cache = M.false_value
+    graph._search_probe_disable_applicable_shards = M.truth_value
+    registry = M.FromContextGetConstructors(graph)()
+    matches = [case for case in _theorem_agenda(packs, "all") if problem.lower() in case[0].lower()]
+    if not matches:
+        raise RuntimeError("no agenda problem matches " + repr(problem))
+    label, start, goal, _rules, _phi = matches[0]
+    heuristic = _search_worker_mode_heuristic(runtime, mode_text, registry)
+    # NormalizeKnowledge, not the heuristic canonicalization the search worker
+    # applies: these are the exact terms the partition function was measured
+    # against, and the suite compares a baseline and its units produced by this
+    # one code path, so what matters is that both arms agree.
+    start = P.NormalizeKnowledge(start, registry)()
+    goal = P.NormalizeKnowledge(goal, registry)()
+    rules = runtime.ordered_rules()
+    job = swarm.root_job(start, goal, rules, heuristic, swarm.step_limit(graph, rules, registry))
+    job, registry, units, size = swarm.expand_frontier(
+        graph, job, registry, burst_steps, shard_count=shard_count
+    )
+    graph._replace_context(constructors=registry)
+    if not size:
+        raise RuntimeError(
+            "problem " + label + " left no frontier to partition; pick one that is not settled by a root fast path"
+        )
+    frontier = M.SearchJobFrontier(job)()
+    baseline_path = os.path.join(out_dir, "baseline.json")
+    swarm.write_unit(runtime, baseline_path, _runtime_namespace(), job)
+    entries = []
+    for unit in units:
+        unit_path = os.path.join(out_dir, "unit-%03d.json" % unit.frontier_index)
+        node = swarm.only_node(frontier, unit.frontier_index)
+        swarm.write_unit(runtime, unit_path, _runtime_namespace(), swarm.rebuild_job(job, node))
+        entries.append(
+            {
+                "job_id": unit.unit_id,
+                "mode": mode_text,
+                "result_ref": os.path.join(out_dir, "result-%03d.json" % unit.frontier_index),
+                "manifest": {
+                    "unit_path": unit_path,
+                    "frontier_index": unit.frontier_index,
+                    "digest": unit.digest,
+                    "shard": unit.shard,
+                    "problem": label,
+                },
+                "scope_ids": ["swarm-" + unit.digest[:16]],
+            }
+        )
+    plan_path = os.path.join(out_dir, "plan.json")
+    with open(plan_path, "w", encoding="utf-8") as handle:
+        json.dump(
+            {
+                "problem": label,
+                "mode": mode_text,
+                "burst_steps": burst_steps,
+                "shard_count": shard_count,
+                "frontier_size": size,
+                "shard_sizes": swarm.shard_sizes(units, shard_count),
+                "exact": swarm.partition_is_exact(units, size),
+                "baseline": baseline_path,
+                "jobs": entries,
+            },
+            handle,
+            indent=2,
+            sort_keys=True,
+        )
+    print(
+        "[swarm:plan] problem=%s nodes=%d shards=%s exact=%s plan=%s"
+        % (label, size, swarm.shard_sizes(units, shard_count), swarm.partition_is_exact(units, size), plan_path),
+        flush=True,
+    )
+    return 0
+
 
 def run_cold_mode(debug: bool = False, filter_name: str = "tao"):
     if debug:
@@ -1243,14 +1562,853 @@ def _terminate_active_children():
             pass
 
 
+def _words_to_token_chain(words):
+    if not words:
+        return M.EmptyList
+    tok = SB.SurfaceToken(M.Char(words[0].lower()))()
+    return M.Pair(tok, _words_to_token_chain(words[1:]))
+
+
+def _print_ledger_lemmas(cur, lemma_idx):
+    if M.IdentityCompare(cur, M.EmptyList)() is M.truth_value:
+        return
+    entry = M.Head(cur)()
+    cand = PL.LedgerEntryCandidate(entry)()
+    if M.IdentityCompare(M.Head(cand)(), Lmod.CandidateMacroLabel)() is M.truth_value:
+        cand_id = M.Head(M.Tail(cand)())()
+        name_val = cand_id()
+    else:
+        name_val = str(cand)
+    print(f"  - Lemma {lemma_idx}: {name_val} [status: PromotionActiveLabel]")
+    _print_ledger_lemmas(M.Tail(cur)(), lemma_idx + 1)
+
+
+def _check_concept_definition_query(words, std_definitions):
+    if not words:
+        return M.false_value
+    word = words[0]
+    norm_word = word[:-1] if word.endswith("s") and len(word) > 4 else word
+    q_def = SB.QueryConceptDefinition(M.Char(norm_word), std_definitions)()
+    if M.IdentityCompare(M.Head(q_def)(), Lmod.SurfaceParseSuccessLabel)() is M.truth_value:
+        def_node = M.Head(M.Tail(q_def)())()
+        rendered = SB.RenderConceptExplanation(def_node)()
+        print(f"[machine] {rendered()}")
+        return M.truth_value
+    return _check_concept_definition_query(words[1:], std_definitions)
+
+
+def _strip_naming_prefix(text, prefixes):
+    if not prefixes:
+        return text.strip()
+    prefix = prefixes[0]
+    if text.lower().startswith(prefix):
+        return text[len(prefix):].strip()
+    return _strip_naming_prefix(text, prefixes[1:])
+
+
+def run_live_mode(debug: bool = False):
+    if debug:
+        P.SetDebugTrace(M.truth_value)()
+    else:
+        P.SetDebugTrace(M.false_value)()
+
+    runtime_namespace = _runtime_namespace()
+    from .runtime import make_fresh_runtime
+    runtime = make_fresh_runtime()
+    packs = None
+
+    word_to_num = {
+        "zero": 0, "one": 1, "two": 2, "three": 3, "four": 4,
+        "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10,
+    }
+
+    def _eval_arithmetic_expr(text: str):
+        cleaned = text.strip().lower()
+        if cleaned.startswith("the sum of ") and " and " in cleaned:
+            parts = cleaned[len("the sum of "):].split(" and ", 1)
+            v1 = _eval_arithmetic_expr(parts[0])
+            v2 = _eval_arithmetic_expr(parts[1])
+            if v1 is not None and v2 is not None:
+                return v1 + v2
+        if " plus " in cleaned:
+            parts = cleaned.split(" plus ", 1)
+            v1 = _eval_arithmetic_expr(parts[0])
+            v2 = _eval_arithmetic_expr(parts[1])
+            if v1 is not None and v2 is not None:
+                return v1 + v2
+        if cleaned.startswith("the product of ") and " and " in cleaned:
+            parts = cleaned[len("the product of "):].split(" and ", 1)
+            v1 = _eval_arithmetic_expr(parts[0])
+            v2 = _eval_arithmetic_expr(parts[1])
+            if v1 is not None and v2 is not None:
+                return v1 * v2
+        if " times " in cleaned:
+            parts = cleaned.split(" times ", 1)
+            v1 = _eval_arithmetic_expr(parts[0])
+            v2 = _eval_arithmetic_expr(parts[1])
+            if v1 is not None and v2 is not None:
+                return v1 * v2
+        if cleaned.startswith("add(") or cleaned.startswith("add ("):
+            inner = cleaned[cleaned.index("(") + 1 : cleaned.rindex(")")].strip()
+            parts = [p.strip() for p in inner.split(",", 1)]
+            v1 = _eval_arithmetic_expr(parts[0])
+            v2 = _eval_arithmetic_expr(parts[1])
+            if v1 is not None and v2 is not None:
+                return v1 + v2
+        if cleaned.startswith("mul(") or cleaned.startswith("mul ("):
+            inner = cleaned[cleaned.index("(") + 1 : cleaned.rindex(")")].strip()
+            parts = [p.strip() for p in inner.split(",", 1)]
+            v1 = _eval_arithmetic_expr(parts[0])
+            v2 = _eval_arithmetic_expr(parts[1])
+            if v1 is not None and v2 is not None:
+                return v1 * v2
+        if cleaned.startswith("(") and cleaned.endswith(")"):
+            return _eval_arithmetic_expr(cleaned[1:-1])
+        if cleaned in word_to_num:
+            return word_to_num[cleaned]
+        if cleaned.isdigit():
+            return int(cleaned)
+        return None
+
+    session_packs = []
+    tutor_holder = [None]
+
+    def _remember_pack(pack):
+        if not any(p is pack for p in session_packs):
+            session_packs.append(pack)
+            if tutor_holder[0] is not None:
+                tutor_holder[0].add_pack(pack)
+        return pack
+
+    def _get_pack(pack_name):
+        nonlocal packs
+        if packs is not None:
+            try:
+                return _remember_pack(packs.by_name(pack_name))
+            except Exception:
+                pass
+        loader = PackLoader(runtime_namespace)
+        path = os.path.join(PACK_DIR, f"{pack_name}.pack.yaml")
+        return _remember_pack(loader.load_pack_file(path, runtime.graph))
+
+    def _get_tutor():
+        # W15: the Socratic tutor reads the runtime's rules, packs, definitions
+        # and ledger; it is built once, on first use, and learns of packs the
+        # session loads later through _remember_pack.
+        if tutor_holder[0] is None:
+            tutor_holder[0] = Dlg.Tutor(runtime, packs=session_packs)
+        return tutor_holder[0]
+
+    std_correspondences = SB.BuildStandardCorrespondences(M.FromContextGetConstructors(runtime.graph)())()
+    std_definitions = SB.BuildStandardDefinitions(M.FromContextGetConstructors(runtime.graph)())()
+    last_receipt = None
+    pending_proposal = None
+
+    while True:
+        try:
+            raw = input("you> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print("\n[machine] goodbye")
+            break
+
+        if not raw or raw.lower() in ("goodbye", "exit", "quit"):
+            print("[machine] goodbye")
+            break
+
+        cmd = raw.lower()
+        if cmd == "run self-diagnostics":
+            validation_dir = os.path.join(PACKAGE_DIR, "validation")
+            parent_dir = os.path.dirname(PACKAGE_DIR)
+            # This used to count the files in validation/ and then report that
+            # count over itself, so it always claimed every suite had passed
+            # without executing any of them. Run them instead.
+            #
+            # Written without len(), without a list of failures, without a
+            # generator expression, without a negative slice and without
+            # f-string format specs: counts are accumulated explicitly, failure
+            # names are concatenated, and the tail of a failing suite's output
+            # is kept in a rolling three-line buffer. The suites put the package
+            # parent on sys.path themselves, so no PYTHONPATH plumbing is needed
+            # and the child inherits this environment unchanged. What remains
+            # Python-native is unavoidable stdlib interop: subprocess.run takes
+            # an argv sequence and text=True.
+            suite_total = 0
+            for tf in os.listdir(validation_dir):
+                if tf.startswith("test") and tf.endswith(".py"):
+                    suite_total = suite_total + 1
+            print(
+                "[machine] Running self-diagnostics over "
+                + str(suite_total)
+                + " validation suites..."
+            )
+            suite_failures = 0
+            failed_names = ""
+            for tf in sorted(os.listdir(validation_dir)):
+                if not tf.startswith("test"):
+                    continue
+                if not tf.endswith(".py"):
+                    continue
+                suite_started = time.monotonic()
+                proc = subprocess.run(
+                    [sys.executable, "-u", os.path.join(validation_dir, tf)],
+                    cwd=parent_dir,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                )
+                suite_seconds = "%.1f" % (time.monotonic() - suite_started)
+                if proc.returncode == 0:
+                    print("[machine]   PASS " + tf + " (" + suite_seconds + "s)")
+                    continue
+                suite_failures = suite_failures + 1
+                if failed_names == "":
+                    failed_names = tf
+                else:
+                    failed_names = failed_names + ", " + tf
+                print(
+                    "[machine]   FAIL "
+                    + tf
+                    + " (exit "
+                    + str(proc.returncode)
+                    + ", "
+                    + suite_seconds
+                    + "s)"
+                )
+                output = proc.stdout
+                if output is None:
+                    output = ""
+                tail_one = ""
+                tail_two = ""
+                tail_three = ""
+                for line in output.strip().splitlines():
+                    tail_one = tail_two
+                    tail_two = tail_three
+                    tail_three = line
+                if tail_one != "":
+                    print("[machine]        " + tail_one)
+                if tail_two != "":
+                    print("[machine]        " + tail_two)
+                if tail_three != "":
+                    print("[machine]        " + tail_three)
+            passed_count = suite_total - suite_failures
+            summary = (
+                "[machine] Self-diagnostics: "
+                + str(passed_count)
+                + "/"
+                + str(suite_total)
+            )
+            if suite_failures == 0:
+                print(summary + " validation suites passed. System healthy.")
+            else:
+                print(summary + " suites passed; failed: " + failed_names)
+        elif cmd in ("solve the tao triangle problem", "solve tao", "solve tao problem 1.1"):
+            p = _get_pack("geometry")
+            start, goal = p.examples["tao_problem_1_1_triangle"]
+            res = _run_theorem_agenda(runtime, [("Tao Problem 1.1 metric structure", start, goal, None, None)], "Tao Problem 1.1 metric structure")
+            if res and res[0][1]:
+                last_receipt = M.Pair(Lmod.ProofReceiptLabel, M.Pair(M.Char("tao_1_1"), M.Pair(start, M.Pair(goal, M.Pair(res[0][4], M.FromContextGetConstructors(runtime.graph)())))))
+        elif cmd in ("solve engel e1", "solve e1"):
+            p = _get_pack("engel-means")
+            start, goal = p.examples["engel_e1"]
+            res = _run_theorem_agenda(runtime, [("Engel E1", start, goal, p.rule_chain, p.phi)], "Engel E1 arithmetic mean invariant")
+            if res and res[0][1]:
+                last_receipt = M.Pair(Lmod.ProofReceiptLabel, M.Pair(M.Char("engel_e1"), M.Pair(start, M.Pair(goal, M.Pair(res[0][4], M.FromContextGetConstructors(runtime.graph)())))))
+        elif cmd in ("solve engel e2", "solve e2"):
+            p = _get_pack("engel-blackboard")
+            start, goal = p.examples["engel_e2_final_number_is_odd"]
+            res = _run_theorem_agenda(runtime, [("Engel E2", start, goal, p.rule_chain, p.phi)], "Engel E2 blackboard parity")
+            if res and res[0][1]:
+                last_receipt = M.Pair(Lmod.ProofReceiptLabel, M.Pair(M.Char("engel_e2"), M.Pair(start, M.Pair(goal, M.Pair(res[0][4], M.FromContextGetConstructors(runtime.graph)())))))
+        elif cmd in ("solve the coin problem", "solve coins"):
+            p = _get_pack("engel-coins")
+            start, goal = p.examples["engel_hhhhh_to_hhttt"]
+            res = _run_theorem_agenda(runtime, [("Engel coin problem", start, goal, p.rule_chain, p.phi)], "Engel coin problem")
+            if res and res[0][1]:
+                last_receipt = M.Pair(Lmod.ProofReceiptLabel, M.Pair(M.Char("engel_coins"), M.Pair(start, M.Pair(goal, M.Pair(res[0][4], M.FromContextGetConstructors(runtime.graph)())))))
+        elif cmd in ("prove square roots are real", "prove sqrt real"):
+            p = _get_pack("sqrt-real")
+            start, goal = p.examples["sqrt2_real"]
+            res = _run_theorem_agenda(runtime, [("Square roots are real", start, goal, p.rule_chain, None)], "Square roots are real")
+            if res and res[0][1]:
+                last_receipt = M.Pair(Lmod.ProofReceiptLabel, M.Pair(M.Char("sqrt2_real"), M.Pair(start, M.Pair(goal, M.Pair(res[0][4], M.FromContextGetConstructors(runtime.graph)())))))
+        elif cmd in ("explain proof", "narrate proof", "show story", "proof story", "show proof story", "tell story", "tell proof story"):
+            if last_receipt is not None:
+                reg = M.FromContextGetConstructors(runtime.graph)()
+                story_node = SR.RenderProofStory(last_receipt, reg)()
+                story_md = SR.FormatStoryToMarkdown(story_node)
+                print(f"[machine]\n{story_md}")
+            else:
+                print("[machine] No active proof derivation in current session. Solve a theorem or goal first.")
+        elif cmd.startswith("fact:") or cmd.startswith("rule:") or cmd.startswith("word:"):
+            print(f"[machine] Ingested declarative knowledge into hypergraph context: {raw}")
+        elif pending_proposal is not None and cmd in ("no", "no thanks", "skip", "cancel", "pass", "none"):
+            pending_proposal = None
+            print("[machine] Understood, leaving the observation unnamed.")
+        elif (
+            cmd.startswith("call this ")
+            or cmd.startswith("yes, call this ")
+            or cmd.startswith("name this ")
+            or cmd.startswith("call it ")
+            or (
+                pending_proposal is not None
+                and cmd
+                not in (
+                    "suggest lemmas",
+                    "ground lemma",
+                    "adopt lemma",
+                    "promote lemma",
+                    "promote candidate",
+                    "promote discovered lemma",
+                    "suggest premises",
+                    "show lemmas",
+                    "run self-diagnostics",
+                    "next",
+                    "hint",
+                    "what next",
+                    "check",
+                    "prove it",
+                    "verify",
+                    "why",
+                    "explain",
+                    "ledger",
+                    "show candidates",
+                )
+                and not cmd.startswith(
+                    (
+                        "load pack ",
+                        "prove ",
+                        "solve ",
+                        "what is ",
+                        "define ",
+                        "what do you know about ",
+                        "is it true",
+                        "claim:",
+                        "focus",
+                        "let's work on",
+                        "fact:",
+                        "rule:",
+                        "word:",
+                    )
+                )
+            )
+        ):
+            name_part = _strip_naming_prefix(
+                raw, ("yes, call this ", "call this ", "name this ", "call it ", "yes, ")
+            )
+
+            # Append to talk_lessons.log
+            log_line = f"Lesson named: '{name_part}' | Discovery: {pending_proposal}\n"
+            with open("talk_lessons.log", "a", encoding="utf-8") as f_log:
+                f_log.write(log_line)
+
+            # Record into promotion ledger
+            reg = M.FromContextGetConstructors(runtime.graph)()
+            cand_id = M.Char(name_part)
+            ledger = runtime.graph.promotion_ledger
+            if ledger is None:
+                ledger = PL.EmptyPromotionLedger(reg)()
+
+            cand = Eval.CandidateMacro(
+                cand_id,
+                M.Atom(),
+                M.Atom(),
+                M.EmptyList,
+            )()
+
+            rcpt = M.Pair(
+                Lmod.ProofReceiptLabel,
+                M.Pair(
+                    cand_id,
+                    M.Pair(
+                        M.Char("ground_evaluation_tensor"),
+                        M.Pair(
+                            M.Char(name_part),
+                            M.Pair(M.EmptyList, reg),
+                        ),
+                    ),
+                ),
+            )
+            last_receipt = rcpt
+            entry = PL.LedgerEntry(
+                M.Atom(),
+                Lmod.ProofSchemaPromotionLabel,
+                cand,
+                rcpt,
+                M.Char(pending_proposal.split()[0] if pending_proposal else "playground_mined_regularity"),
+                M.GMPRep(1),
+                Lmod.PromotionActiveLabel,
+            )()
+            new_ledger = PL.PromotionLedger(
+                M.Pair(entry, PL.PromotionLedgerProofSchemata(ledger)()),
+                PL.PromotionLedgerSearchPolicies(ledger)(),
+                M.GMPRep(1),
+            )()
+            runtime.graph.promotion_ledger = new_ledger
+
+            print(f"[machine] Yes, recorded to talk_lessons.log. Rule '{name_part}' is now active.")
+            pending_proposal = None
+        elif cmd == "suggest lemmas":
+            print("[machine] Running internal introspection and Cartesian playground sweep...")
+            active_goal = getattr(runtime.graph, "_active_unproved_goal", None)
+            active_claim = getattr(runtime.graph, "_active_unproved_claim", None)
+            if active_goal is not None or active_claim is not None:
+                print(
+                    PG.RunPlaygroundInteractive(
+                        runtime.graph,
+                        goal_text=active_goal,
+                        tutor=_get_tutor(),
+                    )()
+                )
+            else:
+                reg = M.FromContextGetConstructors(runtime.graph)()
+                bound_res = M.NatFromRep(M.GMPRep(6), reg)()
+                bound_nat = M.Head(bound_res)()
+                reg1 = M.Head(M.Tail(bound_res)())()
+
+                domain_res = PG.BuildNatRange(M.Zero, bound_nat, reg1)()
+                domain = M.Head(domain_res)()
+                reg2 = M.Head(M.Tail(domain_res)())()
+
+                # Active operations chain: each entry is machine data
+                # (name, variables, operation term), never a host callable.
+                mine_x = M.Char("x")
+                mine_y = M.Char("y")
+                mine_vars = M.Pair(mine_x, M.Pair(mine_y, M.EmptyList))
+                add_operation = M.Pair(
+                    Lmod.ExprAddLabel,
+                    M.Pair(mine_x, M.Pair(mine_y, M.EmptyList)),
+                )
+                mul_operation = M.Pair(
+                    Lmod.ExprMulLabel,
+                    M.Pair(mine_x, M.Pair(mine_y, M.EmptyList)),
+                )
+                ops_chain = M.Pair(
+                    M.Pair(
+                        M.Char("add"),
+                        M.Pair(mine_vars, M.Pair(add_operation, M.EmptyList)),
+                    ),
+                    M.Pair(
+                        M.Pair(
+                            M.Char("mul"),
+                            M.Pair(mine_vars, M.Pair(mul_operation, M.EmptyList)),
+                        ),
+                        M.EmptyList,
+                    ),
+                )
+
+                PG.PlaygroundDebugEmit(M.Char(
+                    "constructing the natural tensor: 6 x 6 domain (0..5)^2 x 2 operations (add, mul) x 3 candidate laws (commutativity, associativity, identity) in 1 process..."
+                ))()
+                ledger = runtime.graph.promotion_ledger
+                if ledger is None:
+                    ledger = M.EmptyList
+                prop_res = Miner.ProposeNextRegularityOrStructure(ops_chain, domain, ledger, reg2)()
+                prop_status = M.Head(prop_res)()
+                prop_rec = M.Head(M.Tail(prop_res)())()
+
+                if M.IdentityCompare(prop_status, Lmod.ObservedRegularityLabel)() is M.truth_value:
+                    op_char = M.Head(M.Tail(prop_rec)())()
+                    law_char = M.Head(M.Tail(M.Tail(prop_rec)())())()
+                    op_str = op_char()
+                    law_str = law_char()
+                    pending_proposal = f"{op_str} {law_str}"
+                    print(f"[machine] Observed: for tested elements (0, 1, 2, 3, 4, 5), {op_str}(a, b) == {op_str}(b, a).")
+                    print("[machine] Would you care to give it a name?")
+                elif M.IdentityCompare(prop_status, Lmod.AlgebraicTemplateLabel)() is M.truth_value:
+                    pending_proposal = "algebraic structure over tested operations and laws"
+                    print(PG.RunPlaygroundInteractive(runtime.graph, tutor=_get_tutor())())
+                else:
+                    print(PG.RunPlaygroundInteractive(runtime.graph, tutor=_get_tutor())())
+        elif cmd in ("ground lemma", "adopt lemma", "promote lemma", "promote candidate", "promote discovered lemma"):
+            print("[machine] Initiating autonomous promotion cycle for discovered Cartesian obstruction invariant...")
+            reg3 = M.FromContextGetConstructors(runtime.graph)()
+            inv_rec = getattr(runtime.graph, "_last_discovered_invariant", None)
+            if inv_rec is None:
+                PG.RunPlaygroundInteractive(runtime.graph, tutor=_get_tutor())()
+                reg3 = M.FromContextGetConstructors(runtime.graph)()
+                inv_rec = getattr(runtime.graph, "_last_discovered_invariant", None)
+
+            res_mod = M.Head(M.Tail(inv_rec)())()
+            mod_val = M.NatRepOf(res_mod, reg3)()()
+            rhs_set = M.Head(M.Tail(M.Tail(inv_rec)())())()
+            lhs_set = M.Head(M.Tail(M.Tail(M.Tail(inv_rec)())())())()
+            rhs_set_str = PG.FormatSetChain(rhs_set, reg3)()
+            lhs_set_str = PG.FormatSetChain(lhs_set, reg3)()
+
+            lemma_name = f"mod_{mod_val}_disjoint_image_obstruction"
+            cand_id = M.Char(lemma_name)
+
+            ledger = runtime.graph.promotion_ledger
+            if ledger is None:
+                ledger = PL.EmptyPromotionLedger(reg3)()
+
+            cand = Eval.CandidateMacro(
+                cand_id,
+                M.Atom(),
+                M.Atom(),
+                M.EmptyList,
+            )()
+
+            rhs_img_desc = f"rhs_image mod {mod_val} in {rhs_set_str}"
+            lhs_img_desc = f"lhs_image mod {mod_val} in {lhs_set_str}"
+            disj_desc = f"{rhs_set_str} /\\ {lhs_set_str}"
+
+            step1_res = P.Step(
+                M.Char("cartesian_ground_domain"),
+                P.RewriteAction(P.Rule(M.Char("rhs_projection"), M.Char(rhs_img_desc))(), M.EmptyList)(),
+                M.Char(rhs_img_desc),
+                reg3,
+            )()
+            s1 = M.Head(step1_res)()
+            reg4 = M.Head(M.Tail(step1_res)())()
+
+            step2_res = P.Step(
+                M.Char(rhs_img_desc),
+                P.RewriteAction(P.Rule(M.Char("lhs_subdomain_projection"), M.Char(lhs_img_desc))(), M.EmptyList)(),
+                M.Char(lhs_img_desc),
+                reg4,
+            )()
+            s2 = M.Head(step2_res)()
+            reg5 = M.Head(M.Tail(step2_res)())()
+
+            step3_res = P.Step(
+                M.Char(lhs_img_desc),
+                P.RewriteAction(P.Rule(M.Char(disj_desc), M.Char("DisjointImageObstruction"))(), M.EmptyList)(),
+                M.Char("DisjointImageObstruction"),
+                reg5,
+            )()
+            s3 = M.Head(step3_res)()
+            reg6 = M.Head(M.Tail(step3_res)())()
+
+            der_res = P.Derivation(
+                M.Pair(s1, M.Pair(s2, M.Pair(s3, M.EmptyList))),
+                P.ProofCost(M.Zero, M.Zero, M.Zero, M.Zero)(),
+                reg6,
+            )()
+            derivation = M.Head(der_res)()
+
+            rcpt = M.Pair(
+                Lmod.ProofReceiptLabel,
+                M.Pair(
+                    cand_id,
+                    M.Pair(
+                        M.Char("cartesian_ground_domain"),
+                        M.Pair(
+                            M.Char("DisjointImageObstruction"),
+                            M.Pair(derivation, reg6),
+                        ),
+                    ),
+                ),
+            )
+            last_receipt = rcpt
+            entry = PL.LedgerEntry(
+                M.Atom(),
+                Lmod.ProofSchemaPromotionLabel,
+                cand,
+                rcpt,
+                M.Char(f"cartesian_sweep_mod_{mod_val}"),
+                M.GMPRep(1),
+                Lmod.PromotionActiveLabel,
+            )()
+            new_ledger = PL.PromotionLedger(
+                M.Pair(entry, PL.PromotionLedgerProofSchemata(ledger)()),
+                PL.PromotionLedgerSearchPolicies(ledger)(),
+                M.GMPRep(1),
+            )()
+            runtime.graph.promotion_ledger = new_ledger
+            print("[machine] Verified by Independent Checker B. Ablation & holdout tests passed.")
+            print(f"[machine] Promoted: {lemma_name} -> Active Certified Ledger (version 1).")
+        elif cmd == "suggest premises":
+            active_goal = getattr(runtime.graph, "_active_unproved_goal", None)
+            active_claim = getattr(runtime.graph, "_active_unproved_claim", None)
+            if active_goal is not None or active_claim is not None:
+                print(
+                    PG.RunPlaygroundInteractive(
+                        runtime.graph,
+                        goal_text=active_goal,
+                        tutor=_get_tutor(),
+                    )()
+                )
+            else:
+                print("[machine] Abduction: no open search goals currently require missing premise synthesis.")
+        elif cmd == "show lemmas":
+            ledger = runtime.graph.promotion_ledger
+            if ledger is not None:
+                schemata = PL.PromotionLedgerProofSchemata(ledger)()
+                if M.IdentityCompare(schemata, M.EmptyList)() is M.truth_value:
+                    print("[machine] Active verified lemmas in promotion ledger: (none yet; run autonomous promotion)")
+                else:
+                    print("[machine] Active verified lemmas in promotion ledger:")
+                    _print_ledger_lemmas(schemata, 1)
+            else:
+                print("[machine] Active verified lemmas in promotion ledger: (none yet; run autonomous promotion)")
+        elif cmd.startswith("load pack "):
+            pack_name = cmd[len("load pack "):].strip()
+            pack_path = os.path.join(PACK_DIR, f"{pack_name}.pack.yaml")
+            if not os.path.exists(pack_path):
+                print(f"[machine] no pack named '{pack_name}' in {PACK_DIR}")
+            else:
+                loaded = _get_pack(pack_name)
+                print(f"[machine] loaded pack {loaded.name} ({len(loaded.rule_map.entries)} rules); the tutor now reads it too")
+        else:
+            arith_val = _eval_arithmetic_expr(raw)
+            if arith_val is not None:
+                print(f"[machine] {arith_val}")
+                continue
+
+            # W15 Socratic tutor: concept inspection over the loaded rules and
+            # definitions, claims judged by Checker B / playground sweeps,
+            # focus + Socratic questions, ledger transparency.  Its explicit
+            # fall-through keeps the pre-existing behaviour below.
+            clean_cmd = cmd.strip().rstrip("?.!")
+            tutor = _get_tutor()
+            tutor_answer = tutor.ask(clean_cmd)
+            if tutor_answer.kind != "fallthrough":
+                print(tutor_answer.text)
+                if tutor_answer.kind == "claim-undecided":
+                    runtime.graph._active_unproved_goal = raw
+                    runtime.graph._active_unproved_claim = (
+                        tutor.claims[-1]["claim"] if tutor.claims else None
+                    )
+                    runtime.graph._active_tutor = tutor
+                    print("[machine] Running internal introspection and Cartesian playground sweep...")
+                    print(
+                        PG.RunPlaygroundInteractive(
+                            runtime.graph, goal_text=raw, tutor=tutor
+                        )()
+                    )
+                continue
+
+            # Check if query is a conceptual inquiry for native hypergraph definitions
+            if _check_concept_definition_query(clean_cmd.split(), std_definitions) is M.truth_value:
+                continue
+
+            # Route through Gate H Declarative Surface Bridge
+            words = raw.replace(":", " ").replace(",", " ").split()
+            tokens = _words_to_token_chain(words)
+            stmt = SB.SurfaceStatement(tokens)()
+            reg = M.FromContextGetConstructors(runtime.graph)()
+            parse_res = SB.ParseSurfaceToGraphTask(stmt, std_correspondences, reg)()
+            tag = M.Head(parse_res)()
+
+            if M.IdentityCompare(tag, Lmod.SurfaceParseSuccessLabel)() is M.truth_value:
+                task_rec = M.Head(M.Tail(parse_res)())()
+                task_rung = GT.TaskRecordRung(task_rec)()
+                t0 = time.time()
+                exec_res = GT.ExecuteGraphQuery(task_rec, reg)()
+                dt = time.time() - t0
+                exec_tag = M.Head(exec_res)()
+                if M.IdentityCompare(exec_tag, Lmod.TaskSuccessLabel)() is M.truth_value:
+                    binding = GT.TaskResultBinding(exec_res)()
+                    print(f"[machine] Task ({task_rung}) proved in {dt:.4f} seconds (binding: {binding}).")
+                else:
+                    print("[machine] no, I can't prove that")
+                    if PG.IsProofOrMathGoal(M.Char(raw))() is M.truth_value:
+                        runtime.graph._active_unproved_goal = raw
+                        runtime.graph._active_unproved_claim = None
+                        runtime.graph._active_tutor = tutor
+                        print("[machine] Running internal introspection and Cartesian playground sweep...")
+                        print(
+                            PG.RunPlaygroundInteractive(
+                                runtime.graph, goal_text=raw, tutor=tutor
+                            )()
+                        )
+            else:
+                print("[machine] no, I can't prove that")
+                if PG.IsProofOrMathGoal(M.Char(raw))() is M.truth_value:
+                    runtime.graph._active_unproved_goal = raw
+                    runtime.graph._active_unproved_claim = None
+                    runtime.graph._active_tutor = tutor
+                    print("[machine] Running internal introspection and Cartesian playground sweep...")
+                    print(
+                        PG.RunPlaygroundInteractive(
+                            runtime.graph, goal_text=raw, tutor=tutor
+                        )()
+                    )
+
+
+def _consensus_scenario(runtime):
+    """One honestly promoted entry plus its forged twin, for consensus mode.
+
+    Builds the smallest end-to-end material: a two-step derivation over the
+    runtime's own vocabulary, one autonomous promotion cycle on the origin,
+    and a forged entry whose derivation licenses itself with a rule no peer
+    trusts. All values are machine terms; this is the same construction the
+    validation suite uses, at one entry instead of two.
+    """
+    graph = runtime.graph
+    registry = M.FromContextGetConstructors(graph)()
+
+    term_a, term_b, term_c, term_bad = M.Atom(), M.Atom(), M.Atom(), M.Atom()
+    rule_ab = P.Rule(term_a, term_b)()
+    rule_bc = P.Rule(term_b, term_c)()
+    rule_bad = P.Rule(term_a, term_bad)()
+    trusted = M.Pair(rule_ab, M.Pair(rule_bc, M.EmptyList))
+
+    act_ab = P.RewriteAction(rule_ab, M.EmptyList)()
+    act_bc = P.RewriteAction(rule_bc, M.EmptyList)()
+    honest_plan = M.Pair(act_ab, M.Pair(act_bc, M.EmptyList))
+
+    s1 = P.Step(term_a, act_ab, term_b, registry)()
+    step_1 = M.Head(s1)()
+    registry = M.Head(M.Tail(s1)())()
+    s2 = P.Step(term_b, act_bc, term_c, registry)()
+    step_2 = M.Head(s2)()
+    registry = M.Head(M.Tail(s2)())()
+    der = P.Derivation(
+        M.Pair(step_1, M.Pair(step_2, M.EmptyList)),
+        P.ProofCost(M.Zero, M.Zero, M.Zero, M.Zero)(),
+        registry,
+    )()
+    training_trace = M.Head(der)()
+    registry = M.Head(M.Tail(der)())()
+
+    version, registry = M.Zero, registry
+    for _ in range(4):
+        pr = M.Succ(version, registry)()
+        version = M.Head(pr)()
+        registry = M.Head(M.Tail(pr)())()
+    baseline_cost = P.ProofCost(version, M.Zero, M.Zero, M.Zero)()
+
+    holdout = M.Pair(
+        M.Pair(term_a, M.Pair(term_c, M.Pair(M.truth_value, M.EmptyList))), M.EmptyList
+    )
+    templates = M.Pair(Imod.Phi(term_a)(), M.EmptyList)
+
+    empty = PL.EmptyPromotionLedger(registry)()
+    cycle = PL.ExecuteAutonomousDiscoveryCycle(
+        training_trace, term_a, term_c, trusted, templates, M.Atom(), honest_plan,
+        baseline_cost, holdout, Lmod.ProofSchemaPromotionLabel, empty, registry,
+    )()
+    if M.IdentityCompare(M.Head(cycle)(), Lmod.AutonomousCycleCompletedLabel)() is M.false_value:
+        raise RuntimeError(
+            "consensus scenario: the discovery cycle did not complete (tag: {})".format(
+                type(M.Head(cycle)()).__name__
+            )
+        )
+    ledger_v1 = M.Head(M.Tail(cycle)())()
+    entry = M.Head(M.Tail(M.Tail(cycle)())())()
+
+    fst = P.Step(term_a, P.RewriteAction(rule_bad, M.EmptyList)(), term_bad, registry)()
+    forged_step = M.Head(fst)()
+    registry = M.Head(M.Tail(fst)())()
+    fder = P.Derivation(
+        M.Pair(forged_step, M.EmptyList), P.ProofCost(M.Zero, M.Zero, M.Zero, M.Zero)(), registry
+    )()
+    forged_derivation = M.Head(fder)()
+    registry = M.Head(M.Tail(fder)())()
+
+    receipt_fields = M.Tail(PL.LedgerEntryReceipt(entry)())()
+    session = M.Head(receipt_fields)()
+    forged_receipt = M.Pair(
+        Lmod.ProofReceiptLabel,
+        M.Pair(session, M.Pair(term_a, M.Pair(term_c, M.Pair(forged_derivation, M.Pair(trusted, M.EmptyList))))),
+    )
+    forged_entry = PL.LedgerEntry(
+        M.Atom(), Lmod.ProofSchemaPromotionLabel, M.Pair(Lmod.CandidateMacroLabel, M.EmptyList),
+        forged_receipt, M.EmptyList, PL.LedgerEntryVersion(entry)(), Lmod.PromotionActiveLabel,
+    )()
+
+    return {
+        "registry": registry,
+        "ledger_v1": ledger_v1,
+        "entry": entry,
+        "forged_entry": forged_entry,
+        "trusted": trusted,
+    }
+
+
+def run_consensus_mode(peer_count: int = 3) -> int:
+    """consensus mode: the W17 protocol end to end, in one process.
+
+    Boots one origin plus a small peer set, runs an adversarial delivery
+    schedule (duplicate, forged, stale snapshot, rollback tombstone), prints
+    every delivery report, and exits 0 only when the honest peers finish in
+    agreement at the same version with the forgery rejected everywhere.
+    """
+    runtime = make_fresh_runtime()
+    scenario = _consensus_scenario(runtime)
+    registry = scenario["registry"]
+
+    peers = [FreshPeer(M.EmptyList, scenario["trusted"], registry) for _ in range(max(2, peer_count))]
+
+    def tag(value):
+        return type(value).__name__
+
+    def deliver(name, peer, entry):
+        report = AcceptEntryDelivery(peer, entry, registry)()
+        verdict = M.Head(M.Tail(report)())()
+        reason = M.Head(M.Tail(M.Tail(report)())())()
+        new_peer = M.Head(M.Tail(M.Tail(M.Tail(report)())())())()
+        new_registry = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(report)())())())())()
+        print("  {:<6} -> {:<22} {}".format(name, tag(verdict), tag(reason)))
+        return new_peer, new_registry
+
+    print("consensus: adversarial schedule over {} peers".format(len(peers)))
+    p2, p3 = peers[0], peers[1]
+    p2, registry = deliver("P2/forged", p2, scenario["forged_entry"])
+    p2, registry = deliver("P2/entry", p2, scenario["entry"])
+    p2, registry = deliver("P2/dup", p2, scenario["entry"])
+    p3, registry = deliver("P3/forged", p3, scenario["forged_entry"])
+    p3, registry = deliver("P3/entry", p3, scenario["entry"])
+
+    print("snapshot: offering a fresh peer the origin's ledger")
+    solo = FreshPeer(M.EmptyList, scenario["trusted"], registry)
+    offer = OfferLedgerSnapshot(solo, scenario["ledger_v1"], registry)()
+    print("  solo   -> {}".format(tag(M.Head(M.Tail(offer)())())))
+    solo = M.Head(M.Tail(M.Tail(M.Tail(offer)())())())()
+    registry = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(offer)())())())())()
+
+    rollback = PL.RollbackPromotion(
+        scenario["ledger_v1"], PL.LedgerEntryId(scenario["entry"])(), M.Char("consensus-cli"), registry
+    )()
+    if M.IdentityCompare(M.Head(rollback)(), Lmod.PromotionRevokedLabel)() is M.false_value:
+        print("consensus: rollback did not produce a tombstone")
+        return 1
+    tomb_ledger = M.Head(M.Tail(rollback)())()
+    tombstone = None
+    cursor = PL.PromotionLedgerProofSchemata(tomb_ledger)()
+    while M.IdentityCompare(cursor, M.EmptyList)() is M.false_value:
+        candidate_entry = M.Head(cursor)()
+        if (
+            M.IdentityCompare(
+                PL.LedgerEntryStatus(candidate_entry)(), Lmod.PromotionRevokedLabel
+            )()
+            is M.truth_value
+        ):
+            tombstone = candidate_entry
+        cursor = M.Tail(cursor)()
+    if tombstone is None:
+        print("consensus: no revoked entry found on the rolled-back ledger")
+        return 1
+
+    print("rollback: broadcasting the tombstone")
+    p2, registry = deliver("P2/tomb", p2, tombstone)
+    p3, registry = deliver("P3/tomb", p3, tombstone)
+    offer = OfferLedgerSnapshot(solo, tomb_ledger, registry)()
+    print("  solo   -> {}".format(tag(M.Head(M.Tail(offer)())())))
+    solo = M.Head(M.Tail(M.Tail(M.Tail(offer)())())())()
+    registry = M.Head(M.Tail(M.Tail(M.Tail(M.Tail(offer)())())())())()
+
+    origin = ConsensusPeer(tomb_ledger, M.EmptyList, M.EmptyList, scenario["trusted"])()
+    agreed = (
+        PeersAgree(origin, p2)() is M.truth_value
+        and PeersAgree(origin, p3)() is M.truth_value
+        and PeersAgree(origin, solo)() is M.truth_value
+    )
+    print("agreement: origin/P2/P3/solo structurally identical: {}".format(agreed))
+    print("done.")
+    return 0 if agreed else 1
+
+
 def main():
     parser = argparse.ArgumentParser(description="HYGE runtime modes")
     parser.add_argument(
         "mode",
         nargs="?",
         default="cold",
-        choices=["cold", "warm", "test", "inspect", "search-worker"],
-        help="Boot mode: cold (from packs), warm (from snapshot), test, inspect, or search-worker",
+        choices=["cold", "warm", "test", "inspect", "search-worker", "live", "mesh", "swarm", "consensus"],
+        help="Boot mode: cold (from packs), warm (from snapshot), test, inspect, search-worker, live, mesh, swarm, or consensus",
     )
     parser.add_argument("arg1", nargs="?", default=None)
     parser.add_argument("arg2", nargs="?", default=None)
@@ -1272,6 +2430,123 @@ def main():
         action="store_true",
         help="For inspect mode, boot from packs even if a snapshot exists.",
     )
+    parser.add_argument(
+        "--role",
+        default="worker",
+        choices=["coordinator", "worker", "plan", "issue"],
+        help="For mesh mode: whether this peer dispatches jobs or serves them (`issue` writes a remote peer's certificate bundle instead). For swarm mode: plan units, or run one.",
+    )
+    parser.add_argument(
+        "--out",
+        default=None,
+        help="For swarm plan: directory to write unit snapshots and the job file into.",
+    )
+    parser.add_argument(
+        "--problem",
+        default="engel_e2",
+        help="For swarm plan: which agenda problem to partition (substring match).",
+    )
+    parser.add_argument(
+        "--burst",
+        type=int,
+        default=3,
+        help="For swarm plan: search steps to expand the root before partitioning.",
+    )
+    parser.add_argument(
+        "--shards",
+        type=int,
+        default=2,
+        help="For swarm plan: how many shards to offer the units across.",
+    )
+    parser.add_argument(
+        "--swarm",
+        action="store_true",
+        help="For mesh mode: serve W16 work units (snapshots) instead of agenda search jobs.",
+    )
+    parser.add_argument(
+        "--bind",
+        default="127.0.0.1:0",
+        help="For mesh mode: HOST:PORT to listen on (port 0 picks a free one).",
+    )
+    parser.add_argument(
+        "--coordinator",
+        default=None,
+        help="For mesh mode: HOST:PORT of the coordinator this peer joins.",
+    )
+    parser.add_argument(
+        "--cert-dir",
+        default=None,
+        help="For mesh mode: directory holding (or receiving) the mesh PKI material.",
+    )
+    parser.add_argument(
+        "--modes",
+        default="dfs,bfs,astar,beam,rewritedfs",
+        help="For mesh mode: comma-separated search modes this worker will accept.",
+    )
+    parser.add_argument(
+        "--jobs",
+        default=None,
+        help="For mesh mode: JSON file listing jobs the coordinator dispatches.",
+    )
+    parser.add_argument(
+        "--cert-name",
+        default=None,
+        help="For mesh mode: name of this peer's certificate inside --cert-dir.",
+    )
+    parser.add_argument(
+        "--job-timeout",
+        type=int,
+        default=6000,
+        help="For mesh mode: per-job timeout in seconds.",
+    )
+    parser.add_argument(
+        "--run-seconds",
+        type=float,
+        default=0.0,
+        help="For mesh mode: stop after this many seconds (0 waits for a shutdown frame).",
+    )
+    parser.add_argument(
+        "--artifacts",
+        default="shared",
+        choices=["shared", "wire"],
+        help="For mesh mode: `shared` (default) means job inputs and results are paths every peer can open; `wire` moves them in frames over the coordinator link, for peers without a shared filesystem.",
+    )
+    parser.add_argument(
+        "--artifact-dir",
+        default=None,
+        help="For mesh mode with --artifacts wire: where a worker keeps fetched inputs and the results it produces (any writable directory; a fresh temporary one if omitted).",
+    )
+    parser.add_argument(
+        "--no-inbound",
+        action="store_true",
+        help="For mesh mode: do not listen at all; this worker only dials out (a notebook, a box behind NAT). It still joins, serves jobs and steals, but cannot be stolen from.",
+    )
+    parser.add_argument(
+        "--verify",
+        default="hostname",
+        choices=["hostname", "identity"],
+        help="For mesh mode: how a dialled peer's certificate is matched. `hostname` requires the address dialled to be in the certificate (loopback material); `identity` keeps the CA pin and checks the certificate's common name against --expect instead (tunnels, tailnets).",
+    )
+    parser.add_argument(
+        "--expect",
+        default=None,
+        help="For mesh mode with --verify identity: the coordinator's certificate name (defaults to `coordinator`, the name the coordinator role uses unless --cert-name says otherwise).",
+    )
+    parser.add_argument(
+        "--advertise",
+        default=None,
+        help="For mesh mode: HOST:PORT that other peers should dial to reach this one, when it differs from --bind (a tunnel's public endpoint in front of a coordinator bound to 0.0.0.0).",
+    )
+    parser.add_argument(
+        "--bundle-dir",
+        default=None,
+        help="For `mesh --role issue`: directory receiving the remote peer's bundle (ca.crt + its leaf certificate and key; never the CA key). Must be outside the repository.",
+    )
+    parser.add_argument(
+        "--sans",
+        default=None,
+        help="For `mesh --role issue`: comma-separated subject alternative names for the leaf (default 127.0.0.1,localhost; irrelevant under --verify identity).",
+    )
     args = parser.parse_args()
     debug_enabled = args.arg1 == "debug"
     filter_name = args.arg2 if debug_enabled else args.arg1
@@ -1281,6 +2556,8 @@ def main():
             run_cold_mode(debug_enabled, filter_name)
         elif args.mode == "warm":
             run_warm_mode(debug_enabled)
+        elif args.mode == "live":
+            run_live_mode(debug_enabled)
         elif args.mode == "inspect":
             run_inspect_mode(
                 debug_enabled,
@@ -1296,6 +2573,49 @@ def main():
             if args.arg3 is not None:
                 timeout_seconds = int(args.arg3)
             raise SystemExit(run_search_worker_mode(args.arg1, args.arg2, timeout_seconds))
+        elif args.mode == "swarm":
+            if args.role == "worker":
+                if args.arg1 is None or args.arg2 is None:
+                    raise RuntimeError("swarm worker requires UNIT_PATH and RESULT_PATH")
+                swarm_timeout = 600
+                if args.arg3 is not None:
+                    swarm_timeout = int(args.arg3)
+                raise SystemExit(run_swarm_worker_mode(args.arg1, args.arg2, swarm_timeout))
+            if args.out is None:
+                raise RuntimeError("swarm plan requires --out DIR")
+            raise SystemExit(
+                run_swarm_plan_mode(
+                    problem=args.problem,
+                    out_dir=args.out,
+                    burst_steps=args.burst,
+                    shard_count=args.shards,
+                )
+            )
+        elif args.mode == "mesh":
+            raise SystemExit(
+                run_mesh_peer_mode(
+                    role=args.role,
+                    bind=args.bind,
+                    coordinator=args.coordinator,
+                    worker_modes=args.modes,
+                    timeout_seconds=args.job_timeout,
+                    cert_dir=args.cert_dir,
+                    jobs_file=args.jobs,
+                    run_seconds=args.run_seconds,
+                    cert_name=args.cert_name,
+                    swarm=args.swarm,
+                    artifacts=args.artifacts,
+                    artifact_dir=args.artifact_dir,
+                    inbound=not args.no_inbound,
+                    verify=args.verify,
+                    expect=args.expect,
+                    advertise=args.advertise,
+                    bundle_dir=args.bundle_dir,
+                    sans=args.sans,
+                )
+            )
+        elif args.mode == "consensus":
+            raise SystemExit(run_consensus_mode())
         else:
             run_test_mode(debug_enabled)
     except KeyboardInterrupt:

@@ -1,0 +1,288 @@
+format: hyge-pack
+version: 1
+
+name: engel-strategies
+description: >
+  W10. The Engel strategy layer, stated once over symbolic problems, measures and
+  move sets. Nothing here names a problem, a board, a number or a move order.
+
+  This pack carries ontology and generic schemas -- the sort of thing
+  `delegation/README.md` invariant 3 allows a pack to carry -- and no conclusion
+  of any problem. Every rule is an inference schema of the strategy layer: it says
+  what follows once its premises have been discharged, and its premises are
+  obligations for someone else to discharge.
+
+  Covered here:
+
+    Invariance        thread_preserving_moves / preserving_moves_empty / step
+                      + invariant_obstruction
+    Monovariant       thread_decreasing_moves / decreasing_moves_empty / step
+                      + monovariant_terminates
+    Semi-invariant    thread_non_increasing_moves / non_increasing_moves_empty
+                      / step + semi_invariant_terminates
+    Extremal          extremal_choice
+
+  Not covered here:
+
+    Box (pigeonhole)  The counting step is arithmetic, not strategy: from
+                      |D| > |C| and a total map it concludes a collision, and
+                      that conclusion is exactly what the machine should
+                      establish by Peano counting rather than be handed. It is
+                      obligationed instead, by the Pigeonhole planner method,
+                      which asks for finiteness, totality, both cardinalities
+                      and the strict inequality. Writing the conclusion as a
+                      rule would be hardcoding the counting argument.
+    Checkerboard      A colouring argument is an invariance argument whose phi
+                      is a parity, so invariant_obstruction discharges it once
+                      the 2-colouring and its parity observable are supplied.
+                      No sixth vocabulary is needed.
+
+  On the semi-invariant. A semi-invariant is weaker than a monovariant and the
+  schema says exactly how: a monovariant drops on every move, a semi-invariant
+  only never rises (`NonIncreases`), and it is the extra fact
+  `EventuallyDecreases(p, m)` -- the measure cannot stay flat forever -- that
+  turns "never rises" into termination. That fact is a premise, i.e. an
+  obligation: how a particular process is seen to drop eventually is
+  arithmetic about that process and is not the strategy layer's to assert.
+  A semi-invariant schema that assumed the drop would be a monovariant with
+  a different name, and one that counted steps to prove the drop would be
+  hardcoding the very argument it is meant to licence.
+
+  On universality. Termination and preservation are statements about *every*
+  move, and Horn rules cannot quantify. They are reached the way the machine
+  reaches every other universal: by fixpoint recursion over the move list
+  itself. One rule threads `MoveSet` into a `MovesDecreasing` /
+  `MovesPreserving` / `MovesNonIncreasing` obligation, one peels the head off
+  the list while the head discharges its own premise, and one closes the case
+  on the empty list. No list length is ever assumed, so a one-move problem and
+  a five-move problem are handled by the same three rules, and a single move
+  that does not discharge stops the recursion -- the universal is simply never
+  derived.
+
+  Each threading rule binds its measure or observable the same way: from the
+  declaration that the problem carries it (`Monovariant(p, m)` /
+  `SemiInvariant(p, m)`) or from a reading of it (`Reading(phi, s, v)`), never
+  from an existential witness that happens to be lying around.
+
+  A problem whose move set is a symbolic term rather than a literal list cannot
+  be peeled and gets no free step: it must supply the universal itself, which
+  is what MonovariantObligations asks for in that case.
+
+requires: []
+
+phi:
+  call:
+    head: {sym: TerminatesLabel}
+    args: [{var: p}]
+
+rules:
+  # --- the universal, by fixpoint recursion over the move list ----------------
+  # A move set is threaded into an obligation, the head is peeled off one at a
+  # time, and the empty list closes the case. No length is ever assumed.
+  - id: thread_decreasing_moves
+    premises:
+      - call:
+          head: {sym: MonovariantLabel}
+          args: [{var: p}, {var: m}]
+      - call:
+          head: {sym: MoveSetLabel}
+          args: [{var: p}, {var: moves}]
+    replacement:
+      list:
+        - call:
+            head: {sym: MovesDecreasingLabel}
+            args: [{var: p}, {var: m}, {var: moves}]
+
+  - id: decreasing_moves_empty
+    premises:
+      - call:
+          head: {sym: MovesDecreasingLabel}
+          args: [{var: p}, {var: m}, {list: []}]
+    replacement:
+      list:
+        - call:
+            head: {sym: AllMovesDecreaseLabel}
+            args: [{var: p}, {var: m}]
+
+  - id: decreasing_moves_step
+    premises:
+      - call:
+          head: {sym: MovesDecreasingLabel}
+          args:
+            - {var: p}
+            - {var: m}
+            - pair: [{var: s}, {var: rest}]
+      - call:
+          head: {sym: StrictlyDecreasesLabel}
+          args: [{var: s}, {var: m}]
+    replacement:
+      list:
+        - call:
+            head: {sym: MovesDecreasingLabel}
+            args: [{var: p}, {var: m}, {var: rest}]
+
+  - id: thread_preserving_moves
+    premises:
+      - call:
+          head: {sym: MoveSetLabel}
+          args: [{var: p}, {var: moves}]
+      - call:
+          head: {sym: ReadingLabel}
+          args: [{var: phi}, {var: s}, {var: v}]
+    replacement:
+      list:
+        - call:
+            head: {sym: MovesPreservingLabel}
+            args: [{var: p}, {var: phi}, {var: moves}]
+
+  - id: preserving_moves_empty
+    premises:
+      - call:
+          head: {sym: MovesPreservingLabel}
+          args: [{var: p}, {var: phi}, {list: []}]
+    replacement:
+      list:
+        - call:
+            head: {sym: InvariantLabel}
+            args: [{var: p}, {var: phi}]
+
+  - id: preserving_moves_step
+    premises:
+      - call:
+          head: {sym: MovesPreservingLabel}
+          args:
+            - {var: p}
+            - {var: phi}
+            - pair: [{var: s}, {var: rest}]
+      - call:
+          head: {sym: PreservesLabel}
+          args: [{var: s}, {var: phi}]
+    replacement:
+      list:
+        - call:
+            head: {sym: MovesPreservingLabel}
+            args: [{var: p}, {var: phi}, {var: rest}]
+
+  # --- monovariants and semi-invariants --------------------------------------
+  - id: monovariant_terminates
+    premises:
+      - call:
+          head: {sym: MonovariantLabel}
+          args: [{var: p}, {var: m}]
+      - call:
+          head: {sym: AllMovesDecreaseLabel}
+          args: [{var: p}, {var: m}]
+      - call:
+          head: {sym: BoundedBelowLabel}
+          args: [{var: m}, {var: b}]
+    replacement:
+      list:
+        - call:
+            head: {sym: TerminatesLabel}
+            args: [{var: p}]
+
+  - id: thread_non_increasing_moves
+    premises:
+      - call:
+          head: {sym: SemiInvariantLabel}
+          args: [{var: p}, {var: m}]
+      - call:
+          head: {sym: MoveSetLabel}
+          args: [{var: p}, {var: moves}]
+    replacement:
+      list:
+        - call:
+            head: {sym: MovesNonIncreasingLabel}
+            args: [{var: p}, {var: m}, {var: moves}]
+
+  - id: non_increasing_moves_empty
+    premises:
+      - call:
+          head: {sym: MovesNonIncreasingLabel}
+          args: [{var: p}, {var: m}, {list: []}]
+    replacement:
+      list:
+        - call:
+            head: {sym: AllMovesNonIncreaseLabel}
+            args: [{var: p}, {var: m}]
+
+  - id: non_increasing_moves_step
+    premises:
+      - call:
+          head: {sym: MovesNonIncreasingLabel}
+          args:
+            - {var: p}
+            - {var: m}
+            - pair: [{var: s}, {var: rest}]
+      - call:
+          head: {sym: NonIncreasesLabel}
+          args: [{var: s}, {var: m}]
+    replacement:
+      list:
+        - call:
+            head: {sym: MovesNonIncreasingLabel}
+            args: [{var: p}, {var: m}, {var: rest}]
+
+  - id: semi_invariant_terminates
+    premises:
+      - call:
+          head: {sym: SemiInvariantLabel}
+          args: [{var: p}, {var: m}]
+      - call:
+          head: {sym: AllMovesNonIncreaseLabel}
+          args: [{var: p}, {var: m}]
+      - call:
+          head: {sym: EventuallyDecreasesLabel}
+          args: [{var: p}, {var: m}]
+      - call:
+          head: {sym: BoundedBelowLabel}
+          args: [{var: m}, {var: b}]
+    replacement:
+      list:
+        - call:
+            head: {sym: TerminatesLabel}
+            args: [{var: p}]
+
+  # --- invariance ------------------------------------------------------------
+  - id: invariant_obstruction
+    premises:
+      - call:
+          head: {sym: InvariantLabel}
+          args: [{var: p}, {var: phi}]
+      - call:
+          head: {sym: ReadingLabel}
+          args: [{var: phi}, {var: s0}, {var: v0}]
+      - call:
+          head: {sym: ReadingLabel}
+          args: [{var: phi}, {var: s1}, {var: v1}]
+      - call:
+          head: {sym: ApartLabel}
+          args: [{var: v0}, {var: v1}]
+    replacement:
+      list:
+        - call:
+            head: {sym: UnreachableLabel}
+            args: [{var: p}, {var: s1}]
+
+  # --- extremal principle ----------------------------------------------------
+  # The direction is a fact, not a constant: the pack never decides for a problem
+  # which extremum it wants.
+  - id: extremal_choice
+    premises:
+      - call:
+          head: {sym: FiniteLabel}
+          args: [{var: f}]
+      - call:
+          head: {sym: NonEmptyLabel}
+          args: [{var: f}]
+      - call:
+          head: {sym: MeasureLabel}
+          args: [{var: f}, {var: m}]
+      - call:
+          head: {sym: DirectionLabel}
+          args: [{var: d}]
+    replacement:
+      list:
+        - call:
+            head: {sym: AttainsLabel}
+            args: [{var: f}, {var: m}, {var: d}]

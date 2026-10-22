@@ -1,17 +1,20 @@
-﻿# ============================================================
+# ============================================================
 # TEST 2: Generic Variable-Only Conclusion Case
 # ============================================================
 import sys, os, time
 
 IMPORT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PARENT_ROOT = os.path.dirname(IMPORT_ROOT)
+if PARENT_ROOT not in sys.path:
+    sys.path.insert(0, PARENT_ROOT)
 if IMPORT_ROOT not in sys.path:
     sys.path.insert(0, IMPORT_ROOT)
 
-from hyge import machine as M
-from hyge import proof as P
-from hyge import labels as L
-from hyge import planner as Planner
-from hyge.runtime import make_fresh_runtime
+from cat_theo_machine import machine as M
+from cat_theo_machine import proof as P
+from cat_theo_machine import labels as L
+from cat_theo_machine import planner as Planner
+from cat_theo_machine.runtime import make_fresh_runtime
 
 t0 = time.time()
 print("=== TEST 2: Variable-Only Conclusion Case ===")

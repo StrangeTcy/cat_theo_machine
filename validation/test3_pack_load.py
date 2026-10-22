@@ -1,23 +1,26 @@
-﻿# ============================================================
+# ============================================================
 # TEST 3: Compilation / YAML / 8-Pack Load Checks
 # ============================================================
 import sys, os, time
 
 IMPORT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+PARENT_ROOT = os.path.dirname(IMPORT_ROOT)
+if PARENT_ROOT not in sys.path:
+    sys.path.insert(0, PARENT_ROOT)
 if IMPORT_ROOT not in sys.path:
     sys.path.insert(0, IMPORT_ROOT)
 
-from hyge import machine as M
-from hyge import proof as P
-from hyge import labels as L
-from hyge import planner as Plannermod
-from hyge.runtime import make_fresh_runtime, boot_from_packs
+from cat_theo_machine import machine as M
+from cat_theo_machine import proof as P
+from cat_theo_machine import labels as L
+from cat_theo_machine import planner as Plannermod
+from cat_theo_machine.runtime import make_fresh_runtime, boot_from_packs
 
 t0 = time.time()
 print("=== TEST 3: Compilation / YAML / 8-Pack Load Checks ===")
 print()
 
-PACK_DIR = r"Q:\hyge\packs"
+PACK_DIR = os.path.join(IMPORT_ROOT, "packs")
 PACK_PATHS = [
     os.path.join(PACK_DIR, "order-sign.pack.yaml"),
     os.path.join(PACK_DIR, "sqrt-real.pack.yaml"),
@@ -39,7 +42,9 @@ if missing:
 print()
 
 print("[2] Loading all packs via boot_from_packs...")
-namespace = {}
+namespace = dict(vars(M))
+namespace.update(vars(L))
+namespace.update(vars(P))
 t_load_start = time.time()
 runtime = None
 load_error = None
@@ -67,14 +72,6 @@ registry = M.FromContextGetConstructors(graph)()
 print()
 
 print("[3] Checking rule counts...")
-all_rules = M.FromContextGetAllRules(graph)()
-rule_count = 0
-cur = all_rules
-while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
-    rule_count += 1
-    cur = M.Tail(cur)()
-print(f"    Total rules in graph: {rule_count}")
-
 rule_order = M.FromContextGetRuleOrder(graph)()
 order_count = 0
 cur = rule_order
@@ -158,7 +155,7 @@ except Exception as e:
 print()
 print("=== TEST 3 RESULTS ===")
 print(f"  Packs loaded:     {len(existing)}/8")
-print(f"  Total rules:      {rule_count}")
+print(f"  Rules in order:   {order_count}")
 comp_str = str(comp_count) if compiled is not None else "N/A (error)"
 print(f"  Compiled rules:   {comp_str}")
 print(f"  Load time:        {t_load_end - t_load_start:.3f}s")
