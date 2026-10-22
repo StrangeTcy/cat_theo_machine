@@ -1969,35 +1969,33 @@ def run_live_mode(debug: bool = False):
                 domain = M.Head(domain_res)()
                 reg2 = M.Head(M.Tail(domain_res)())()
 
-                # Active operations chain: each entry is machine data
-                # (name, variables, operation term), never a host callable.
-                mine_x = M.Char("x")
-                mine_y = M.Char("y")
-                mine_vars = M.Pair(mine_x, M.Pair(mine_y, M.EmptyList))
-                add_operation = M.Pair(
-                    Lmod.ExprAddLabel,
-                    M.Pair(mine_x, M.Pair(mine_y, M.EmptyList)),
-                )
-                mul_operation = M.Pair(
-                    Lmod.ExprMulLabel,
-                    M.Pair(mine_x, M.Pair(mine_y, M.EmptyList)),
-                )
-                ops_chain = M.Pair(
-                    M.Pair(
-                        M.Char("add"),
-                        M.Pair(mine_vars, M.Pair(add_operation, M.EmptyList)),
-                    ),
-                    M.Pair(
-                        M.Pair(
-                            M.Char("mul"),
-                            M.Pair(mine_vars, M.Pair(mul_operation, M.EmptyList)),
-                        ),
-                        M.EmptyList,
-                    ),
-                )
+                # The operation set is read out of the machine's own arithmetic module by
+                # introspection. Each register entry is machine data (name, variables,
+                # operation term, ...), never a host callable, and it is already the shape
+                # ProposeNextRegularityOrStructure sweeps, so no operation is listed here.
+                built_ops = PG.BuildNatOperationRegister(reg2)()
+                ops_chain = M.Head(built_ops)()
+
+                op_names = ""
+                op_count = 0
+                op_cursor = ops_chain
+                while M.IdentityCompare(op_cursor, M.EmptyList)() is M.false_value:
+                    op_count = op_count + 1
+                    op_entry = M.Head(op_cursor)()
+                    op_name_text = M.Head(op_entry)()()
+                    op_names = (
+                        op_name_text
+                        if op_names == ""
+                        else op_names + ", " + op_name_text
+                    )
+                    op_cursor = M.Tail(op_cursor)()
 
                 PG.PlaygroundDebugEmit(M.Char(
-                    "constructing the natural tensor: 6 x 6 domain (0..5)^2 x 2 operations (add, mul) x 3 candidate laws (commutativity, associativity, identity) in 1 process..."
+                    "constructing the natural tensor: 6 x 6 domain (0..5)^2 x "
+                    + str(op_count)
+                    + " operations ("
+                    + op_names
+                    + ") x 3 candidate laws (commutativity, associativity, identity) in 1 process..."
                 ))()
                 ledger = runtime.graph.promotion_ledger
                 if ledger is None:
@@ -2012,7 +2010,7 @@ def run_live_mode(debug: bool = False):
                     op_str = op_char()
                     law_str = law_char()
                     pending_proposal = f"{op_str} {law_str}"
-                    print(f"[machine] Observed: for tested elements (0, 1, 2, 3, 4, 5), {op_str}(a, b) == {op_str}(b, a).")
+                    print(f"[machine] Observed: for tested elements (0, 1, 2, 3, 4, 5), {op_str} is {law_str}.")
                     print("[machine] Would you care to give it a name?")
                 elif M.IdentityCompare(prop_status, Lmod.AlgebraicTemplateLabel)() is M.truth_value:
                     pending_proposal = "algebraic structure over tested operations and laws"
