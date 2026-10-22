@@ -1,0 +1,42 @@
+format: hyge-pack
+version: 1
+name: nat-order
+description: >
+  W23. Generic Peano order ontology, not a problem-specific decrease lemma.
+  NatSuccessor(p,n) is an input computation fact: n is the natural successor
+  of p. NatPredecessorFact produces it from NatPred and checks Succ(p)=n;
+  in particular it produces nothing for zero. The schema derives p<n from
+  this premise. NatLess is transitive. No numeric instance, factorisation
+  theorem or FLT conclusion is stored in this pack.
+  These are authored Peano order schemas, not mined conjectures. Checker B
+  verifies the inference conditional on the explicit computation facts in
+  the starting knowledge; it does not independently certify their source.
+requires: []
+phi:
+  call:
+    head: {sym: NatLessLabel}
+    args: [{var: a}, {var: b}]
+rules:
+  - id: successor_strict_order
+    premises:
+      - call:
+          head: {sym: NatSuccessorLabel}
+          args: [{var: p}, {var: n}]
+    replacement:
+      list:
+        - call:
+            head: {sym: NatLessLabel}
+            args: [{var: p}, {var: n}]
+  - id: nat_less_transitive
+    premises:
+      - call:
+          head: {sym: NatLessLabel}
+          args: [{var: a}, {var: b}]
+      - call:
+          head: {sym: NatLessLabel}
+          args: [{var: b}, {var: c}]
+    replacement:
+      list:
+        - call:
+            head: {sym: NatLessLabel}
+            args: [{var: a}, {var: c}]

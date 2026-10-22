@@ -1,0 +1,157 @@
+# W29 — FLT $n=4$: `EveryStateMoves` retry (closed, precise negative)
+
+**Dimension 1 · Phase 5 · Suite slot `test41` · Prereqs W21, W22, W23, W6 `[~]`**
+
+> **Reported 2026-10-19:** test41 initially passed 54/54; the endpoint follow-up
+> passed 56/56; the bounded numeric witness follow-up now passes 61/61,
+> still with a precise negative. No
+> EveryStateMoves discharge or FLT theorem. Do not re-dispatch this brief
+> unchanged. W21–W23 were green for this retry; W6/test26 remains historical.
+> See the completion note below for the remaining gaps.
+
+Read `delegation/README.md` first. Read DAG §4 W6, §6.5, §7.1 and §8 (W29).
+
+## Goal
+
+`test26` reduced the theorem to `EveryStateMoves(descent)`. Retry each missing item
+with the new machinery:
+
+- Witness introduction for $(m,n)$ / $(u,v,w)$ (W21).
+- Ring normalisation of the grid identities (W22).
+- Factorisation / `NatLess` (W23).
+
+Do not author a quartic rule, a parametrisation, a constant or a lemma about squares.
+The parametrisation remains a human-stated candidate until the machine discovers or
+derives it; `test26` already said so.
+
+## Done-definition
+
+First reachable of {full, partial, precise negative}, as in W6. New suite
+`validation/test41_flt_n4_everystate.py`. **Do not modify `test26`'s claims** — it is
+the historical negative account. If you discharge `EveryStateMoves`, this suite
+asserts that, and DAG §4 W6 is updated to point here.
+
+## Files
+
+New `test41`. Consume `playground.py`, `graph_task.py`, `math/arithmetic.py` as they
+stand after W21–W23. No `core.py`. No revival of `flt-quartic`.
+
+## Non-goals
+
+$n=3$ (W28), the full FLT, weakening the ledger, rewriting history in `test26`.
+
+
+## Initial completion / coordinator handoff (2026-10-19)
+
+Outcome: **precise negative** (the permitted third outcome), not a mathematical
+counterexample and not a statement that no future prover could do it.
+`validation/test41_flt_n4_everystate.py`: **54/54**, ~67 s. Full sequential gate:
+**36/36 green** (test1–test35 plus test41), ~28.9 minutes. No production module,
+pack, test26 claim, checker policy or ledger gate was changed.
+
+### Retry results
+
+1. **Witness introduction:** W21 allocates fresh recorded handles; they are not
+   naturals. NatSubtract and CoprimeCofactors refuse those handles. It does not
+   solve the equations a parametrisation or square-root construction requires.
+   The suite mints only an opaque template as a capability probe, not a trusted
+   mathematical existence schema.
+2. **Algebra:** both grid-derived W6 identities have real Checker-B grid proofs
+   under the explicit W22 capability. The same proofs fail against the movement
+   goal. The default RewriteEquals still lacks symbolic normalisation, but grid
+   certification is no longer the immediate obstacle.
+3. **Factorisation:** gcd extraction is available. On the concrete square inputs
+   4 and 9 it returns cofactors 4 and 9, not roots. The (2,8) decoy retains gcd 2.
+   These are data-level probes, not an authored square-factor lemma. Neither
+   parametrisation completeness nor the coprime-square-factor theorem is derived.
+4. **Measure:** a human-selected W6 family input (2,1) computes 5 and 41 and an
+   arithmetic verdict 5<41. No derivation of the universal measure drop follows.
+   The immediate predecessor of 41 reveals a further integration gap: the 40-valued
+   predecessor atom and the 40-valued independently subtracted atom are NatEq-equal
+   but not identical. The generic successor schema yields a Checker-B-verified
+   order fact for the former. Verifying that same proof against the latter gives
+   GoalMismatch. No equality-transport step is silently inserted.
+
+### Why this is more than an exhausted search budget
+
+The suite loads **all 17 registered packs**, audits **all 206 raw rule replacement
+terms**, including constructors hidden behind atoms, and finds zero occurrences of
+EveryStateMovesLabel and ExistsLabel. The initial source knowledge does not contain
+the movement label either. Ordinary knowledge rewriting substitutes source subterms
+and fresh handles into those templates; it cannot introduce that absent label.
+This is a structural obstruction for the audited ordinary transition system, not
+a formal invariant-kernel certificate or a claim about every planner method, external
+grid action, future tactic or mathematical proof. One-step search/forward retries
+are separately labelled bounded. The Exists term is an obligation marker using the
+existing vocabulary; no new quantifier semantics is claimed.
+
+The strategy skeleton still needs EveryStateMoves as an explicit premise. Its
+receipt verifies only with that premise, and the scope guard rejects relabelling
+it as unconditional. The actual movement claim and a skeleton replay missing that
+premise are both submitted to the real evaluator/ledger: GoalMismatch /
+PromotionRejected, version **0**, no active promotion. Verified polynomial or
+conditional order receipts must not be promoted as a verified descent macro.
+
+### What must change before another retry
+
+- Source-state-uniform constrained arithmetic witness construction. Generic
+  bounded numeric search is now available (follow-up below), not a universal
+  existence theorem or a complete solver for arbitrary natural constraints.
+- Derived parametrisation completeness and the coprime-square-factor argument.
+- The adapter-level endpoint mismatch is now fixed (follow-up below). General
+  value-equality transport for arbitrary/previously stored facts is not implemented;
+  never repair this by making arbitrary anonymous atoms compare equal.
+- A checked construction that preserves source-solution membership and strictly
+  decreases a well-founded measure, plus coverage of **every** source state.
+
+No new rule concludes EveryStateMoves, no smaller solution is asserted, no quartic
+pack is revived, and no result here proves FLT. The isolated receipts do not clear
+W30's domain-macro gate as an FLT success.
+
+
+## Endpoint follow-up (2026-10-19)
+
+The first actionable integration gap is now repaired in the **W23 arithmetic
+adapter**, not by weakening fact equality or Checker B. NatPredecessorFact
+interns its computed predecessor through the existing natural-value index before
+emitting NatSuccessor(p,n), while preserving the input upper atom n. The new fact
+uses the same lower atom as independently computed NatSubtract(n,1).
+
+At the endpoint-repair stage, test41: **56/56**, ~62 s. The proof now verifies the independently
+computed 40<41 endpoint in the concrete measure retry. A raw NatPred result still
+shows the original alias mismatch and the verifier still rejects that off-index
+atom; general equality is unchanged. Reversed order, EveryStateMoves, missing
+premises and laundering conditional receipts remain rejected. The ledger stays 0.
+
+Current test35: **146/146**, ~44 s, including independent arithmetic endpoints,
+transitive joins crossing representation boundaries, invalid inputs and codec
+replay. Full gate **36/36 green**, ~28.7 min. No kernel/checker/pack/test26 or
+snapshot changes; production diff is scoped to math/arithmetic.py.
+
+This repairs newly emitted predecessor facts only. It does not add a general
+substitution/transport rule, migrate old off-index facts, authenticate initial
+arithmetic premises, solve constrained witnesses, derive a parametrisation or
+construct a smaller solution. The universal movement obligation remains open.
+
+
+## Bounded numeric witness follow-up (2026-10-19)
+
+Generic `FindNatWitness` / `VerifyNatWitness` now support concrete assignments
+for equations and strict inequalities in the existing natural-polynomial
+fragment. Supplemental `test46`: **185/185**, ~8 s. Current test41: **61/61**,
+~60 s. Full gate: **37/37 green**, ~27.5 min; test35 remains 146/146.
+
+The explicitly human-supplied fixture `2mn=4`, `m²+n²=5`, `0<n<m` recovers
+`(2,1)` after seven checks within `[0,4)²` and budget 9. It is independently
+re-evaluated as a concrete arithmetic assignment. No input equation is authored
+into a rule; this is not discovery/completeness of the parametrisation, a
+symbolic solution to the source hypotheses, or a smaller-state construction.
+
+Search statuses distinguish a hit, finite-box exhaustion, budget exhaustion and
+invalid syntax. No Cartesian product is materialised. Candidate budget does not
+bound exponent cost or wall time. The positive assignment verifier does not
+certify search status/count or a negative/universal claim. No Checker-B capability,
+pack, ledger gate, arithmetic adapter, kernel or test26 changes are made here.
+The real evaluator/ledger refusal checks still hold: ledger version 0, no domain
+promotion, EveryStateMoves undischarged. See `constrained-nat-witnesses.md` for
+API details and the remaining provenance/uniform-construction integration.

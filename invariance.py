@@ -558,6 +558,67 @@ class RewriteEquals(M.Edge):
         return self.result
 
 
+class RewriteEqualityDerivation(M.Edge):
+    """Bounded, deterministic rewriting with a replayable ordinary derivation.
+
+    Unlike RewriteEquals' legacy heuristic filter, every supplied unary rule is
+    eligible. Rules are *trusted input*, not conclusions inferred from a grid.
+    Result: Pair(success, Pair(derivation-or-[], Pair(registry, []))). Failure
+    means this ordered walk got stuck or exhausted fuel, not non-equality.
+    Paths use RewriteAtPath's cons-cell convention (0=head, 1=tail).
+    """
+
+    def __init__(self, start, goal, rules, registry, fuel=M.nine):
+        self.goal = goal
+        self.rules = rules
+        self.registry = registry
+        plan = self._walk(start, fuel)
+        if M.Head(plan)() is M.truth_value:
+            built = P.BuildDerivation(start, M.Tail(plan)(), registry)()
+            derivation = M.Head(built)()
+            registry = M.Head(M.Tail(built)())()
+        else:
+            derivation = M.EmptyList
+        self.result = M.Pair(M.Head(plan)(), M.Pair(derivation, M.Pair(registry, M.EmptyList)))
+        super().__init__(inputs=M.Pair(start, M.Pair(goal, M.Pair(rules,
+            M.Pair(fuel, M.Pair(self.registry, M.EmptyList))))), results=self.result)
+
+    def _location(self, rule, term):
+        if M.Compare(P.RewriteHere(rule, term)(), term)() is M.false_value:
+            return M.Pair(M.truth_value, M.EmptyList)
+        if M.IsPair(term)() is M.truth_value:
+            head = self._location(rule, M.Head(term)())
+            if M.Head(head)() is M.truth_value:
+                return M.Pair(M.truth_value, M.Pair(M.Zero, M.Tail(head)()))
+            tail = self._location(rule, M.Tail(term)())
+            if M.Head(tail)() is M.truth_value:
+                return M.Pair(M.truth_value, M.Pair(M.one, M.Tail(tail)()))
+        return M.Pair(M.false_value, M.EmptyList)
+
+    def _walk(self, current, fuel):
+        if M.Compare(current, self.goal)() is M.truth_value:
+            return M.Pair(M.truth_value, M.EmptyList)
+        if M.NatEq(fuel, M.Zero, self.registry)() is M.truth_value:
+            return M.Pair(M.false_value, M.EmptyList)
+        rules = self.rules
+        while M.IdentityCompare(rules, M.EmptyList)() is M.false_value:
+            rule = M.Head(rules)()
+            found = self._location(rule, current)
+            if M.Head(found)() is M.truth_value:
+                path = M.Tail(found)()
+                nxt = P.RewriteAtPath(rule, current, path, self.registry)()
+                pred = M.NatPred(fuel, self.registry)()
+                rest = self._walk(nxt, M.Head(pred)())
+                if M.Head(rest)() is M.truth_value:
+                    return M.Pair(M.truth_value, M.Pair(P.RewriteAction(rule, path)(), M.Tail(rest)()))
+                return rest
+            rules = M.Tail(rules)()
+        return M.Pair(M.false_value, M.EmptyList)
+
+    def __call__(self):
+        return self.result
+
+
 class EquationRewriteEquals(M.Edge):
     def __init__(self, start, goal, rules, registry):
         self.goal = goal

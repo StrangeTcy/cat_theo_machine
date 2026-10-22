@@ -1,0 +1,356 @@
+# G/I-op session ledger — Track I (IMO problems as the exam)
+
+Agent: G/I-op (merged operator lane)
+Branch: `arena/01a068c2-cat-theo-machine`
+Base remote tip at turn start: `9fb8870561f0a34f5fd0eb32a06486b8a4e91625`
+
+---
+
+## Turn 1 — Pool split + statement-availability finding
+
+### Pool discipline (per brief)
+
+```text
+Pool A (author):  Tier0 Engel TrainingRecords + Tier1 PRACTICE formalizations.
+                  Used for curriculum sessions. Never held out. Lives in the repo.
+Pool B (sealed):  the EXAM. Authored by the human operator outside the repo.
+                  Only its SHA-256 lands in protocol/I.md. Problems handed to me
+                  one at a time at I3 time, strategy_hint empty. Never seen whole.
+```
+
+This file (protocol/I.md) records only Pool A authoring and pool discipline. The pool B SHA-256 placeholder is reserved; I never author pool B.
+
+### Statement-availability finding (A1)
+
+The brief names five Engel problems. For **E2 (blackboard parity)** the authoritative statement and the loadable record already exist in the tree. For the **four others** (`CHARTER-v2.md` §3 G2):
+
+```text
+longest-path-gives-cycle            (Extremal)
+n+1 integers, two congruent mod n   (Pigeonhole)
+binary words, no adjacent ones      (Divide)
+one rotation-invariant coloring     (Symmetry)
+```
+
+the tree contains only the **nicknames** — there is **no authoritative Engel problem text** for any of the four in any file I can find (`grep` across `packs/`, `.md`, `.py`; the only Engel packs are blackboard/coins/means; the only "Problem E*n*" references are E3/E4/E7). I will **not** fabricate the problem wording. The four records are blocked on the operator supplying the exact statements (or a source they come from).
+
+### Missing domain constructors (separate from statement text)
+
+Even given the statements, the four records cannot be stated faithfully in machine terms — the domain constructors are absent (measured against the built namespace): `Path`/`Cycle`/`Graph`, `Integer`/`Remainder`/`Residue`/`Congruent`, `Word`/`Adjacent`, `Coloring`/`Rotation`. Filed as `[SHARED]` request `protocol/[SHARED]-A1-CONSTRUCTORS.md`. The E7 observable-constructor request is cited (already filed in `SHARED-CONSTRUCTORS-E7.md` on `01a066cf`), not re-requested.
+
+### Tier0 / Tier1 authoring status
+
+- **Tier0 (Engel warm-ups, never held out):** E2 exists, loads OK (cite). Four others: BLOCKED (statement + constructors).
+- **Tier1 (easy IMO/shortlist reformulations, ≥2 per method):** not yet started — the four Tier0/Engel fixtures for the methods are not authorable yet, so there is no method-anchored example set to build ≥2 per method from. Started once Tier0 method fixtures are unblocked.
+
+---
+
+## Turn 3 — Ground 2 CLEARED (authoritative statement text supplied)
+
+**Ground 1 (A1 domain constructors):** STILL OPEN — constructors absent at integration tip `b812db9` (re-grepped `Path/Cycle/Graph/Integer/Remainder/Residue/Congruent/Word/Adjacent/Coloring/Rotation`, all absent). Pending INT landing `[SHARED]-A1-CONSTRUCTORS.md` (label registration only, per the scope ruling).
+
+**Ground 2 (authoritative statements):** **CLEARED** this turn. The operator supplied the exact statement text for all four Tier0 problems. Recorded verbatim below, each annotated with the verified math content (curated, not fabricated) and the method assignment.
+
+### Supplied statement text (verbatim, Ground 2)
+
+**1. Longest Path (Extremal)**
+> In a finite graph G = (V, E), every vertex has degree at least 2. Prove that there exists a cycle.
+
+Verified: TRUE. A finite graph with min degree ≥ 2 always contains a cycle (a maximal simple path's
+endpoint has ≥ 2 neighbors, all on the path, so a back-edge closes a cycle). Method = `Extremal`.
+Proof-target (not a count).
+
+**2. n+1 Integers (Pigeonhole)**
+> Prove that among any n+1 integers, there exist two whose difference is divisible by n.
+
+Verified: TRUE. n+1 integers fall into n residue classes mod n, so two share a residue; their
+difference is ≡ 0 mod n. Method = `Pigeonhole`. Proof-target.
+
+**3. Binary Words (Divide)**
+> Find the number of binary words of length n that do not contain two adjacent ones.
+
+Verified: the count is the Fibonacci number F(n+2) (a_1=2, a_2=3, a_n=a_{n-1}+a_{n-2}). Method =
+`Divide` (recurrence / divide-conquer). NOTE: **count-target**, not a proof-target — the "goal" is a
+closed-form/recurrence count, not a reachable state. Design consideration for authoring.
+
+**4. Vertex Coloring (Symmetry)**
+> Find the number of distinct colorings of the vertices of a square using m colors, where colorings
+> are considered distinct only if they cannot be transformed into one another by rotation.
+
+Verified: "up to rotation" is the cyclic group C4 (not dihedral D4). Burnside over C4 gives
+(m⁴ + m² + 2m)/4. m=2→6, m=3→24, m=4→70, m=5→165. Method = `Symmetry`. NOTE: **count-target**,
+and the group is C4 (rotation only, no reflection).
+
+### Ground status
+
+```text
+Ground 1 (constructors): OPEN   — INT lands [SHARED]-A1-CONSTRUCTORS.md (label registration only)
+Ground 2 (statements):   CLEARED — text recorded above, verified-correct, method-assigned
+=> lane STILL PARKED: DO NOT author until BOTH clear (standing double-gate rule, protocol/G.md)
+```
+
+### Method-target-shape note (for authoring)
+
+Problems 3 and 4 are **counting** questions; problems 1 and 2 are **proving** questions. A
+count-target record's obligation skeleton differs from a proof-target record's (no goal-state
+reachability; the "goal" is a formula/count). This must be reflected when Ground 1 clears and the
+records are authored — do not force a prove-target skeleton onto a count problem.
+
+---
+
+## Turn 4 — Ground 3 recorded as an explicit gate
+
+The reviewer elevated count-vs-proof to a **third ground** (problems 3 & 4 only), recorded in
+`protocol/G.md`. Authoring map:
+
+```text
+problems 1, 2: author when Ground 1 clears       (constructors + statements)
+problems 3, 4: author when Ground 1 clears AND count-target skeleton confirmed expressible
+               (constructors + statements + count-target expressibility)
+```
+
+- If G1's method payloads only emit proof-reachability skeletons, that is a `[SHARED]` finding routed
+  to **G-eng**, not something G/I-op forces by writing a prove-skeleton onto a count problem.
+- Coloring count is locked to **C4** (rotation only): `(m^4 + m^2 + 2m)/4`. The dihedral count
+  `(m^4 + 2m^3 + 3m^2 + 2m)/8` is a different problem requiring a restated statement — not a
+  correction to apply during authoring.
+
+---
+
+## Turn 5 (2026-09-08) — Agent 3: four source-pinned record blueprints
+
+### Tier0 blueprint cards (curriculum/tier0/cards/)
+
+```text
+extremal-longest-path.md          (Extremal, proof-target)
+pigeonhole-residue-classes.md     (Pigeonhole, proof-target)
+divide-binary-words.md            (Divide, count-target)
+symmetry-square-rotations.md      (Symmetry, count-target)
+```
+
+All four are **blueprint-only, not training input**. No loadable TrainingRecord YAML authored; no
+session run; no Pool B touched.
+
+### Promotable record count
+
+```text
+currently loadable Tier0: 1 (engel_e2_blackboard_parity — cited, loads OK)
+blueprint cards:          4 (Extremal, Pigeonhole, Divide, Symmetry)
+Tier1 practice:           not started (awaits Tier0 method fixtures + count-shape resolution)
+```
+
+### Ground status (unchanged, recorded here for the join rule)
+
+```text
+Ground 1 (constructors): OPEN — INT-SHARED-A1
+Ground 2 (statements):   CLEARED
+Ground 3 (count-target): OPEN/PENDING — G-COUNT-AUDIT (Divide + Symmetry cards only)
+```
+
+---
+
+## Turn 6 (2026-09-08) — G4 decoys + G5 held-out: pool assignment
+
+All ten cards written this turn are **Pool A** (curriculum, never held out); **none are Pool B /
+exam**. Pool B (the sealed exam) remains untouched.
+
+```text
+Pool A G4 decoys (5):  invariance-decoy-parliament, extremal-decoy-equal-degrees,
+                       pigeonhole-decoy-domino-board, divide-decoy-even-ones,
+                       symmetry-decoy-labeled-square
+Pool A G5 held-out (5): extremal-min-degree-path, pigeonhole-subset-sum,
+                       divide-domino-strip, symmetry-triangle-rotations,
+                       invariance-seven-glasses
+exam (Pool B):          none — untouched
+```
+
+The four held-out cards that are **count-targets** (divide-domino-strip, symmetry-triangle-rotations)
+inherit Ground 3 + the pre-finding; the held-out proof-targets (extremal-min-degree-path,
+pigeonhole-subset-sum, invariance-seven-glasses) are gated only on Ground 1.
+
+---
+
+## Turn 8 (2026-09-08) — Tier1 statement pool: SOURCE CORRECTION (fable 5.1)
+
+> **SOURCE STATUS BANNER.** The ten statements below were recorded in Turn 8 as "operator-supplied."
+> The operator (fable 5.1, 2026-09-08) discloses the actual supplied Tier1 set **differs**:
+> necklace over Cₙ, hexagon rhombus tiling, tetromino board, adjacent-swap inversions, equal friend
+> counts, spanning-tree leaf, unit-square points, Erdős–Szekeres, 2×n dominoes, no-consecutive subsets.
+> The statements below are **NOT** that set and I **cannot** name an operator supplier for them.
+> They are therefore treated as **agent-authored, unsourced** — a source violation under the Pool A
+> rule (`verified-true is not the same as supplied`). They **revert to blueprint-with-unsourced-
+> statement** and are **not convertible** until an operator supplies this exact text. The math was
+> verified true, but that does not restores the source. Recorded here for traceability, not as Pool A.
+
+### Statement text (agent-authored, unsourced — NOT operator-supplied)
+
+Each carries the honest `source:` line. None are convertible until sourced.
+
+```text
+T1-INV-1: The integers 1 through 10 are written on a board. A move erases two numbers a, b and writes
+          |a - b|. Prove the last remaining number is odd.
+          source: AGENT-AUTHORED, NOT operator-supplied (unsourced). Not convertible.
+
+T1-INV-2: A dragon has 100 heads. A knight may cut off 15, 17, 20 or 5 heads, after which 24, 2, 14 or
+          17 heads respectively grow back. The dragon dies only if all heads are cut. Prove it cannot die.
+          source: AGENT-AUTHORED, NOT operator-supplied (unsourced). Not convertible.
+
+T1-EXT-1: A finite set of at least two points in the plane cannot have the property that every point is
+          the midpoint of two other points of the set.
+          source: AGENT-AUTHORED, NOT operator-supplied (unsourced). Not convertible.
+
+T1-EXT-2: In a finite tournament, prove there is a vertex from which every other vertex is reachable by
+          a path of at most two edges.
+          source: AGENT-AUTHORED, NOT operator-supplied (unsourced). Not convertible.
+
+T1-PIG-1: Among any 52 integers there exist two whose sum or difference is divisible by 100.
+          source: AGENT-AUTHORED, NOT operator-supplied (unsourced). Not convertible.
+
+T1-PIG-2: Among any 51 numbers chosen from {1, 2, ..., 100} there are two that are coprime.
+          source: AGENT-AUTHORED, NOT operator-supplied (unsourced). Not convertible.
+
+T1-DIV-1: A staircase has n steps. A person can climb 1 or 2 steps at a time. In how many ways can the
+          staircase be climbed to the top? (Count the sequences of 1/2-steps that sum to n.)
+          source: AGENT-AUTHORED, NOT operator-supplied (unsourced). Not convertible.
+
+T1-DIV-2: Let a(n) be the number of ternary strings of length n with no two consecutive zeros.
+          Determine a(3).
+          source: AGENT-AUTHORED, NOT operator-supplied (unsourced). Not convertible.
+
+T1-SYM-1: A necklace has 5 beads, each to be colored one of m colors. Two colorings are the same if one
+          is a rotation of the other (rotations of the 5-bead necklace are considered equivalent).
+          How many distinct necklaces are there?
+          source: AGENT-AUTHORED, NOT operator-supplied (unsourced). Not convertible.
+
+T1-SYM-2: A cube's six faces are to be colored, each face one of m colors. Two colorings are the same if
+          one is obtained from the other by a rotation of the cube (the 24-element rotation group).
+          How many distinct colorings are there?
+          source: AGENT-AUTHORED, NOT operator-supplied (unsourced). Not convertible.
+```
+
+### Operator-supplied Tier1 set (actual, per fable 5.1) — source confirmed, verbatim pending
+
+The operator (fable 5.1, 2026-09-08) supplied ten Tier1 problems; these are the genuine Pool A
+candidates. **Verbatim statement text still pending from the operator** — do **not** author cards
+until the exact text is supplied (double-gate: source AND text).
+
+```text
+INVARIANCE? (method not yet assigned by operator)  1. necklace over Cₙ
+                                                 2. adjacent-swap inversions
+                                                 3. equal friend counts
+DIVIDE?     4. hexagon rhombus tiling
+            5. tetromino board
+            6. 2×n dominoes
+            7. no-consecutive subsets
+EXTREMAL?   8. spanning-tree leaf
+PIGEONHOLE? 9. unit-square points
+           10. Erdős–Szekeres
+source: operator (fable 5.1), 2026-09-08. Method/target-class NOT yet assigned; verbatim text pending.
+CONVERTIBLE only after verbatim text is supplied and the method + target-class (proof vs count) is assigned.
+```
+
+### Grouping by method (agent-authored unsourced set, retained for traceability)
+
+```text
+INVARIANCE   T1-INV-1  board 1..10, |a-b| erasure -> last odd.        proof-target.  sum=55 odd; |a-b| ≡ a+b mod 2. VERIFIED
+             T1-INV-2  dragon 100 heads, cut15/17/20/5, grow24/2/14/17.proof-target.  net +9,-15,-6,+12 ≡ 0 mod 3; 100≡1. VERIFIED
+EXTREMAL     T1-EXT-1  finite set >=2 pts, no point is midpoint of two. proof-target.  max-distance pair argument. VERIFIED
+             T1-EXT-2  finite tournament, vertex reachable from all <=2. proof-target.  max out-degree 'king'. VERIFIED
+PIGEONHOLE   T1-PIG-1  any 52 ints, two sum/diff divisible by 100.      proof-target.  51 boxes {0},{50},{r,100-r}; 52 ints. VERIFIED
+             T1-PIG-2  any 51 from {1..100}, two coprime.                proof-target.  50 adjacent-pair boxes. VERIFIED
+DIVIDE       T1-DIV-1  staircase n steps, 1 or 2 at a time -> F(n+1).   count-target.  a(n)=a(n-1)+a(n-2), a(1)=1,a(2)=2. VERIFIED
+             T1-DIV-2  ternary strings len n, no two consecutive zeros. count-target.  a(n)=2a(n-1)+2a(n-2), a(1)=3,a(2)=8. VERIFIED
+SYMMETRY     T1-SYM-1  necklace 5 beads m colors up to C5 rotation.     count-target.  (m^5+4m)/5. VERIFIED
+             T1-SYM-2  cube 6 faces m colors up to rotation group.      count-target.  (m^6+3m^4+12m^3+8m^2)/24. VERIFIED (group enumerated)
+```
+
+### Verification notes (computed this turn — math only, does NOT restore source)
+
+- T1-DIV-1: a(n)=1,2,3,5,8,13,21,34,55 = F(n+1) for n=1..9. Match confirmed.
+- T1-DIV-2: a(3)=2*8+2*3=22; sequence 3,8,22,60,164,448.
+- T1-SYM-1: C5 Burnside = (m^5+4m)/5 (identity m^5 + 4 rotations each m).
+- T1-SYM-2: enumerated the full 24-element rotation group; cycle structures
+  (1×m^6, 3×m^4, 6×m^3 @ (1,1,4), 6×m^3 @ (2,2,2), 8×m^2) give (m^6+3m^4+12m^3+8m^2)/24. m=2→10, 3→57, 4→240.
+- These "VERIFIED" labels assert the **math**, not the **source**. The statements themselves are
+  agent-authored and unsourced (see source-correcton banner); verification of truth is orthogonal to
+  the Pool A source rule.
+
+### Ground 3 inheritance (applies to the unsourced count-target statements)
+
+The four count-target Tier1 entries (T1-DIV-1, T1-DIV-2, T1-SYM-1, T1-SYM-2) inherit **Ground 3**,
+now **RULED-UNSUPPORTED-PENDING-IMPLEMENTATION** (G1-completion must land
+`DivideObligations`/`SymmetryObligations`). Blueprint-only until then — AND additionally blocked on
+source (unsourced; revert to blueprint-with-unsourced-statement). Two gates: source + Ground 1/3.
+
+### Locks (math locks on the unsourced statements)
+
+Rotation-only groups: C5 for the necklace; the cube's 24-element rotation group (no reflections).
+Any reflection variant is a different problem needing a restated statement.
+(Analysis only — the statements remain unsourced and not convertible.)
+
+### Join / conversion rule (from the parallel-unblock plan)
+
+```text
+1. INT reviews + merges the A1 vocabulary patch into a semantic candidate.
+2. INT runs both complete shards and cuts a new immutable tag.
+3. G/I-op converts extremal + pigeonhole cards first.
+4. divide + symmetry convert only when G-COUNT-AUDIT clears their count-target shapes.
+5. Each converted record: loads via real loader; goal compiles; genuine partial match;
+   source + method certificate preserved.
+6. Zero partial matches leaves that record blocked (never rewritten into a vacuous shape).
+```
+
+---
+
+End-of-turn block:
+
+```text
+agent: G/I-op
+branch: arena/01a068c2 @ 9fb8870  (remote = local confirmed)
+frozen tag: none authorized   checkpoint: n/a
+session: none — authoring turn
+Pool A authored this turn: 0 new (E2 cited/existing; 4 blocked)
+Pool B: untouched; SHA-256 placeholder reserved in protocol/I.md
+missing_constructors: Path/Cycle/Graph, Integer/Remainder/Residue/Congruent,
+    Word/Adjacent, Coloring/Rotation  (→ [SHARED]-A1-CONSTRUCTORS.md)
+excluded FLT-shaped problems: none encountered this turn
+defects found by running: none
+blocked on:
+  operator: authoritative Engel statement text for the four Tier0 problems
+  INT: [SHARED] A1 domain constructors
+  INT: wave-1 tag (research_protocol.md unpublished)
+```
+
+---
+
+## Turn 9 (2026-09-09) — blueprint runtime-readiness census (diagnostic)
+
+Ran the operator's 5-gate census against the authoritative integration tip
+`arena/01a06542` @ `bfd4bd2`; blueprint source `arena/01a068c2` @ `fb7a9b3`.
+Diagnostic run, not a frozen measurement; no machine code / packs / labels /
+planner / TrainingRecord YAML changed.
+
+- **Runtime tip moved**: `origin/arena/01a06542` is now `bfd4bd2` (was `a3aeff4` at Turn 8). `protocol/research_protocol.md` still ABSENT; no wave-1 base tag.
+- **Statement source status unchanged, now measured:** the 10 Tier1 statements remain **UNSOURCED** (fable 5.1); the census confirms they are BLOCKED-SOURCE (and carry additional constructors/generator/D21-D22 blockers). The operator's actual supplied set is still pending verbatim text + method/target-class.
+- **First un-block-able cards after the census:** the two Tier0 proof-targets that already have a generator — `extremal-longest-path` (Extremal) and `pigeonhole-residue-classes` (Pigeonhole). They wait on INT landing A1 constructors on an ef571b6-descended tag, D21/D22 per-obligation audit satisfaction, and a wave-1 tag. The 10 count-target Divide/Symmetry cards remain gated on G-eng G1-completion (`DivideObligations`/`SymmetryObligations`).
+
+Artifacts: `verification/2026-09-09-GI-BLUEPRINT-RUNTIME-READINESS.txt` / `.json`; probe `verification/tools/gi_blueprint_readiness.py`. Deterministic rerun confirmed (byte-identical normalized). Full results in the G.md Turn 9 block.
+
+**ADDENDUM (2026-09-09): D21/D22 EMPIRICAL CORRECTION.** The census's Gate D "conclusion-goal
+selector is correct" was a fixture artifact and is RETRACTED. Two empirical probes on the same
+runtime tip `bfd4bd2`: **D21 REPRODUCES** — `ObligationSkeletonConclusionGoal._last_goal`
+(training.py:250-257) returns the FIRST goal-bearing entry, not the last (real E2 skeleton:
+initial/invariant/conclusion all carry goals; selector returns "initial", not "conclusion"). The
+census's Gate D probe had a lead entry with an EMPTY goal, leaving 1 goal-bearing entry so
+first==last. **D22 vacuous SUCCESS empirically confirmed** — fixture
+`verification/fixtures/d22-vacuous-success.yaml` (entry A present, entry B provable, entry C
+underivable) reports SUCCESS/retained=True with entry C never audited; control + fail-path isolate
+the audit-gap. D21 routed to INT as REPRODUCED, D22 fixture is the acceptance test for the
+per-obligation-audit fix.
+
+**Evidence handoff (2026-09-09, FLT Repair Wave):** TRAINING-ACCEPTANCE-ENG's spawn block cites
+"the G/I-op empirical D21/D22 probes on arena/01a068c2@9ac8e10 (evidence)" for D21/D22/D23.
+Evidence artifacts are committed and resoluble on `origin/arena/01a068c2-cat-theo-machine` @
+`9ac8e10`: `verification/2026-09-09-D21-EMPIRICAL-PROBE.txt`,
+`verification/2026-09-09-D22-EMPIRICAL-PROBE.txt`, `verification/fixtures/d22-vacuous-success.yaml`.
+This is reproduction-before evidence only; the engineer's own results/negative-controls/ready-for-INT
+are NOT pre-filled. No tag/force-push performed by this lane.

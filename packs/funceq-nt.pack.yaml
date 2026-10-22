@@ -1,0 +1,636 @@
+format: hyge-pack
+version: 1
+
+name: funceq-nt
+description: >
+  W9. Generic schemas for two of the three families this worker's brief
+  names: functional equations (the equation is the input, the consequences
+  are derived) and parity algebra over the machine's own Peano naturals.
+  Every rule is fully variable-typed and every premise ground-binding: no
+  derived fact ever contains a variable no premise bound, and no rule names
+  a function, a number (beyond the Peano constructors Zero and Succ, which
+  are relation vocabulary, not data), a problem, or an answer.
+
+  Functional equations. `CauchyAdd(f)` / `CauchyMul(f)` are INPUT facts --
+  the equation, handed to the machine, never assumed in a rule. What the
+  rules derive are the equation's instances at values the instance supplies
+  (`Value`), and what pure logic and the cancellative monoid laws license
+  from those instances: f(0) = 0 for additive Cauchy, f(1) = 1 for
+  multiplicative Cauchy once `NonTrivial(f)` is also input (without it the
+  zero function is a counterexample, and the schema refuses to conclude).
+  Equality scaffolding (symmetry, transitivity) and equation-normalising
+  arithmetic identities (add-zero, mul-one) are generic.
+
+  Parity. `Even` / `Odd` on the Peano constructors is structural. The
+  algebra -- which parity a machine-computed sum or product carries -- is
+  derived from the parities of the operands and the machine's own
+  computation record (`NatSum` / `NatProduct` facts hold the atoms the
+  Add / Multiply edges actually produced). Nothing here computes: the
+  machine's arithmetic edges compute, these schemas only say what follows.
+
+    cauchy_add_zero_argument   the (0,0) instance of additive Cauchy
+    cauchy_add_instance        the (x,y) instance at supplied values
+    eq_symmetric / transitive  equality scaffolding
+    eq_add_zero_left/right     normalise Add(0,x) / Add(x,0) inside equations
+    eq_mul_one_left/right      normalise Mul(1,x) / Mul(x,1) inside equations
+    norm_mul_one_in_apply_*    the same, inside a function argument
+    eq_shared_left_cancel      a = a + x licenses x = 0 (and mirrored)
+    cauchy_mul_unit_argument   the (1,1) instance, free like the additive (0,0)
+    cauchy_mul_instance        the (x,y) instance of multiplicative Cauchy
+    mul_unit_determined        f(1) = 1, only under NonTrivial(f)
+    even_zero / odd_one        the structural base (input facts, as Peano
+                               axioms, in the demo instance)
+    even_ss / odd_ss           parity recurses over double successor
+    sum_even_even / odd_odd    parity of a machine-computed sum
+    sum_even_odd / odd_even
+    prod_even_even / even_odd / odd_even
+    prod_odd_odd               parity of a machine-computed product
+
+requires: []
+
+phi:
+  list: []
+
+rules:
+  # --- additive Cauchy: the equation is input, the instances are derived ----
+  - id: cauchy_add_zero_argument
+    # Plugging (0,0) into f(x+y) = f(x) + f(y) needs no supplied values:
+    # Zero is a constructor, not a datum.
+    premises:
+      - call:
+          head: {sym: CauchyAddLabel}
+          args: [{var: f}]
+    replacement:
+      list:
+        - call:
+            head: {sym: ExprEqLabel}
+            args:
+              - call:
+                  head: {sym: ApplyLabel}
+                  args:
+                    - {var: f}
+                    - call:
+                        head: {sym: ZeroLabel}
+                        args: []
+              - call:
+                  head: {sym: ExprAddLabel}
+                  args:
+                    - call:
+                        head: {sym: ApplyLabel}
+                        args:
+                          - {var: f}
+                          - call:
+                              head: {sym: ZeroLabel}
+                              args: []
+                    - call:
+                        head: {sym: ApplyLabel}
+                        args:
+                          - {var: f}
+                          - call:
+                              head: {sym: ZeroLabel}
+                              args: []
+
+  - id: cauchy_add_instance
+    # The equation instance at values the instance supplies.
+    premises:
+      - call:
+          head: {sym: CauchyAddLabel}
+          args: [{var: f}]
+      - call:
+          head: {sym: ValueLabel}
+          args: [{var: x}]
+      - call:
+          head: {sym: ValueLabel}
+          args: [{var: y}]
+    replacement:
+      list:
+        - call:
+            head: {sym: ExprEqLabel}
+            args:
+              - call:
+                  head: {sym: ApplyLabel}
+                  args:
+                    - {var: f}
+                    - call:
+                        head: {sym: ExprAddLabel}
+                        args: [{var: x}, {var: y}]
+              - call:
+                  head: {sym: ExprAddLabel}
+                  args:
+                    - call:
+                        head: {sym: ApplyLabel}
+                        args: [{var: f}, {var: x}]
+                    - call:
+                        head: {sym: ApplyLabel}
+                        args: [{var: f}, {var: y}]
+
+  # --- equality scaffolding --------------------------------------------------
+  - id: eq_symmetric
+    premises:
+      - call:
+          head: {sym: ExprEqLabel}
+          args: [{var: a}, {var: b}]
+    replacement:
+      list:
+        - call:
+            head: {sym: ExprEqLabel}
+            args: [{var: b}, {var: a}]
+
+  - id: eq_transitive
+    premises:
+      - call:
+          head: {sym: ExprEqLabel}
+          args: [{var: a}, {var: b}]
+      - call:
+          head: {sym: ExprEqLabel}
+          args: [{var: b}, {var: c}]
+    replacement:
+      list:
+        - call:
+            head: {sym: ExprEqLabel}
+            args: [{var: a}, {var: c}]
+
+  # --- equation-normalising arithmetic identities ----------------------------
+  - id: eq_add_zero_left
+    premises:
+      - call:
+          head: {sym: ExprEqLabel}
+          args:
+            - {var: a}
+            - call:
+                head: {sym: ExprAddLabel}
+                args:
+                  - call:
+                      head: {sym: ZeroLabel}
+                      args: []
+                  - {var: x}
+    replacement:
+      list:
+        - call:
+            head: {sym: ExprEqLabel}
+            args: [{var: a}, {var: x}]
+
+  - id: eq_add_zero_right
+    premises:
+      - call:
+          head: {sym: ExprEqLabel}
+          args:
+            - {var: a}
+            - call:
+                head: {sym: ExprAddLabel}
+                args:
+                  - {var: x}
+                  - call:
+                      head: {sym: ZeroLabel}
+                      args: []
+    replacement:
+      list:
+        - call:
+            head: {sym: ExprEqLabel}
+            args: [{var: a}, {var: x}]
+
+  - id: eq_mul_one_left
+    premises:
+      - call:
+          head: {sym: ExprEqLabel}
+          args:
+            - {var: a}
+            - call:
+                head: {sym: ExprMulLabel}
+                args:
+                  - call:
+                      head: {sym: SuccLabel}
+                      args:
+                        - call:
+                            head: {sym: ZeroLabel}
+                            args: []
+                  - {var: x}
+    replacement:
+      list:
+        - call:
+            head: {sym: ExprEqLabel}
+            args: [{var: a}, {var: x}]
+
+  - id: eq_mul_one_right
+    premises:
+      - call:
+          head: {sym: ExprEqLabel}
+          args:
+            - {var: a}
+            - call:
+                head: {sym: ExprMulLabel}
+                args:
+                  - {var: x}
+                  - call:
+                      head: {sym: SuccLabel}
+                      args:
+                        - call:
+                            head: {sym: ZeroLabel}
+                            args: []
+    replacement:
+      list:
+        - call:
+            head: {sym: ExprEqLabel}
+            args: [{var: a}, {var: x}]
+
+  - id: eq_shared_left_cancel
+    # a = a + x licenses x = 0 in any cancellative monoid; this is the one
+    # classical lemma the additive slice assumes as a schema, exactly as a
+    # geometric worker may assume SAS. The mirrored direction is separate.
+    premises:
+      - call:
+          head: {sym: ExprEqLabel}
+          args:
+            - {var: a}
+            - call:
+                head: {sym: ExprAddLabel}
+                args: [{var: a}, {var: x}]
+    replacement:
+      list:
+        - call:
+            head: {sym: ExprEqLabel}
+            args:
+              - {var: x}
+              - call:
+                  head: {sym: ZeroLabel}
+                  args: []
+
+  - id: eq_shared_right_cancel
+    premises:
+      - call:
+          head: {sym: ExprEqLabel}
+          args:
+            - call:
+                head: {sym: ExprAddLabel}
+                args: [{var: a}, {var: x}]
+            - {var: a}
+    replacement:
+      list:
+        - call:
+            head: {sym: ExprEqLabel}
+            args:
+              - {var: x}
+              - call:
+                  head: {sym: ZeroLabel}
+                  args: []
+
+  # --- multiplicative Cauchy -------------------------------------------------
+  - id: cauchy_mul_unit_argument
+    # The (1,1) instance: for multiplicative Cauchy this is the free one, the
+    # exact mirror of the additive (0,0) instance -- Succ(Zero) is a
+    # constructor term, not a datum.
+    premises:
+      - call:
+          head: {sym: CauchyMulLabel}
+          args: [{var: f}]
+    replacement:
+      list:
+        - call:
+            head: {sym: ExprEqLabel}
+            args:
+              - call:
+                  head: {sym: ApplyLabel}
+                  args:
+                    - {var: f}
+                    - call:
+                        head: {sym: ExprMulLabel}
+                        args:
+                          - call:
+                              head: {sym: SuccLabel}
+                              args:
+                                - call:
+                                    head: {sym: ZeroLabel}
+                                    args: []
+                          - call:
+                              head: {sym: SuccLabel}
+                              args:
+                                - call:
+                                    head: {sym: ZeroLabel}
+                                    args: []
+              - call:
+                  head: {sym: ExprMulLabel}
+                  args:
+                    - call:
+                        head: {sym: ApplyLabel}
+                        args:
+                          - {var: f}
+                          - call:
+                              head: {sym: SuccLabel}
+                              args:
+                                - call:
+                                    head: {sym: ZeroLabel}
+                                    args: []
+                    - call:
+                        head: {sym: ApplyLabel}
+                        args:
+                          - {var: f}
+                          - call:
+                              head: {sym: SuccLabel}
+                              args:
+                                - call:
+                                    head: {sym: ZeroLabel}
+                                    args: []
+
+  - id: cauchy_mul_instance
+    premises:
+      - call:
+          head: {sym: CauchyMulLabel}
+          args: [{var: f}]
+      - call:
+          head: {sym: ValueLabel}
+          args: [{var: x}]
+      - call:
+          head: {sym: ValueLabel}
+          args: [{var: y}]
+    replacement:
+      list:
+        - call:
+            head: {sym: ExprEqLabel}
+            args:
+              - call:
+                  head: {sym: ApplyLabel}
+                  args:
+                    - {var: f}
+                    - call:
+                        head: {sym: ExprMulLabel}
+                        args: [{var: x}, {var: y}]
+              - call:
+                  head: {sym: ExprMulLabel}
+                  args:
+                    - call:
+                        head: {sym: ApplyLabel}
+                        args: [{var: f}, {var: x}]
+                    - call:
+                        head: {sym: ApplyLabel}
+                        args: [{var: f}, {var: y}]
+
+  - id: norm_mul_one_in_apply_left
+    # Multiplication by one normalises inside a function argument too: the
+    # unit instance of multiplicative Cauchy is f(1*x) = f(1) * f(x), and
+    # without this the 1*x on the left never reaches the top-level
+    # normalisers.
+    premises:
+      - call:
+          head: {sym: ExprEqLabel}
+          args:
+            - call:
+                head: {sym: ApplyLabel}
+                args:
+                  - {var: f}
+                  - call:
+                      head: {sym: ExprMulLabel}
+                      args:
+                        - call:
+                            head: {sym: SuccLabel}
+                            args:
+                              - call:
+                                  head: {sym: ZeroLabel}
+                                  args: []
+                        - {var: x}
+            - {var: r}
+    replacement:
+      list:
+        - call:
+            head: {sym: ExprEqLabel}
+            args:
+              - call:
+                  head: {sym: ApplyLabel}
+                  args: [{var: f}, {var: x}]
+              - {var: r}
+
+  - id: norm_mul_one_in_apply_right
+    premises:
+      - call:
+          head: {sym: ExprEqLabel}
+          args:
+            - call:
+                head: {sym: ApplyLabel}
+                args:
+                  - {var: f}
+                  - call:
+                      head: {sym: ExprMulLabel}
+                      args:
+                        - {var: x}
+                        - call:
+                            head: {sym: SuccLabel}
+                            args:
+                              - call:
+                                  head: {sym: ZeroLabel}
+                                  args: []
+            - {var: r}
+    replacement:
+      list:
+        - call:
+            head: {sym: ExprEqLabel}
+            args:
+              - call:
+                  head: {sym: ApplyLabel}
+                  args: [{var: f}, {var: x}]
+              - {var: r}
+
+  - id: mul_unit_determined
+    # f(1) = 1 for a multiplicative Cauchy function -- but only once the
+    # instance has also declared the function non-trivial. Without
+    # NonTrivial(f) the zero function satisfies the equation and annihilates
+    # the unit, so this schema refuses to fire: the assumption is visible in
+    # the derivation or the conclusion is absent.
+    premises:
+      - call:
+          head: {sym: CauchyMulLabel}
+          args: [{var: f}]
+      - call:
+          head: {sym: NonTrivialLabel}
+          args: [{var: f}]
+      - call:
+          head: {sym: ExprEqLabel}
+          args:
+            - {var: a}
+            - call:
+                head: {sym: ExprMulLabel}
+                args: [{var: a}, {var: a}]
+    replacement:
+      list:
+        - call:
+            head: {sym: ExprEqLabel}
+            args:
+              - {var: a}
+              - call:
+                  head: {sym: SuccLabel}
+                  args:
+                    - call:
+                        head: {sym: ZeroLabel}
+                        args: []
+
+  # --- parity over the machine's own naturals --------------------------------
+  - id: even_ss
+    # Parity recurses over the double successor. These derive parity facts
+    # whose argument is the successor TERM; parities of the machine's own
+    # computed atoms enter as instance facts and meet the algebra below.
+    premises:
+      - call:
+          head: {sym: EvenLabel}
+          args: [{var: n}]
+    replacement:
+      list:
+        - call:
+            head: {sym: EvenLabel}
+            args:
+              - call:
+                  head: {sym: SuccLabel}
+                  args:
+                    - call:
+                        head: {sym: SuccLabel}
+                        args: [{var: n}]
+
+  - id: odd_ss
+    premises:
+      - call:
+          head: {sym: OddLabel}
+          args: [{var: n}]
+    replacement:
+      list:
+        - call:
+            head: {sym: OddLabel}
+            args:
+              - call:
+                  head: {sym: SuccLabel}
+                  args:
+                    - call:
+                        head: {sym: SuccLabel}
+                        args: [{var: n}]
+
+  - id: sum_even_even
+    premises:
+      - call:
+          head: {sym: NatSumLabel}
+          args: [{var: x}, {var: y}, {var: s}]
+      - call:
+          head: {sym: EvenLabel}
+          args: [{var: x}]
+      - call:
+          head: {sym: EvenLabel}
+          args: [{var: y}]
+    replacement:
+      list:
+        - call:
+            head: {sym: EvenLabel}
+            args: [{var: s}]
+
+  - id: sum_odd_odd
+    premises:
+      - call:
+          head: {sym: NatSumLabel}
+          args: [{var: x}, {var: y}, {var: s}]
+      - call:
+          head: {sym: OddLabel}
+          args: [{var: x}]
+      - call:
+          head: {sym: OddLabel}
+          args: [{var: y}]
+    replacement:
+      list:
+        - call:
+            head: {sym: EvenLabel}
+            args: [{var: s}]
+
+  - id: sum_even_odd
+    premises:
+      - call:
+          head: {sym: NatSumLabel}
+          args: [{var: x}, {var: y}, {var: s}]
+      - call:
+          head: {sym: EvenLabel}
+          args: [{var: x}]
+      - call:
+          head: {sym: OddLabel}
+          args: [{var: y}]
+    replacement:
+      list:
+        - call:
+            head: {sym: OddLabel}
+            args: [{var: s}]
+
+  - id: sum_odd_even
+    premises:
+      - call:
+          head: {sym: NatSumLabel}
+          args: [{var: x}, {var: y}, {var: s}]
+      - call:
+          head: {sym: OddLabel}
+          args: [{var: x}]
+      - call:
+          head: {sym: EvenLabel}
+          args: [{var: y}]
+    replacement:
+      list:
+        - call:
+            head: {sym: OddLabel}
+            args: [{var: s}]
+
+  - id: prod_even_even
+    premises:
+      - call:
+          head: {sym: NatProductLabel}
+          args: [{var: x}, {var: y}, {var: p}]
+      - call:
+          head: {sym: EvenLabel}
+          args: [{var: x}]
+      - call:
+          head: {sym: EvenLabel}
+          args: [{var: y}]
+    replacement:
+      list:
+        - call:
+            head: {sym: EvenLabel}
+            args: [{var: p}]
+
+  - id: prod_even_odd
+    premises:
+      - call:
+          head: {sym: NatProductLabel}
+          args: [{var: x}, {var: y}, {var: p}]
+      - call:
+          head: {sym: EvenLabel}
+          args: [{var: x}]
+      - call:
+          head: {sym: OddLabel}
+          args: [{var: y}]
+    replacement:
+      list:
+        - call:
+            head: {sym: EvenLabel}
+            args: [{var: p}]
+
+  - id: prod_odd_even
+    premises:
+      - call:
+          head: {sym: NatProductLabel}
+          args: [{var: x}, {var: y}, {var: p}]
+      - call:
+          head: {sym: OddLabel}
+          args: [{var: x}]
+      - call:
+          head: {sym: EvenLabel}
+          args: [{var: y}]
+    replacement:
+      list:
+        - call:
+            head: {sym: EvenLabel}
+            args: [{var: p}]
+
+  - id: prod_odd_odd
+    premises:
+      - call:
+          head: {sym: NatProductLabel}
+          args: [{var: x}, {var: y}, {var: p}]
+      - call:
+          head: {sym: OddLabel}
+          args: [{var: x}]
+      - call:
+          head: {sym: OddLabel}
+          args: [{var: y}]
+    replacement:
+      list:
+        - call:
+            head: {sym: OddLabel}
+            args: [{var: p}]
