@@ -288,6 +288,119 @@ class AblationTrial(M.Edge):
         return self.result
 
 
+class WithheldRuleAblationTrial(M.Edge):
+    """
+    Stronger ablation (W30), beside AblationTrial's triviality check:
+    the candidate must evaluate (expand + Checker-B verify) with the
+    full trusted rule set, and must NOT evaluate once `withheld_rules`
+    are removed from that set.  Status is ProvedLabel exactly when the
+    withheld rules are load-bearing for this instance; removing rules
+    the derivation never uses leaves the evaluation intact and the
+    status is FailedLabel -- the trial does not cry wolf.
+
+    Result mirrors AblationTrial's shape:
+    Pair(AblationVerifiedLabel, Pair(receipt, Pair(status, EmptyList)))
+    on a candidate that evaluates at all; otherwise the failing
+    evaluation result is returned unchanged.
+    """
+
+    def __init__(
+        self,
+        macro,
+        instance_start,
+        instance_goal,
+        trusted_rules,
+        withheld_rules,
+        registry,
+    ):
+        self.registry = registry
+        self.result = self._trial(
+            macro, instance_start, instance_goal,
+            trusted_rules, withheld_rules,
+        )
+        super().__init__(
+            inputs=M.Pair(
+                macro,
+                M.Pair(
+                    instance_start,
+                    M.Pair(
+                        instance_goal,
+                        M.Pair(
+                            trusted_rules,
+                            M.Pair(
+                                withheld_rules,
+                                M.Pair(registry, M.EmptyList),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def _without(self, rules, withheld):
+        kept_rev = M.EmptyList
+        cursor = rules
+        while M.IdentityCompare(cursor, M.EmptyList)() is M.false_value:
+            rule = M.Head(cursor)()
+            cursor = M.Tail(cursor)()
+            drop = M.false_value
+            probe = withheld
+            while M.IdentityCompare(probe, M.EmptyList)() is M.false_value:
+                if (
+                    M.IdentityCompare(rule, M.Head(probe)())()
+                    is M.truth_value
+                ):
+                    drop = M.truth_value
+                probe = M.Tail(probe)()
+            if drop is M.false_value:
+                kept_rev = M.Pair(rule, kept_rev)
+        kept = M.EmptyList
+        while M.IdentityCompare(kept_rev, M.EmptyList)() is M.false_value:
+            kept = M.Pair(M.Head(kept_rev)(), kept)
+            kept_rev = M.Tail(kept_rev)()
+        return kept
+
+    def _trial(
+        self, macro, instance_start, instance_goal,
+        trusted_rules, withheld_rules,
+    ):
+        full_res = EvaluateCandidateProof(
+            macro, instance_start, instance_goal,
+            trusted_rules, self.registry,
+        )()
+        if (
+            M.IdentityCompare(M.Head(full_res)(), L.CandidateEvaluatedLabel)()
+            is M.false_value
+        ):
+            return full_res
+
+        reduced = self._without(trusted_rules, withheld_rules)
+        reduced_res = EvaluateCandidateProof(
+            macro, instance_start, instance_goal,
+            reduced, self.registry,
+        )()
+        still_evaluates = (
+            M.IdentityCompare(
+                M.Head(reduced_res)(), L.CandidateEvaluatedLabel
+            )()
+            is M.truth_value
+        )
+        if still_evaluates:
+            status = L.FailedLabel
+        else:
+            status = L.ProvedLabel
+
+        receipt = M.Head(M.Tail(full_res)())()
+        return M.Pair(
+            L.AblationVerifiedLabel,
+            M.Pair(receipt, M.Pair(status, M.EmptyList)),
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class EvaluateHoldoutSuite(M.Edge):
     """
     Evaluates a candidate macro against a suite of held-out positive and
@@ -404,5 +517,6 @@ __all__ = (
     "ExpandCandidateMacro",
     "EvaluateCandidateProof",
     "AblationTrial",
+    "WithheldRuleAblationTrial",
     "EvaluateHoldoutSuite",
 )

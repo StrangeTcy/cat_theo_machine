@@ -460,6 +460,32 @@ class SubmitCandidateForPromotion(M.Edge):
                             M.Tail(pres_res)(),
                         ),
                     )
+            elif (
+                M.IdentityCompare(
+                    prov_tag, L.GroundObservableCertificateLabel
+                )()
+                is M.truth_value
+            ):
+                # W30: a ground-observable certificate is re-verified
+                # from scratch -- the ground-transition verifier it
+                # names is re-run for every listed move at promotion
+                # time; the record alone carries no trust.
+                cert_res = Miner.VerifyGroundObservableCertificate(
+                    provenance, self.registry
+                )()
+                is_ok = M.Head(cert_res)()
+                if (
+                    M.IdentityCompare(is_ok, M.truth_value)()
+                    is M.false_value
+                ):
+                    reason = M.Head(M.Tail(cert_res)())()
+                    return M.Pair(
+                        L.PromotionRejectedLabel,
+                        M.Pair(
+                            L.InvariantRefutedLabel,
+                            M.Pair(reason, M.EmptyList),
+                        ),
+                    )
 
         current_version = PromotionLedgerVersion(ledger)()
         succ_res = M.Succ(current_version, self.registry)()

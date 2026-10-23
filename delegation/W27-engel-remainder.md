@@ -57,3 +57,34 @@ green, plus `test23`, `test8`, `test7`, `test10`.
 ## Non-goals
 
 IMO geometry (W26), FLT, new hardcoded agenda cases, `core.py` edits.
+
+---
+
+## Outcome (2026-10-22, `arena/b94f5f2e-cat-theo-machine`, slot `test39`)
+
+**Landed: instances + discovery; search firing partial (pinned).**
+
+- **Two unnamed instances**, in-suite graph facts (only 2/24 cards compile,
+  brief fallback): Euclid-by-subtraction (144 states) closes to
+  `Terminates`; nine chameleons (55 states) close all three monochrome
+  targets to `Unreachable`. The pack is untouched (13 rules, re-pinned);
+  neither instance is a named pack.
+- **Discovery**: observables became data — one append-only label
+  (`LinearObservableLabel`) and ground-transition verifiers in
+  `invariant_miner.py` that certify/refute the pack facts by machine
+  arithmetic. The chameleon observable was *mined* (52 candidates:
+  10 certified, 42 refuted with witnesses); with a lone-colour-change move
+  added, no surviving candidate separates (ablation).
+- **Search firing (partial)**: `PlannerRun` without a pre-built method term
+  now gets one — `ProposeStrategyMethods` reads declarations from the facts
+  (nothing from incomplete ones) — decomposes it, and discharges every
+  obligation the facts carry (creation-time discharge; per-fact ablation
+  pinned). **Not landed**: root closure inside `PlannerRun`; two blockers
+  in `search/` isolated and left unedited (zero-step success
+  unrepresentable; multi-pass saturation stalls after pass 1 — suite §[5]
+  records the probes). The instances close by forward chaining, as in
+  test23/test37.
+
+test39 **53/53**; test23 80/80, test8, test7, test10, test21 green.
+`core.py`, `search/`, packs untouched; `main.py`'s hardcoded Engel agenda
+entries untouched per the brief. Details: DAG §4 W27, §7.3.

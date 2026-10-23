@@ -2034,6 +2034,14 @@ class GeometryRemainderLabel(ConstructorLabel):
     pass
 
 
+class LinearObservableLabel(ConstructorLabel):
+    pass
+
+
+class GroundObservableCertificateLabel(ConstructorLabel):
+    pass
+
+
 
 TreeLabel = TreeLabel()
 ZeroLabel = ZeroLabel()
@@ -2540,6 +2548,8 @@ SameSideOfLineLabel = SameSideOfLineLabel()
 SupplementaryAnglesLabel = SupplementaryAnglesLabel()
 CyclicOrderLabel = CyclicOrderLabel()
 GeometryRemainderLabel = GeometryRemainderLabel()
+LinearObservableLabel = LinearObservableLabel()
+GroundObservableCertificateLabel = GroundObservableCertificateLabel()
 
 
 def sync_from_namespace(namespace):
@@ -3047,6 +3057,8 @@ def sync_from_namespace(namespace):
         "SupplementaryAnglesLabel",
         "CyclicOrderLabel",
         "GeometryRemainderLabel",
+        "LinearObservableLabel",
+        "GroundObservableCertificateLabel",
     ):
         if name in namespace:
             globals()[name] = namespace[name]
