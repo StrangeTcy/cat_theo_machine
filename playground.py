@@ -7,10 +7,7 @@
 # ============================================================
 from __future__ import annotations
 
-import inspect
-import multiprocessing
 import os
-import sys
 
 from . import constructors as C
 from . import graph_task as GT
@@ -22,17 +19,35 @@ from .math import arithmetic as A
 
 class PlaygroundDebugEmit(M.Edge):
     """
-    Emits one live debug line for the Cartesian playground, tagged with the
-    id of the process doing the emitting (each multiprocessing.Process
-    worker calls this). The message is a machine Char; the write is the
-    playground's only host output channel.
+    Emits one live debug line for the Cartesian playground. The message is
+    a machine Char; the write is the playground's only host output channel.
     """
 
     def __init__(self, message):
         self.result = M.Pair(message, M.EmptyList)
         print(
-            f"[debug: cartesian_playground process {os.getpid()}]: {message()}",
-            flush=True,
+            f"[debug: cartesian_playground]: {message()}"
+        )
+        super().__init__(
+            inputs=M.Pair(message, M.EmptyList),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class NaturalPlaygroundDebugEmit(M.Edge):
+    """Emits process-tagged progress from the operation-law playground."""
+
+    def __init__(self, message):
+        self.result = M.Pair(message, M.EmptyList)
+        print(
+            "[debug natural_playground process ",
+            os.getpid(),
+            "]: ",
+            message(),
+            sep="",
         )
         super().__init__(
             inputs=M.Pair(message, M.EmptyList),
@@ -456,7 +471,9 @@ class MapDomain(M.Edge):
         self.registry = registry
         ops = operation_register
         if M.IdentityCompare(ops, M.EmptyList)() is M.truth_value:
-            built = BuildNatOperationRegister(registry)()
+            built = BuildNatOperationRegister(
+                registry, M.Pair(operation, M.EmptyList)
+            )()
             ops = M.Head(built)()
         self.result = self._map(
             tuples_chain,
@@ -539,7 +556,9 @@ class UniversalQuantify(M.Edge):
         self.registry = registry
         ops = operation_register
         if M.IdentityCompare(ops, M.EmptyList)() is M.truth_value:
-            built = BuildNatOperationRegister(registry)()
+            built = BuildNatOperationRegister(
+                registry, M.Pair(relation, M.EmptyList)
+            )()
             ops = M.Head(built)()
         self.result = self._eval(
             tuples_chain, variables, relation, registry, ops
@@ -560,7 +579,11 @@ class UniversalQuantify(M.Edge):
             return M.false_value
         return M.IdentityCompare(M.Head(relation)(), L.DerivationRelationLabel)()
 
-    def _derivation_holds(self, relation, environment, registry, ops):
+    def _derivation_holds(
+        self, relation, environment, registry, ops,
+        remaining=M.EmptyList, config=M.EmptyList,
+        initialized=M.false_value,
+    ):
         fields = M.Tail(relation)()
         theory = M.Head(fields)()
         rest = M.Tail(fields)()
@@ -574,12 +597,22 @@ class UniversalQuantify(M.Edge):
         if M.IsPair(rest)() is M.truth_value:
             refuse_flag = M.Head(rest)()
 
-        config = M.EmptyList
-        cur_t = config_templates
-        while M.IdentityCompare(cur_t, M.EmptyList)() is M.false_value:
-            inst_res = M.Instantiate(M.Head(cur_t)(), environment)()
-            config = ChainAppendEnd(config, M.Head(inst_res)())()
-            cur_t = M.Tail(cur_t)()
+        if M.IdentityCompare(initialized, M.false_value)() is M.truth_value:
+            remaining = config_templates
+            initialized = M.truth_value
+        if M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            inst_res = M.Instantiate(M.Head(remaining)(), environment)()
+            config_fact = M.Head(inst_res)()
+            reg1 = M.Head(M.Tail(inst_res)())()
+            return self._derivation_holds(
+                relation,
+                environment,
+                reg1,
+                ops,
+                M.Tail(remaining)(),
+                ChainAppendEnd(config, config_fact)(),
+                initialized,
+            )
 
         closure = GT.ForwardDeriveFacts(config, theory, fuel, registry)()
 
@@ -635,7 +668,9 @@ class ExistentialQuantify(M.Edge):
         self.registry = registry
         ops = operation_register
         if M.IdentityCompare(ops, M.EmptyList)() is M.truth_value:
-            built = BuildNatOperationRegister(registry)()
+            built = BuildNatOperationRegister(
+                registry, M.Pair(relation, M.EmptyList)
+            )()
             ops = M.Head(built)()
         self.result = self._eval(
             tuples_chain, variables, relation, registry, ops
@@ -656,7 +691,11 @@ class ExistentialQuantify(M.Edge):
             return M.false_value
         return M.IdentityCompare(M.Head(relation)(), L.DerivationRelationLabel)()
 
-    def _derivation_holds(self, relation, environment, registry, ops):
+    def _derivation_holds(
+        self, relation, environment, registry, ops,
+        remaining=M.EmptyList, config=M.EmptyList,
+        initialized=M.false_value,
+    ):
         fields = M.Tail(relation)()
         theory = M.Head(fields)()
         rest = M.Tail(fields)()
@@ -670,12 +709,22 @@ class ExistentialQuantify(M.Edge):
         if M.IsPair(rest)() is M.truth_value:
             refuse_flag = M.Head(rest)()
 
-        config = M.EmptyList
-        cur_t = config_templates
-        while M.IdentityCompare(cur_t, M.EmptyList)() is M.false_value:
-            inst_res = M.Instantiate(M.Head(cur_t)(), environment)()
-            config = ChainAppendEnd(config, M.Head(inst_res)())()
-            cur_t = M.Tail(cur_t)()
+        if M.IdentityCompare(initialized, M.false_value)() is M.truth_value:
+            remaining = config_templates
+            initialized = M.truth_value
+        if M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            inst_res = M.Instantiate(M.Head(remaining)(), environment)()
+            config_fact = M.Head(inst_res)()
+            reg1 = M.Head(M.Tail(inst_res)())()
+            return self._derivation_holds(
+                relation,
+                environment,
+                reg1,
+                ops,
+                M.Tail(remaining)(),
+                ChainAppendEnd(config, config_fact)(),
+                initialized,
+            )
 
         closure = GT.ForwardDeriveFacts(config, theory, fuel, registry)()
 
@@ -858,7 +907,9 @@ class EvaluateOperationTensor(M.Edge):
         self.registry = registry
         ops = operation_register
         if M.IdentityCompare(ops, M.EmptyList)() is M.truth_value:
-            built = BuildNatOperationRegister(registry)()
+            built = BuildNatOperationRegister(
+                registry, M.Pair(operation, M.EmptyList)
+            )()
             ops = M.Head(built)()
         self.result = self._eval_tensor(
             op_name, variables, operation, tuples_chain, registry, ops
@@ -1610,7 +1661,9 @@ class RenderNatExpr(M.Edge):
         self.registry = registry
         ops = operation_register
         if M.IdentityCompare(ops, M.EmptyList)() is M.truth_value:
-            built = BuildNatOperationRegister(registry)()
+            built = BuildNatOperationRegister(
+                registry, M.Pair(term, M.EmptyList)
+            )()
             ops = M.Head(built)()
         self.result = self._render(term, registry, ops)
         super().__init__(
@@ -1657,12 +1710,12 @@ class RenderNatExpr(M.Edge):
         if A.IsNat(term, registry)() is M.truth_value:
             rep = M.NatRepOf(term, registry)()
             if M.IdentityCompare(rep, M.EmptyList)() is M.false_value:
-                return str(rep())
+                return M.GMPRepText(rep)()
         if M.IsPair(term)() is M.false_value:
             val = term()
             if val is None:
                 return "?"
-            return str(val)
+            return M.GMPRepText(term)()
         head_args = ExprHeadArgs(term)()
         head = M.Head(head_args)()
         args = M.Head(M.Tail(head_args)())()
@@ -1702,6 +1755,140 @@ class RenderNatExpr(M.Edge):
         return self.result
 
 
+class RenderDiscoveredEquation(M.Edge):
+    """Render an equation record retained by the finite law miner."""
+
+    def __init__(self, equation, registry):
+        self.result = self._render(equation, registry)
+        super().__init__(
+            inputs=M.Pair(equation, M.Pair(registry, M.EmptyList)),
+            results=self.result,
+        )
+
+    def _render(self, equation, registry):
+        if M.IdentityCompare(M.Head(equation)(), L.DiscoveredEquationLabel)() is M.false_value:
+            return "? = ?"
+        body = M.Tail(equation)()
+        lhs = M.Head(M.Tail(body)())()
+        rhs = M.Head(M.Tail(M.Tail(body)())())()
+        left_text = RenderNatExpr(lhs, registry)()
+        right_text = RenderNatExpr(rhs, registry)()
+        return left_text + " = " + right_text
+
+    def __call__(self):
+        return self.result
+
+
+class FormatOperationLawExamples(M.Edge):
+    """Render a few ground witnesses as operation calls."""
+
+    def __init__(
+        self, equation, witnesses, operations, registry,
+        include_trivial=M.false_value,
+    ):
+        body = M.Tail(equation)()
+        variables = M.Head(body)()
+        lhs = M.Head(M.Tail(body)())()
+        rhs = M.Head(M.Tail(M.Tail(body)())())()
+        self.result = self._format(
+            lhs, rhs, variables, ChainReverse(witnesses)(), operations,
+            registry, M.three, "", include_trivial,
+        )
+        super().__init__(
+            inputs=M.Pair(
+                equation,
+                M.Pair(
+                    witnesses,
+                    M.Pair(
+                        operations,
+                        M.Pair(registry, M.Pair(include_trivial, M.EmptyList)),
+                    ),
+                ),
+            ),
+            results=self.result,
+        )
+
+    def _nat_text(self, value, registry):
+        rep = M.NatRepOf(value, registry)()
+        if M.IdentityCompare(rep, M.EmptyList)() is M.truth_value:
+            return "?"
+        return M.GMPRepText(rep)()
+
+    def _render_term(self, term, environment, operations, registry):
+        if M.IsPair(term)() is M.false_value:
+            if A.IsNat(term, registry)() is M.truth_value:
+                return self._nat_text(term, registry)
+            value = EnvLookup(environment, term)()
+            if M.IdentityCompare(value, M.EmptyList)() is M.false_value:
+                return self._nat_text(value, registry)
+            if M.IdentityCompare(term, M.EmptyList)() is M.truth_value:
+                return "?"
+            return term()
+        head_args = ExprHeadArgs(term)()
+        label = M.Head(head_args)()
+        args = M.Head(M.Tail(head_args)())()
+        if M.IdentityCompare(label, L.ExprIntLabel)() is M.truth_value:
+            return self._render_term(
+                M.Head(args)(), environment, operations, registry
+            )
+        entry = LookupOperationByLabel(label, operations)()
+        if M.IdentityCompare(entry, M.EmptyList)() is M.truth_value:
+            return "operation(?)"
+        name = M.Head(entry)()()
+        left = self._render_term(
+            M.Head(args)(), environment, operations, registry
+        )
+        right = self._render_term(
+            M.Head(M.Tail(args)())(), environment, operations, registry
+        )
+        return name + "(" + left + ", " + right + ")"
+
+    def _format(self, lhs, rhs, variables, witnesses, operations, registry,
+                remaining, out, include_trivial):
+        if M.IdentityCompare(witnesses, M.EmptyList)() is M.truth_value:
+            return out
+        if M.NatEq(remaining, M.Zero, registry)() is M.truth_value:
+            return out
+        witness = M.Head(witnesses)()
+        assignment = M.Head(witness)()
+        first_arg = M.Head(assignment)()
+        second_arg = M.Head(M.Tail(assignment)())()
+        first_is_zero = M.NatEq(first_arg, M.Zero, registry)()
+        second_is_zero = M.NatEq(second_arg, M.Zero, registry)()
+        args_are_equal = M.NatEq(first_arg, second_arg, registry)()
+        trivial_pair = M.OrAtom(
+            first_is_zero,
+            M.OrAtom(second_is_zero, args_are_equal)(),
+        )()
+        if (
+            include_trivial is M.false_value
+            and M.IdentityCompare(trivial_pair, M.truth_value)()
+            is M.truth_value
+        ):
+            return self._format(
+                lhs, rhs, variables, M.Tail(witnesses)(), operations,
+                registry, remaining, out, include_trivial,
+            )
+        environment = ZipEnvironment(variables, assignment)()
+        left_text = self._render_term(lhs, environment, operations, registry)
+        right_text = self._render_term(rhs, environment, operations, registry)
+        example = left_text + " == " + right_text
+        if M.Compare(M.Char(out), M.Char(""))() is M.truth_value:
+            next_out = example
+        else:
+            next_out = out + "; " + example
+        pred = M.NatPred(remaining, registry)()
+        next_remaining = M.Head(pred)()
+        next_registry = M.Head(M.Tail(pred)())()
+        return self._format(
+            lhs, rhs, variables, M.Tail(witnesses)(), operations,
+            next_registry, next_remaining, next_out, include_trivial,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class ExprDegreeBound(M.Edge):
     """
     Structural upper bound on the degree of an admitted expression term in
@@ -1716,7 +1903,9 @@ class ExprDegreeBound(M.Edge):
         self.registry = registry
         ops = operation_register
         if M.IdentityCompare(ops, M.EmptyList)() is M.truth_value:
-            built = BuildNatOperationRegister(registry)()
+            built = BuildNatOperationRegister(
+                registry, M.Pair(term, M.EmptyList)
+            )()
             ops = M.Head(built)()
         self.result = self._bound(term, variable, registry, ops)
         super().__init__(
@@ -1788,7 +1977,9 @@ class EvaluateNatExpr(M.Edge):
         self.registry = registry
         ops = operation_register
         if M.IdentityCompare(ops, M.EmptyList)() is M.truth_value:
-            built = BuildNatOperationRegister(registry)()
+            built = BuildNatOperationRegister(
+                registry, M.Pair(term, M.EmptyList)
+            )()
             ops = M.Head(built)()
         self.result = self._eval(term, environment, registry, ops)
         super().__init__(
@@ -1819,12 +2010,18 @@ class EvaluateNatExpr(M.Edge):
             base_res = self._eval(M.Head(args)(), environment, registry, ops)
             base = M.Head(base_res)()
             reg1 = M.Head(M.Tail(base_res)())()
-            exponent = M.Head(M.Tail(args)())()
             if M.IdentityCompare(base, M.EmptyList)() is M.truth_value:
                 return self._refuse(reg1)
-            if A.IsNat(exponent, reg1)() is M.false_value:
-                return self._refuse(reg1)
-            return NatPowPeano(base, exponent, reg1)()
+            exponent_res = self._eval(
+                M.Head(M.Tail(args)())(), environment, reg1, ops
+            )
+            exponent = M.Head(exponent_res)()
+            reg2 = M.Head(M.Tail(exponent_res)())()
+            if M.IdentityCompare(exponent, M.EmptyList)() is M.truth_value:
+                return self._refuse(reg2)
+            if A.IsNat(exponent, reg2)() is M.false_value:
+                return self._refuse(reg2)
+            return NatPowPeano(base, exponent, reg2)()
         entry = LookupOperationByLabel(head, ops)()
         if M.IdentityCompare(entry, M.EmptyList)() is M.truth_value:
             return self._refuse(registry)
@@ -1873,25 +2070,23 @@ class ValidPolynomialVariables(M.Edge):
             results=self.result,
         )
 
-    def _valid(self, variables, registry):
-        remaining = variables
-        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-            if M.IsPair(remaining)() is M.false_value:
-                return M.false_value
-            variable = M.Head(remaining)()
-            if M.IsPair(variable)() is M.truth_value:
-                return M.false_value
-            if M.IdentityCompare(variable, M.EmptyList)() is M.truth_value:
-                return M.false_value
-            if A.IsNat(variable, registry)() is M.truth_value:
-                return M.false_value
-            previous = variables
-            while M.IdentityCompare(previous, remaining)() is M.false_value:
-                if M.Compare(variable, M.Head(previous)())() is M.truth_value:
-                    return M.false_value
-                previous = M.Tail(previous)()
-            remaining = M.Tail(remaining)()
-        return M.truth_value
+    def _valid(self, variables, registry, seen=M.EmptyList):
+        if M.IdentityCompare(variables, M.EmptyList)() is M.truth_value:
+            return M.truth_value
+        if M.IsPair(variables)() is M.false_value:
+            return M.false_value
+        variable = M.Head(variables)()
+        if M.IsPair(variable)() is M.truth_value:
+            return M.false_value
+        if M.IdentityCompare(variable, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        if A.IsNat(variable, registry)() is M.truth_value:
+            return M.false_value
+        if ChainHasTerm(seen, variable)() is M.truth_value:
+            return M.false_value
+        return self._valid(
+            M.Tail(variables)(), registry, M.Pair(variable, seen)
+        )
 
     def __call__(self):
         return self.result
@@ -1909,7 +2104,9 @@ class AdmittedPolynomial(M.Edge):
         self.registry = registry
         ops = operation_register
         if M.IdentityCompare(ops, M.EmptyList)() is M.truth_value:
-            built = BuildNatOperationRegister(registry)()
+            built = BuildNatOperationRegister(
+                registry, M.Pair(term, M.EmptyList)
+            )()
             ops = M.Head(built)()
         self.result = self._admitted(term, variables, registry, ops)
         super().__init__(
@@ -1971,7 +2168,9 @@ class PolynomialIdentityByGrid(M.Edge):
         self.registry = registry
         ops = operation_register
         if M.IdentityCompare(ops, M.EmptyList)() is M.truth_value:
-            built = BuildNatOperationRegister(registry)()
+            built = BuildNatOperationRegister(
+                registry, M.Pair(lhs, M.Pair(rhs, M.EmptyList))
+            )()
             ops = M.Head(built)()
         self.result = self._decide(lhs, rhs, variables, registry, ops)
         super().__init__(
@@ -2000,7 +2199,9 @@ class PolynomialIdentityByGrid(M.Edge):
             return M.EmptyList, M.EmptyList, M.false_value, reg2
         if M.IdentityCompare(right_deg, M.EmptyList)() is M.truth_value:
             return M.EmptyList, M.EmptyList, M.false_value, reg2
-        degree = right_deg if M.NatLess(left_deg, right_deg, reg2)() is M.truth_value else left_deg
+        degree = left_deg
+        if M.NatLess(left_deg, right_deg, reg2)() is M.truth_value:
+            degree = right_deg
         count_res = A.Add(degree, M.one, reg2)()
         count = M.Head(count_res)()
         reg3 = M.Head(M.Tail(count_res)())()
@@ -2169,7 +2370,9 @@ class ResidueTable(M.Edge):
         self.registry = registry
         ops = operation_register
         if M.IdentityCompare(ops, M.EmptyList)() is M.truth_value:
-            built = BuildNatOperationRegister(registry)()
+            built = BuildNatOperationRegister(
+                registry, M.Pair(term, M.EmptyList)
+            )()
             ops = M.Head(built)()
         self.result = self._table(term, variables, modulus, registry, ops)
         super().__init__(
@@ -2196,7 +2399,9 @@ class ResidueTable(M.Edge):
         rest_rows, rest_image, reg3 = self._rows(
             term, variables, modulus, M.Tail(tuples)(), reg2, ops
         )
-        image = rest_image if M.IdentityCompare(residue, M.EmptyList)() is M.truth_value else SetInsert(residue, rest_image, reg3)()
+        image = rest_image
+        if M.IdentityCompare(residue, M.EmptyList)() is M.false_value:
+            image = SetInsert(residue, rest_image, reg3)()
         return M.Pair(M.Pair(point, M.Pair(residue, M.EmptyList)), rest_rows), image, reg3
 
     def _table(self, term, variables, modulus, registry, ops):
@@ -2224,7 +2429,9 @@ class CongruenceClasses(M.Edge):
         self.registry = registry
         ops = operation_register
         if M.IdentityCompare(ops, M.EmptyList)() is M.truth_value:
-            built = BuildNatOperationRegister(registry)()
+            built = BuildNatOperationRegister(
+                registry, M.Pair(lhs, M.Pair(rhs, M.EmptyList))
+            )()
             ops = M.Head(built)()
         self.result = self._classes(lhs, rhs, variables, modulus, registry, ops)
         super().__init__(
@@ -2547,8 +2754,7 @@ class ProjectTensorModulo(M.Edge):
 
 class BuildNatOperationRegister(M.Edge):
     """
-    Reads the machine's own arithmetic module and returns, as machine data,
-    the chain of operations that take a pair of Nat and return a Nat.
+    Discovers supported arithmetic operations present in expression terms.
 
     Each entry carries the metadata the term-level edges share, so that
     rendering, admission, degree bounding and evaluation all read one
@@ -2556,7 +2762,8 @@ class BuildNatOperationRegister(M.Edge):
 
         Pair(name, Pair(variables, Pair(operation_term,
               Pair(print_form, Pair(precedence,
-                Pair(polynomial, Pair(degree_rule, EmptyList))))))
+                Pair(polynomial, Pair(degree_rule,
+                  Pair(law_depth, EmptyList)))))))
 
       print_form   the infix rendering, e.g. " + " or " mod "
       precedence   binding tightness; an operand that is itself a registered
@@ -2565,121 +2772,72 @@ class BuildNatOperationRegister(M.Edge):
       polynomial   whether the operation belongs to the polynomial fragment
       degree_rule  how the operation combines operand degrees: "max", "sum",
                    or "refuse" when the result is not a polynomial
+      law_depth    whether nested candidate terms are bounded or expensive
 
-    Membership is decided by probing, not by declaration: each candidate
-    class of the arithmetic module is applied to ground Nat arguments and is
-    kept only when it yields a Nat. An operation with no operation label in
-    the registry is skipped, because a term cannot name it.
+    The returned register contains only operations found by the machine-term
+    walk. An empty input term chain produces an empty register.
     """
 
-    def __init__(self, registry):
+    def __init__(self, registry, terms=M.EmptyList):
         self.registry = registry
-        self.result = self._register(registry)
+        entries = self._scan_terms(terms, M.EmptyList)
+        self.result = M.Pair(entries, M.Pair(registry, M.EmptyList))
         super().__init__(
-            inputs=M.Pair(registry, M.EmptyList),
+            inputs=M.Pair(registry, M.Pair(terms, M.EmptyList)),
             results=self.result,
         )
 
-    def _operation_label(self, name_char):
-        if M.Compare(name_char, M.Char("Add"))() is M.truth_value:
-            return L.ExprAddLabel
-        if M.Compare(name_char, M.Char("Multiply"))() is M.truth_value:
-            return L.ExprMulLabel
-        if M.Compare(name_char, M.Char("Modulo"))() is M.truth_value:
-            return L.ExprModuloLabel
-        if M.Compare(name_char, M.Char("NatSubtract"))() is M.truth_value:
-            return L.ExprSubtractLabel
-        if M.Compare(name_char, M.Char("Gcd"))() is M.truth_value:
-            return L.ExprGcdLabel
-        return M.EmptyList
-
-    def _print_form(self, name_char):
-        if M.Compare(name_char, M.Char("Add"))() is M.truth_value:
-            return M.Char(" + ")
-        if M.Compare(name_char, M.Char("Multiply"))() is M.truth_value:
-            return M.Char("*")
-        if M.Compare(name_char, M.Char("Modulo"))() is M.truth_value:
-            return M.Char(" mod ")
-        if M.Compare(name_char, M.Char("NatSubtract"))() is M.truth_value:
-            return M.Char(" - ")
-        return M.Char(" gcd ")
-
-    def _is_polynomial(self, name_char):
-        if M.Compare(name_char, M.Char("Modulo"))() is M.truth_value:
-            return M.false_value
-        if M.Compare(name_char, M.Char("NatSubtract"))() is M.truth_value:
-            return M.false_value
-        if M.Compare(name_char, M.Char("Gcd"))() is M.truth_value:
-            return M.false_value
-        return M.truth_value
-
-    def _precedence(self, name_char):
-        # Infix precedence as machine Nats. `mod` is the trailing modifier and
-        # binds loosest, so an Add/Subtract operand of a Modulo never needs
-        # parentheses while a Modulo operand of an Add/Subtract always does.
-        if M.Compare(name_char, M.Char("Add"))() is M.truth_value:
-            return M.two
-        if M.Compare(name_char, M.Char("NatSubtract"))() is M.truth_value:
-            return M.two
-        if M.Compare(name_char, M.Char("Modulo"))() is M.truth_value:
-            return M.one
-        return M.three
-
-    def _degree_rule(self, name_char):
-        if M.Compare(name_char, M.Char("Add"))() is M.truth_value:
-            return M.Char("max")
-        if M.Compare(name_char, M.Char("Multiply"))() is M.truth_value:
-            return M.Char("sum")
-        return M.Char("refuse")
-
-    def _nat_of(self, count, registry):
-        value = M.Zero
-        reg = registry
-        steps = M.Zero
-        while M.NatLess(steps, count, reg)() is M.truth_value:
-            stepped = M.Succ(value, reg)()
-            value = M.Head(stepped)()
-            reg = M.Head(M.Tail(stepped)())()
-            advanced = A.Add(steps, M.one, reg)()
-            steps = M.Head(advanced)()
-            reg = M.Head(M.Tail(advanced)())()
-        return value, reg
-
-    def _probe_yields_nat(self, cls, registry):
-        left = M.one
-        right = M.one
-        reg2 = registry
-        try:
-            produced = cls(left, right, reg2)()
-        except Exception:
-            return M.false_value, reg2
-        if M.IsPair(produced)() is M.false_value:
-            if A.IsNat(produced, reg2)() is M.truth_value:
-                return M.truth_value, reg2
-            return M.false_value, reg2
-        candidate = M.Head(produced)()
-        if A.IsNat(candidate, reg2)() is M.truth_value:
-            return M.truth_value, reg2
-        return M.false_value, reg2
-
-    def _descriptor(self, name_char, label, registry):
-        var_x = M.Char("x")
-        var_y = M.Char("y")
-        variables = M.Pair(var_x, M.Pair(var_y, M.EmptyList))
-        operation = M.Pair(label, M.Pair(var_x, M.Pair(var_y, M.EmptyList)))
+    def _entry(self, label):
+        variables = M.Pair(M.Char("x"), M.Pair(M.Char("y"), M.EmptyList))
+        name = M.Char("operation")
+        print_form = M.Char(" ? ")
+        precedence = M.two
+        polynomial = M.false_value
+        degree_rule = M.Char("refuse")
+        law_depth = M.Char("bounded")
+        if M.IdentityCompare(label, L.ExprAddLabel)() is M.truth_value:
+            name = M.Char("add")
+            print_form = M.Char(" + ")
+            polynomial = M.truth_value
+            degree_rule = M.Char("max")
+        elif M.IdentityCompare(label, L.ExprMulLabel)() is M.truth_value:
+            name = M.Char("mul")
+            print_form = M.Char("*")
+            precedence = M.three
+            polynomial = M.truth_value
+            degree_rule = M.Char("sum")
+        elif M.IdentityCompare(label, L.ExprPowLabel)() is M.truth_value:
+            name = M.Char("pow")
+            print_form = M.Char("^")
+            precedence = M.four
+            law_depth = M.Char("expensive")
+        elif M.IdentityCompare(label, L.ExprModuloLabel)() is M.truth_value:
+            name = M.Char("modulo")
+            print_form = M.Char(" mod ")
+            precedence = M.one
+        elif M.IdentityCompare(label, L.ExprSubtractLabel)() is M.truth_value:
+            name = M.Char("natural subtraction")
+            print_form = M.Char(" - ")
+        elif M.IdentityCompare(label, L.ExprGcdLabel)() is M.truth_value:
+            name = M.Char("gcd")
+            print_form = M.Char(" gcd ")
+            precedence = M.three
+        else:
+            return M.EmptyList
+        operation = M.Pair(label, variables)
         return M.Pair(
-            name_char,
+            name,
             M.Pair(
                 variables,
                 M.Pair(
                     operation,
                     M.Pair(
-                        self._print_form(name_char),
+                        print_form,
                         M.Pair(
-                            self._precedence(name_char),
+                            precedence,
                             M.Pair(
-                                self._is_polynomial(name_char),
-                                M.Pair(self._degree_rule(name_char), M.EmptyList),
+                                polynomial,
+                                M.Pair(degree_rule, M.Pair(law_depth, M.EmptyList)),
                             ),
                         ),
                     ),
@@ -2687,38 +2845,32 @@ class BuildNatOperationRegister(M.Edge):
             ),
         )
 
-    def _register(self, registry):
-        chain = M.EmptyList
-        reg = registry
-        for name in sorted(vars(A)):
-            cls = getattr(A, name)
-            if inspect.isclass(cls) is not True:
-                continue
-            if issubclass(cls, M.Edge) is not True:
-                continue
-            try:
-                parameters = inspect.signature(cls.__init__).parameters
-            except (TypeError, ValueError):
-                continue
-            arity = 0
-            for parameter_name in parameters:
-                if parameter_name == "self":
-                    continue
-                if parameter_name == "registry":
-                    continue
-                arity = arity + 1
-            if arity != 2:
-                continue
-            label = self._operation_label(M.Char(name))
-            if M.IdentityCompare(label, M.EmptyList)() is M.truth_value:
-                continue
-            yields_nat, reg = self._probe_yields_nat(cls, reg)
-            if M.IdentityCompare(yields_nat, M.false_value)() is M.truth_value:
-                continue
-            descriptor = self._descriptor(M.Char(name), label, reg)
-            chain = M.Pair(descriptor, chain)
-        ordered = ChainReverse(chain)()
-        return M.Pair(ordered, M.Pair(reg, M.EmptyList))
+    def _scan_terms(self, terms, entries):
+        if M.IdentityCompare(terms, M.EmptyList)() is M.truth_value:
+            return entries
+        entries = self._scan(M.Head(terms)(), entries)
+        return self._scan_terms(M.Tail(terms)(), entries)
+
+    def _scan(self, term, entries):
+        if M.IsPair(term)() is M.false_value:
+            return entries
+        label = M.Head(term)()
+        args = M.Tail(term)()
+        if M.IdentityCompare(label, L.ExprIntLabel)() is M.truth_value:
+            return entries
+        if ExactArity(args, M.two, self.registry)() is M.truth_value:
+            found = self._entry(label)
+            if M.IdentityCompare(found, M.EmptyList)() is M.false_value:
+                prior = LookupOperationByLabel(label, entries)()
+                if M.IdentityCompare(prior, M.EmptyList)() is M.truth_value:
+                    entries = ChainAppendEnd(entries, found)()
+        return self._scan_args(args, entries)
+
+    def _scan_args(self, args, entries):
+        if M.IdentityCompare(args, M.EmptyList)() is M.truth_value:
+            return entries
+        entries = self._scan(M.Head(args)(), entries)
+        return self._scan_args(M.Tail(args)(), entries)
 
     def __call__(self):
         return self.result
@@ -2809,41 +2961,65 @@ class FindTensorEqualityWitness(M.Edge):
             M.IdentityCompare(positive_only, M.false_value)(),
             TupleAllPositive(tuple_chain, registry)(),
         )()
-        return M.IdentityCompare(admits, M.truth_value)() is M.truth_value
+        if M.IdentityCompare(admits, M.truth_value)() is M.truth_value:
+            return M.truth_value
+        return M.false_value
 
     def _values_agree(self, val_l, val_r, registry):
         agrees = M.OrAtom(
             M.IdentityCompare(val_l, val_r)(),
             M.NatEq(val_l, val_r, registry)(),
         )()
-        return M.IdentityCompare(agrees, M.truth_value)() is M.truth_value
+        if M.IdentityCompare(agrees, M.truth_value)() is M.truth_value:
+            return M.truth_value
+        return M.false_value
 
-    def _find(self, lhs_tensor, rhs_tensor, lhs_vars, rhs_vars, positive_only, registry):
+    def _find(
+        self, lhs_tensor, rhs_tensor, lhs_vars, rhs_vars, positive_only,
+        registry, cur_l=M.EmptyList, cur_r=M.EmptyList,
+        initialized=M.false_value, scanning_rhs=M.false_value,
+    ):
         entries_l = M.Head(M.Tail(M.Tail(lhs_tensor)())())()
         entries_r = M.Head(M.Tail(M.Tail(rhs_tensor)())())()
-        cur_l = entries_l
-        while M.IdentityCompare(cur_l, M.EmptyList)() is M.false_value:
-            ent_l = M.Head(cur_l)()
-            tup_l = M.Head(M.Tail(ent_l)())()
-            val_l = M.Head(M.Tail(M.Tail(ent_l)())())()
-            if self._admits_tuple(positive_only, tup_l, registry):
-                cur_r = entries_r
-                while M.IdentityCompare(cur_r, M.EmptyList)() is M.false_value:
-                    ent_r = M.Head(cur_r)()
-                    tup_r = M.Head(M.Tail(ent_r)())()
-                    val_r = M.Head(M.Tail(M.Tail(ent_r)())())()
-                    if (
-                        self._admits_tuple(positive_only, tup_r, registry)
-                        and self._values_agree(val_l, val_r, registry)
-                    ):
-                        env_l = ZipEnvironment(lhs_vars, tup_l)()
-                        env_r = ZipEnvironment(rhs_vars, tup_r)()
-                        if self._envs_compatible(env_l, env_r, registry) is M.truth_value:
-                            merged = self._merge_envs(env_l, env_r)
-                            return M.Pair(merged, M.Pair(registry, M.EmptyList))
-                    cur_r = M.Tail(cur_r)()
-            cur_l = M.Tail(cur_l)()
-        return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+        if M.IdentityCompare(initialized, M.false_value)() is M.truth_value:
+            cur_l = entries_l
+            initialized = M.truth_value
+        if M.IdentityCompare(cur_l, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+
+        ent_l = M.Head(cur_l)()
+        tup_l = M.Head(M.Tail(ent_l)())()
+        val_l = M.Head(M.Tail(M.Tail(ent_l)())())()
+        if self._admits_tuple(positive_only, tup_l, registry) is M.false_value:
+            return self._find(
+                lhs_tensor, rhs_tensor, lhs_vars, rhs_vars, positive_only,
+                registry, M.Tail(cur_l)(), M.EmptyList, initialized,
+                M.false_value,
+            )
+        if M.IdentityCompare(scanning_rhs, M.false_value)() is M.truth_value:
+            cur_r = entries_r
+            scanning_rhs = M.truth_value
+        if M.IdentityCompare(cur_r, M.EmptyList)() is M.truth_value:
+            return self._find(
+                lhs_tensor, rhs_tensor, lhs_vars, rhs_vars, positive_only,
+                registry, M.Tail(cur_l)(), M.EmptyList, initialized,
+                M.false_value,
+            )
+
+        ent_r = M.Head(cur_r)()
+        tup_r = M.Head(M.Tail(ent_r)())()
+        val_r = M.Head(M.Tail(M.Tail(ent_r)())())()
+        if self._admits_tuple(positive_only, tup_r, registry) is M.truth_value:
+            if self._values_agree(val_l, val_r, registry) is M.truth_value:
+                env_l = ZipEnvironment(lhs_vars, tup_l)()
+                env_r = ZipEnvironment(rhs_vars, tup_r)()
+                if self._envs_compatible(env_l, env_r, registry) is M.truth_value:
+                    merged = self._merge_envs(env_l, env_r)
+                    return M.Pair(merged, M.Pair(registry, M.EmptyList))
+        return self._find(
+            lhs_tensor, rhs_tensor, lhs_vars, rhs_vars, positive_only,
+            registry, cur_l, M.Tail(cur_r)(), initialized, scanning_rhs,
+        )
 
     def __call__(self):
         return self.result
@@ -2882,13 +3058,18 @@ class BuildExprGroundTensor(M.Edge):
         )
 
     def _build(
-        self, term, vars_chain, domain_chain, op_label_char, registry
+        self, term, vars_chain, domain_chain, op_label_char, registry,
+        remaining=M.EmptyList, domains=M.EmptyList,
+        initialized=M.false_value,
     ):
-        domains = M.EmptyList
-        cur_v = vars_chain
-        while M.IdentityCompare(cur_v, M.EmptyList)() is M.false_value:
-            domains = M.Pair(domain_chain, domains)
-            cur_v = M.Tail(cur_v)()
+        if M.IdentityCompare(initialized, M.false_value)() is M.truth_value:
+            remaining = vars_chain
+            initialized = M.truth_value
+        if M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
+            return self._build(
+                term, vars_chain, domain_chain, op_label_char, registry,
+                M.Tail(remaining)(), M.Pair(domain_chain, domains), initialized,
+            )
         tuples = ProductOfDomains(domains)()
         return EvaluateOperationTensor(
             op_label_char, vars_chain, term, tuples, registry
@@ -2921,6 +3102,7 @@ class DiscoverExprObstructions(M.Edge):
         lhs_tensor=M.EmptyList,
         rhs_tensor=M.EmptyList,
         debug_trace=M.false_value,
+        domain_chain=M.EmptyList,
     ):
         self.registry = registry
         self.result = self._discover(
@@ -2932,6 +3114,7 @@ class DiscoverExprObstructions(M.Edge):
             lhs_tensor,
             rhs_tensor,
             debug_trace,
+            domain_chain,
         )
         super().__init__(
             inputs=M.Pair(
@@ -2940,7 +3123,10 @@ class DiscoverExprObstructions(M.Edge):
                     rhs,
                     M.Pair(
                         bound_nat,
-                        M.Pair(moduli_chain, M.Pair(registry, M.EmptyList)),
+                        M.Pair(
+                            moduli_chain,
+                            M.Pair(registry, M.Pair(domain_chain, M.EmptyList)),
+                        ),
                     ),
                 ),
             ),
@@ -2957,6 +3143,11 @@ class DiscoverExprObstructions(M.Edge):
         lhs_tensor,
         rhs_tensor,
         debug_trace,
+        domain_chain=M.EmptyList,
+        scan_cursor=M.EmptyList,
+        scan_discoveries=M.EmptyList,
+        scan_registry=M.EmptyList,
+        scan_initialized=M.false_value,
     ):
         reg = registry
         lhs_vars = M.Head(ExtractExprVariables(lhs, reg)())()
@@ -2964,9 +3155,12 @@ class DiscoverExprObstructions(M.Edge):
         all_vars = ChainMergeUnique(lhs_vars, rhs_vars)()
 
         if M.IdentityCompare(lhs_tensor, M.EmptyList)() is M.truth_value:
-            dom_res = BuildNatRange(M.Zero, bound_nat, reg)()
-            domain = M.Head(dom_res)()
-            reg = M.Head(M.Tail(dom_res)())()
+            if M.IdentityCompare(domain_chain, M.EmptyList)() is M.false_value:
+                domain = domain_chain
+            else:
+                dom_res = BuildNatRange(M.Zero, bound_nat, reg)()
+                domain = M.Head(dom_res)()
+                reg = M.Head(M.Tail(dom_res)())()
             lt_res = BuildExprGroundTensor(
                 lhs, lhs_vars, domain, M.Char("lhs"), reg
             )()
@@ -2978,9 +3172,16 @@ class DiscoverExprObstructions(M.Edge):
             rhs_tensor = M.Head(rt_res)()
             reg = M.Head(M.Tail(rt_res)())()
 
-        discoveries = M.EmptyList
-        cur_m = moduli_chain
-        while M.IdentityCompare(cur_m, M.EmptyList)() is M.false_value:
+        if M.IdentityCompare(scan_initialized, M.false_value)() is M.truth_value:
+            discoveries = M.EmptyList
+            cur_m = moduli_chain
+        else:
+            discoveries = scan_discoveries
+            cur_m = scan_cursor
+            reg = scan_registry
+        if M.IdentityCompare(cur_m, M.EmptyList)() is M.truth_value:
+            return M.Pair(discoveries, M.Pair(reg, M.EmptyList))
+        if M.IdentityCompare(cur_m, M.EmptyList)() is M.false_value:
             m_nat = M.Head(cur_m)()
 
             proj_l = ProjectTensorModulo(lhs, lhs_vars, lhs_tensor, m_nat, reg)()
@@ -3083,9 +3284,21 @@ class DiscoverExprObstructions(M.Edge):
                 )
                 discoveries = ChainAppendEnd(discoveries, rec)()
 
-            cur_m = M.Tail(cur_m)()
-
-        return M.Pair(discoveries, M.Pair(reg, M.EmptyList))
+        return self._discover(
+            lhs,
+            rhs,
+            bound_nat,
+            moduli_chain,
+            reg,
+            lhs_tensor,
+            rhs_tensor,
+            debug_trace,
+            domain_chain,
+            M.Tail(cur_m)(),
+            discoveries,
+            reg,
+            M.truth_value,
+        )
 
     def _residues_agree(self, reml, remr, registry):
         absent = M.OrAtom(
@@ -3106,64 +3319,78 @@ class DiscoverExprObstructions(M.Edge):
         Partitions {0..m-1}^k into holding and failing chains from the
         residue rows of lhs and rhs.
         """
-        disjoint_vars = M.truth_value
-        cur_v = lhs_vars
-        while M.IdentityCompare(cur_v, M.EmptyList)() is M.false_value:
-            if ChainHasTerm(rhs_vars, M.Head(cur_v)())() is M.truth_value:
-                disjoint_vars = M.false_value
-            cur_v = M.Tail(cur_v)()
-
-        if disjoint_vars is M.truth_value:
-            holding = M.EmptyList
-            failing = M.EmptyList
-            cur_l = rows_l
-            while M.IdentityCompare(cur_l, M.EmptyList)() is M.false_value:
-                rl = M.Head(cur_l)()
-                tl = M.Head(rl)()
-                reml = M.Head(M.Tail(rl)())()
-                cur_r = rows_r
-                while M.IdentityCompare(cur_r, M.EmptyList)() is M.false_value:
-                    rr = M.Head(cur_r)()
-                    tr = M.Head(rr)()
-                    remr = M.Head(M.Tail(rr)())()
-                    pt = ChainConcat(tl, tr)()
-                    holds = self._residues_agree(reml, remr, registry)
-                    if holds is M.truth_value:
-                        holding = M.Pair(pt, holding)
-                    else:
-                        failing = M.Pair(pt, failing)
-                    cur_r = M.Tail(cur_r)()
-                cur_l = M.Tail(cur_l)()
-            return (
-                ChainReverse(holding)(),
-                ChainReverse(failing)(),
-                registry,
+        disjoint_vars = self._has_shared_var(lhs_vars, rhs_vars)
+        if disjoint_vars is M.false_value:
+            return self._partition_disjoint_rows(
+                rows_l, rows_r, registry,
+                rows_l, rows_r, M.EmptyList, M.EmptyList,
             )
 
         domains_res = ResidueDomains(all_vars, mod_nat, registry)()
         domains = M.Head(domains_res)()
         reg1 = M.Head(M.Tail(domains_res)())()
         tuples = ProductOfDomains(domains)()
-        holding = M.EmptyList
-        failing = M.EmptyList
-        cur_t = tuples
-        while M.IdentityCompare(cur_t, M.EmptyList)() is M.false_value:
-            pt = M.Head(cur_t)()
-            env = ZipEnvironment(all_vars, pt)()
-            sub_l = ProjectEnvToSubtuple(env, lhs_vars)()
-            sub_r = ProjectEnvToSubtuple(env, rhs_vars)()
-            reml = LookupResidueRow(rows_l, sub_l, reg1)()
-            remr = LookupResidueRow(rows_r, sub_r, reg1)()
-            holds = self._residues_agree(reml, remr, reg1)
-            if holds is M.truth_value:
-                holding = M.Pair(pt, holding)
-            else:
-                failing = M.Pair(pt, failing)
-            cur_t = M.Tail(cur_t)()
-        return (
-            ChainReverse(holding)(),
-            ChainReverse(failing)(),
-            reg1,
+        return self._partition_tuples(
+            tuples, all_vars, lhs_vars, rhs_vars, rows_l, rows_r,
+            reg1, M.EmptyList, M.EmptyList,
+        )
+
+    def _has_shared_var(self, lhs_vars, rhs_vars):
+        if M.IdentityCompare(lhs_vars, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        if ChainHasTerm(rhs_vars, M.Head(lhs_vars)())() is M.truth_value:
+            return M.truth_value
+        return self._has_shared_var(M.Tail(lhs_vars)(), rhs_vars)
+
+    def _partition_disjoint_rows(
+        self, rows_l, rows_r, registry, cur_l, cur_r, holding, failing
+    ):
+        if M.IdentityCompare(cur_l, M.EmptyList)() is M.truth_value:
+            return ChainReverse(holding)(), ChainReverse(failing)(), registry
+        rl = M.Head(cur_l)()
+        tl = M.Head(rl)()
+        reml = M.Head(M.Tail(rl)())()
+        if M.IdentityCompare(cur_r, M.EmptyList)() is M.truth_value:
+            return self._partition_disjoint_rows(
+                rows_l, rows_r, registry, M.Tail(cur_l)(), rows_r,
+                holding, failing,
+            )
+        rr = M.Head(cur_r)()
+        tr = M.Head(rr)()
+        remr = M.Head(M.Tail(rr)())()
+        pt = ChainConcat(tl, tr)()
+        holds = self._residues_agree(reml, remr, registry)
+        if holds is M.truth_value:
+            return self._partition_disjoint_rows(
+                rows_l, rows_r, registry, cur_l, M.Tail(cur_r)(),
+                M.Pair(pt, holding), failing,
+            )
+        return self._partition_disjoint_rows(
+            rows_l, rows_r, registry, cur_l, M.Tail(cur_r)(),
+            holding, M.Pair(pt, failing),
+        )
+
+    def _partition_tuples(
+        self, tuples, all_vars, lhs_vars, rhs_vars, rows_l, rows_r,
+        registry, holding, failing,
+    ):
+        if M.IdentityCompare(tuples, M.EmptyList)() is M.truth_value:
+            return ChainReverse(holding)(), ChainReverse(failing)(), registry
+        pt = M.Head(tuples)()
+        env = ZipEnvironment(all_vars, pt)()
+        sub_l = ProjectEnvToSubtuple(env, lhs_vars)()
+        sub_r = ProjectEnvToSubtuple(env, rhs_vars)()
+        reml = LookupResidueRow(rows_l, sub_l, registry)()
+        remr = LookupResidueRow(rows_r, sub_r, registry)()
+        holds = self._residues_agree(reml, remr, registry)
+        if holds is M.truth_value:
+            return self._partition_tuples(
+                M.Tail(tuples)(), all_vars, lhs_vars, rhs_vars,
+                rows_l, rows_r, registry, M.Pair(pt, holding), failing,
+            )
+        return self._partition_tuples(
+            M.Tail(tuples)(), all_vars, lhs_vars, rhs_vars,
+            rows_l, rows_r, registry, holding, M.Pair(pt, failing),
         )
 
     def _any_coord_proper(self, coord_projs):
@@ -3265,35 +3492,82 @@ class IsProofOrMathGoal(M.Edge):
             ),
         )
 
-    def _starts_with_any(self, low, prefixes):
-        cur = prefixes
-        while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
-            if low.startswith(M.Head(cur)()()):
-                return M.truth_value
-            cur = M.Tail(cur)()
-        return M.false_value
+    def _string_chars(
+        self, text, cursor=M.EmptyList, reversed_chars=M.EmptyList,
+        initialized=M.false_value,
+    ):
+        if M.IdentityCompare(initialized, M.false_value)() is M.truth_value:
+            cursor = iter(text)
+            initialized = M.truth_value
+        char_text = next(cursor, "")
+        if M.Compare(M.Char(char_text), M.Char(""))() is M.truth_value:
+            return ChainReverse(reversed_chars)()
+        return self._string_chars(
+            text, cursor, M.Pair(M.Char(char_text), reversed_chars), initialized
+        )
 
-    def _contains_any(self, low, symbols):
-        cur = symbols
-        while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
-            if M.Head(cur)()() in low:
-                return M.truth_value
-            cur = M.Tail(cur)()
-        return M.false_value
+    def _starts_with_any(
+        self, text_chars, prefixes, prefix_chars=M.EmptyList,
+        remaining_chars=M.EmptyList, initialized=M.false_value,
+    ):
+        if M.IdentityCompare(initialized, M.false_value)() is M.truth_value:
+            if M.IdentityCompare(prefixes, M.EmptyList)() is M.truth_value:
+                return M.false_value
+            prefix_text = M.Head(prefixes)()()
+            prefix_chars = self._string_chars(prefix_text)
+            remaining_chars = text_chars
+            initialized = M.truth_value
+        if M.IdentityCompare(prefix_chars, M.EmptyList)() is M.truth_value:
+            return M.truth_value
+        if M.IdentityCompare(remaining_chars, M.EmptyList)() is M.truth_value:
+            return self._starts_with_any(
+                text_chars, M.Tail(prefixes)(), M.EmptyList,
+                M.EmptyList, M.false_value,
+            )
+        same_char = M.Compare(
+            M.Head(remaining_chars)(), M.Head(prefix_chars)()
+        )()
+        if M.IdentityCompare(same_char, M.truth_value)() is M.false_value:
+            return self._starts_with_any(
+                text_chars, M.Tail(prefixes)(), M.EmptyList,
+                M.EmptyList, M.false_value,
+            )
+        return self._starts_with_any(
+            text_chars, prefixes, M.Tail(prefix_chars)(),
+            M.Tail(remaining_chars)(), initialized,
+        )
+
+    def _contains_any(
+        self, text_chars, symbols, remaining_chars=M.EmptyList,
+        initialized=M.false_value,
+    ):
+        if M.IdentityCompare(symbols, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        if M.IdentityCompare(initialized, M.false_value)() is M.truth_value:
+            remaining_chars = text_chars
+            initialized = M.truth_value
+        if M.IdentityCompare(remaining_chars, M.EmptyList)() is M.truth_value:
+            return self._contains_any(
+                text_chars, M.Tail(symbols)(), M.EmptyList, M.false_value
+            )
+        one_symbol = M.Pair(M.Head(symbols)(), M.EmptyList)
+        if self._starts_with_any(remaining_chars, one_symbol) is M.truth_value:
+            return M.truth_value
+        return self._contains_any(
+            text_chars, symbols, M.Tail(remaining_chars)(), initialized
+        )
 
     def _is_goal(self, text_char):
         text = text_char()
-        if text is None:
+        if M.Compare(M.Char(text), M.Char(""))() is M.truth_value:
             return M.false_value
-        if text == "":
-            return M.false_value
-        low = text.strip().lower()
+        text_chars = self._string_chars(text)
         if (
-            self._starts_with_any(low, self._request_prefixes())
+            self._starts_with_any(text_chars, self._request_prefixes())
             is M.truth_value
         ):
             return M.truth_value
-        return self._contains_any(low, self._algebraic_symbols())
+        return self._contains_any(text_chars, self._algebraic_symbols())
 
     def __call__(self):
         return self.result
@@ -3330,29 +3604,101 @@ class ParseSurfaceGoalSpec(M.Edge):
 
     # --- token classification (host boundary string reads) -----------------
 
-    def _is_digits(self, s):
-        if s == "":
-            return M.false_value
-        if s.isdigit():
-            return M.truth_value
-        return M.false_value
+    _letter_symbols = M.Pair(M.Char("z"), M.EmptyList)
+    _letter_symbols = M.Pair(M.Char("y"), _letter_symbols)
+    _letter_symbols = M.Pair(M.Char("x"), _letter_symbols)
+    _letter_symbols = M.Pair(M.Char("w"), _letter_symbols)
+    _letter_symbols = M.Pair(M.Char("v"), _letter_symbols)
+    _letter_symbols = M.Pair(M.Char("u"), _letter_symbols)
+    _letter_symbols = M.Pair(M.Char("t"), _letter_symbols)
+    _letter_symbols = M.Pair(M.Char("s"), _letter_symbols)
+    _letter_symbols = M.Pair(M.Char("r"), _letter_symbols)
+    _letter_symbols = M.Pair(M.Char("q"), _letter_symbols)
+    _letter_symbols = M.Pair(M.Char("p"), _letter_symbols)
+    _letter_symbols = M.Pair(M.Char("o"), _letter_symbols)
+    _letter_symbols = M.Pair(M.Char("n"), _letter_symbols)
+    _letter_symbols = M.Pair(M.Char("m"), _letter_symbols)
+    _letter_symbols = M.Pair(M.Char("l"), _letter_symbols)
+    _letter_symbols = M.Pair(M.Char("k"), _letter_symbols)
+    _letter_symbols = M.Pair(M.Char("j"), _letter_symbols)
+    _letter_symbols = M.Pair(M.Char("i"), _letter_symbols)
+    _letter_symbols = M.Pair(M.Char("h"), _letter_symbols)
+    _letter_symbols = M.Pair(M.Char("g"), _letter_symbols)
+    _letter_symbols = M.Pair(M.Char("f"), _letter_symbols)
+    _letter_symbols = M.Pair(M.Char("e"), _letter_symbols)
+    _letter_symbols = M.Pair(M.Char("d"), _letter_symbols)
+    _letter_symbols = M.Pair(M.Char("c"), _letter_symbols)
+    _letter_symbols = M.Pair(M.Char("b"), _letter_symbols)
+    _letter_symbols = M.Pair(M.Char("a"), _letter_symbols)
+    _digit_symbols = M.Pair(M.Char("9"), M.EmptyList)
+    _digit_symbols = M.Pair(M.Char("8"), _digit_symbols)
+    _digit_symbols = M.Pair(M.Char("7"), _digit_symbols)
+    _digit_symbols = M.Pair(M.Char("6"), _digit_symbols)
+    _digit_symbols = M.Pair(M.Char("5"), _digit_symbols)
+    _digit_symbols = M.Pair(M.Char("4"), _digit_symbols)
+    _digit_symbols = M.Pair(M.Char("3"), _digit_symbols)
+    _digit_symbols = M.Pair(M.Char("2"), _digit_symbols)
+    _digit_symbols = M.Pair(M.Char("1"), _digit_symbols)
+    _digit_symbols = M.Pair(M.Char("0"), _digit_symbols)
+    _space_symbols = M.Pair(
+        M.Char(" "), M.Pair(M.Char("\t"), M.Pair(M.Char("\n"), M.Pair(M.Char("\r"), M.EmptyList)))
+    )
 
-    def _is_ident(self, s):
-        if s == "":
-            return M.false_value
-        if s[0].isalpha():
+    def _string_chars(
+        self, text, cursor=M.EmptyList, reversed_chars=M.EmptyList,
+        initialized=M.false_value,
+    ):
+        if M.IdentityCompare(initialized, M.false_value)() is M.truth_value:
+            cursor = iter(text)
+            initialized = M.truth_value
+        char_text = next(cursor, "")
+        if M.Compare(M.Char(char_text), M.Char(""))() is M.truth_value:
+            return ChainReverse(reversed_chars)()
+        return self._string_chars(
+            text, cursor, M.Pair(M.Char(char_text), reversed_chars), initialized
+        )
+
+    def _is_digits(
+        self, text, char_chain=M.EmptyList, initialized=M.false_value,
+    ):
+        if M.IdentityCompare(initialized, M.false_value)() is M.truth_value:
+            char_chain = self._string_chars(text)
+            if M.IdentityCompare(char_chain, M.EmptyList)() is M.truth_value:
+                return M.false_value
+            initialized = M.truth_value
+        if M.IdentityCompare(char_chain, M.EmptyList)() is M.truth_value:
             return M.truth_value
-        return M.false_value
+        is_digit = ChainHasTerm(self._digit_symbols, M.Head(char_chain)())()
+        remaining_digits = self._is_digits(
+            text, M.Tail(char_chain)(), initialized
+        )
+        return M.AndAtom(is_digit, remaining_digits)()
+
+    def _is_ident(self, text, char_chain=M.EmptyList, initialized=M.false_value):
+        if M.IdentityCompare(initialized, M.false_value)() is M.truth_value:
+            char_chain = self._string_chars(text)
+            initialized = M.truth_value
+        if M.IdentityCompare(char_chain, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        is_letter = ChainHasTerm(self._letter_symbols, M.Head(char_chain)())()
+        rest_is_ident = self._is_ident(
+            text, M.Tail(char_chain)(), initialized
+        )
+        return M.OrAtom(is_letter, rest_is_ident)()
 
     def _is_op(self, s):
-        if s == "+" or s == "*" or s == "^":
-            return M.truth_value
-        return M.false_value
+        symbol = M.Char(s)
+        is_add = M.Compare(symbol, M.Char("+"))()
+        is_multiply = M.Compare(symbol, M.Char("*"))()
+        is_power = M.Compare(symbol, M.Char("^"))()
+        return M.OrAtom(
+            is_add, M.OrAtom(is_multiply, is_power)()
+        )()
 
     # --- tokenizer ----------------------------------------------------------
 
     def _flush_current(self, rev_tokens, cur_tok, cur_kind, next_is_alpha):
-        if cur_tok == "":
+        if M.Compare(M.Char(cur_tok), M.Char(""))() is M.truth_value:
             return rev_tokens, cur_tok, cur_kind
         rev_tokens = M.Pair(M.Char(cur_tok), rev_tokens)
         implicit_product = M.AndAtom(
@@ -3366,76 +3712,109 @@ class ParseSurfaceGoalSpec(M.Edge):
             rev_tokens = M.Pair(M.Char("*"), rev_tokens)
         return rev_tokens, "", M.EmptyList
 
-    def _tokenize(self, text):
+    def _tokenize(
+        self, text_chars, rev_tokens=M.EmptyList, cur_tok="",
+        cur_kind=M.EmptyList,
+    ):
         """
         Scans `text` character by character into a machine Pair chain of
         M.Char tokens. All scanner state is threaded through the flush
         helper; no host container holds a machine term.
         """
-        rev_tokens = M.EmptyList
-        cur_tok = ""
-        cur_kind = M.EmptyList  # M.Zero=digits, M.one=ident, M.two=relop
+        if M.IdentityCompare(text_chars, M.EmptyList)() is M.truth_value:
+            flushed, unused_tok, unused_kind = self._flush_current(
+                rev_tokens, cur_tok, cur_kind, M.false_value
+            )
+            return ChainReverse(flushed)()
 
-        for ch in text:
-            if M.IdentityCompare(cur_kind, M.two)() is M.truth_value:
-                if ch == "=":
-                    cur_tok = cur_tok + "="
-                    rev_tokens, cur_tok, cur_kind = self._flush_current(
-                        rev_tokens, cur_tok, cur_kind, M.false_value
-                    )
-                    continue
-                next_is_alpha = (
-                    M.truth_value if ch.isalpha() else M.false_value
+        char_term = M.Head(text_chars)()
+        ch = char_term()
+        remaining_chars = M.Tail(text_chars)()
+        if M.IdentityCompare(cur_kind, M.two)() is M.truth_value:
+            if M.Compare(char_term, M.Char("="))() is M.truth_value:
+                flushed, next_tok, next_kind = self._flush_current(
+                    rev_tokens, cur_tok + "=", cur_kind, M.false_value
                 )
-                rev_tokens, cur_tok, cur_kind = self._flush_current(
-                    rev_tokens, cur_tok, cur_kind, next_is_alpha
-                )
+                return self._tokenize(remaining_chars, flushed, next_tok, next_kind)
+            next_is_alpha = M.false_value
+            next_is_alpha = ChainHasTerm(
+                self._letter_symbols, char_term
+            )()
+            rev_tokens, cur_tok, cur_kind = self._flush_current(
+                rev_tokens, cur_tok, cur_kind, next_is_alpha
+            )
 
-            if ch.isspace() or ch in ",;:.?!\"'":
-                rev_tokens, cur_tok, cur_kind = self._flush_current(
-                    rev_tokens, cur_tok, cur_kind, M.false_value
-                )
-            elif ch in "+*^()":
-                rev_tokens, cur_tok, cur_kind = self._flush_current(
-                    rev_tokens, cur_tok, cur_kind, M.false_value
-                )
-                rev_tokens = M.Pair(M.Char(ch), rev_tokens)
-            elif ch in "><=!":
+        separators = M.Pair(
+            M.Char(","),
+            M.Pair(
+                M.Char(";"),
+                M.Pair(
+                    M.Char(":"),
+                    M.Pair(
+                        M.Char("."),
+                        M.Pair(
+                            M.Char("?"),
+                            M.Pair(M.Char("!"), M.Pair(M.Char("\""), M.Pair(M.Char("'"), M.EmptyList))),
+                        ),
+                    ),
+                ),
+            ),
+        )
+        operators = M.Pair(
+            M.Char("+"),
+            M.Pair(M.Char("*"), M.Pair(M.Char("^"), M.Pair(M.Char("("), M.Pair(M.Char(")"), M.EmptyList)))),
+        )
+        relational = M.Pair(
+            M.Char(">"),
+            M.Pair(M.Char("<"), M.Pair(M.Char("="), M.Pair(M.Char("!"), M.EmptyList))),
+        )
+        is_space = ChainHasTerm(self._space_symbols, char_term)()
+        is_separator = ChainHasTerm(separators, char_term)()
+        is_operator = ChainHasTerm(operators, char_term)()
+        is_relational = ChainHasTerm(relational, char_term)()
+        if M.OrAtom(is_space, is_separator)() is M.truth_value:
+            rev_tokens, cur_tok, cur_kind = self._flush_current(
+                rev_tokens, cur_tok, cur_kind, M.false_value
+            )
+        elif is_operator is M.truth_value:
+            rev_tokens, cur_tok, cur_kind = self._flush_current(
+                rev_tokens, cur_tok, cur_kind, M.false_value
+            )
+            rev_tokens = M.Pair(char_term, rev_tokens)
+        elif is_relational is M.truth_value:
+            rev_tokens, cur_tok, cur_kind = self._flush_current(
+                rev_tokens, cur_tok, cur_kind, M.false_value
+            )
+            cur_tok = ch
+            cur_kind = M.two
+        elif ChainHasTerm(self._digit_symbols, char_term)() is M.truth_value:
+            run_continues = M.OrAtom(
+                M.IdentityCompare(cur_kind, M.Zero)(),
+                M.IdentityCompare(cur_kind, M.one)(),
+            )()
+            if M.IdentityCompare(run_continues, M.truth_value)() is M.truth_value:
+                cur_tok = cur_tok + ch
+            else:
                 rev_tokens, cur_tok, cur_kind = self._flush_current(
                     rev_tokens, cur_tok, cur_kind, M.false_value
                 )
                 cur_tok = ch
-                cur_kind = M.two
-            elif ch.isdigit():
-                run_continues = M.OrAtom(
-                    M.IdentityCompare(cur_kind, M.Zero)(),
-                    M.IdentityCompare(cur_kind, M.one)(),
-                )()
-                if (
-                    M.IdentityCompare(run_continues, M.truth_value)()
-                    is M.truth_value
-                ):
-                    cur_tok = cur_tok + ch
-                else:
-                    rev_tokens, cur_tok, cur_kind = self._flush_current(
-                        rev_tokens, cur_tok, cur_kind, M.false_value
-                    )
-                    cur_tok = ch
-                    cur_kind = M.Zero
-            elif ch.isalpha() or ch == "_":
+                cur_kind = M.Zero
+        else:
+            is_letter = ChainHasTerm(self._letter_symbols, char_term)()
+            is_underscore = M.Compare(char_term, M.Char("_"))()
+            is_identifier_char = M.OrAtom(is_letter, is_underscore)()
+            if M.IdentityCompare(is_identifier_char, M.truth_value)() is M.truth_value:
                 if M.IdentityCompare(cur_kind, M.one)() is M.truth_value:
-                    cur_tok = cur_tok + ch.lower()
+                    cur_tok = cur_tok + ch
                 else:
                     rev_tokens, cur_tok, cur_kind = self._flush_current(
                         rev_tokens, cur_tok, cur_kind, M.truth_value
                     )
-                    cur_tok = ch.lower()
+                    cur_tok = ch
                     cur_kind = M.one
-            elif (
-                M.IdentityCompare(cur_kind, M.one)()
-                is M.truth_value
-            ):
-                if ch == "-":
+            elif M.IdentityCompare(cur_kind, M.one)() is M.truth_value:
+                if M.Compare(char_term, M.Char("-"))() is M.truth_value:
                     cur_tok = cur_tok + ch
                 else:
                     rev_tokens, cur_tok, cur_kind = self._flush_current(
@@ -3445,217 +3824,172 @@ class ParseSurfaceGoalSpec(M.Edge):
                 rev_tokens, cur_tok, cur_kind = self._flush_current(
                     rev_tokens, cur_tok, cur_kind, M.false_value
                 )
-
-        rev_tokens, cur_tok, cur_kind = self._flush_current(
-            rev_tokens, cur_tok, cur_kind, M.false_value
-        )
-        return ChainReverse(rev_tokens)()
+        return self._tokenize(remaining_chars, rev_tokens, cur_tok, cur_kind)
 
     # --- split at the equality token ----------------------------------------
 
-    def _split_at_eq(self, tokens_chain):
+    def _split_at_eq(self, tokens_chain, rev_before=M.EmptyList):
         """
         Splits tokens_chain at the first '=', '==' or '!=' token. Returns
         Pair(rev_before_chain, Pair(eq_char, Pair(after_chain, EmptyList))),
         or EmptyList if no equality operator is present.
         """
-        rev_before = M.EmptyList
-        cur = tokens_chain
-        while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
-            tok = M.Head(cur)()
-            s = tok()
-            if s == "=" or s == "==" or s == "!=":
-                return M.Pair(
-                    rev_before,
-                    M.Pair(tok, M.Pair(M.Tail(cur)(), M.EmptyList)),
-                )
-            rev_before = M.Pair(tok, rev_before)
-            cur = M.Tail(cur)()
-        return M.EmptyList
+        if M.IdentityCompare(tokens_chain, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        tok = M.Head(tokens_chain)()
+        s = tok()
+        is_equal = M.Compare(M.Char(s), M.Char("="))()
+        is_double_equal = M.Compare(M.Char(s), M.Char("=="))()
+        is_not_equal = M.Compare(M.Char(s), M.Char("!="))()
+        is_relation = M.OrAtom(
+            is_equal, M.OrAtom(is_double_equal, is_not_equal)()
+        )()
+        if M.IdentityCompare(is_relation, M.truth_value)() is M.truth_value:
+            return M.Pair(
+                rev_before,
+                M.Pair(tok, M.Pair(M.Tail(tokens_chain)(), M.EmptyList)),
+            )
+        return self._split_at_eq(
+            M.Tail(tokens_chain)(), M.Pair(tok, rev_before)
+        )
 
     # --- operand-side walks ---------------------------------------------------
 
-    def _extract_lhs(self, rev_before_chain, registry):
+    def _trim_leading_ops(self, tokens):
+        if M.IdentityCompare(tokens, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        if self._is_op(M.Head(tokens)()()) is M.truth_value:
+            return self._trim_leading_ops(M.Tail(tokens)())
+        return tokens
+
+    def _extract_lhs(
+        self, rev_before_chain, registry, cur=M.EmptyList, acc=M.EmptyList,
+        depth=M.Zero, expect_operand=M.truth_value, current_reg=M.EmptyList,
+        initialized=M.false_value,
+    ):
         """
         Walks rev_before_chain (right-to-left from '=') alternating operand
         and binary operator ('+', '*', '^') with Peano parenthesis depth,
         building the forward lhs token chain directly via Pair prepending.
         """
-        acc = M.EmptyList
-        depth = M.Zero
-        expect_operand = M.truth_value
-        cur = rev_before_chain
-        reg = registry
-
-        while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
-            tok = M.Head(cur)()
-            s = tok()
-            if (
-                M.IdentityCompare(
-                    M.Compare(tok, M.Char(")"))(),
-                    M.truth_value,
-                )()
-                is M.truth_value
-            ):
-                if (
-                    M.IdentityCompare(expect_operand, M.false_value)()
-                    is M.truth_value
-                ):
-                    break
+        if M.IdentityCompare(initialized, M.false_value)() is M.truth_value:
+            cur = rev_before_chain
+            current_reg = registry
+            initialized = M.truth_value
+        reg = current_reg
+        if M.IdentityCompare(cur, M.EmptyList)() is M.truth_value:
+            return self._trim_leading_ops(acc), reg
+        tok = M.Head(cur)()
+        s = tok()
+        if M.Compare(tok, M.Char(")"))() is M.truth_value:
+            if expect_operand is M.false_value:
                 succ_res = M.Succ(depth, reg)()
                 depth = M.Head(succ_res)()
                 reg = M.Head(M.Tail(succ_res)())()
                 acc = M.Pair(tok, acc)
                 expect_operand = M.truth_value
-            elif (
-                M.IdentityCompare(
-                    M.Compare(tok, M.Char("("))(),
-                    M.truth_value,
-                )()
-                is M.truth_value
-            ):
-                open_rejects = M.OrAtom(
-                    M.IdentityCompare(expect_operand, M.truth_value)(),
-                    M.NatEq(depth, M.Zero, reg)(),
-                )()
-                if (
-                    M.IdentityCompare(open_rejects, M.truth_value)()
-                    is M.truth_value
-                ):
-                    break
-                pred_res = M.NatPred(depth, reg)()
-                depth = M.Head(pred_res)()
-                reg = M.Head(M.Tail(pred_res)())()
-                acc = M.Pair(tok, acc)
-                expect_operand = M.false_value
-            elif self._is_op(s) is M.truth_value:
-                if (
-                    M.IdentityCompare(expect_operand, M.truth_value)()
-                    is M.truth_value
-                ):
-                    break
-                acc = M.Pair(tok, acc)
-                expect_operand = M.truth_value
-            elif (
-                M.IdentityCompare(
-                    M.OrAtom(
-                        self._is_digits(s),
-                        self._is_ident(s),
-                    )(),
-                    M.truth_value,
-                )()
-                is M.truth_value
-            ):
-                if (
-                    M.IdentityCompare(expect_operand, M.false_value)()
-                    is M.truth_value
-                ):
-                    break
-                acc = M.Pair(tok, acc)
-                expect_operand = M.false_value
             else:
-                break
-            cur = M.Tail(cur)()
+                return self._trim_leading_ops(acc), reg
+        elif M.Compare(tok, M.Char("("))() is M.truth_value:
+            open_rejects = M.OrAtom(
+                expect_operand, M.NatEq(depth, M.Zero, reg)()
+            )()
+            if open_rejects is M.truth_value:
+                return self._trim_leading_ops(acc), reg
+            pred_res = M.NatPred(depth, reg)()
+            depth = M.Head(pred_res)()
+            reg = M.Head(M.Tail(pred_res)())()
+            acc = M.Pair(tok, acc)
+            expect_operand = M.false_value
+        elif self._is_op(s) is M.truth_value:
+            if expect_operand is M.truth_value:
+                return self._trim_leading_ops(acc), reg
+            acc = M.Pair(tok, acc)
+            expect_operand = M.truth_value
+        elif M.OrAtom(self._is_digits(s), self._is_ident(s))() is M.truth_value:
+            if expect_operand is M.false_value:
+                return self._trim_leading_ops(acc), reg
+            acc = M.Pair(tok, acc)
+            expect_operand = M.false_value
+        else:
+            return self._trim_leading_ops(acc), reg
+        return self._extract_lhs(
+            rev_before_chain, reg, M.Tail(cur)(), acc, depth,
+            expect_operand, reg, initialized,
+        )
 
-        while True:
-            if M.IdentityCompare(acc, M.EmptyList)() is M.truth_value:
-                break
-            if self._is_op(M.Head(acc)()()) is M.false_value:
-                break
-            acc = M.Tail(acc)()
-        return acc, reg
-
-    def _extract_rhs(self, after_chain, registry):
+    def _extract_rhs(
+        self, after_chain, registry, cur=M.EmptyList, rev_acc=M.EmptyList,
+        depth=M.Zero, expect_operand=M.truth_value, current_reg=M.EmptyList,
+        initialized=M.false_value,
+    ):
         """
         Walks after_chain (left-to-right from '=') alternating operand and
         binary operator ('+', '*', '^') with Peano parenthesis depth.
         """
-        rev_acc = M.EmptyList
-        depth = M.Zero
-        expect_operand = M.truth_value
-        cur = after_chain
-        reg = registry
-
-        while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
-            tok = M.Head(cur)()
-            s = tok()
-            if s == "(":
-                if (
-                    M.IdentityCompare(expect_operand, M.false_value)()
-                    is M.truth_value
-                ):
-                    break
-                succ_res = M.Succ(depth, reg)()
-                depth = M.Head(succ_res)()
-                reg = M.Head(M.Tail(succ_res)())()
-                rev_acc = M.Pair(tok, rev_acc)
-                expect_operand = M.truth_value
-            elif (
-                M.IdentityCompare(
-                    M.Compare(tok, M.Char(")"))(),
-                    M.truth_value,
-                )()
-                is M.truth_value
-            ):
-                close_rejects = M.OrAtom(
-                    M.IdentityCompare(expect_operand, M.truth_value)(),
-                    M.NatEq(depth, M.Zero, reg)(),
-                )()
-                if (
-                    M.IdentityCompare(close_rejects, M.truth_value)()
-                    is M.truth_value
-                ):
-                    break
-                pred_res = M.NatPred(depth, reg)()
-                depth = M.Head(pred_res)()
-                reg = M.Head(M.Tail(pred_res)())()
-                rev_acc = M.Pair(tok, rev_acc)
-                expect_operand = M.false_value
-            elif self._is_op(s) is M.truth_value:
-                if (
-                    M.IdentityCompare(expect_operand, M.truth_value)()
-                    is M.truth_value
-                ):
-                    break
-                rev_acc = M.Pair(tok, rev_acc)
-                expect_operand = M.truth_value
-            elif (
-                M.IdentityCompare(
-                    M.OrAtom(self._is_digits(s), self._is_ident(s))(),
-                    M.truth_value,
-                )()
-                is M.truth_value
-            ):
-                if (
-                    M.IdentityCompare(expect_operand, M.false_value)()
-                    is M.truth_value
-                ):
-                    break
-                rev_acc = M.Pair(tok, rev_acc)
-                expect_operand = M.false_value
-            else:
-                break
-            cur = M.Tail(cur)()
-
-        while True:
-            if M.IdentityCompare(rev_acc, M.EmptyList)() is M.truth_value:
-                break
-            if self._is_op(M.Head(rev_acc)()()) is M.false_value:
-                break
-            rev_acc = M.Tail(rev_acc)()
-        return ChainReverse(rev_acc)(), reg
+        if M.IdentityCompare(initialized, M.false_value)() is M.truth_value:
+            cur = after_chain
+            current_reg = registry
+            initialized = M.truth_value
+        reg = current_reg
+        if M.IdentityCompare(cur, M.EmptyList)() is M.truth_value:
+            return ChainReverse(self._trim_leading_ops(rev_acc))(), reg
+        tok = M.Head(cur)()
+        s = tok()
+        if M.Compare(tok, M.Char("("))() is M.truth_value:
+            if expect_operand is M.false_value:
+                return ChainReverse(self._trim_leading_ops(rev_acc))(), reg
+            succ_res = M.Succ(depth, reg)()
+            depth = M.Head(succ_res)()
+            reg = M.Head(M.Tail(succ_res)())()
+            rev_acc = M.Pair(tok, rev_acc)
+            expect_operand = M.truth_value
+        elif M.Compare(tok, M.Char(")"))() is M.truth_value:
+            close_rejects = M.OrAtom(
+                expect_operand, M.NatEq(depth, M.Zero, reg)()
+            )()
+            if close_rejects is M.truth_value:
+                return ChainReverse(self._trim_leading_ops(rev_acc))(), reg
+            pred_res = M.NatPred(depth, reg)()
+            depth = M.Head(pred_res)()
+            reg = M.Head(M.Tail(pred_res)())()
+            rev_acc = M.Pair(tok, rev_acc)
+            expect_operand = M.false_value
+        elif self._is_op(s) is M.truth_value:
+            if expect_operand is M.truth_value:
+                return ChainReverse(self._trim_leading_ops(rev_acc))(), reg
+            rev_acc = M.Pair(tok, rev_acc)
+            expect_operand = M.truth_value
+        elif M.OrAtom(self._is_digits(s), self._is_ident(s))() is M.truth_value:
+            if expect_operand is M.false_value:
+                return ChainReverse(self._trim_leading_ops(rev_acc))(), reg
+            rev_acc = M.Pair(tok, rev_acc)
+            expect_operand = M.false_value
+        else:
+            return ChainReverse(self._trim_leading_ops(rev_acc))(), reg
+        return self._extract_rhs(
+            after_chain, reg, M.Tail(cur)(), rev_acc, depth,
+            expect_operand, reg, initialized,
+        )
 
     # --- variable interning -----------------------------------------------------
 
-    def _intern_char(self, intern_chain, name_str):
-        cur = intern_chain
-        cand = M.Char(name_str)
-        while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
-            existing = M.Head(cur)()
-            if M.Compare(existing, cand)() is M.truth_value:
-                return existing, intern_chain
-            cur = M.Tail(cur)()
-        return cand, M.Pair(cand, intern_chain)
+    def _intern_char(
+        self, intern_chain, name_str, cur=M.EmptyList, cand=M.EmptyList,
+        initialized=M.false_value,
+    ):
+        if M.IdentityCompare(initialized, M.false_value)() is M.truth_value:
+            cur = intern_chain
+            cand = M.Char(name_str)
+            initialized = M.truth_value
+        if M.IdentityCompare(cur, M.EmptyList)() is M.truth_value:
+            return cand, M.Pair(cand, intern_chain)
+        existing = M.Head(cur)()
+        if M.Compare(existing, cand)() is M.truth_value:
+            return existing, intern_chain
+        return self._intern_char(
+            intern_chain, name_str, M.Tail(cur)(), cand, initialized
+        )
 
     # --- recursive-descent expression parser -------------------------------------
 
@@ -3665,7 +3999,7 @@ class ParseSurfaceGoalSpec(M.Edge):
         tok = M.Head(cur_toks)()
         s = tok()
         rem = M.Tail(cur_toks)()
-        if s == "(":
+        if M.Compare(M.Char(s), M.Char("("))() is M.truth_value:
             inner, rem2, ic1, r1 = self._parse_add(rem, ic, reg)
             if M.IdentityCompare(inner, M.EmptyList)() is M.truth_value:
                 return M.EmptyList, rem2, ic1, r1
@@ -3709,47 +4043,57 @@ class ParseSurfaceGoalSpec(M.Edge):
             return node, rem2, ic2, r2
         return base, rem, ic1, r1
 
-    def _parse_mul(self, cur_toks, ic, reg):
-        left, rem, ic1, r1 = self._parse_pow(cur_toks, ic, reg)
+    def _parse_mul(
+        self, cur_toks, ic, reg, left=M.EmptyList, rem=M.EmptyList,
+        next_ic=M.EmptyList, next_reg=M.EmptyList,
+        initialized=M.false_value,
+    ):
+        if M.IdentityCompare(initialized, M.false_value)() is M.truth_value:
+            left, rem, next_ic, next_reg = self._parse_pow(cur_toks, ic, reg)
+            initialized = M.truth_value
         if M.IdentityCompare(left, M.EmptyList)() is M.truth_value:
-            return M.EmptyList, rem, ic1, r1
-        while True:
-            at_mul = ChainStartsWith(rem, M.Char("*"))()
-            if (
-                M.IdentityCompare(at_mul, M.false_value)()
-                is M.truth_value
-            ):
-                return left, rem, ic1, r1
-            right, rem2, ic2, r2 = self._parse_pow(
-                M.Tail(rem)(), ic1, r1
-            )
-            if M.IdentityCompare(right, M.EmptyList)() is M.truth_value:
-                return M.EmptyList, rem2, ic2, r2
-            left = M.Pair(
-                L.ExprMulLabel, M.Pair(left, M.Pair(right, M.EmptyList))
-            )
-            rem, ic1, r1 = rem2, ic2, r2
+            return M.EmptyList, rem, next_ic, next_reg
+        at_mul = ChainStartsWith(rem, M.Char("*"))()
+        if M.IdentityCompare(at_mul, M.false_value)() is M.truth_value:
+            return left, rem, next_ic, next_reg
+        right, rem2, ic2, r2 = self._parse_pow(
+            M.Tail(rem)(), next_ic, next_reg
+        )
+        if M.IdentityCompare(right, M.EmptyList)() is M.truth_value:
+            return M.EmptyList, rem2, ic2, r2
+        next_left = M.Pair(
+            L.ExprMulLabel, M.Pair(left, M.Pair(right, M.EmptyList))
+        )
+        return self._parse_mul(
+            cur_toks, next_ic, next_reg, next_left, rem2, ic2, r2,
+            initialized,
+        )
 
-    def _parse_add(self, cur_toks, ic, reg):
-        left, rem, ic1, r1 = self._parse_mul(cur_toks, ic, reg)
+    def _parse_add(
+        self, cur_toks, ic, reg, left=M.EmptyList, rem=M.EmptyList,
+        next_ic=M.EmptyList, next_reg=M.EmptyList,
+        initialized=M.false_value,
+    ):
+        if M.IdentityCompare(initialized, M.false_value)() is M.truth_value:
+            left, rem, next_ic, next_reg = self._parse_mul(cur_toks, ic, reg)
+            initialized = M.truth_value
         if M.IdentityCompare(left, M.EmptyList)() is M.truth_value:
-            return M.EmptyList, rem, ic1, r1
-        while True:
-            at_add = ChainStartsWith(rem, M.Char("+"))()
-            if (
-                M.IdentityCompare(at_add, M.false_value)()
-                is M.truth_value
-            ):
-                return left, rem, ic1, r1
-            right, rem2, ic2, r2 = self._parse_mul(
-                M.Tail(rem)(), ic1, r1
-            )
-            if M.IdentityCompare(right, M.EmptyList)() is M.truth_value:
-                return M.EmptyList, rem2, ic2, r2
-            left = M.Pair(
-                L.ExprAddLabel, M.Pair(left, M.Pair(right, M.EmptyList))
-            )
-            rem, ic1, r1 = rem2, ic2, r2
+            return M.EmptyList, rem, next_ic, next_reg
+        at_add = ChainStartsWith(rem, M.Char("+"))()
+        if M.IdentityCompare(at_add, M.false_value)() is M.truth_value:
+            return left, rem, next_ic, next_reg
+        right, rem2, ic2, r2 = self._parse_mul(
+            M.Tail(rem)(), next_ic, next_reg
+        )
+        if M.IdentityCompare(right, M.EmptyList)() is M.truth_value:
+            return M.EmptyList, rem2, ic2, r2
+        next_left = M.Pair(
+            L.ExprAddLabel, M.Pair(left, M.Pair(right, M.EmptyList))
+        )
+        return self._parse_add(
+            cur_toks, next_ic, next_reg, next_left, rem2, ic2, r2,
+            initialized,
+        )
 
     def _parse_expr(self, tokens_chain, intern_chain, registry):
         ast, leftover, next_ic, next_reg = self._parse_add(
@@ -3762,68 +4106,59 @@ class ParseSurfaceGoalSpec(M.Edge):
     # --- parameter constraints -----------------------------------------------------
 
     def _extract_param_constraints(
-        self, tokens_before_chain, intern_chain, registry
+        self, tokens_before_chain, intern_chain, registry,
+        cur=M.EmptyList, constraints=M.EmptyList, current_ic=M.EmptyList,
+        current_reg=M.EmptyList, initialized=M.false_value,
     ):
         """
         Scans tokens_before_chain for parameter inequalities (e.g. n > 2,
         n >= 3) and returns machine constraint terms
         Pair(ExprLtLabel, Pair(bound_nat, Pair(var, EmptyList))).
         """
-        constraints = M.EmptyList
-        cur = tokens_before_chain
-        ic = intern_chain
-        reg = registry
-        while True:
-            three_tokens_ready = M.AndAtom(
-                M.AndAtom(
-                    M.NotAtom(M.IdentityCompare(cur, M.EmptyList)())(),
-                    M.NotAtom(
-                        M.IdentityCompare(M.Tail(cur)(), M.EmptyList)()
-                    )(),
-                )(),
-                M.NotAtom(
-                    M.IdentityCompare(M.Tail(M.Tail(cur)())(), M.EmptyList)()
-                )(),
-            )()
-            if (
-                M.IdentityCompare(three_tokens_ready, M.truth_value)()
-                is M.false_value
-            ):
-                break
-            t1 = M.Head(cur)()()
-            t2 = M.Head(M.Tail(cur)())()()
-            t3 = M.Head(M.Tail(M.Tail(cur)())())()()
-            inequality_shape = M.AndAtom(
-                self._is_ident(t1),
-                self._is_digits(t3),
-            )()
-            if (
-                M.IdentityCompare(inequality_shape, M.truth_value)()
-                is M.truth_value
-            ):
-                var_atom, ic = self._intern_char(ic, t1)
-                nat_res = M.NatFromRep(M.GMPRep(t3), reg)()
-                num_nat = M.Head(nat_res)()
-                reg = M.Head(M.Tail(nat_res)())()
-                if t2 == ">":
-                    c_term = M.Pair(
-                        L.ExprLtLabel,
-                        M.Pair(num_nat, M.Pair(var_atom, M.EmptyList)),
-                    )
-                    constraints = ChainAppendEnd(constraints, c_term)()
-                elif t2 == ">=" and (
-                    M.NatEq(num_nat, M.Zero, reg)() is M.false_value
-                ):
-                    pred_res = M.NatPred(num_nat, reg)()
+        if M.IdentityCompare(initialized, M.false_value)() is M.truth_value:
+            cur = tokens_before_chain
+            current_ic = intern_chain
+            current_reg = registry
+            initialized = M.truth_value
+        if M.IdentityCompare(cur, M.EmptyList)() is M.truth_value:
+            return constraints, current_ic, current_reg
+        after_first = M.Tail(cur)()
+        if M.IdentityCompare(after_first, M.EmptyList)() is M.truth_value:
+            return constraints, current_ic, current_reg
+        after_second = M.Tail(after_first)()
+        if M.IdentityCompare(after_second, M.EmptyList)() is M.truth_value:
+            return constraints, current_ic, current_reg
+        t1 = M.Head(cur)()()
+        t2 = M.Head(after_first)()()
+        t3 = M.Head(after_second)()()
+        inequality_shape = M.AndAtom(
+            self._is_ident(t1), self._is_digits(t3)
+        )()
+        if inequality_shape is M.truth_value:
+            var_atom, current_ic = self._intern_char(current_ic, t1)
+            nat_res = M.NatFromRep(M.GMPRep(t3), current_reg)()
+            num_nat = M.Head(nat_res)()
+            current_reg = M.Head(M.Tail(nat_res)())()
+            if M.Compare(M.Char(t2), M.Char(">"))() is M.truth_value:
+                c_term = M.Pair(
+                    L.ExprLtLabel,
+                    M.Pair(num_nat, M.Pair(var_atom, M.EmptyList)),
+                )
+                constraints = ChainAppendEnd(constraints, c_term)()
+            elif M.Compare(M.Char(t2), M.Char(">="))() is M.truth_value:
+                if M.NatEq(num_nat, M.Zero, current_reg)() is M.false_value:
+                    pred_res = M.NatPred(num_nat, current_reg)()
                     pred_nat = M.Head(pred_res)()
-                    reg = M.Head(M.Tail(pred_res)())()
+                    current_reg = M.Head(M.Tail(pred_res)())()
                     c_term = M.Pair(
                         L.ExprLtLabel,
                         M.Pair(pred_nat, M.Pair(var_atom, M.EmptyList)),
                     )
                     constraints = ChainAppendEnd(constraints, c_term)()
-            cur = M.Tail(cur)()
-        return constraints, ic, reg
+        return self._extract_param_constraints(
+            tokens_before_chain, intern_chain, current_reg,
+            M.Tail(cur)(), constraints, current_ic, current_reg, initialized,
+        )
 
     # --- word vocabularies -----------------------------------------------------------
 
@@ -3848,34 +4183,44 @@ class ParseSurfaceGoalSpec(M.Edge):
             ),
         )
 
-    def _token_chain_has_any_word(self, tokens_chain, words_chain):
-        cur = tokens_chain
-        while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
-            s = M.Head(cur)()()
-            if ChainHasTerm(words_chain, M.Char(s))() is M.truth_value:
-                return M.truth_value
-            cur = M.Tail(cur)()
-        return M.false_value
+    def _token_chain_has_any_word(
+        self, tokens_chain, words_chain, cur=M.EmptyList,
+        initialized=M.false_value,
+    ):
+        if M.IdentityCompare(initialized, M.false_value)() is M.truth_value:
+            cur = tokens_chain
+        if M.IdentityCompare(cur, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        s = M.Head(cur)()()
+        if ChainHasTerm(words_chain, M.Char(s))() is M.truth_value:
+            return M.truth_value
+        return self._token_chain_has_any_word(
+            tokens_chain, words_chain, M.Tail(cur)(), M.truth_value
+        )
 
-    def _base_vars_of(self, all_vars, exp_vars):
-        base_vars = M.EmptyList
-        cur_v = all_vars
-        while M.IdentityCompare(cur_v, M.EmptyList)() is M.false_value:
-            v_atom = M.Head(cur_v)()
-            if ChainHasTerm(exp_vars, v_atom)() is M.false_value:
-                base_vars = ChainAppendEnd(base_vars, v_atom)()
-            cur_v = M.Tail(cur_v)()
-        return base_vars
+    def _base_vars_of(
+        self, all_vars, exp_vars, cur=M.EmptyList,
+        base_vars=M.EmptyList, initialized=M.false_value,
+    ):
+        if M.IdentityCompare(initialized, M.false_value)() is M.truth_value:
+            cur = all_vars
+        if M.IdentityCompare(cur, M.EmptyList)() is M.truth_value:
+            return base_vars
+        v_atom = M.Head(cur)()
+        if ChainHasTerm(exp_vars, v_atom)() is M.false_value:
+            base_vars = ChainAppendEnd(base_vars, v_atom)()
+        return self._base_vars_of(
+            all_vars, exp_vars, M.Tail(cur)(), base_vars, M.truth_value
+        )
 
     # --- the parse ----------------------------------------------------------------------
 
     def _parse(self, text_char, registry):
         text = text_char()
-        if text is None:
+        if M.Compare(M.Char(text), M.Char(""))() is M.truth_value:
             return M.EmptyList
-        if text == "":
-            return M.EmptyList
-        tokens_chain = self._tokenize(text)
+        text_chars = self._string_chars(text)
+        tokens_chain = self._tokenize(text_chars)
         split_res = self._split_at_eq(tokens_chain)
         if M.IdentityCompare(split_res, M.EmptyList)() is M.truth_value:
             return M.EmptyList
@@ -4113,17 +4458,25 @@ class FormatSetChain(M.Edge):
             results=self.result,
         )
 
-    def _format(self, set_chain, registry):
-        sorted_chain = SortNatChain(set_chain, registry)()
-        cur = sorted_chain
-        out = ""
-        while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
-            rep = M.NatRepOf(M.Head(cur)(), registry)()
-            if M.IdentityCompare(rep, M.EmptyList)() is M.false_value:
-                part = str(rep())
-                out = part if out == "" else out + ", " + part
-            cur = M.Tail(cur)()
-        return "{" + out + "}"
+    def _format(
+        self, set_chain, registry, cur=M.EmptyList, out="",
+        initialized=M.false_value,
+    ):
+        if M.IdentityCompare(initialized, M.false_value)() is M.truth_value:
+            cur = SortNatChain(set_chain, registry)()
+            initialized = M.truth_value
+        if M.IdentityCompare(cur, M.EmptyList)() is M.truth_value:
+            return "{" + out + "}"
+        rep = M.NatRepOf(M.Head(cur)(), registry)()
+        if M.IdentityCompare(rep, M.EmptyList)() is M.false_value:
+            part = M.GMPRepText(rep)()
+            if M.Compare(M.Char(out), M.Char(""))() is M.truth_value:
+                out = part
+            else:
+                out = out + ", " + part
+        return self._format(
+            set_chain, registry, M.Tail(cur)(), out, initialized
+        )
 
     def __call__(self):
         return self.result
@@ -4142,14 +4495,41 @@ class FormatVarsChain(M.Edge):
             results=self.result,
         )
 
-    def _format(self, vars_chain):
-        cur = vars_chain
-        out = ""
-        while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
-            part = M.Head(cur)()()
-            out = part if out == "" else out + ", " + part
-            cur = M.Tail(cur)()
-        return out
+    def _format(
+        self, vars_chain, cur=M.EmptyList, out="",
+        initialized=M.false_value,
+    ):
+        if M.IdentityCompare(initialized, M.false_value)() is M.truth_value:
+            cur = vars_chain
+            initialized = M.truth_value
+        if M.IdentityCompare(cur, M.EmptyList)() is M.truth_value:
+            return out
+        part = M.Head(cur)()()
+        if M.Compare(M.Char(out), M.Char(""))() is M.truth_value:
+            out = part
+        else:
+            out = out + ", " + part
+        return self._format(vars_chain, M.Tail(cur)(), out, initialized)
+
+    def __call__(self):
+        return self.result
+
+
+class FormatDiscoveredOperationNames(M.Edge):
+    """Renders the names carried by a discovered operation register."""
+
+    def __init__(self, operations):
+        self.result = self._format(operations)
+        super().__init__(inputs=M.Pair(operations, M.EmptyList), results=self.result)
+
+    def _format(self, operations):
+        if M.IdentityCompare(operations, M.EmptyList)() is M.truth_value:
+            return ""
+        name = M.Head(M.Head(operations)())()() + "()"
+        rest = M.Tail(operations)()
+        if M.IdentityCompare(rest, M.EmptyList)() is M.truth_value:
+            return name
+        return name + ", " + self._format(rest)
 
     def __call__(self):
         return self.result
@@ -4170,18 +4550,27 @@ class FormatEnvChain(M.Edge):
             results=self.result,
         )
 
-    def _format(self, env_chain, registry):
-        cur = env_chain
-        out = ""
-        while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
-            entry = M.Head(cur)()
-            v_name = M.Head(entry)()()
-            v_nat = M.Head(M.Tail(entry)())()
-            v_str = str(M.NatRepOf(v_nat, registry)()())
-            part = v_name + " = " + v_str
-            out = part if out == "" else out + ", " + part
-            cur = M.Tail(cur)()
-        return out
+    def _format(
+        self, env_chain, registry, cur=M.EmptyList, out="",
+        initialized=M.false_value,
+    ):
+        if M.IdentityCompare(initialized, M.false_value)() is M.truth_value:
+            cur = env_chain
+            initialized = M.truth_value
+        if M.IdentityCompare(cur, M.EmptyList)() is M.truth_value:
+            return out
+        entry = M.Head(cur)()
+        v_name = M.Head(entry)()()
+        v_nat = M.Head(M.Tail(entry)())()
+        v_str = M.GMPRepText(M.NatRepOf(v_nat, registry)())()
+        part = v_name + " = " + v_str
+        if M.Compare(M.Char(out), M.Char(""))() is M.truth_value:
+            out = part
+        else:
+            out = out + ", " + part
+        return self._format(
+            env_chain, registry, M.Tail(cur)(), out, initialized
+        )
 
     def __call__(self):
         return self.result
@@ -4205,6 +4594,7 @@ class FormatDiscoveriesReport(M.Edge):
         positive_only,
         registry,
         indent="  ",
+        domain_chain=M.EmptyList,
     ):
         self.registry = registry
         self.result = self._report(
@@ -4217,6 +4607,7 @@ class FormatDiscoveriesReport(M.Edge):
             positive_only,
             registry,
             indent,
+            domain_chain,
         )
         super().__init__(
             inputs=M.Pair(
@@ -4255,127 +4646,141 @@ class FormatDiscoveriesReport(M.Edge):
         positive_only,
         reg,
         indent,
+        domain_chain,
     ):
         lhs_str = RenderNatExpr(lhs, reg)()
         rhs_str = RenderNatExpr(rhs, reg)()
-        pred_res = M.NatPred(bound_nat, reg)()
-        max_elem_val = M.NatRepOf(M.Head(pred_res)(), reg)()()
-        reg = M.Head(M.Tail(pred_res)())()
-        min_elem_val = 0
-        if (
-            M.IdentityCompare(positive_only, M.truth_value)()
-            is M.truth_value
-        ):
-            min_elem_val = 1
         mods_str = FormatSetChain(moduli_chain, reg)()
-
-        if M.IdentityCompare(witness_env, M.EmptyList)() is M.false_value:
-            w_str = FormatEnvChain(witness_env, reg)()
-            report = f"{indent}- Ground Tensor Witness ({min_elem_val}..{max_elem_val}): Counterexample solution found at ({w_str}) where {lhs_str} = {rhs_str}."
+        if M.IdentityCompare(domain_chain, M.EmptyList)() is M.false_value:
+            domain_text = FormatSetChain(domain_chain, reg)()
+            if M.IdentityCompare(witness_env, M.EmptyList)() is M.truth_value:
+                w_str = FormatEnvChain(witness_env, reg)()
+                report_text = f"{indent}- Ground Tensor Witness (domain {domain_text}): Counterexample solution found at ({w_str}) where {lhs_str} = {rhs_str}."
+            else:
+                report_text = f"{indent}- Ground Tensor Witness Search (domain {domain_text}): 0 solutions in ground tensor; sweeping moduli {mods_str}."
         else:
-            report = f"{indent}- Ground Tensor Witness Search (domain {min_elem_val}..{max_elem_val}): 0 solutions in ground tensor; sweeping moduli {mods_str}."
-
+            pred_res = M.NatPred(bound_nat, reg)()
+            max_elem_val = M.NatRepOf(M.Head(pred_res)(), reg)()()
+            reg = M.Head(M.Tail(pred_res)())()
+            min_elem_val = 0
+            if positive_only is M.truth_value:
+                min_elem_val = 1
+            if M.IdentityCompare(witness_env, M.EmptyList)() is M.truth_value:
+                w_str = FormatEnvChain(witness_env, reg)()
+                report_text = f"{indent}- Ground Tensor Witness ({min_elem_val}..{max_elem_val}): Counterexample solution found at ({w_str}) where {lhs_str} = {rhs_str}."
+            else:
+                report_text = f"{indent}- Ground Tensor Witness Search (domain {min_elem_val}..{max_elem_val}): 0 solutions in ground tensor; sweeping moduli {mods_str}."
         if M.IdentityCompare(discoveries, M.EmptyList)() is M.truth_value:
-            return (
-                report
-                + f"\n{indent}- across moduli {mods_str}: no proper residue restriction found."
+            return report_text + f"\n{indent}- across moduli {mods_str}: no proper residue restriction found."
+        return self._report_discoveries(
+            discoveries, discoveries, report_text, lhs_str, rhs_str,
+            indent, reg,
+        )
+
+    def _report_discoveries(
+        self, cursor, discoveries, report_text, lhs_str, rhs_str, indent, reg
+    ):
+        if M.IdentityCompare(cursor, M.EmptyList)() is M.truth_value:
+            return report_text
+        rec = M.Head(cursor)()
+        f1 = M.Tail(rec)()
+        m_nat = M.Head(f1)()
+        f2 = M.Tail(f1)()
+        rhs_img = M.Head(f2)()
+        f3 = M.Tail(f2)()
+        lhs_img = M.Head(f3)()
+        f4 = M.Tail(f3)()
+        is_disj = M.Head(f4)()
+        f5 = M.Tail(f4)()
+        hold_cnt = M.Head(f5)()
+        f6 = M.Tail(f5)()
+        fail_cnt = M.Head(f6)()
+        coord_projs = M.Head(M.Tail(f6)())()
+
+        m_val = M.NatRepOf(m_nat, reg)()()
+        h_val = M.NatRepOf(hold_cnt, reg)()()
+        fl_val = M.NatRepOf(fail_cnt, reg)()()
+        lhs_img_str = FormatSetChain(lhs_img, reg)()
+        rhs_img_str = FormatSetChain(rhs_img, reg)()
+        dom_res = BuildNatRange(M.Zero, m_nat, reg)()
+        full_dom = M.Head(dom_res)()
+        reg = M.Head(M.Tail(dom_res)())()
+        lhs_excl = SortNatChain(SetDifference(full_dom, lhs_img, reg)(), reg)()
+        rhs_excl = SortNatChain(SetDifference(full_dom, rhs_img, reg)(), reg)()
+        lhs_excl_str = FormatSetChain(lhs_excl, reg)()
+        rhs_excl_str = FormatSetChain(rhs_excl, reg)()
+        report_text = (
+            report_text
+            + f"\n{indent}- Modulus m = {m_val}:"
+            + f"\n{indent}  * image of ({lhs_str}) mod {m_val} = {lhs_img_str} (excluded: {lhs_excl_str})"
+            + f"\n{indent}  * image of ({rhs_str}) mod {m_val} = {rhs_img_str} (excluded: {rhs_excl_str})"
+            + f"\n{indent}  * ({lhs_str}) = ({rhs_str}) mod {m_val}: |holding| = {h_val}, |failing| = {fl_val}"
+        )
+        if is_disj is M.truth_value:
+            report_text = report_text + (
+                f"\n{indent}  * Disjoint Image Regularity: {rhs_img_str} /\\ {lhs_img_str} = empty (|holding| = 0)"
             )
+        report_text = self._append_coordinate_reports(
+            coord_projs, report_text, indent, m_val, reg
+        )
+        return self._report_discoveries(
+            M.Tail(cursor)(), discoveries, report_text, lhs_str, rhs_str,
+            indent, reg,
+        )
 
-        cur = discoveries
-        while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
-            rec = M.Head(cur)()
-            f1 = M.Tail(rec)()
-            m_nat = M.Head(f1)()
-            f2 = M.Tail(f1)()
-            rhs_img = M.Head(f2)()
-            f3 = M.Tail(f2)()
-            lhs_img = M.Head(f3)()
-            f4 = M.Tail(f3)()
-            is_disj = M.Head(f4)()
-            f5 = M.Tail(f4)()
-            hold_cnt = M.Head(f5)()
-            f6 = M.Tail(f5)()
-            fail_cnt = M.Head(f6)()
-            coord_projs = M.Head(M.Tail(f6)())()
-
-            m_val = M.NatRepOf(m_nat, reg)()()
-            h_val = M.NatRepOf(hold_cnt, reg)()()
-            fl_val = M.NatRepOf(fail_cnt, reg)()()
-            lhs_img_str = FormatSetChain(lhs_img, reg)()
-            rhs_img_str = FormatSetChain(rhs_img, reg)()
-
-            dom_res = BuildNatRange(M.Zero, m_nat, reg)()
-            full_dom = M.Head(dom_res)()
-            reg = M.Head(M.Tail(dom_res)())()
-            lhs_excl = SortNatChain(SetDifference(full_dom, lhs_img, reg)(), reg)()
-            rhs_excl = SortNatChain(SetDifference(full_dom, rhs_img, reg)(), reg)()
-            lhs_excl_str = FormatSetChain(lhs_excl, reg)()
-            rhs_excl_str = FormatSetChain(rhs_excl, reg)()
-
-            report = (
-                report
-                + f"\n{indent}- Modulus m = {m_val}:"
-                + f"\n{indent}  * image of ({lhs_str}) mod {m_val} = {lhs_img_str} (excluded: {lhs_excl_str})"
-                + f"\n{indent}  * image of ({rhs_str}) mod {m_val} = {rhs_img_str} (excluded: {rhs_excl_str})"
-                + f"\n{indent}  * ({lhs_str}) = ({rhs_str}) mod {m_val}: |holding| = {h_val}, |failing| = {fl_val}"
+    def _append_coordinate_reports(self, cursor, report_text, indent, m_val, reg):
+        if M.IdentityCompare(cursor, M.EmptyList)() is M.truth_value:
+            return report_text
+        record = M.Head(cursor)()
+        variable = M.Head(record)()
+        admitted = M.Head(M.Tail(record)())()
+        excluded = M.Head(M.Tail(M.Tail(record)())())()
+        is_proper = M.Head(M.Tail(M.Tail(M.Tail(record)())())())()
+        if is_proper is M.truth_value:
+            admitted_text = FormatSetChain(admitted, reg)()
+            excluded_text = FormatSetChain(excluded, reg)()
+            report_text = (
+                report_text
+                + f"\n{indent}  * Coordinate Projection: proj({variable()}, holding) = {admitted_text} (excluded mod {m_val}: {excluded_text})"
             )
-            if is_disj is M.truth_value:
-                report = (
-                    report
-                    + f"\n{indent}  * Disjoint Image Regularity: {rhs_img_str} /\\ {lhs_img_str} = empty (|holding| = 0)"
-                )
-
-            cur_c = coord_projs
-            while M.IdentityCompare(cur_c, M.EmptyList)() is M.false_value:
-                c_rec = M.Head(cur_c)()
-                v_atom = M.Head(c_rec)()
-                adm_set = M.Head(M.Tail(c_rec)())()
-                excl_set = M.Head(M.Tail(M.Tail(c_rec)())())()
-                is_prop = M.Head(M.Tail(M.Tail(M.Tail(c_rec)())())())()
-                if is_prop is M.truth_value:
-                    v_name = v_atom()
-                    adm_str = FormatSetChain(adm_set, reg)()
-                    excl_str = FormatSetChain(excl_set, reg)()
-                    report = (
-                        report
-                        + f"\n{indent}  * Coordinate Projection: proj({v_name}, holding) = {adm_str} (excluded mod {m_val}: {excl_str})"
-                    )
-                cur_c = M.Tail(cur_c)()
-
-            cur = M.Tail(cur)()
-
-        return report
+        return self._append_coordinate_reports(
+            M.Tail(cursor)(), report_text, indent, m_val, reg
+        )
 
     def __call__(self):
         return self.result
 
 
-class ParallelInstanceSweepWorker(M.Edge):
-    """
-    One multiprocessing.Process worker evaluating a single parameter
-    instance of a parametric equation across ground EvaluationTensors and
-    moduli. The instance's inputs are machine terms; the outbound channel is
-    the host queue the parallel sweep dispatches on, and the debug lines it
-    emits are tagged with the worker process's own id.
-    """
+class ParameterInstanceSweep(M.Edge):
+    """Evaluates one parameter instance across ground tensors and moduli."""
 
-    def __init__(self, goal_char, exp_char, out_queue):
+    def __init__(
+        self, goal_char, exp_char, registry,
+        domain_start=M.Zero, domain_count=M.six,
+    ):
         self.goal_char = goal_char
         self.exp_char = exp_char
-        self.out_queue = out_queue
+        self.registry = registry
+        self.domain_start = domain_start
+        self.domain_count = domain_count
         self.result = M.EmptyList
         super().__init__(
             inputs=M.Pair(
                 goal_char,
-                M.Pair(exp_char, M.EmptyList),
+                M.Pair(
+                    exp_char,
+                    M.Pair(
+                        registry,
+                        M.Pair(domain_start, M.Pair(domain_count, M.EmptyList)),
+                    ),
+                ),
             ),
             results=self.result,
         )
 
     def __call__(self):
-        goal_text = self.goal_char()
         exp_str = self.exp_char()
-        reg = M.AllConstructors
+        reg = self.registry
         spec_rec = ParseSurfaceGoalSpec(self.goal_char, reg)()
         lhs = GoalSpecLhs(spec_rec)()
         rhs = GoalSpecRhs(spec_rec)()
@@ -4394,8 +4799,8 @@ class ParallelInstanceSweepWorker(M.Edge):
         lhs_e_str = RenderNatExpr(lhs_e, reg)()
         rhs_e_str = RenderNatExpr(rhs_e, reg)()
 
-        bound_nat = M.six
-        dom_res = BuildNatRange(M.Zero, bound_nat, reg)()
+        bound_nat = self.domain_count
+        dom_res = BuildNatRange(self.domain_start, bound_nat, reg)()
         domain = M.Head(dom_res)()
         reg = M.Head(M.Tail(dom_res)())()
 
@@ -4407,7 +4812,7 @@ class ParallelInstanceSweepWorker(M.Edge):
         rhs_vars = M.Head(ExtractExprVariables(rhs_e, reg)())()
 
         PlaygroundDebugEmit(M.Char(
-            f"worker started for {exp_name} = {exp_str} ({lhs_e_str} = {rhs_e_str}): evaluating ground EvaluationTensors over domain 0..5 and sweeping moduli {FormatSetChain(moduli_chain, reg)()}..."
+            f"instance sweep started for {exp_name} = {exp_str} ({lhs_e_str} = {rhs_e_str}): evaluating ground EvaluationTensors over {FormatSetChain(domain, reg)()} and sweeping moduli {FormatSetChain(moduli_chain, reg)()}..."
         ))()
 
         lt_res = BuildExprGroundTensor(
@@ -4437,6 +4842,7 @@ class ParallelInstanceSweepWorker(M.Edge):
             lhs_tensor=lhs_tensor,
             rhs_tensor=rhs_tensor,
             debug_trace=M.truth_value,
+            domain_chain=domain,
         )()
         disc_chain = M.Head(disc_res)()
         reg = M.Head(M.Tail(disc_res)())()
@@ -4452,22 +4858,20 @@ class ParallelInstanceSweepWorker(M.Edge):
             positive_only,
             reg,
             indent="    ",
+            domain_chain=domain,
         )()
         first_mod_str = "4"
         if M.IdentityCompare(disc_chain, M.EmptyList)() is M.false_value:
             first_rec = M.Head(disc_chain)()
             first_mod_nat = M.Head(M.Tail(first_rec)())()
-            first_mod_str = str(M.NatRepOf(first_mod_nat, reg)()())
+            first_mod_str = M.GMPRepText(M.NatRepOf(first_mod_nat, reg)())()
 
-        PlaygroundDebugEmit(M.Char(f"worker completed {exp_name} = {exp_str}."))()
+        PlaygroundDebugEmit(M.Char(f"instance sweep completed for {exp_name} = {exp_str}."))()
         report_record = M.Pair(
             M.Char(header + "\n" + body),
             M.Pair(M.Char(first_mod_str), M.EmptyList),
         )
         self.result = report_record
-        self.out_queue.put(
-            (exp_str, os.getpid(), header + "\n" + body, first_mod_str)
-        )
         return report_record
 
 
@@ -4513,33 +4917,30 @@ class FilterCandidateParameters(M.Edge):
         filt_tuples = M.Head(filt_res)()
         reg2 = M.Head(M.Tail(filt_res)())()
 
-        # Take first two valid parameter nodes from filtered 1-tuples
-        out = M.EmptyList
-        cur = filt_tuples
-        taken = M.Zero
-        while True:
-            take_more = M.AndAtom(
-                M.NotAtom(M.IdentityCompare(cur, M.EmptyList)())(),
-                M.NatLess(taken, M.two, reg2)(),
-            )()
-            if (
-                M.IdentityCompare(take_more, M.truth_value)()
-                is M.false_value
-            ):
-                break
-            tup = M.Head(cur)()
-            out = ChainAppendEnd(out, M.Head(tup)())()
-            inc = A.Add(taken, M.one, reg2)()
-            taken = M.Head(inc)()
-            reg2 = M.Head(M.Tail(inc)())()
-            cur = M.Tail(cur)()
+        return self._take_candidates(
+            filt_tuples, reg2, M.EmptyList, M.Zero
+        )
 
-        if M.IdentityCompare(out, M.EmptyList)() is M.truth_value:
-            return M.Pair(
-                M.Pair(M.three, M.Pair(M.four, M.EmptyList)),
-                M.Pair(reg2, M.EmptyList),
-            )
-        return M.Pair(out, M.Pair(reg2, M.EmptyList))
+    def _take_candidates(self, cur, registry, out, taken):
+        take_more = M.AndAtom(
+            M.NotAtom(M.IdentityCompare(cur, M.EmptyList)())(),
+            M.NatLess(taken, M.two, registry)(),
+        )()
+        if M.IdentityCompare(take_more, M.false_value)() is M.truth_value:
+            if M.IdentityCompare(out, M.EmptyList)() is M.truth_value:
+                return M.Pair(
+                    M.Pair(M.three, M.Pair(M.four, M.EmptyList)),
+                    M.Pair(registry, M.EmptyList),
+                )
+            return M.Pair(out, M.Pair(registry, M.EmptyList))
+        tup = M.Head(cur)()
+        out = ChainAppendEnd(out, M.Head(tup)())()
+        inc = A.Add(taken, M.one, registry)()
+        taken = M.Head(inc)()
+        registry = M.Head(M.Tail(inc)())()
+        return self._take_candidates(
+            M.Tail(cur)(), registry, out, taken
+        )
 
 
 class RunPlaygroundInteractive(M.Edge):
@@ -4550,35 +4951,177 @@ class RunPlaygroundInteractive(M.Edge):
     the playground's host output boundary.
     """
 
-    def __init__(self, graph, goal_text=None, tutor=None):
-        self.result = self._run(graph, goal_text, tutor)
+    def __init__(
+        self, graph, goal_text="", tutor=M.EmptyList,
+        interactive=M.false_value,
+    ):
+        self.result = self._run(graph, goal_text, tutor, interactive)
         super().__init__(
             inputs=M.Pair(graph, M.EmptyList),
             results=self.result,
         )
 
-    def _run(self, graph, goal_text=None, tutor=None):
+    def _run_parameter_instances(
+        self, cursor, active_goal, registry, report_text,
+        first_modulus=M.EmptyList, graph=None,
+        domain_start=M.Zero, domain_count=M.six,
+    ):
+        if M.IdentityCompare(cursor, M.EmptyList)() is M.truth_value:
+            if M.IdentityCompare(first_modulus, M.EmptyList)() is M.false_value:
+                graph._last_discovered_invariant = M.Pair(
+                    L.DiscoveredInvariantLabel,
+                    M.Pair(
+                        first_modulus,
+                        M.Pair(
+                            M.Pair(M.Zero, M.EmptyList),
+                            M.Pair(
+                                M.Pair(M.Zero, M.EmptyList),
+                                M.Pair(M.false_value, M.EmptyList),
+                            ),
+                        ),
+                    ),
+                )
+            PlaygroundDebugEmit(M.Char("finished sequential parameter sweep."))()
+            return report_text + (
+                "\n  - Suggestion: Ground these discovered residue regularities as candidate lemmas."
+            )
+        e_nat = M.Head(cursor)()
+        e_str = M.GMPRepText(M.NatRepOf(e_nat, registry)())()
+        record = ParameterInstanceSweep(
+            M.Char(active_goal), M.Char(e_str), registry,
+            domain_start, domain_count,
+        )()
+        instance_text = M.Head(record)()()
+        modulus_text = M.Head(M.Tail(record)())()()
+        report_text = report_text + "\n" + instance_text
+        if M.IdentityCompare(first_modulus, M.EmptyList)() is M.truth_value:
+            modulus_result = M.NatFromRep(M.GMPRep(modulus_text), registry)()
+            first_modulus = M.Head(modulus_result)()
+            registry = M.Head(M.Tail(modulus_result)())()
+        return self._run_parameter_instances(
+            M.Tail(cursor)(), active_goal, registry, report_text,
+            first_modulus, graph, domain_start, domain_count,
+        )
+
+    def _ask_domain(self, registry):
+        try:
+            reply = input(
+                "[you] Run the Cartesian playground? Reply 'no', 'yes' (then enter bounds), 'yes, 0 to 10', or 'try on positive integers from 1 to 10': "
+            )
+        except EOFError:
+            return M.EmptyList
+        if M.Compare(M.Char(reply), M.Char("no"))() is M.truth_value:
+            return M.EmptyList
+        if M.Compare(
+            M.Char(reply), M.Char("yes, 0 to 10")
+        )() is M.truth_value:
+            lower_text = "0"
+            upper_text = "10"
+        elif M.Compare(
+            M.Char(reply), M.Char("yes, 1 to 10")
+        )() is M.truth_value:
+            lower_text = "1"
+            upper_text = "10"
+        elif M.Compare(
+            M.Char(reply),
+            M.Char("try on positive integers from 1 to 10"),
+        )() is M.truth_value:
+            lower_text = "1"
+            upper_text = "10"
+        elif M.Compare(M.Char(reply), M.Char("yes"))() is M.truth_value:
+            try:
+                lower_text = input("[you] Natural-domain lower bound: ")
+                upper_text = input("[you] Natural-domain upper bound: ")
+            except EOFError:
+                return M.EmptyList
+        else:
+            print("[machine] Reply 'no', 'yes', 'yes, 0 to 10', or give a natural-number range.")
+            return M.EmptyList
+        try:
+            lower_rep = M.GMPRep(lower_text)
+            upper_rep = M.GMPRep(upper_text)
+        except (ValueError, TypeError):
+            print("[machine] Bounds must be natural-number numerals.")
+            return M.EmptyList
+        lower_res = M.NatFromRep(lower_rep, registry)()
+        lower = M.Head(lower_res)()
+        reg1 = M.Head(M.Tail(lower_res)())()
+        upper_res = M.NatFromRep(upper_rep, reg1)()
+        upper = M.Head(upper_res)()
+        reg2 = M.Head(M.Tail(upper_res)())()
+        if M.NatLess(upper, lower, reg2)() is M.truth_value:
+            print("[machine] Bounds must be natural numbers with upper at least lower.")
+            return M.EmptyList
+        difference = A.NatSubtract(upper, lower, reg2)()
+        span = M.Head(difference)()
+        reg3 = M.Head(M.Tail(difference)())()
+        count_res = A.Add(span, M.one, reg3)()
+        count = M.Head(count_res)()
+        reg4 = M.Head(M.Tail(count_res)())()
+        domain_res = BuildNatRange(lower, count, reg4)()
+        domain = M.Head(domain_res)()
+        reg5 = M.Head(M.Tail(domain_res)())()
+        return M.Pair(domain, M.Pair(lower, M.Pair(count, M.Pair(reg5, M.EmptyList))))
+
+    def _offer_operation_law(self, graph, operations, domain, registry, report):
+        if M.IdentityCompare(operations, M.EmptyList)() is M.truth_value:
+            graph._pending_discovery = M.EmptyList
+            return report + "\n[machine] No Nat-valued expression operations were available for law mining."
+        from . import invariant_miner as Miner
+
+        known_nodes = M.FromContextGetNodes(graph)()
+        proposal = Miner.ProposeNextRegularityOrStructure(
+            operations, domain, known_nodes, registry
+        )()
+        status = M.Head(proposal)()
+        payload = M.Head(M.Tail(proposal)())()
+        if M.IdentityCompare(status, L.ObservedRegularityLabel)() is M.truth_value:
+            graph._pending_discovery = M.Pair(
+                status, M.Pair(payload, M.EmptyList)
+            )
+            finding_body = M.Tail(payload)()
+            operation_name = M.Head(finding_body)()
+            law_body = M.Tail(finding_body)()
+            law_type = M.Head(law_body)()
+            verdict_body = M.Tail(law_body)()
+            witness_body = M.Tail(verdict_body)()
+            scope = M.Head(M.Tail(witness_body)())()
+            found_domain = M.Head(M.Tail(scope)())()
+            witnesses = M.Head(witness_body)()
+            examples = FormatOperationLawExamples(
+                law_type, witnesses, operations, registry
+            )()
+            return report + (
+                "\n[machine] Observed on tested domain "
+                + FormatSetChain(found_domain, registry)()
+                + ": "
+                + operation_name()
+                + " satisfies "
+                + RenderDiscoveredEquation(law_type, registry)()
+                + ". Supporting examples: "
+                + examples
+                + ". Please provide a name for this property."
+            )
+        if M.IdentityCompare(status, L.AlgebraicTemplateLabel)() is M.truth_value:
+            graph._pending_discovery = M.Pair(
+                status, M.Pair(payload, M.EmptyList)
+            )
+            return report + "\n[machine] Discovered a structure from the recorded laws. Name this structure?"
+        graph._pending_discovery = M.EmptyList
+        return report + "\n[machine] No new operation law was found on this finite domain."
+
+    def _run(
+        self, graph, goal_text="", tutor=M.EmptyList,
+        interactive=M.false_value,
+    ):
         registry = M.FromContextGetConstructors(graph)()
         active_goal = goal_text
-        if active_goal is None:
-            try:
-                active_goal = graph._active_unproved_goal
-            except AttributeError:
-                active_goal = None
         active_tutor = tutor
-        if active_tutor is None:
-            try:
-                active_tutor = graph._active_tutor
-            except AttributeError:
-                active_tutor = None
-        try:
-            active_claim = graph._active_unproved_claim
-        except AttributeError:
-            active_claim = None
+        active_claim = M.EmptyList
 
         spec_rec = (
             ParseSurfaceGoalSpec(M.Char(active_goal), registry)()
-            if active_goal
+            if M.Compare(M.Char(active_goal), M.Char(""))() is M.false_value
             else M.EmptyList
         )
         if M.IdentityCompare(spec_rec, M.EmptyList)() is M.false_value:
@@ -4590,6 +5133,54 @@ class RunPlaygroundInteractive(M.Edge):
             no_solutions = GoalSpecNoSolutions(spec_rec)()
             positive_only = GoalSpecPositiveOnly(spec_rec)()
             reg = GoalSpecRegistry(spec_rec)()
+            operation_terms = M.Pair(lhs, M.Pair(rhs, M.EmptyList))
+            operation_result = BuildNatOperationRegister(reg, operation_terms)()
+            operation_register = M.Head(operation_result)()
+            reg = M.Head(M.Tail(operation_result)())()
+            graph._last_playground_operation_register = operation_register
+            graph._last_playground_goal = M.Char(active_goal)
+            graph._last_playground_domain = M.EmptyList
+            domain_start = M.Zero
+            domain_count = M.six
+            domain = M.EmptyList
+            if M.IdentityCompare(interactive, M.truth_value)() is M.truth_value:
+                operation_names = FormatDiscoveredOperationNames(operation_register)()
+                if M.Compare(M.Char(operation_names), M.Char(""))() is M.truth_value:
+                    operation_names = "no Nat-valued operations"
+                print(
+                    "[machine] Expression operations detected: "
+                    + operation_names
+                    + ", compare_equality()."
+                )
+                chosen_domain = self._ask_domain(reg)
+                if M.IdentityCompare(chosen_domain, M.EmptyList)() is M.truth_value:
+                    graph._pending_discovery = M.EmptyList
+                    return "[machine] Playground run declined or no valid domain was supplied."
+                domain = M.Head(chosen_domain)()
+                domain_start = M.Head(M.Tail(chosen_domain)())()
+                domain_count = M.Head(M.Tail(M.Tail(chosen_domain)())())()
+                reg = M.Head(M.Tail(M.Tail(M.Tail(chosen_domain)())())())()
+            if M.IdentityCompare(domain, M.EmptyList)() is M.truth_value:
+                domain_result = BuildNatRange(domain_start, domain_count, reg)()
+                domain = M.Head(domain_result)()
+                reg = M.Head(M.Tail(domain_result)())()
+            graph._last_playground_domain = domain
+
+            if M.IdentityCompare(interactive, M.truth_value)() is M.truth_value:
+                domain_text = FormatSetChain(domain, reg)()
+                PlaygroundDebugEmit(M.Char(
+                    "evaluating discovered arithmetic operations over domain "
+                    + domain_text
+                    + " and mining operation laws..."
+                ))()
+                operation_report = (
+                    "[machine] Operation-law scan over tested domain "
+                    + domain_text
+                    + "."
+                )
+                return self._offer_operation_law(
+                    graph, operation_register, domain, reg, operation_report
+                )
 
             # Case A: Parametric exponent family (e.g., x^n + y^n = z^n)
             if M.IdentityCompare(exp_vars, M.EmptyList)() is M.false_value:
@@ -4608,100 +5199,22 @@ class RunPlaygroundInteractive(M.Edge):
                 rhs_pat_str = RenderNatExpr(rhs, reg)()
                 exp_set_str = FormatSetChain(exp_chain, reg)()
                 mods_set_str = FormatSetChain(moduli_chain, reg)()
+                domain_set_str = FormatSetChain(domain, reg)()
 
-                cpu_cap = multiprocessing.cpu_count() or 1
                 PlaygroundDebugEmit(M.Char(
-                    f"constructing the natural tensor for {lhs_pat_str} = {rhs_pat_str}: parameter {exp_name} in {exp_set_str}, domain 0..5, candidate moduli {mods_set_str}; dispatching parallel worker processes (CPU cores: {cpu_cap})..."
+                    f"constructing the natural tensor for {lhs_pat_str} = {rhs_pat_str}: parameter {exp_name} in {exp_set_str}, domain {domain_set_str}, candidate moduli {mods_set_str}; evaluating parameter instances sequentially..."
                 ))()
 
-                report = f"[machine] Cartesian Playground Sweep for {lhs_pat_str} = {rhs_pat_str} (parameter {exp_name} in {exp_set_str}, domain 0..5, moduli {mods_set_str}):"
-
-                start_methods = multiprocessing.get_all_start_methods()
-                mp_ctx = multiprocessing.get_context(
-                    "fork" if "fork" in start_methods else "spawn"
+                report = f"[machine] Cartesian Playground Sweep for {lhs_pat_str} = {rhs_pat_str} (parameter {exp_name} in {exp_set_str}, domain {domain_set_str}, moduli {mods_set_str}):"
+                instance_report = self._run_parameter_instances(
+                    exp_chain, active_goal, reg, report, M.EmptyList, graph,
+                    domain_start, domain_count,
                 )
-                out_queue = mp_ctx.Queue()
-                procs_chain = M.EmptyList
-                cur_e = exp_chain
-                while M.IdentityCompare(cur_e, M.EmptyList)() is M.false_value:
-                    e_nat = M.Head(cur_e)()
-                    e_str = str(M.NatRepOf(e_nat, reg)()())
-                    p = mp_ctx.Process(
-                        target=ParallelInstanceSweepWorker(
-                            M.Char(active_goal), M.Char(e_str), out_queue
-                        ),
+                if M.IdentityCompare(interactive, M.truth_value)() is M.truth_value:
+                    return self._offer_operation_law(
+                        graph, operation_register, domain, reg, instance_report
                     )
-                    p.start()
-                    procs_chain = ChainAppendEnd(procs_chain, M.Pair(M.Char(e_str), M.Pair(p, M.EmptyList)))()
-                    cur_e = M.Tail(cur_e)()
-
-                collected_chain = M.EmptyList
-                cur_p = procs_chain
-                while M.IdentityCompare(cur_p, M.EmptyList)() is M.false_value:
-                    item = out_queue.get(timeout=120)
-                    e_key, w_pid, inst_text, first_mod_s = item
-                    entry = M.Pair(
-                        M.Char(e_key),
-                        M.Pair(
-                            M.Char(inst_text),
-                            M.Pair(
-                                M.Char(str(w_pid)),
-                                M.Pair(M.Char(first_mod_s), M.EmptyList),
-                            ),
-                        ),
-                    )
-                    collected_chain = ChainAppendEnd(collected_chain, entry)()
-                    cur_p = M.Tail(cur_p)()
-
-                cur_p = procs_chain
-                while M.IdentityCompare(cur_p, M.EmptyList)() is M.false_value:
-                    proc_obj = M.Head(M.Tail(M.Head(cur_p)())())()
-                    proc_obj.join(timeout=10)
-                    cur_p = M.Tail(cur_p)()
-
-                first_mod_recorded = M.EmptyList
-                pids_str = ""
-                cur_e = exp_chain
-                while M.IdentityCompare(cur_e, M.EmptyList)() is M.false_value:
-                    e_nat = M.Head(cur_e)()
-                    e_char = M.Char(str(M.NatRepOf(e_nat, reg)()()))
-                    cur_c = collected_chain
-                    while M.IdentityCompare(cur_c, M.EmptyList)() is M.false_value:
-                        c_ent = M.Head(cur_c)()
-                        if M.Compare(M.Head(c_ent)(), e_char)() is M.truth_value:
-                            inst_t = M.Head(M.Tail(c_ent)())()()
-                            pid_t = M.Head(M.Tail(M.Tail(c_ent)())())()()
-                            mod_t = M.Head(M.Tail(M.Tail(M.Tail(c_ent)())())())()()
-                            report = report + "\n" + inst_t
-                            pids_str = pid_t if pids_str == "" else pids_str + ", " + pid_t
-                            if M.IdentityCompare(first_mod_recorded, M.EmptyList)() is M.truth_value:
-                                m_res = M.NatFromRep(M.GMPRep(mod_t), reg)()
-                                first_mod_recorded = M.Head(m_res)()
-                                reg = M.Head(M.Tail(m_res)())()
-                        cur_c = M.Tail(cur_c)()
-                    cur_e = M.Tail(cur_e)()
-
-                PlaygroundDebugEmit(M.Char(f"joined worker processes (PIDs: [{pids_str}])."))()
-
-                if M.IdentityCompare(first_mod_recorded, M.EmptyList)() is M.false_value:
-                    graph._last_discovered_invariant = M.Pair(
-                        L.DiscoveredInvariantLabel,
-                        M.Pair(
-                            first_mod_recorded,
-                            M.Pair(
-                                M.Pair(M.Zero, M.EmptyList),
-                                M.Pair(
-                                    M.Pair(M.Zero, M.EmptyList),
-                                    M.Pair(M.false_value, M.EmptyList),
-                                ),
-                            ),
-                        ),
-                    )
-                report = (
-                    report
-                    + "\n  - Suggestion: Ground these discovered residue regularities as candidate lemmas."
-                )
-                return report
+                return instance_report
 
             # Case B: Concrete polynomial identity claim (no_solutions is M.false_value)
             if no_solutions is M.false_value:
@@ -4731,26 +5244,33 @@ class RunPlaygroundInteractive(M.Edge):
                 ))()
 
                 if verdict is M.truth_value:
-                    return (
+                    report = (
                         f"[machine] Cartesian Playground Sweep for {lhs_str} = {rhs_str}:\n"
                         f"  - PolynomialIdentityByGrid verified {lhs_str} = {rhs_str} across all {grid_count_val} degree-bounded grid points.\n"
                         f"  - Candidate Lemma: Algebraic identity {lhs_str} == {rhs_str} holds universally over Nat.\n"
                         "  - Suggestion: Ground this polynomial identity into active context as a rewrite lemma."
                     )
+                    if M.IdentityCompare(interactive, M.truth_value)() is M.truth_value:
+                        return self._offer_operation_law(
+                            graph, operation_register, domain, reg, report
+                        )
+                    return report
                 if verdict is M.false_value:
                     w_env = ZipEnvironment(base_vars, witness_tup)()
                     w_str = FormatEnvChain(w_env, reg)()
-                    return (
+                    report = (
                         f"[machine] Cartesian Playground Sweep for {lhs_str} = {rhs_str}:\n"
                         f"  - Counterexample Witness Found: ({w_str}) refutes {lhs_str} = {rhs_str} on the degree grid.\n"
                         "  - Suggestion: Restrict domain hypotheses or project modulo a separating congruence class."
                     )
+                    if M.IdentityCompare(interactive, M.truth_value)() is M.truth_value:
+                        return self._offer_operation_law(
+                            graph, operation_register, domain, reg, report
+                        )
+                    return report
 
             # Case C: Concrete equation with no_solutions
-            bound_nat = M.six
-            dom_res = BuildNatRange(M.Zero, bound_nat, reg)()
-            domain = M.Head(dom_res)()
-            reg = M.Head(M.Tail(dom_res)())()
+            bound_nat = domain_count
 
             mods_res = BuildNatRange(M.two, M.four, reg)()
             moduli_chain = M.Head(mods_res)()
@@ -4758,11 +5278,12 @@ class RunPlaygroundInteractive(M.Edge):
 
             lhs_str = RenderNatExpr(lhs, reg)()
             rhs_str = RenderNatExpr(rhs, reg)()
+            domain_set_str = FormatSetChain(domain, reg)()
             lhs_vars = M.Head(ExtractExprVariables(lhs, reg)())()
             rhs_vars = M.Head(ExtractExprVariables(rhs, reg)())()
 
             PlaygroundDebugEmit(M.Char(
-                f"constructing the natural tensor for {lhs_str} = {rhs_str}: domain 0..5, candidate moduli {FormatSetChain(moduli_chain, reg)()}..."
+                f"constructing the natural tensor for {lhs_str} = {rhs_str}: domain {domain_set_str}, candidate moduli {FormatSetChain(moduli_chain, reg)()}..."
             ))()
 
             lt_res = BuildExprGroundTensor(
@@ -4792,11 +5313,12 @@ class RunPlaygroundInteractive(M.Edge):
                 lhs_tensor=lhs_tensor,
                 rhs_tensor=rhs_tensor,
                 debug_trace=M.truth_value,
+                domain_chain=domain,
             )()
             disc_chain = M.Head(disc_res)()
             reg = M.Head(M.Tail(disc_res)())()
 
-            header = f"[machine] Cartesian Playground Sweep for {lhs_str} = {rhs_str} (domain 0..5, moduli {FormatSetChain(moduli_chain, reg)()}):"
+            header = f"[machine] Cartesian Playground Sweep for {lhs_str} = {rhs_str} (domain {domain_set_str}, moduli {FormatSetChain(moduli_chain, reg)()}):"
             body = FormatDiscoveriesReport(
                 lhs,
                 rhs,
@@ -4807,6 +5329,7 @@ class RunPlaygroundInteractive(M.Edge):
                 positive_only,
                 reg,
                 indent="  ",
+                domain_chain=domain,
             )()
             if M.IdentityCompare(disc_chain, M.EmptyList)() is M.false_value:
                 graph._last_discovered_invariant = M.Head(disc_chain)()
@@ -4815,10 +5338,19 @@ class RunPlaygroundInteractive(M.Edge):
                     body
                     + "\n  - Suggestion: Ground this discovered regularity into active context as an invariant lemma."
                 )
-            return header + "\n" + body
+            report = header + "\n" + body
+            if M.IdentityCompare(interactive, M.truth_value)() is M.truth_value:
+                return self._offer_operation_law(
+                    graph, operation_register, domain, reg, report
+                )
+            return report
 
         # 2. Undecided Socratic tutor claim
-        if active_claim is not None and active_tutor is not None:
+        claim_ready = M.false_value
+        if M.IdentityCompare(active_claim, M.EmptyList)() is M.false_value:
+            if M.IdentityCompare(active_tutor, M.EmptyList)() is M.false_value:
+                claim_ready = M.truth_value
+        if claim_ready is M.truth_value:
             from . import dialogue as Dlg
 
             goal_fact = Dlg.claim_conclusion(active_claim)
@@ -4950,7 +5482,9 @@ class ValidNatConstraints(M.Edge):
         self.registry = registry
         ops = operation_register
         if M.IdentityCompare(ops, M.EmptyList)() is M.truth_value:
-            built = BuildNatOperationRegister(registry)()
+            built = BuildNatOperationRegister(
+                registry, constraints
+            )()
             ops = M.Head(built)()
         self.result = self._valid(constraints, variables, registry, ops)
         super().__init__(
@@ -4961,57 +5495,66 @@ class ValidNatConstraints(M.Edge):
             results=self.result,
         )
 
-    def _args_admitted(self, args, variables, registry, ops):
-        remaining = args
-        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-            if (
-                AdmittedPolynomial(
-                    M.Head(remaining)(), variables, registry, ops
-                )()
-                is M.false_value
-            ):
-                return M.false_value
-            remaining = M.Tail(remaining)()
-        return M.truth_value
+    def _args_admitted(
+        self, args, variables, registry, ops, remaining=M.EmptyList,
+        initialized=M.false_value,
+    ):
+        if M.IdentityCompare(initialized, M.false_value)() is M.truth_value:
+            remaining = args
+        if M.IdentityCompare(remaining, M.EmptyList)() is M.truth_value:
+            return M.truth_value
+        if AdmittedPolynomial(
+            M.Head(remaining)(), variables, registry, ops
+        )() is M.false_value:
+            return M.false_value
+        return self._args_admitted(
+            args, variables, registry, ops, M.Tail(remaining)(),
+            M.truth_value,
+        )
 
-    def _valid(self, constraints, variables, registry, ops):
+    def _valid(
+        self, constraints, variables, registry, ops, cursor=M.EmptyList,
+        initialized=M.false_value,
+    ):
         if ValidPolynomialVariables(variables, registry)() is M.false_value:
             return M.false_value
-        cursor = constraints
-        while M.IdentityCompare(cursor, M.EmptyList)() is M.false_value:
-            if M.IsPair(cursor)() is M.false_value:
+        if M.IdentityCompare(initialized, M.false_value)() is M.truth_value:
+            cursor = constraints
+        if M.IdentityCompare(cursor, M.EmptyList)() is M.truth_value:
+            return M.truth_value
+        if M.IsPair(cursor)() is M.false_value:
+            return M.false_value
+        constraint = M.Head(cursor)()
+        head_args = ExprHeadArgs(constraint)()
+        head = M.Head(head_args)()
+        args = M.Head(M.Tail(head_args)())()
+        if M.IdentityCompare(head, L.NatModEqLabel)() is M.truth_value:
+            if ExactArity(args, M.three, registry)() is M.false_value:
                 return M.false_value
-            constraint = M.Head(cursor)()
-            head_args = ExprHeadArgs(constraint)()
-            head = M.Head(head_args)()
-            args = M.Head(M.Tail(head_args)())()
-            if M.IdentityCompare(head, L.NatModEqLabel)() is M.truth_value:
-                if ExactArity(args, M.three, registry)() is M.false_value:
-                    return M.false_value
-            else:
-                if (
+        else:
+            known_head = M.OrAtom(
+                M.OrAtom(
+                    M.IdentityCompare(head, L.ExprEqLabel)(),
+                    M.IdentityCompare(head, L.ExprLtLabel)(),
+                )(),
+                M.OrAtom(
+                    M.IdentityCompare(head, L.DividesLabel)(),
                     M.OrAtom(
-                        M.OrAtom(
-                            M.IdentityCompare(head, L.ExprEqLabel)(),
-                            M.IdentityCompare(head, L.ExprLtLabel)(),
-                        )(),
-                        M.OrAtom(
-                            M.IdentityCompare(head, L.DividesLabel)(),
-                            M.OrAtom(
-                                M.IdentityCompare(head, L.CoprimeLabel)(),
-                                M.IdentityCompare(head, L.NotCoprimeLabel)(),
-                            )(),
-                        )(),
-                    )()
-                    is M.false_value
-                ):
-                    return M.false_value
-                if ExactArity(args, M.two, registry)() is M.false_value:
-                    return M.false_value
-            if self._args_admitted(args, variables, registry, ops) is M.false_value:
+                        M.IdentityCompare(head, L.CoprimeLabel)(),
+                        M.IdentityCompare(head, L.NotCoprimeLabel)(),
+                    )(),
+                )(),
+            )()
+            if known_head is M.false_value:
                 return M.false_value
-            cursor = M.Tail(cursor)()
-        return M.truth_value
+            if ExactArity(args, M.two, registry)() is M.false_value:
+                return M.false_value
+        if self._args_admitted(args, variables, registry, ops) is M.false_value:
+            return M.false_value
+        return self._valid(
+            constraints, variables, registry, ops, M.Tail(cursor)(),
+            M.truth_value,
+        )
 
     def __call__(self):
         return self.result
@@ -5037,28 +5580,32 @@ class ValidNatEnvironment(M.Edge):
             results=self.result,
         )
 
-    def _valid(self, variables, environment, bound, registry):
-        cursor = variables
-        remaining = environment
-        while M.IdentityCompare(cursor, M.EmptyList)() is M.false_value:
-            if M.IsPair(remaining)() is M.false_value:
-                return M.false_value
-            entry = M.Head(remaining)()
-            if ExactArity(entry, M.two, registry)() is M.false_value:
-                return M.false_value
-            if (
-                M.Compare(M.Head(entry)(), M.Head(cursor)())()
-                is M.false_value
-            ):
-                return M.false_value
-            value = M.Head(M.Tail(entry)())()
-            if A.IsNat(value, registry)() is M.false_value:
-                return M.false_value
-            if M.NatLess(value, bound, registry)() is M.false_value:
-                return M.false_value
-            cursor = M.Tail(cursor)()
-            remaining = M.Tail(remaining)()
-        return M.IdentityCompare(remaining, M.EmptyList)()
+    def _valid(
+        self, variables, environment, bound, registry,
+        cursor=M.EmptyList, remaining=M.EmptyList,
+        initialized=M.false_value,
+    ):
+        if M.IdentityCompare(initialized, M.false_value)() is M.truth_value:
+            cursor = variables
+            remaining = environment
+        if M.IdentityCompare(cursor, M.EmptyList)() is M.truth_value:
+            return M.IdentityCompare(remaining, M.EmptyList)()
+        if M.IsPair(remaining)() is M.false_value:
+            return M.false_value
+        entry = M.Head(remaining)()
+        if ExactArity(entry, M.two, registry)() is M.false_value:
+            return M.false_value
+        if M.Compare(M.Head(entry)(), M.Head(cursor)())() is M.false_value:
+            return M.false_value
+        value = M.Head(M.Tail(entry)())()
+        if A.IsNat(value, registry)() is M.false_value:
+            return M.false_value
+        if M.NatLess(value, bound, registry)() is M.false_value:
+            return M.false_value
+        return self._valid(
+            variables, environment, bound, registry,
+            M.Tail(cursor)(), M.Tail(remaining)(), M.truth_value,
+        )
 
     def __call__(self):
         return self.result
@@ -5086,7 +5633,9 @@ class EvaluateNatConstraints(M.Edge):
         self.registry = registry
         ops = operation_register
         if M.IdentityCompare(ops, M.EmptyList)() is M.truth_value:
-            built = BuildNatOperationRegister(registry)()
+            built = BuildNatOperationRegister(
+                registry, constraints
+            )()
             ops = M.Head(built)()
         self.result = self._evaluate(constraints, environment, registry, ops)
         super().__init__(
@@ -5134,28 +5683,31 @@ class EvaluateNatConstraints(M.Edge):
             return M.EmptyList, reg2
         return self._compare(head, first, second, reg2), reg2
 
-    def _evaluate(self, constraints, environment, registry, ops):
-        cursor = constraints
-        while M.IdentityCompare(cursor, M.EmptyList)() is M.false_value:
-            constraint = M.Head(cursor)()
-            if M.IsPair(constraint)() is M.false_value:
-                return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
-            head = M.Head(constraint)()
-            args = M.Tail(constraint)()
-            if M.IdentityCompare(head, L.NatModEqLabel)() is M.truth_value:
-                verdict, registry = self._mod_eq(
-                    args, environment, registry, ops
-                )
-            else:
-                verdict, registry = self._binary(
-                    head, args, environment, registry, ops
-                )
-            if M.IdentityCompare(verdict, M.false_value)() is M.truth_value:
-                return M.Pair(M.false_value, M.Pair(registry, M.EmptyList))
-            if M.IdentityCompare(verdict, M.EmptyList)() is M.truth_value:
-                return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
-            cursor = M.Tail(cursor)()
-        return M.Pair(M.truth_value, M.Pair(registry, M.EmptyList))
+    def _evaluate(
+        self, constraints, environment, registry, ops,
+        cursor=M.EmptyList, initialized=M.false_value,
+    ):
+        if M.IdentityCompare(initialized, M.false_value)() is M.truth_value:
+            cursor = constraints
+        if M.IdentityCompare(cursor, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.truth_value, M.Pair(registry, M.EmptyList))
+        constraint = M.Head(cursor)()
+        if M.IsPair(constraint)() is M.false_value:
+            return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+        head = M.Head(constraint)()
+        args = M.Tail(constraint)()
+        if M.IdentityCompare(head, L.NatModEqLabel)() is M.truth_value:
+            verdict, registry = self._mod_eq(args, environment, registry, ops)
+        else:
+            verdict, registry = self._binary(head, args, environment, registry, ops)
+        if M.IdentityCompare(verdict, M.false_value)() is M.truth_value:
+            return M.Pair(M.false_value, M.Pair(registry, M.EmptyList))
+        if M.IdentityCompare(verdict, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+        return self._evaluate(
+            constraints, environment, registry, ops,
+            M.Tail(cursor)(), M.truth_value,
+        )
 
     def _compare(self, head, first, second, registry):
         if M.IdentityCompare(head, L.ExprEqLabel)() is M.truth_value:
@@ -5229,55 +5781,70 @@ class FindNatWitness(M.Edge):
             return M.Pair(M.EmptyList, M.Pair(reg2, M.EmptyList))
         return M.Pair(M.Pair(M.Zero, tail), M.Pair(reg2, M.EmptyList))
 
-    def _search(self, constraints, variables, bound, budget, registry):
-        count = M.Zero
-        env = M.EmptyList
-        bound_is_nat = A.IsNat(bound, registry)()
-        budget_is_nat = A.IsNat(budget, registry)()
-        valid_inputs = M.AndAtom(
-            M.AndAtom(bound_is_nat, budget_is_nat)(),
-            ValidNatConstraints(constraints, variables, registry)(),
-        )()
-        if (
-            M.IdentityCompare(valid_inputs, M.truth_value)()
-            is M.false_value
-        ):
-            return self._record(constraints, variables, bound, budget,
-                                L.NatWitnessInvalidLabel, env, count, registry)
-        zero_bound_with_vars = M.AndAtom(
-            M.NotAtom(M.IdentityCompare(variables, M.EmptyList)())(),
-            M.NatEq(bound, M.Zero, registry)(),
-        )()
-        if (
-            M.IdentityCompare(zero_bound_with_vars, M.truth_value)()
-            is M.truth_value
-        ):
-            return self._record(constraints, variables, bound, budget,
-                                L.NatWitnessExhaustedLabel, env, count, registry)
-        values = self._zeros(variables)
-        while True:
-            if M.NatLess(count, budget, registry)() is M.false_value:
-                return self._record(constraints, variables, bound, budget,
-                                    L.NatWitnessBudgetLabel, M.EmptyList, count, registry)
-            env = ZipEnvironment(variables, values)()
-            evaluated = EvaluateNatConstraints(constraints, env, registry)()
-            verdict = M.Head(evaluated)()
-            reg1 = M.Head(M.Tail(evaluated)())()
-            counted = A.Add(count, M.one, reg1)()
-            count = M.Head(counted)()
-            registry = M.Head(M.Tail(counted)())()
-            if verdict is M.truth_value:
-                return self._record(constraints, variables, bound, budget,
-                                    L.NatWitnessFoundLabel, env, count, registry)
-            if verdict is M.EmptyList:
-                return self._record(constraints, variables, bound, budget,
-                                    L.NatWitnessInvalidLabel, M.EmptyList, count, registry)
-            advanced = self._advance(values, bound, registry)
-            values = M.Head(advanced)()
-            registry = M.Head(M.Tail(advanced)())()
-            if M.IdentityCompare(values, M.EmptyList)() is M.truth_value:
-                return self._record(constraints, variables, bound, budget,
-                                    L.NatWitnessExhaustedLabel, M.EmptyList, count, registry)
+    def _search(
+        self, constraints, variables, bound, budget, registry,
+        count=M.EmptyList, values=M.EmptyList,
+        initialized=M.false_value,
+    ):
+        if M.IdentityCompare(initialized, M.false_value)() is M.truth_value:
+            count = M.Zero
+            env = M.EmptyList
+            bound_is_nat = A.IsNat(bound, registry)()
+            budget_is_nat = A.IsNat(budget, registry)()
+            valid_inputs = M.AndAtom(
+                M.AndAtom(bound_is_nat, budget_is_nat)(),
+                ValidNatConstraints(constraints, variables, registry)(),
+            )()
+            if M.IdentityCompare(valid_inputs, M.false_value)() is M.truth_value:
+                return self._record(
+                    constraints, variables, bound, budget,
+                    L.NatWitnessInvalidLabel, env, count, registry,
+                )
+            zero_bound_with_vars = M.AndAtom(
+                M.NotAtom(M.IdentityCompare(variables, M.EmptyList)())(),
+                M.NatEq(bound, M.Zero, registry)(),
+            )()
+            if M.IdentityCompare(zero_bound_with_vars, M.truth_value)() is M.truth_value:
+                return self._record(
+                    constraints, variables, bound, budget,
+                    L.NatWitnessExhaustedLabel, env, count, registry,
+                )
+            values = self._zeros(variables)
+            initialized = M.truth_value
+        if M.NatLess(count, budget, registry)() is M.false_value:
+            return self._record(
+                constraints, variables, bound, budget,
+                L.NatWitnessBudgetLabel, M.EmptyList, count, registry,
+            )
+        env = ZipEnvironment(variables, values)()
+        evaluated = EvaluateNatConstraints(constraints, env, registry)()
+        verdict = M.Head(evaluated)()
+        reg1 = M.Head(M.Tail(evaluated)())()
+        counted = A.Add(count, M.one, reg1)()
+        count = M.Head(counted)()
+        registry = M.Head(M.Tail(counted)())()
+        if verdict is M.truth_value:
+            return self._record(
+                constraints, variables, bound, budget,
+                L.NatWitnessFoundLabel, env, count, registry,
+            )
+        if verdict is M.EmptyList:
+            return self._record(
+                constraints, variables, bound, budget,
+                L.NatWitnessInvalidLabel, M.EmptyList, count, registry,
+            )
+        advanced = self._advance(values, bound, registry)
+        values = M.Head(advanced)()
+        registry = M.Head(M.Tail(advanced)())()
+        if M.IdentityCompare(values, M.EmptyList)() is M.truth_value:
+            return self._record(
+                constraints, variables, bound, budget,
+                L.NatWitnessExhaustedLabel, M.EmptyList, count, registry,
+            )
+        return self._search(
+            constraints, variables, bound, budget, registry,
+            count, values, initialized,
+        )
 
     def __call__(self):
         return self.result
@@ -5347,7 +5914,7 @@ __all__ = (
     "FormatVarsChain",
     "FormatEnvChain",
     "FormatDiscoveriesReport",
-    "ParallelInstanceSweepWorker",
+    "ParameterInstanceSweep",
     "FilterCandidateParameters",
     "RunPlaygroundInteractive",
     "ExprDegreeBound",

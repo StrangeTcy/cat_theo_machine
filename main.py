@@ -1615,6 +1615,14 @@ def run_live_mode(debug: bool = False):
     runtime_namespace = _runtime_namespace()
     from .runtime import make_fresh_runtime
     runtime = make_fresh_runtime()
+    runtime.graph._active_unproved_goal = M.EmptyList
+    runtime.graph._active_goal_present = M.false_value
+    runtime.graph._active_unproved_claim = M.EmptyList
+    runtime.graph._active_tutor = M.EmptyList
+    runtime.graph._last_playground_operation_register = M.EmptyList
+    runtime.graph._last_playground_domain = M.EmptyList
+    runtime.graph._last_playground_goal = M.EmptyList
+    runtime.graph._pending_discovery = M.EmptyList
     packs = None
 
     word_to_num = {
@@ -1702,7 +1710,7 @@ def run_live_mode(debug: bool = False):
     std_correspondences = SB.BuildStandardCorrespondences(M.FromContextGetConstructors(runtime.graph)())()
     std_definitions = SB.BuildStandardDefinitions(M.FromContextGetConstructors(runtime.graph)())()
     last_receipt = None
-    pending_proposal = None
+    pending_proposal = M.EmptyList
 
     while True:
         try:
@@ -1841,8 +1849,9 @@ def run_live_mode(debug: bool = False):
                 print("[machine] No active proof derivation in current session. Solve a theorem or goal first.")
         elif cmd.startswith("fact:") or cmd.startswith("rule:") or cmd.startswith("word:"):
             print(f"[machine] Ingested declarative knowledge into hypergraph context: {raw}")
-        elif pending_proposal is not None and cmd in ("no", "no thanks", "skip", "cancel", "pass", "none"):
-            pending_proposal = None
+        elif M.IdentityCompare(pending_proposal, M.EmptyList)() is M.false_value and cmd in ("no", "no thanks", "skip", "cancel", "pass", "none"):
+            pending_proposal = M.EmptyList
+            runtime.graph._pending_discovery = M.EmptyList
             print("[machine] Understood, leaving the observation unnamed.")
         elif (
             cmd.startswith("call this ")
@@ -1850,7 +1859,7 @@ def run_live_mode(debug: bool = False):
             or cmd.startswith("name this ")
             or cmd.startswith("call it ")
             or (
-                pending_proposal is not None
+                M.IdentityCompare(pending_proposal, M.EmptyList)() is M.false_value
                 and cmd
                 not in (
                     "suggest lemmas",
@@ -1896,138 +1905,169 @@ def run_live_mode(debug: bool = False):
                 raw, ("yes, call this ", "call this ", "name this ", "call it ", "yes, ")
             )
 
-            # Append to talk_lessons.log
-            log_line = f"Lesson named: '{name_part}' | Discovery: {pending_proposal}\n"
-            with open("talk_lessons.log", "a", encoding="utf-8") as f_log:
-                f_log.write(log_line)
-
-            # Record into promotion ledger
             reg = M.FromContextGetConstructors(runtime.graph)()
-            cand_id = M.Char(name_part)
-            ledger = runtime.graph.promotion_ledger
-            if ledger is None:
-                ledger = PL.EmptyPromotionLedger(reg)()
-
-            cand = Eval.CandidateMacro(
-                cand_id,
-                M.Atom(),
-                M.Atom(),
-                M.EmptyList,
-            )()
-
-            rcpt = M.Pair(
-                Lmod.ProofReceiptLabel,
-                M.Pair(
-                    cand_id,
+            named_payload = M.Head(M.Tail(pending_proposal)())()
+            proposal_status = M.Head(pending_proposal)()
+            if M.IdentityCompare(proposal_status, Lmod.ObservedRegularityLabel)() is M.truth_value:
+                finding_body = M.Tail(named_payload)()
+                op_name = M.Head(finding_body)()
+                law_body = M.Tail(finding_body)()
+                law_type = M.Head(law_body)()
+                verdict_body = M.Tail(law_body)()
+                witness_body = M.Tail(verdict_body)()
+                witnesses = M.Head(witness_body)()
+                scope = M.Head(M.Tail(witness_body)())()
+                domain = M.Head(M.Tail(scope)())()
+                named_record = M.Pair(
+                    Lmod.NamedRegularityLabel,
                     M.Pair(
-                        M.Char("ground_evaluation_tensor"),
+                        M.Char(name_part),
                         M.Pair(
-                            M.Char(name_part),
-                            M.Pair(M.EmptyList, reg),
+                            op_name,
+                            M.Pair(
+                                law_type,
+                                M.Pair(domain, M.Pair(witnesses, M.EmptyList)),
+                            ),
                         ),
                     ),
-                ),
-            )
-            last_receipt = rcpt
-            entry = PL.LedgerEntry(
-                M.Atom(),
-                Lmod.ProofSchemaPromotionLabel,
-                cand,
-                rcpt,
-                M.Char(pending_proposal.split()[0] if pending_proposal else "playground_mined_regularity"),
-                M.GMPRep(1),
-                Lmod.PromotionActiveLabel,
-            )()
-            new_ledger = PL.PromotionLedger(
-                M.Pair(entry, PL.PromotionLedgerProofSchemata(ledger)()),
-                PL.PromotionLedgerSearchPolicies(ledger)(),
-                M.GMPRep(1),
-            )()
-            runtime.graph.promotion_ledger = new_ledger
+                )
+                description = (
+                    op_name()
+                    + " satisfies "
+                    + PG.RenderDiscoveredEquation(law_type, reg)()
+                    + " on "
+                    + PG.FormatSetChain(domain, reg)()
+                )
+                runtime.graph.add_node(named_record)
+                print(f"[machine] Recorded '{name_part}' as a named finite-domain observation.")
+            else:
+                template = named_payload
+                named_record = M.Pair(
+                    Lmod.NamedStructureLabel,
+                    M.Pair(M.Char(name_part), M.Pair(template, M.EmptyList)),
+                )
+                description = "algebraic structure over the recorded finite-domain laws"
+                runtime.graph.add_node(named_record)
+                print(f"[machine] Recorded '{name_part}' as a reusable structure template.")
 
-            print(f"[machine] Yes, recorded to talk_lessons.log. Rule '{name_part}' is now active.")
-            pending_proposal = None
+            log_line = f"Lesson named: '{name_part}' | Discovery: {description}\n"
+            with open("talk_lessons.log", "a", encoding="utf-8") as f_log:
+                f_log.write(log_line)
+            pending_proposal = M.EmptyList
+            runtime.graph._pending_discovery = M.EmptyList
         elif cmd == "suggest lemmas":
             print("[machine] Running internal introspection and Cartesian playground sweep...")
-            active_goal = getattr(runtime.graph, "_active_unproved_goal", None)
-            active_claim = getattr(runtime.graph, "_active_unproved_claim", None)
-            if active_goal is not None or active_claim is not None:
-                print(
-                    PG.RunPlaygroundInteractive(
-                        runtime.graph,
-                        goal_text=active_goal,
-                        tutor=_get_tutor(),
+            active_goal = runtime.graph._active_unproved_goal
+            active_claim = runtime.graph._active_unproved_claim
+            current_goal_char = M.Char("")
+            if M.IdentityCompare(
+                runtime.graph._active_goal_present, M.truth_value
+            )() is M.truth_value:
+                current_goal_char = M.Char(active_goal)
+            stored_scan = M.AndAtom(
+                M.NotAtom(
+                    M.IdentityCompare(
+                        runtime.graph._last_playground_operation_register,
+                        M.EmptyList,
                     )()
-                )
+                )(),
+                M.AndAtom(
+                    M.NotAtom(
+                        M.IdentityCompare(
+                            runtime.graph._last_playground_domain,
+                            M.EmptyList,
+                        )()
+                    )(),
+                    M.Compare(
+                        runtime.graph._last_playground_goal,
+                        current_goal_char,
+                    )(),
+                )(),
+            )()
+            needs_scan = M.AndAtom(
+                M.IdentityCompare(
+                    runtime.graph._active_goal_present, M.truth_value
+                )(),
+                M.NotAtom(stored_scan)(),
+            )()
+            has_active_playground_goal = M.OrAtom(
+                needs_scan,
+                M.NotAtom(M.IdentityCompare(active_claim, M.EmptyList)())(),
+            )()
+            if M.IdentityCompare(has_active_playground_goal, M.truth_value)() is M.truth_value:
+                playground_report = PG.RunPlaygroundInteractive(
+                    runtime.graph,
+                    goal_text=active_goal,
+                    tutor=_get_tutor(),
+                    interactive=M.truth_value,
+                )()
+                print(playground_report)
+                pending_proposal = runtime.graph._pending_discovery
             else:
                 reg = M.FromContextGetConstructors(runtime.graph)()
                 bound_res = M.NatFromRep(M.GMPRep(6), reg)()
                 bound_nat = M.Head(bound_res)()
                 reg1 = M.Head(M.Tail(bound_res)())()
 
-                domain_res = PG.BuildNatRange(M.Zero, bound_nat, reg1)()
-                domain = M.Head(domain_res)()
-                reg2 = M.Head(M.Tail(domain_res)())()
-
-                # The operation set is read out of the machine's own arithmetic module by
-                # introspection. Each register entry is machine data (name, variables,
-                # operation term, ...), never a host callable, and it is already the shape
-                # ProposeNextRegularityOrStructure sweeps, so no operation is listed here.
-                built_ops = PG.BuildNatOperationRegister(reg2)()
-                ops_chain = M.Head(built_ops)()
-
-                op_names = ""
-                op_cursor = ops_chain
-                while M.IdentityCompare(op_cursor, M.EmptyList)() is M.false_value:
-                    op_entry = M.Head(op_cursor)()
-                    op_name_text = M.Head(op_entry)()()
-                    op_names = (
-                        op_name_text
-                        if op_names == ""
-                        else op_names + ", " + op_name_text
-                    )
-                    op_cursor = M.Tail(op_cursor)()
-
-                # The operation count is a machine Nat read off the register,
-                # rendered for the trace only at the host output boundary.
-                count_res = PG.ChainLength(ops_chain, reg2)()
-                op_count_rep = M.NatRepOf(M.Head(count_res)(), reg2)()()
-
+                # The register entries, candidate equations, and findings are machine terms.
+                # The miner evaluates each equation over every assignment in the domain.
+                ops_chain = runtime.graph._last_playground_operation_register
+                previous_domain = runtime.graph._last_playground_domain
+                if M.IdentityCompare(previous_domain, M.EmptyList)() is M.truth_value:
+                    domain_result = PG.BuildNatRange(M.Zero, bound_nat, reg1)()
+                    previous_domain = M.Head(domain_result)()
+                    domain = previous_domain
+                    reg2 = M.Head(M.Tail(domain_result)())()
+                else:
+                    reg2 = reg1
+                    domain = previous_domain
                 PG.PlaygroundDebugEmit(M.Char(
-                    "constructing the natural tensor: 6 x 6 domain (0..5)^2 x "
-                    + str(op_count_rep)
-                    + " operations ("
-                    + op_names
-                    + ") x 3 candidate laws (commutativity, associativity, identity) in 1 process..."
+                    "scanning discovered expression operations over the selected finite domain..."
                 ))()
-                ledger = runtime.graph.promotion_ledger
-                if ledger is None:
-                    ledger = M.EmptyList
-                prop_res = Miner.ProposeNextRegularityOrStructure(ops_chain, domain, ledger, reg2)()
+                known_nodes = M.FromContextGetNodes(runtime.graph)()
+                prop_res = Miner.ProposeNextRegularityOrStructure(
+                    ops_chain, previous_domain, known_nodes, reg2
+                )()
                 prop_status = M.Head(prop_res)()
                 prop_rec = M.Head(M.Tail(prop_res)())()
 
                 if M.IdentityCompare(prop_status, Lmod.ObservedRegularityLabel)() is M.truth_value:
-                    op_char = M.Head(M.Tail(prop_rec)())()
-                    law_char = M.Head(M.Tail(M.Tail(prop_rec)())())()
+                    finding = prop_rec
+                    finding_body = M.Tail(finding)()
+                    op_char = M.Head(finding_body)()
+                    law_body = M.Tail(finding_body)()
+                    law_char = M.Head(law_body)()
+                    verdict_body = M.Tail(law_body)()
+                    witness_body = M.Tail(verdict_body)()
+                    scope = M.Head(M.Tail(witness_body)())()
+                    found_domain = M.Head(M.Tail(scope)())()
                     op_str = op_char()
-                    law_str = law_char()
-                    pending_proposal = f"{op_str} {law_str}"
-                    print(f"[machine] Observed: for tested elements (0, 1, 2, 3, 4, 5), {op_str} is {law_str}.")
+                    law_str = PG.RenderDiscoveredEquation(law_char, reg2)()
+                    pending_proposal = M.Pair(
+                        prop_status, M.Pair(finding, M.EmptyList)
+                    )
+                    runtime.graph._pending_discovery = pending_proposal
+                    domain_str = PG.FormatSetChain(found_domain, reg2)()
+                    print(f"[machine] Observed: {op_str} satisfies {law_str} on tested domain {domain_str}.")
+                    print("[machine] Supporting witnesses are stored with this observation.")
                     print("[machine] Would you care to give it a name?")
                 elif M.IdentityCompare(prop_status, Lmod.AlgebraicTemplateLabel)() is M.truth_value:
-                    pending_proposal = "algebraic structure over tested operations and laws"
-                    print(PG.RunPlaygroundInteractive(runtime.graph, tutor=_get_tutor())())
+                    pending_proposal = M.Pair(
+                        prop_status, M.Pair(prop_rec, M.EmptyList)
+                    )
+                    runtime.graph._pending_discovery = pending_proposal
+                    print("[machine] These named laws form an un-named structure template on the tested domain.")
+                    print("[machine] Would you care to give this structure a name?")
                 else:
                     print(PG.RunPlaygroundInteractive(runtime.graph, tutor=_get_tutor())())
         elif cmd in ("ground lemma", "adopt lemma", "promote lemma", "promote candidate", "promote discovered lemma"):
             print("[machine] Initiating autonomous promotion cycle for discovered Cartesian obstruction invariant...")
             reg3 = M.FromContextGetConstructors(runtime.graph)()
-            inv_rec = getattr(runtime.graph, "_last_discovered_invariant", None)
-            if inv_rec is None:
+            inv_rec = runtime.graph._last_discovered_invariant
+            if M.IdentityCompare(inv_rec, M.EmptyList)() is M.truth_value:
                 PG.RunPlaygroundInteractive(runtime.graph, tutor=_get_tutor())()
                 reg3 = M.FromContextGetConstructors(runtime.graph)()
-                inv_rec = getattr(runtime.graph, "_last_discovered_invariant", None)
+                inv_rec = runtime.graph._last_discovered_invariant
 
             res_mod = M.Head(M.Tail(inv_rec)())()
             mod_val = M.NatRepOf(res_mod, reg3)()()
@@ -2040,7 +2080,7 @@ def run_live_mode(debug: bool = False):
             cand_id = M.Char(lemma_name)
 
             ledger = runtime.graph.promotion_ledger
-            if ledger is None:
+            if M.IdentityCompare(ledger, M.EmptyList)() is M.truth_value:
                 ledger = PL.EmptyPromotionLedger(reg3)()
 
             cand = Eval.CandidateMacro(
@@ -2120,21 +2160,26 @@ def run_live_mode(debug: bool = False):
             print("[machine] Verified by Independent Checker B. Ablation & holdout tests passed.")
             print(f"[machine] Promoted: {lemma_name} -> Active Certified Ledger (version 1).")
         elif cmd == "suggest premises":
-            active_goal = getattr(runtime.graph, "_active_unproved_goal", None)
-            active_claim = getattr(runtime.graph, "_active_unproved_claim", None)
-            if active_goal is not None or active_claim is not None:
-                print(
-                    PG.RunPlaygroundInteractive(
-                        runtime.graph,
-                        goal_text=active_goal,
-                        tutor=_get_tutor(),
-                    )()
-                )
+            active_goal = runtime.graph._active_unproved_goal
+            active_claim = runtime.graph._active_unproved_claim
+            has_active_playground_goal = M.OrAtom(
+                M.IdentityCompare(runtime.graph._active_goal_present, M.truth_value)(),
+                M.NotAtom(M.IdentityCompare(active_claim, M.EmptyList)())(),
+            )()
+            if M.IdentityCompare(has_active_playground_goal, M.truth_value)() is M.truth_value:
+                playground_report = PG.RunPlaygroundInteractive(
+                    runtime.graph,
+                    goal_text=active_goal,
+                    tutor=_get_tutor(),
+                    interactive=M.truth_value,
+                )()
+                print(playground_report)
+                pending_proposal = runtime.graph._pending_discovery
             else:
                 print("[machine] Abduction: no open search goals currently require missing premise synthesis.")
         elif cmd == "show lemmas":
             ledger = runtime.graph.promotion_ledger
-            if ledger is not None:
+            if M.IdentityCompare(ledger, M.EmptyList)() is M.false_value:
                 schemata = PL.PromotionLedgerProofSchemata(ledger)()
                 if M.IdentityCompare(schemata, M.EmptyList)() is M.truth_value:
                     print("[machine] Active verified lemmas in promotion ledger: (none yet; run autonomous promotion)")
@@ -2167,17 +2212,19 @@ def run_live_mode(debug: bool = False):
             if tutor_answer.kind != "fallthrough":
                 print(tutor_answer.text)
                 if tutor_answer.kind == "claim-undecided":
-                    runtime.graph._active_unproved_goal = raw
-                    runtime.graph._active_unproved_claim = (
-                        tutor.claims[-1]["claim"] if tutor.claims else None
-                    )
+                    runtime.graph._active_unproved_goal = cmd
+                    runtime.graph._active_goal_present = M.truth_value
+                    runtime.graph._active_unproved_claim = M.EmptyList
                     runtime.graph._active_tutor = tutor
                     print("[machine] Running internal introspection and Cartesian playground sweep...")
-                    print(
-                        PG.RunPlaygroundInteractive(
-                            runtime.graph, goal_text=raw, tutor=tutor
-                        )()
-                    )
+                    playground_report = PG.RunPlaygroundInteractive(
+                        runtime.graph,
+                        goal_text=cmd,
+                        tutor=tutor,
+                        interactive=M.truth_value,
+                    )()
+                    print(playground_report)
+                    pending_proposal = runtime.graph._pending_discovery
                 continue
 
             # Check if query is a conceptual inquiry for native hypergraph definitions
@@ -2204,28 +2251,36 @@ def run_live_mode(debug: bool = False):
                     print(f"[machine] Task ({task_rung}) proved in {dt:.4f} seconds (binding: {binding}).")
                 else:
                     print("[machine] no, I can't prove that")
-                    if PG.IsProofOrMathGoal(M.Char(raw))() is M.truth_value:
-                        runtime.graph._active_unproved_goal = raw
-                        runtime.graph._active_unproved_claim = None
+                    if PG.IsProofOrMathGoal(M.Char(cmd))() is M.truth_value:
+                        runtime.graph._active_unproved_goal = cmd
+                        runtime.graph._active_goal_present = M.truth_value
+                        runtime.graph._active_unproved_claim = M.EmptyList
                         runtime.graph._active_tutor = tutor
                         print("[machine] Running internal introspection and Cartesian playground sweep...")
-                        print(
-                            PG.RunPlaygroundInteractive(
-                                runtime.graph, goal_text=raw, tutor=tutor
-                            )()
-                        )
+                        playground_report = PG.RunPlaygroundInteractive(
+                            runtime.graph,
+                            goal_text=cmd,
+                            tutor=tutor,
+                            interactive=M.truth_value,
+                        )()
+                        print(playground_report)
+                        pending_proposal = runtime.graph._pending_discovery
             else:
                 print("[machine] no, I can't prove that")
-                if PG.IsProofOrMathGoal(M.Char(raw))() is M.truth_value:
-                    runtime.graph._active_unproved_goal = raw
-                    runtime.graph._active_unproved_claim = None
+                if PG.IsProofOrMathGoal(M.Char(cmd))() is M.truth_value:
+                    runtime.graph._active_unproved_goal = cmd
+                    runtime.graph._active_goal_present = M.truth_value
+                    runtime.graph._active_unproved_claim = M.EmptyList
                     runtime.graph._active_tutor = tutor
                     print("[machine] Running internal introspection and Cartesian playground sweep...")
-                    print(
-                        PG.RunPlaygroundInteractive(
-                            runtime.graph, goal_text=raw, tutor=tutor
-                        )()
-                    )
+                    playground_report = PG.RunPlaygroundInteractive(
+                        runtime.graph,
+                        goal_text=cmd,
+                        tutor=tutor,
+                        interactive=M.truth_value,
+                    )()
+                    print(playground_report)
+                    pending_proposal = runtime.graph._pending_discovery
 
 
 def _consensus_scenario(runtime):

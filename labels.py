@@ -1603,6 +1603,18 @@ class ObservedRegularityLabel(ConstructorLabel):
     pass
 
 
+class DiscoveredEquationLabel(ConstructorLabel):
+    pass
+
+
+class NamedRegularityLabel(ConstructorLabel):
+    pass
+
+
+class NamedStructureLabel(ConstructorLabel):
+    pass
+
+
 class ProofStoryLabel(ConstructorLabel):
     pass
 
@@ -2242,6 +2254,9 @@ CoprimeLabel = CoprimeLabel()
 NotCoprimeLabel = NotCoprimeLabel()
 PlaygroundSweepLabel = PlaygroundSweepLabel()
 ObservedRegularityLabel = ObservedRegularityLabel()
+DiscoveredEquationLabel = DiscoveredEquationLabel()
+NamedRegularityLabel = NamedRegularityLabel()
+NamedStructureLabel = NamedStructureLabel()
 ProofStoryLabel = ProofStoryLabel()
 NarrativeStepLabel = NarrativeStepLabel()
 RationaleAlgebraicLabel = RationaleAlgebraicLabel()
@@ -2953,6 +2968,9 @@ def sync_from_namespace(namespace):
         "NotCoprimeLabel",
         "PlaygroundSweepLabel",
         "ObservedRegularityLabel",
+        "DiscoveredEquationLabel",
+        "NamedRegularityLabel",
+        "NamedStructureLabel",
         "ProofStoryLabel",
         "NarrativeStepLabel",
         "RationaleAlgebraicLabel",

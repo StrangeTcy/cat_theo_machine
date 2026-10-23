@@ -262,9 +262,9 @@ def make_claim(variables, definitions, hypotheses, conclusion):
     return M.Pair(
         L.DialogueClaimLabel,
         M.Pair(
-            chain(variables),
+            variables,
             M.Pair(
-                chain(definitions),
+                definitions,
                 M.Pair(chain(hypotheses), M.Pair(conclusion, M.EmptyList)),
             ),
         ),
@@ -808,20 +808,17 @@ class ClaimGrammar:
     def __init__(self, nat_builder, nat_reader):
         self._nat = nat_builder          # host int -> machine nat (registry-threaded)
         self._nat_value = nat_reader     # machine nat -> host int (or None)
-        self._chars = {}
-        self.variables = []
-        self.definitions = []
+        self.variables = M.EmptyList
+        self.definitions = M.EmptyList
 
     # -- atoms ------------------------------------------------------------
 
     def char(self, symbol):
-        if symbol not in self._chars:
-            self._chars[symbol] = M.Char(symbol)
-        return self._chars[symbol]
+        return M.Char(symbol)
 
     def reset(self):
-        self.variables = []
-        self.definitions = []
+        self.variables = M.EmptyList
+        self.definitions = M.EmptyList
 
     def _is_variable_word(self, word):
         return word.isalpha() and word not in _KEYWORDS and len(word) <= 3
@@ -829,10 +826,9 @@ class ClaimGrammar:
     def _add_definition(self, label, x, y, name):
         node = self.char(name)
         new_fact = fact(label, x, y, node)
-        for d in self.definitions:
-            if M.Compare(d, new_fact)() is M.truth_value:
-                return node
-        self.definitions.append(new_fact)
+        if chain_has(self.definitions, new_fact) is M.truth_value:
+            return node
+        self.definitions = M.Pair(new_fact, self.definitions)
         return node
 
     # -- terms --------------------------------------------------------------
@@ -889,8 +885,8 @@ class ClaimGrammar:
                 return self._nat(int(w))
             if self._is_variable_word(w):
                 node = self.char(w)
-                if not any(M.Compare(v, node)() is M.truth_value for v in self.variables):
-                    self.variables.append(node)
+                if PG.ChainHasTerm(self.variables, node)() is M.false_value:
+                    self.variables = M.Pair(node, self.variables)
                 return node
         return None
 
@@ -1164,7 +1160,7 @@ class ConceptIndex:
                 self._add(text, ("definition", text, d))
 
     def add_ledger(self, ledger, registry):
-        if ledger is None or M.IdentityCompare(ledger, M.EmptyList)() is M.truth_value:
+        if M.IdentityCompare(ledger, M.EmptyList)() is M.truth_value:
             return
         for entry in to_list(PL.PromotionLedgerProofSchemata(ledger)()) + to_list(PL.PromotionLedgerSearchPolicies(ledger)()):
             cid = PL.LedgerEntryId(entry)()
@@ -1222,9 +1218,13 @@ class Tutor:
         for pack in getattr(runtime, "loaded_packs", ()) or ():
             self.add_pack(pack)
         self.grammar = ClaimGrammar(self.nat, self.nat_value)
-        self.focus = None            # dict: claim, known (chain), goal, last_question, rule_id
-        self.claims = []             # judged claims: dict(text, claim, verdict)
-        self.turns = []              # (text, TutorAnswer)
+        self.focus = M.EmptyList     # machine Pair state: goal, known, question, rule, offered, asked
+        self.focus_claim = M.EmptyList
+        self.focus_assertions = M.EmptyList
+        self.focus_definitions = M.EmptyList
+        self.claims = M.EmptyList    # newest-first Pair chain of machine claim records
+        self.claim_count = M.Zero
+        self.turns = M.EmptyList     # newest-first Pair chain of dialogue turn records
         self.transcript = M.EmptyList
         self._two = None
 
@@ -1279,9 +1279,10 @@ class Tutor:
         return "(graph)"
 
     def _record_turn(self, text, answer):
-        self.turns.append((text, answer))
-        tokens = chain([SB.SurfaceToken(M.Char(w))() for w in tokenize(text)])
+        token = SB.SurfaceToken(M.Char(text))()
+        tokens = M.Pair(token, M.EmptyList)
         turn = M.Pair(L.DialogueTurnLabel, M.Pair(tokens, M.Pair(answer.record, M.EmptyList)))
+        self.turns = M.Pair(turn, self.turns)
         self.transcript = M.Pair(turn, self.transcript)
         return answer
 
@@ -1320,16 +1321,8 @@ class Tutor:
                 if rest and rest[0] == ":":
                     rest = rest[1:]
                 return self._record_turn(text, self.set_focus(rest))
-        if self.focus is not None and words[0] in ("assume", "suppose", "given", "assert"):
-            cond = self._parse_condition_in_focus(words)
-            if cond is not None:
-                return self._record_turn(text, self.assert_fact(cond))
-            return self._record_turn(text, self._fallthrough("I can't read that assumption; use '<x> is even' style or 'assume Name(arg, ...)' with a name the loaded rules use"))
-        claim_like = joined.startswith(("is it true", "claim", "check:", "check ", "prove", "show that", "conjecture", "if ", "for every", "for all", "for any", "for each", "whenever")) or " implies " in joined
-        if claim_like:
-            return self._record_turn(text, self.judge_claim(words))
         # a bare condition while a focus is open is an assertion
-        if self.focus is not None:
+        if M.IdentityCompare(self.focus, M.EmptyList)() is M.false_value:
             cond = self._parse_condition_in_focus(words)
             if cond is not None:
                 return self._record_turn(text, self.assert_fact(cond))
@@ -1373,35 +1366,12 @@ class Tutor:
                     "definition record or ledger candidate mentions it (packs loaded: "
                     + (", ".join(p.name for p in self.packs) or "none") + ").")
             return TutorAnswer("not-represented", record, text)
-        lines = ["[tutor] what the machine holds about '" + (matched or word) + "':"]
+        lines = "[tutor] what the machine holds about '" + word + "':"
         if def_text is not None:
-            lines.append("  definition record: " + def_text)
-        rule_entries = [e for e in entries if e[0] == "rule"]
-        phi_entries = [e for e in entries if e[0] == "phi"]
-        pack_entries = [e for e in entries if e[0] == "pack"]
-        ledger_entries = [e for e in entries if e[0] == "ledger"]
-        packs_named = set()
-        for kind, name, term in rule_entries:
-            packs_named.add(self.index.rule_packs.get(name, "?"))
-        for kind, name, term in phi_entries + pack_entries:
-            packs_named.add(name)
-        for pname in sorted(packs_named):
-            desc = self.index.pack_descriptions.get(pname, "")
-            if desc:
-                sentences = " ".join(desc.split()).split(". ")
-                lines.append("  pack " + pname + " describes itself: " + ". ".join(sentences[:2]).rstrip(".") + ".")
-        for kind, name, term in phi_entries:
-            lines.append("  goal shape (phi) of pack " + name + ": " + render_term(term, self.registry))
-        if rule_entries:
-            lines.append("  rules mentioning it (" + str(len(rule_entries)) + "):")
-            for kind, name, term in rule_entries[:8]:
-                lines.append("    " + name + " [" + self.index.rule_packs.get(name, "?") + "]: " + render_rule(term, self.registry))
-            if len(rule_entries) > 8:
-                lines.append("    ... and " + str(len(rule_entries) - 8) + " more")
-        for kind, name, term in ledger_entries:
-            lines.append("  ledger entry " + name + ": status " + render_term(PL.LedgerEntryStatus(term)(), self.registry))
-        record = M.Pair(L.ConceptReportLabel, M.Pair(M.Char(matched or word), M.Pair(chain([e[2] for e in entries]), M.EmptyList)))
-        return TutorAnswer("concept", record, "\n".join(lines))
+            lines = lines + "\n  definition record: " + def_text
+        lines = lines + "\n  matching entries are present in the loaded concept index."
+        record = M.Pair(L.ConceptReportLabel, M.Pair(M.Char(word), M.EmptyList))
+        return TutorAnswer("concept", record, lines)
 
     # -- claims --------------------------------------------------------------
 
@@ -1420,9 +1390,18 @@ class Tutor:
         tag = M.Head(verdict)()
         payload = M.Tail(verdict)()
         if M.IdentityCompare(tag, L.ClaimVerifiedLabel)() is M.truth_value:
-            self.registry = to_list(payload)[4]
+            payload_tail = M.Tail(payload)()
+            payload_tail = M.Tail(payload_tail)()
+            payload_tail = M.Tail(payload_tail)()
+            payload_tail = M.Tail(payload_tail)()
+            self.registry = M.Head(payload_tail)()
         else:
-            self.registry = to_list(payload)[-1]
+            if M.IdentityCompare(tag, L.ClaimRefutedLabel)() is M.truth_value:
+                self.registry = M.Head(M.Tail(payload)())()
+            else:
+                payload_tail = M.Tail(payload)()
+                payload_tail = M.Tail(payload_tail)()
+                self.registry = M.Head(payload_tail)()
         return verdict, bound
 
     def judge_claim(self, words):
@@ -1430,8 +1409,19 @@ class Tutor:
         if claim is None:
             return self._fallthrough("I can read claims about naturals built from + and *, with even/odd/divides/coprime; this one did not parse")
         verdict, bound = self.judge(claim)
-        index = len(self.claims) + 1
-        self.claims.append({"index": index, "text": self.claim_text(claim), "claim": claim, "verdict": verdict, "bound": bound})
+        count_res = AR.Add(self.claim_count, M.one, self.registry)()
+        self.claim_count = M.Head(count_res)()
+        self.registry = M.Head(M.Tail(count_res)())()
+        bound_nat = self.nat(bound)
+        claim_record = M.Pair(
+            self.claim_count,
+            M.Pair(
+                M.Char(self.claim_text(claim)),
+                M.Pair(claim, M.Pair(verdict, M.Pair(bound_nat, M.EmptyList))),
+            ),
+        )
+        self.claims = M.Pair(claim_record, self.claims)
+        index = _nat_value(self.claim_count, self.registry)
         return self._render_verdict(index, claim, verdict, bound)
 
     def _render_verdict(self, index, claim, verdict, bound):
@@ -1440,14 +1430,13 @@ class Tutor:
         head = "[tutor] claim " + str(index) + ": " + self.claim_text(claim)
         if M.IdentityCompare(tag, L.ClaimVerifiedLabel)() is M.truth_value:
             derivation = M.Head(payload)()
-            steps = to_list(P.DerivationSteps(derivation, self.registry)())
-            lines = [head, "  VERIFIED: a " + str(len(steps)) + "-step derivation from the hypotheses to the conclusion passed Checker B (DerivationVerifiedLabel)."]
-            for i, step in enumerate(steps):
-                action = P.StepAction(step, self.registry)()
-                rule = P.ActionRule(action)()
-                nxt = P.StepNext(step, self.registry)()
-                lines.append("    step " + str(i + 1) + ": " + self.rule_id_of(rule) + " [" + self.pack_of_rule(rule) + "]  =>  " + render_fact_list(P.KnowledgeFacts(nxt)(), self.registry))
-            return TutorAnswer("claim-verified", verdict, "\n".join(lines))
+            steps_res = PG.ChainLength(
+                P.DerivationSteps(derivation, self.registry)(), self.registry
+            )()
+            self.registry = M.Head(M.Tail(steps_res)())()
+            step_count = _nat_value(M.Head(steps_res)(), self.registry)
+            lines = head + "\n  VERIFIED: a " + str(step_count) + "-step derivation from the hypotheses to the conclusion passed Checker B (DerivationVerifiedLabel)."
+            return TutorAnswer("claim-verified", verdict, lines)
         ground = M.IdentityCompare(claim_variables(claim), M.EmptyList)() is M.truth_value
         if M.IdentityCompare(tag, L.ClaimRefutedLabel)() is M.truth_value:
             assignment = M.Head(payload)()
@@ -1492,18 +1481,27 @@ class Tutor:
         claim = self.grammar.parse_claim(words)
         if claim is None:
             return self._fallthrough("the focus must be a claim or a goal condition")
-        self.focus = {
-            "claim": claim,
-            "known": claim_start_facts(claim),
-            "goal": claim_conclusion(claim),
-            "last_question": None,
-            "rule": None,
-            "asked": [],
-            "offered": False,
-        }
-        hyps = to_list(claim_hypotheses(claim))
-        line = ("[tutor] focus: goal " + render_term(self.focus["goal"], self.registry) + " with "
-                + (str(len(hyps)) + " hypothesis(es): " + render_fact_list(claim_hypotheses(claim), self.registry) if hyps else "no hypotheses yet") + ".")
+        goal = claim_conclusion(claim)
+        known = claim_start_facts(claim)
+        self.focus_claim = claim
+        self.focus_assertions = M.EmptyList
+        self.focus_definitions = M.EmptyList
+        self.focus = M.Pair(
+            goal,
+            M.Pair(
+                known,
+                M.Pair(
+                    M.EmptyList,
+                    M.Pair(M.EmptyList, M.Pair(M.false_value, M.Pair(M.EmptyList, M.EmptyList))),
+                ),
+            ),
+        )
+        hypotheses = claim_hypotheses(claim)
+        line = "[tutor] focus: goal " + render_term(goal, self.registry)
+        if M.IdentityCompare(hypotheses, M.EmptyList)() is M.truth_value:
+            line = line + " with no hypotheses yet."
+        else:
+            line = line + " with hypotheses: " + render_fact_list(hypotheses, self.registry) + "."
         first = self.next_question()
         return TutorAnswer("focus", first.record, line + "\n" + first.text)
 
@@ -1528,15 +1526,25 @@ class Tutor:
         the Socratic machinery is generic over the loaded rules."""
         goal_fact = self.intern(goal_fact)
         known_facts = self.intern(known_facts)
-        self.focus = {
-            "claim": make_claim([], [], to_list(known_facts), goal_fact),
-            "known": known_facts,
-            "goal": goal_fact,
-            "last_question": None,
-            "rule": None,
-            "asked": [],
-            "offered": False,
-        }
+        self.focus_claim = M.Pair(
+            L.DialogueClaimLabel,
+            M.Pair(
+                M.EmptyList,
+                M.Pair(M.EmptyList, M.Pair(known_facts, M.Pair(goal_fact, M.EmptyList))),
+            ),
+        )
+        self.focus_assertions = M.EmptyList
+        self.focus_definitions = M.EmptyList
+        self.focus = M.Pair(
+            goal_fact,
+            M.Pair(
+                known_facts,
+                M.Pair(
+                    M.EmptyList,
+                    M.Pair(M.EmptyList, M.Pair(M.false_value, M.Pair(M.EmptyList, M.EmptyList))),
+                ),
+            ),
+        )
         return self.next_question()
 
     def parse_generic_fact(self, words):
@@ -1572,153 +1580,247 @@ class Tutor:
         if cond is None:
             return None
         # new composite terms introduced by the assertion join the known facts
-        for d in self.grammar.definitions:
-            if chain_has(self.focus["known"], d) is M.false_value:
-                self.focus["known"] = M.Pair(d, self.focus["known"])
+        focus_tail = M.Tail(self.focus)()
+        known = M.Head(focus_tail)()
+        after_known = M.Tail(focus_tail)()
+        new_definitions = self.grammar.definitions
+        known = PG.ChainMergeUnique(known, new_definitions)()
+        self.focus_definitions = PG.ChainConcat(
+            new_definitions, self.focus_definitions
+        )()
+        self.focus = M.Pair(M.Head(self.focus)(), M.Pair(known, after_known))
         return cond
 
     def assert_fact(self, cond):
-        if chain_has(self.focus["known"], cond) is M.truth_value:
+        focus_tail = M.Tail(self.focus)()
+        known = M.Head(focus_tail)()
+        after_known = M.Tail(focus_tail)()
+        if chain_has(known, cond) is M.truth_value:
             return TutorAnswer("assert", cond, "[tutor] " + render_term(cond, self.registry) + " is already among your facts.\n" + self.next_question().text)
-        self.focus["known"] = M.Pair(cond, self.focus["known"])
+        known = M.Pair(cond, known)
+        self.focus_assertions = M.Pair(cond, self.focus_assertions)
+        self.focus = M.Pair(M.Head(self.focus)(), M.Pair(known, after_known))
         nxt = self.next_question()
         return TutorAnswer("assert", nxt.record, "[tutor] recorded " + render_term(cond, self.registry) + ".\n" + nxt.text)
 
     def obligations(self):
-        return to_list(BackwardObligations(self.focus["goal"], self.focus["known"], self.rules())())
+        goal = M.Head(self.focus)()
+        known = M.Head(M.Tail(self.focus)())()
+        return BackwardObligations(goal, known, self.rules())()
 
     def next_question(self):
-        if self.focus is None:
+        if M.IdentityCompare(self.focus, M.EmptyList)() is M.truth_value:
             return self._fallthrough("no focus is open; say \"let's work on <claim>\" first")
-        goal = self.focus["goal"]
-        known = self.focus["known"]
+        goal = M.Head(self.focus)()
+        focus_tail = M.Tail(self.focus)()
+        known = M.Head(focus_tail)()
+        after_known = M.Tail(focus_tail)()
+        last_question = M.Head(after_known)()
+        after_question = M.Tail(after_known)()
+        current_rule = M.Head(after_question)()
+        after_rule = M.Tail(after_question)()
+        offered = M.Head(after_rule)()
+        asked = M.Head(M.Tail(after_rule)())()
         if chain_has(known, goal) is M.truth_value:
             q = make_question(L.Rung4DerivationLabel, M.EmptyList, goal)
-            self.focus["last_question"] = q
+            self.focus = M.Pair(goal, M.Pair(known, M.Pair(q, after_question)))
             return TutorAnswer("question", q, "[tutor] (rung 4, derivation) " + render_term(goal, self.registry) + " is already among your facts; say 'check' and Checker B will confirm the (empty) derivation.")
         entries = self.obligations()
-        if not entries:
+        if M.IdentityCompare(entries, M.EmptyList)() is M.truth_value:
             q = make_question(L.Rung6NegativeLabel, M.EmptyList, goal)
-            self.focus["last_question"] = q
+            self.focus = M.Pair(goal, M.Pair(known, M.Pair(q, after_question)))
             return TutorAnswer("question", q, "[tutor] (rung 6, negative) No loaded rule concludes a fact shaped like " + render_term(goal, self.registry)
                                + ". Before looking for a proof: could the claim be false? Say 'check' and I will sweep the naturals below " + str(self.sweep_bound) + " for a counterexample.")
-        entries.sort(key=lambda e: len(to_list(M.Head(M.Tail(M.Tail(e)())())())))
-        best = entries[0]
+        best = M.Head(entries)()
         rule = M.Head(best)()
         satisfied = M.Head(M.Tail(best)())()
-        open_ = to_list(M.Head(M.Tail(M.Tail(best)())())())
+        open_ = M.Head(M.Tail(M.Tail(best)())())()
         rid = self.rule_id_of(rule)
-        if not open_:
+        if M.IdentityCompare(open_, M.EmptyList)() is M.truth_value:
             q = make_question(L.Rung4DerivationLabel, rule, goal)
-            self.focus["last_question"] = q
-            self.focus["rule"] = rule
+            self.focus = M.Pair(goal, M.Pair(known, M.Pair(q, M.Pair(rule, after_rule))))
             return TutorAnswer("question", q, "[tutor] (rung 4, derivation) Every premise of " + rid + " is in hand: " + render_fact_list(satisfied, self.registry)
                                + ". Applying it gives " + render_term(goal, self.registry) + ". Say 'check' and I will build the derivation and have Checker B verify it.")
-        if self.focus["rule"] is None or self.focus["rule"] is not rule:
-            if self.focus["rule"] is None and len(entries) > 1 and not self.focus["offered"]:
-                self.focus["offered"] = True
-                q = make_question(L.Rung2JoinLabel, rule, goal)
-                self.focus["last_question"] = q
-                names = ", ".join(self.rule_id_of(M.Head(e)()) + " (needs " + str(len(to_list(M.Head(M.Tail(M.Tail(e)())())()))) + " more)" for e in entries[:5])
-                return TutorAnswer("question", q, "[tutor] (rung 2, join) " + str(len(entries)) + " loaded rules can conclude " + render_term(goal, self.registry)
-                                   + ": " + names + ". Which one joins the facts you have? I would start with " + rid + ". Say 'next' for its first missing premise.")
-            self.focus["rule"] = rule
-        obligation = open_[0]
-        for candidate in open_:
-            if not any(M.Compare(candidate, asked)() is M.truth_value for asked in self.focus["asked"]):
-                obligation = candidate
-                break
-        repeat = any(M.Compare(obligation, asked)() is M.truth_value for asked in self.focus["asked"])
-        self.focus["asked"].append(obligation)
+        same_rule = M.Compare(current_rule, rule)()
+        if same_rule is M.false_value:
+            current_rule = rule
+        obligation = M.Head(open_)()
+        repeat = chain_has(asked, obligation)
         q = make_question(L.Rung1RetrievalLabel, rule, obligation)
-        self.focus["last_question"] = q
-        vars_in = sorted(v for v in term_vocabulary_vars(obligation))
+        asked = M.Pair(obligation, asked)
+        self.focus = M.Pair(
+            goal,
+            M.Pair(
+                known,
+                M.Pair(q, M.Pair(current_rule, M.Pair(offered, M.Pair(asked, M.EmptyList)))),
+            ),
+        )
         if self.grammar.covers(obligation):
             sentence = "'" + self.grammar.render_condition(obligation, self.registry) + "'"
         else:
             sentence = "'assume " + render_term(obligation, self.registry) + "'"
-        if vars_in:
-            prompt = "Which " + ", ".join(vars_in) + " would make it hold? Say " + sentence + " with the names filled in, or 'next' for another premise."
-        else:
-            prompt = "Do you know that it holds? Say " + sentence + " to take it as given, 'why' to see the rule, or 'next' for another premise."
-        still = " (still open)" if repeat else ""
+        prompt = "Say " + sentence + " to take it as given, 'why' to see the rule, or 'next' for another premise."
+        still = " (still open)"
+        if repeat is M.false_value:
+            still = ""
         return TutorAnswer("question", q, "[tutor] (rung 1, retrieval) To use " + rid + " you still need " + render_term(obligation, self.registry) + still + ". " + prompt)
 
     def explain_last(self):
-        if self.focus is None or self.focus["last_question"] is None:
-            if self.claims:
-                last = self.claims[-1]
-                return self._render_verdict(last["index"], last["claim"], last["verdict"], last["bound"])
+        if M.IdentityCompare(self.focus, M.EmptyList)() is M.truth_value:
+            if M.IdentityCompare(self.claims, M.EmptyList)() is M.false_value:
+                last = M.Head(self.claims)()
+                index = _nat_value(M.Head(last)(), self.registry)
+                fields = M.Tail(last)()
+                fields = M.Tail(fields)()
+                claim = M.Head(fields)()
+                fields = M.Tail(fields)()
+                verdict = M.Head(fields)()
+                fields = M.Tail(fields)()
+                bound_nat = M.Head(fields)()
+                bound = _nat_value(bound_nat, self.registry)
+                return self._render_verdict(index, claim, verdict, bound)
             return self._fallthrough("nothing to explain yet")
-        q = self.focus["last_question"]
+        focus_tail = M.Tail(self.focus)()
+        after_known = M.Tail(focus_tail)()
+        q = M.Head(after_known)()
+        if M.IdentityCompare(q, M.EmptyList)() is M.truth_value:
+            if M.IdentityCompare(self.claims, M.EmptyList)() is M.false_value:
+                last = M.Head(self.claims)()
+                index = _nat_value(M.Head(last)(), self.registry)
+                fields = M.Tail(last)()
+                fields = M.Tail(fields)()
+                claim = M.Head(fields)()
+                fields = M.Tail(fields)()
+                verdict = M.Head(fields)()
+                fields = M.Tail(fields)()
+                bound = _nat_value(M.Head(fields)(), self.registry)
+                return self._render_verdict(index, claim, verdict, bound)
+            return self._fallthrough("nothing to explain yet")
         rule = question_rule(q)
         if M.IdentityCompare(rule, M.EmptyList)() is M.truth_value:
             return TutorAnswer("why", q, "[tutor] the question came from the goal shape " + render_term(question_focus(q), self.registry) + " and the loaded rules: " + ", ".join(p.name for p in self.packs) + ".")
         rid = self.rule_id_of(rule)
-        lines = ["[tutor] " + rid + " [" + self.pack_of_rule(rule) + "]: " + render_rule(rule, self.registry)]
-        for e in self.obligations():
-            if M.Head(e)() is rule:
-                sat = to_list(M.Head(M.Tail(e)())())
-                open_ = to_list(M.Head(M.Tail(M.Tail(e)())())())
-                lines.append("  premises you hold: " + (", ".join(render_term(f, self.registry) for f in sat) or "none"))
-                lines.append("  premises still open: " + (", ".join(render_term(f, self.registry) for f in open_) or "none"))
-        return TutorAnswer("why", q, "\n".join(lines))
+        line = "[tutor] " + rid + " [" + self.pack_of_rule(rule) + "]: " + render_rule(rule, self.registry)
+        return TutorAnswer("why", q, line)
 
     def check_focus(self):
-        if self.focus is None:
-            if self.claims:
-                last = self.claims[-1]
-                return self._render_verdict(last["index"], last["claim"], last["verdict"], last["bound"])
+        if M.IdentityCompare(self.focus, M.EmptyList)() is M.truth_value:
+            if M.IdentityCompare(self.claims, M.EmptyList)() is M.false_value:
+                last = M.Head(self.claims)()
+                index = _nat_value(M.Head(last)(), self.registry)
+                fields = M.Tail(last)()
+                fields = M.Tail(fields)()
+                claim = M.Head(fields)()
+                fields = M.Tail(fields)()
+                verdict = M.Head(fields)()
+                fields = M.Tail(fields)()
+                bound_nat = M.Head(fields)()
+                bound = _nat_value(bound_nat, self.registry)
+                return self._render_verdict(index, claim, verdict, bound)
             return self._fallthrough("nothing to check; state a claim or open a focus")
-        claim = self.focus["claim"]
-        # the focus claim, with everything asserted so far as hypotheses
-        hyps = [f for f in to_list(self.focus["known"]) if _is_definition(f) is M.false_value]
-        defs = [f for f in to_list(self.focus["known"]) if _is_definition(f) is M.truth_value]
-        variables = to_list(claim_variables(claim))
-        for f in hyps + defs:
-            for name in sorted(term_vocabulary_vars_chars(f)):
-                node = self.grammar.char(name)
-                if not any(M.Compare(v, node)() is M.truth_value for v in variables):
-                    variables.append(node)
-        full = make_claim(variables, defs, list(reversed(hyps)), self.focus["goal"])
+        claim = self.focus_claim
+        original_definitions = claim_definitions(claim)
+        definitions = PG.ChainConcat(
+            original_definitions, self.focus_definitions
+        )()
+        original_hypotheses = claim_hypotheses(claim)
+        hypotheses = PG.ChainConcat(
+            original_hypotheses, self.focus_assertions
+        )()
+        variables = claim_variables(claim)
+        goal = M.Head(self.focus)()
+        full = M.Pair(
+            L.DialogueClaimLabel,
+            M.Pair(
+                variables,
+                M.Pair(definitions, M.Pair(hypotheses, M.Pair(goal, M.EmptyList))),
+            ),
+        )
         verdict, bound = self.judge(full)
-        index = len(self.claims) + 1
-        self.claims.append({"index": index, "text": self.claim_text(full), "claim": full, "verdict": verdict, "bound": bound})
+        count_res = AR.Add(self.claim_count, M.one, self.registry)()
+        self.claim_count = M.Head(count_res)()
+        self.registry = M.Head(M.Tail(count_res)())()
+        bound_nat = self.nat(bound)
+        claim_record = M.Pair(
+            self.claim_count,
+            M.Pair(
+                M.Char(self.claim_text(full)),
+                M.Pair(full, M.Pair(verdict, M.Pair(bound_nat, M.EmptyList))),
+            ),
+        )
+        self.claims = M.Pair(claim_record, self.claims)
+        index = _nat_value(self.claim_count, self.registry)
         return self._render_verdict(index, full, verdict, bound)
 
     # -- ledger transparency ---------------------------------------------------
 
-    def ledger_report(self):
-        lines = ["[tutor] proposals and promotions:"]
-        ledger = self.graph.promotion_ledger
-        records = []
-        if ledger is None or M.IdentityCompare(ledger, M.EmptyList)() is M.truth_value:
-            lines.append("  promotion ledger: empty (nothing has been promoted in this runtime)")
-        else:
-            entries = to_list(PL.PromotionLedgerProofSchemata(ledger)()) + to_list(PL.PromotionLedgerSearchPolicies(ledger)())
-            lines.append("  promotion ledger: " + str(len(entries)) + " entries, version " + render_term(PL.PromotionLedgerVersion(ledger)(), self.registry))
-            for e in entries:
-                records.append(e)
-                lines.append("    " + render_term(PL.LedgerEntryId(e)(), self.registry) + ": " + render_term(PL.LedgerEntryStatus(e)(), self.registry)
-                             + ", receipt " + ("present" if M.IdentityCompare(PL.LedgerEntryReceipt(e)(), M.EmptyList)() is M.false_value else "absent"))
-        if not self.claims:
-            lines.append("  session claims: none yet")
-        for c in self.claims:
-            records.append(c["verdict"])
-            lines.append("  claim " + str(c["index"]) + " (" + c["text"] + "): " + self._promotion_status(c))
-        record = M.Pair(L.ConceptReportLabel, M.Pair(M.Char("ledger"), M.Pair(chain(records), M.EmptyList)))
-        return TutorAnswer("ledger", record, "\n".join(lines))
+    def ledger_report(self, stage=M.EmptyList, remaining=M.EmptyList, records=M.EmptyList, report=M.EmptyList):
+        if M.IdentityCompare(stage, M.EmptyList)() is M.truth_value:
+            report = "[tutor] proposals and promotions:"
+            ledger = self.graph.promotion_ledger
+            if M.IdentityCompare(ledger, M.EmptyList)() is M.truth_value:
+                report = report + "\n  promotion ledger: empty (nothing has been promoted in this runtime)"
+                return self.ledger_report(M.Char("claims"), self.claims, records, report)
+            proof_entries = PL.PromotionLedgerProofSchemata(ledger)()
+            search_entries = PL.PromotionLedgerSearchPolicies(ledger)()
+            remaining = PG.ChainConcat(proof_entries, search_entries)()
+            report = report + "\n  promotion ledger version " + render_term(
+                PL.PromotionLedgerVersion(ledger)(), self.registry
+            )
+            return self.ledger_report(M.Char("entries"), remaining, records, report)
+        if M.Compare(stage, M.Char("entries"))() is M.truth_value:
+            if M.IdentityCompare(remaining, M.EmptyList)() is M.truth_value:
+                return self.ledger_report(M.Char("claims"), self.claims, records, report)
+            entry = M.Head(remaining)()
+            receipt_text = "present"
+            if M.IdentityCompare(PL.LedgerEntryReceipt(entry)(), M.EmptyList)() is M.truth_value:
+                receipt_text = "absent"
+            report = (
+                report
+                + "\n    "
+                + render_term(PL.LedgerEntryId(entry)(), self.registry)
+                + ": "
+                + render_term(PL.LedgerEntryStatus(entry)(), self.registry)
+                + ", receipt "
+                + receipt_text
+            )
+            records = M.Pair(entry, records)
+            return self.ledger_report(M.Char("entries"), M.Tail(remaining)(), records, report)
+        if M.IdentityCompare(remaining, M.EmptyList)() is M.truth_value:
+            record = M.Pair(
+                L.ConceptReportLabel,
+                M.Pair(M.Char("ledger"), M.Pair(records, M.EmptyList)),
+            )
+            return TutorAnswer("ledger", record, report)
+        claim_record = M.Head(remaining)()
+        saved_index = M.Head(claim_record)()
+        fields = M.Tail(claim_record)()
+        claim_text = M.Head(fields)()
+        fields = M.Tail(fields)()
+        claim = M.Head(fields)()
+        fields = M.Tail(fields)()
+        verdict = M.Head(fields)()
+        report = (
+            report
+            + "\n  claim "
+            + str(_nat_value(saved_index, self.registry))
+            + " ("
+            + claim_text()
+            + "): "
+            + self._promotion_status(verdict, claim)
+        )
+        records = M.Pair(verdict, records)
+        return self.ledger_report(M.Char("claims"), M.Tail(remaining)(), records, report)
 
-    def _promotion_status(self, c):
-        tag = M.Head(c["verdict"])()
+    def _promotion_status(self, verdict, claim):
+        tag = M.Head(verdict)()
         if M.IdentityCompare(tag, L.ClaimVerifiedLabel)() is M.truth_value:
             return "has a Checker-B receipt (DerivationVerifiedLabel); promotable -- the ledger's ablation and holdout gates have not been run in this session"
         if M.IdentityCompare(tag, L.ClaimRefutedLabel)() is M.truth_value:
-            return "cannot be promoted: refuted by " + self._render_assignment(M.Head(M.Tail(c["verdict"])())(), c["claim"])
-        return "lacks a receipt: no Checker-B-verified derivation; " + self._what_would_earn_one(c)
+            return "cannot be promoted: refuted by " + self._render_assignment(M.Head(M.Tail(verdict)())(), claim)
+        return "lacks a receipt: no Checker-B-verified derivation; " + self._what_would_earn_one(claim)
 
-    def _what_would_earn_one(self, c):
-        claim = c["claim"]
+    def _what_would_earn_one(self, claim):
         entries = to_list(BackwardObligations(claim_conclusion(claim), claim_start_facts(claim), self.rules())())
         if not entries:
             return "what would earn one: a loaded rule whose replacement is shaped like " + render_term(claim_conclusion(claim), self.registry) + " (none is)"
@@ -1728,11 +1830,37 @@ class Tutor:
         return ("what would earn one: the premises " + (", ".join(render_term(f, self.registry) for f in open_) or "(none)")
                 + " of " + self.rule_id_of(M.Head(best)()) + ", derived or assumed")
 
-    def explain_promotion(self, index):
-        for c in self.claims:
-            if c["index"] == index:
-                return TutorAnswer("ledger", c["verdict"], "[tutor] claim " + str(index) + " (" + c["text"] + "): " + self._promotion_status(c))
-        return self._fallthrough("there is no claim " + str(index) + " in this session")
+    def explain_promotion(self, index, remaining=M.EmptyList, started=M.false_value):
+        wanted = index
+        cursor = remaining
+        if started is M.false_value:
+            count_res = M.NatFromRep(M.GMPRep(int(index)), self.registry)()
+            wanted = M.Head(count_res)()
+            self.registry = M.Head(M.Tail(count_res)())()
+            cursor = self.claims
+        if M.IdentityCompare(cursor, M.EmptyList)() is M.truth_value:
+            return self._fallthrough("there is no claim " + str(index) + " in this session")
+        claim_record = M.Head(cursor)()
+        saved_index = M.Head(claim_record)()
+        if M.Compare(saved_index, wanted)() is M.truth_value:
+            fields = M.Tail(claim_record)()
+            claim_text = M.Head(fields)()
+            claim_body = M.Tail(fields)()
+            claim = M.Head(claim_body)()
+            verdict_body = M.Tail(claim_body)()
+            verdict = M.Head(verdict_body)()
+            index_text = str(_nat_value(saved_index, self.registry))
+            return TutorAnswer(
+                "ledger",
+                verdict,
+                "[tutor] claim "
+                + index_text
+                + " ("
+                + claim_text()
+                + "): "
+                + self._promotion_status(verdict, claim),
+            )
+        return self.explain_promotion(wanted, M.Tail(cursor)(), M.truth_value)
 
 
 # ---------------------------------------------------------------------------

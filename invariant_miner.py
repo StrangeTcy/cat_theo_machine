@@ -356,15 +356,7 @@ class UnreachabilityProverByInvariant(M.Edge):
 
 
 class MineOperationInvariants(M.Edge):
-    """
-    Mines algebraic invariants (laws) from a ground domain and a machine
-    operation term over `variables`. The operation is machine data evaluated
-    by the machine's own EvaluateNatExpr; no host callable applies it.
-    - Commutativity: op(a, b) == op(b, a) across all pairs
-    - Associativity: op(op(a, b), c) == op(a, op(b, c)) across all triples
-    inputs: [op_name, variables, operation, domain, registry]
-    results: Pair(ObservedRegularityLabel, Pair(op_name, Pair(law_type, Pair(witness_pairs, Pair(registry, EmptyList)))))
-    """
+    """Compatibility entry point for the generic finite equation miner."""
 
     def __init__(self, op_name, variables, operation, domain, registry):
         self.registry = registry
@@ -374,272 +366,25 @@ class MineOperationInvariants(M.Edge):
                 op_name,
                 M.Pair(
                     variables,
-                    M.Pair(
-                        operation,
-                        M.Pair(domain, M.Pair(registry, M.EmptyList)),
-                    ),
+                    M.Pair(operation, M.Pair(domain, M.Pair(registry, M.EmptyList))),
                 ),
             ),
             results=self.result,
         )
 
-    def _apply(self, variables, operation, values_chain, registry):
-        environment = PG.ZipEnvironment(variables, values_chain)()
-        return PG.EvaluateNatExpr(operation, environment, registry)()
-
-    def _mine(self, op_name, variables, operation, domain, reg):
-        # 1. Test Commutativity across 2-tuples
-        dom2 = PG.ProductOfDomains(M.Pair(domain, M.Pair(domain, M.EmptyList)))()
-        comm_res = self._check_commutativity(dom2, variables, operation, reg)
-        is_comm = M.Head(comm_res)()
-        r1 = M.Head(M.Tail(comm_res)())()
-        comm_witnesses = M.Head(M.Tail(M.Tail(comm_res)())())()
-
-        if is_comm is M.truth_value:
-            rec = M.Pair(
-                L.ObservedRegularityLabel,
-                M.Pair(
-                    op_name,
-                    M.Pair(
-                        M.Char("commutativity"),
-                        M.Pair(
-                            comm_witnesses,
-                            M.Pair(
-                                M.Pair(
-                                    M.Char("universal"),
-                                    M.Pair(domain, M.EmptyList),
-                                ),
-                                M.EmptyList,
-                            ),
-                        ),
-                    ),
-                ),
-            )
-            return M.Pair(rec, M.Pair(r1, M.EmptyList))
-
-        # 2. Test Associativity across 3-tuples
-        dom3 = PG.ProductOfDomains(M.Pair(domain, M.Pair(domain, M.Pair(domain, M.EmptyList))))()
-        assoc_res = self._check_associativity(dom3, variables, operation, r1)
-        is_assoc = M.Head(assoc_res)()
-        r2 = M.Head(M.Tail(assoc_res)())()
-        assoc_witnesses = M.Head(M.Tail(M.Tail(assoc_res)())())()
-
-        if is_assoc is M.truth_value:
-            rec = M.Pair(
-                L.ObservedRegularityLabel,
-                M.Pair(
-                    op_name,
-                    M.Pair(
-                        M.Char("associativity"),
-                        M.Pair(
-                            assoc_witnesses,
-                            M.Pair(
-                                M.Pair(
-                                    M.Char("universal"),
-                                    M.Pair(domain, M.EmptyList),
-                                ),
-                                M.EmptyList,
-                            ),
-                        ),
-                    ),
-                ),
-            )
-            return M.Pair(rec, M.Pair(r2, M.EmptyList))
-
-        # 3. Test identity across the domain: some element e with
-        #    op(a, e) == a and op(e, a) == a for every a in the domain.
-        id_res = self._check_identity(domain, domain, variables, operation, r2)
-        has_id = M.Head(id_res)()
-        r3 = M.Head(M.Tail(M.Tail(id_res)())())()
-        identity_el = M.Head(M.Tail(id_res)())()
-
-        if has_id is M.truth_value:
-            rec = M.Pair(
-                L.ObservedRegularityLabel,
-                M.Pair(
-                    op_name,
-                    M.Pair(
-                        M.Char("identity"),
-                        M.Pair(
-                            M.Pair(identity_el, M.EmptyList),
-                            M.Pair(
-                                M.Pair(
-                                    M.Char("universal"),
-                                    M.Pair(domain, M.EmptyList),
-                                ),
-                                M.EmptyList,
-                            ),
-                        ),
-                    ),
-                ),
-            )
-            return M.Pair(rec, M.Pair(r3, M.EmptyList))
-
-        # If no universal law holds, return empty
-        return M.Pair(M.EmptyList, M.Pair(r3, M.EmptyList))
-
-    def _left_identity_holds(self, e, domain, variables, operation, reg):
-        # op(a, e) == a for every a still to check
-        if M.IdentityCompare(domain, M.EmptyList)() is M.truth_value:
-            return M.truth_value, reg
-        a = M.Head(domain)()
-        call_res = self._apply(
-            variables, operation, M.Pair(a, M.Pair(e, M.EmptyList)), reg
-        )
-        val = M.Head(call_res)()
-        r1 = M.Head(M.Tail(call_res)())()
-        if M.IdentityCompare(val, M.EmptyList)() is M.truth_value:
-            return M.false_value, r1
-        if M.NatEq(val, a, r1)() is M.false_value:
-            return M.false_value, r1
-        return self._left_identity_holds(
-            e, M.Tail(domain)(), variables, operation, r1
-        )
-
-    def _right_identity_holds(self, e, domain, variables, operation, reg):
-        # op(e, a) == a for every a still to check
-        if M.IdentityCompare(domain, M.EmptyList)() is M.truth_value:
-            return M.truth_value, reg
-        a = M.Head(domain)()
-        call_res = self._apply(
-            variables, operation, M.Pair(e, M.Pair(a, M.EmptyList)), reg
-        )
-        val = M.Head(call_res)()
-        r1 = M.Head(M.Tail(call_res)())()
-        if M.IdentityCompare(val, M.EmptyList)() is M.truth_value:
-            return M.false_value, r1
-        if M.NatEq(val, a, r1)() is M.false_value:
-            return M.false_value, r1
-        return self._right_identity_holds(
-            e, M.Tail(domain)(), variables, operation, r1
-        )
-
-    def _check_identity(self, candidates, domain, variables, operation, reg):
-        if M.IdentityCompare(candidates, M.EmptyList)() is M.truth_value:
-            return M.Pair(M.false_value, M.Pair(M.EmptyList, M.Pair(reg, M.EmptyList)))
-        e = M.Head(candidates)()
-        left_ok, r1 = self._left_identity_holds(e, domain, variables, operation, reg)
-        if left_ok is M.truth_value:
-            right_ok, r2 = self._right_identity_holds(
-                e, domain, variables, operation, r1
-            )
-            if right_ok is M.truth_value:
-                return M.Pair(M.truth_value, M.Pair(e, M.Pair(r2, M.EmptyList)))
-            rest = self._check_identity(
-                M.Tail(candidates)(), domain, variables, operation, r2
-            )
-            return rest
-        rest = self._check_identity(
-            M.Tail(candidates)(), domain, variables, operation, r1
-        )
-        return rest
-
-    def _check_commutativity(self, tuples, variables, operation, reg):
-        if M.IdentityCompare(tuples, M.EmptyList)() is M.truth_value:
-            return M.Pair(M.truth_value, M.Pair(reg, M.Pair(M.EmptyList, M.EmptyList)))
-
-        cur_tup = M.Head(tuples)()
-        rest_tups = M.Tail(tuples)()
-
-        a = M.Head(cur_tup)()
-        b = M.Head(M.Tail(cur_tup)())()
-
-        # op(a, b)
-        call_ab = self._apply(variables, operation, cur_tup, reg)
-        val_ab = M.Head(call_ab)()
-        r1 = M.Head(M.Tail(call_ab)())()
-
-        # op(b, a)
-        tup_ba = M.Pair(b, M.Pair(a, M.EmptyList))
-        call_ba = self._apply(variables, operation, tup_ba, r1)
-        val_ba = M.Head(call_ba)()
-        r2 = M.Head(M.Tail(call_ba)())()
-
-        # An operand the operation is undefined on cannot witness agreement:
-        # NatEq treats two undefined results as equal, which would let a law
-        # look universal purely because it was never evaluable.
-        if M.IdentityCompare(val_ab, M.EmptyList)() is M.truth_value:
-            return M.Pair(M.false_value, M.Pair(r1, M.Pair(M.EmptyList, M.EmptyList)))
-        if M.IdentityCompare(val_ba, M.EmptyList)() is M.truth_value:
-            return M.Pair(M.false_value, M.Pair(r2, M.Pair(M.EmptyList, M.EmptyList)))
-
-        eq_res = M.NatEq(val_ab, val_ba, r2)()
-
-        if eq_res is M.false_value:
-            return M.Pair(M.false_value, M.Pair(r2, M.Pair(M.EmptyList, M.EmptyList)))
-
-        rest_check = self._check_commutativity(rest_tups, variables, operation, r2)
-        rest_ok = M.Head(rest_check)()
-        r3 = M.Head(M.Tail(rest_check)())()
-        rest_w = M.Head(M.Tail(M.Tail(rest_check)())())()
-
-        witness = M.Pair(cur_tup, M.Pair(val_ab, M.EmptyList))
-        return M.Pair(rest_ok, M.Pair(r3, M.Pair(M.Pair(witness, rest_w), M.EmptyList)))
-
-    def _check_associativity(self, tuples, variables, operation, reg):
-        if M.IdentityCompare(tuples, M.EmptyList)() is M.truth_value:
-            return M.Pair(M.truth_value, M.Pair(reg, M.Pair(M.EmptyList, M.EmptyList)))
-
-        cur_tup = M.Head(tuples)()
-        rest_tups = M.Tail(tuples)()
-
-        a = M.Head(cur_tup)()
-        b = M.Head(M.Tail(cur_tup)())()
-        c = M.Head(M.Tail(M.Tail(cur_tup)())())()
-
-        # op(a, b)
-        call_ab = self._apply(
-            variables, operation, M.Pair(a, M.Pair(b, M.EmptyList)), reg
-        )
-        val_ab = M.Head(call_ab)()
-        r1 = M.Head(M.Tail(call_ab)())()
-
-        # op(op(a, b), c)
-        call_ab_c = self._apply(
-            variables, operation, M.Pair(val_ab, M.Pair(c, M.EmptyList)), r1
-        )
-        val_left = M.Head(call_ab_c)()
-        r2 = M.Head(M.Tail(call_ab_c)())()
-
-        # op(b, c)
-        call_bc = self._apply(
-            variables, operation, M.Pair(b, M.Pair(c, M.EmptyList)), r2
-        )
-        val_bc = M.Head(call_bc)()
-        r3 = M.Head(M.Tail(call_bc)())()
-
-        # op(a, op(b, c))
-        call_a_bc = self._apply(
-            variables, operation, M.Pair(a, M.Pair(val_bc, M.EmptyList)), r3
-        )
-        val_right = M.Head(call_a_bc)()
-        r4 = M.Head(M.Tail(call_a_bc)())()
-
-        if M.IdentityCompare(val_ab, M.EmptyList)() is M.truth_value:
-            return M.Pair(M.false_value, M.Pair(r1, M.Pair(M.EmptyList, M.EmptyList)))
-        if M.IdentityCompare(val_left, M.EmptyList)() is M.truth_value:
-            return M.Pair(M.false_value, M.Pair(r2, M.Pair(M.EmptyList, M.EmptyList)))
-        if M.IdentityCompare(val_bc, M.EmptyList)() is M.truth_value:
-            return M.Pair(M.false_value, M.Pair(r3, M.Pair(M.EmptyList, M.EmptyList)))
-        if M.IdentityCompare(val_right, M.EmptyList)() is M.truth_value:
-            return M.Pair(M.false_value, M.Pair(r4, M.Pair(M.EmptyList, M.EmptyList)))
-
-        eq_res = M.NatEq(val_left, val_right, r4)()
-
-        if eq_res is M.false_value:
-            return M.Pair(M.false_value, M.Pair(r4, M.Pair(M.EmptyList, M.EmptyList)))
-
-        rest_check = self._check_associativity(rest_tups, variables, operation, r4)
-        rest_ok = M.Head(rest_check)()
-        r5 = M.Head(M.Tail(rest_check)())()
-        rest_w = M.Head(M.Tail(M.Tail(rest_check)())())()
-
-        witness = M.Pair(cur_tup, M.Pair(val_left, M.EmptyList))
-        return M.Pair(rest_ok, M.Pair(r5, M.Pair(M.Pair(witness, rest_w), M.EmptyList)))
+    def _mine(self, op_name, variables, operation, domain, registry):
+        entry = M.Pair(op_name, M.Pair(variables, M.Pair(operation, M.EmptyList)))
+        mined = MineOperationInvariantsAcrossRegister(
+            domain, registry, M.Pair(entry, M.EmptyList)
+        )()
+        findings = M.Head(mined)()
+        reg1 = M.Head(M.Tail(mined)())()
+        if M.IdentityCompare(findings, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.EmptyList, M.Pair(reg1, M.EmptyList))
+        return M.Pair(M.Head(findings)(), M.Pair(reg1, M.EmptyList))
 
     def __call__(self):
         return self.result
-
 
 class CheckTemplateSatisfaction(M.Edge):
     """
@@ -709,11 +454,11 @@ class MineOperationInvariantsAcrossRegister(M.Edge):
     it was observed on ("gcd is commutative, modulo is not") instead of to
     the single operation a caller happened to hand over.
 
-    The operation set is read from the register built by introspection over
-    the machine's arithmetic module; it is never listed here. For each
-    registered operation the three candidate laws are tested in the order
-    the machine advertises them, and every test is reported, held or
-    refuted, with the witnesses that were checked.
+    The operation set is read from the supplied operation register. Candidate
+    laws are generated as equations between operation terms, rather than
+    selected from a property-name list. The finite scan considers binary term
+    shapes over two and three distinct variables and records every equation
+    that holds throughout the tested domain.
 
     inputs: [domain, registry, operation_register]
     results: Pair(findings_chain, Pair(registry, EmptyList)) where each
@@ -752,56 +497,234 @@ class MineOperationInvariantsAcrossRegister(M.Edge):
         return rec
 
     def _laws_for(self, op_name, variables, operation, domain, reg, ops):
-        miner = MineOperationInvariants(
-            op_name, variables, operation, domain, reg
+        equation_label = M.Head(operation)()
+        vars2 = M.Pair(M.Char("x"), M.Pair(M.Char("y"), M.EmptyList))
+        vars3 = M.Pair(
+            M.Char("x"), M.Pair(M.Char("y"), M.Pair(M.Char("z"), M.EmptyList))
         )
-        cur = reg
+        found2 = self._laws_for_variables(
+            op_name, equation_label, vars2, domain, reg, ops
+        )
+        laws2 = M.Head(found2)()
+        reg2 = M.Head(M.Tail(found2)())()
+        operation_entry = PG.LookupOperationByLabel(equation_label, ops)()
+        profile_tail = operation_entry
+        profile_tail = M.Tail(profile_tail)()
+        profile_tail = M.Tail(profile_tail)()
+        profile_tail = M.Tail(profile_tail)()
+        profile_tail = M.Tail(profile_tail)()
+        profile_tail = M.Tail(profile_tail)()
+        profile_tail = M.Tail(profile_tail)()
+        profile_tail = M.Tail(profile_tail)()
+        law_depth = M.Head(profile_tail)()
+        if M.Compare(law_depth, M.Char("expensive"))() is M.truth_value:
+            return laws2, reg2
+        found3 = self._laws_for_variables(
+            op_name, equation_label, vars3, domain, reg2, ops
+        )
+        laws3 = M.Head(found3)()
+        reg3 = M.Head(M.Tail(found3)())()
+        return PG.ChainConcat(laws2, laws3)(), reg3
 
-        dom2 = PG.ProductOfDomains(
-            M.Pair(domain, M.Pair(domain, M.EmptyList))
+    def _append_chain(self, prefix, suffix):
+        if M.IdentityCompare(prefix, M.EmptyList)() is M.truth_value:
+            return suffix
+        return M.Pair(
+            M.Head(prefix)(), self._append_chain(M.Tail(prefix)(), suffix)
+        )
+
+    def _remove_first(self, selected, chain):
+        if M.IdentityCompare(chain, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        head = M.Head(chain)()
+        if M.Compare(head, selected)() is M.truth_value:
+            return M.Tail(chain)()
+        return M.Pair(
+            head,
+            self._remove_first(selected, M.Tail(chain)()),
+        )
+
+    def _prefix_each(self, selected, chains):
+        if M.IdentityCompare(chains, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        return M.Pair(
+            M.Pair(selected, M.Head(chains)()),
+            self._prefix_each(selected, M.Tail(chains)()),
+        )
+
+    def _permutations(self, remaining, original):
+        if M.IdentityCompare(remaining, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.EmptyList, M.EmptyList)
+        selected = M.Head(remaining)()
+        rest = self._remove_first(selected, original)
+        suffixes = self._permutations(rest, rest)
+        prefixed = self._prefix_each(selected, suffixes)
+        if M.IdentityCompare(M.Tail(remaining)(), M.EmptyList)() is M.truth_value:
+            return prefixed
+        later = self._permutations(M.Tail(remaining)(), original)
+        return PG.ChainConcat(prefixed, later)()
+
+    def _splits(self, remaining, prefix):
+        if M.IdentityCompare(M.Tail(remaining)(), M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        extended = self._append_chain(prefix, M.Pair(M.Head(remaining)(), M.EmptyList))
+        right = M.Tail(remaining)()
+        split = M.Pair(extended, M.Pair(right, M.EmptyList))
+        return M.Pair(split, self._splits(right, extended))
+
+    def _combine_split_terms(self, splits, operation_label):
+        if M.IdentityCompare(splits, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        split = M.Head(splits)()
+        left_terms = self._terms_for_order(
+            M.Head(split)(), operation_label
+        )
+        right_terms = self._terms_for_order(
+            M.Head(M.Tail(split)())(), operation_label
+        )
+        combined = self._cross_terms(left_terms, right_terms, operation_label)
+        return PG.ChainConcat(
+            combined,
+            self._combine_split_terms(M.Tail(splits)(), operation_label),
         )()
-        comm_res = miner._check_commutativity(dom2, variables, operation, cur)
-        comm_ok = M.Head(comm_res)()
-        cur = M.Head(M.Tail(comm_res)())()
-        comm_w = M.Head(M.Tail(M.Tail(comm_res)())())()
-        # A refuted law carries no witnesses: the chain a failing check
-        # returns holds the tuples inspected before the refuting one, which
-        # are not counterexamples and must not be read as such.
-        if comm_ok is M.false_value:
-            comm_w = M.EmptyList
-        comm_finding = self._finding(
-            op_name, M.Char("commutativity"), comm_ok, comm_w, domain
-        )
 
-        dom3 = PG.ProductOfDomains(
-            M.Pair(domain, M.Pair(domain, M.Pair(domain, M.EmptyList)))
+    def _cross_terms(self, left_terms, right_terms, operation_label):
+        if M.IdentityCompare(left_terms, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        left = M.Head(left_terms)()
+        return PG.ChainConcat(
+            self._terms_with_left(left, right_terms, operation_label),
+            self._cross_terms(
+                M.Tail(left_terms)(), right_terms, operation_label
+            ),
         )()
-        assoc_res = miner._check_associativity(dom3, variables, operation, cur)
-        assoc_ok = M.Head(assoc_res)()
-        cur = M.Head(M.Tail(assoc_res)())()
-        assoc_w = M.Head(M.Tail(M.Tail(assoc_res)())())()
-        if assoc_ok is M.false_value:
-            assoc_w = M.EmptyList
-        assoc_finding = self._finding(
-            op_name, M.Char("associativity"), assoc_ok, assoc_w, domain
+
+    def _terms_with_left(self, left, right_terms, operation_label):
+        if M.IdentityCompare(right_terms, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        right = M.Head(right_terms)()
+        term = M.Pair(
+            operation_label,
+            M.Pair(left, M.Pair(right, M.EmptyList)),
+        )
+        return M.Pair(
+            term,
+            self._terms_with_left(left, M.Tail(right_terms)(), operation_label),
         )
 
-        id_res = miner._check_identity(domain, domain, variables, operation, cur)
-        id_ok = M.Head(id_res)()
-        cur = M.Head(M.Tail(M.Tail(id_res)())())()
-        identity_el = M.Head(M.Tail(id_res)())()
-        id_w = M.EmptyList
-        if id_ok is M.truth_value:
-            id_w = M.Pair(identity_el, M.EmptyList)
-        id_finding = self._finding(
-            op_name, M.Char("identity"), id_ok, id_w, domain
+    def _terms_for_order(self, variables, operation_label):
+        if M.IdentityCompare(M.Tail(variables)(), M.EmptyList)() is M.truth_value:
+            return M.Pair(M.Head(variables)(), M.EmptyList)
+        return self._combine_split_terms(
+            self._splits(variables, M.EmptyList), operation_label
         )
 
-        findings = M.Pair(
-            comm_finding,
-            M.Pair(assoc_finding, M.Pair(id_finding, M.EmptyList)),
+    def _terms_for_orders(self, orders, operation_label):
+        if M.IdentityCompare(orders, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        terms = self._terms_for_order(M.Head(orders)(), operation_label)
+        return PG.ChainConcat(
+            terms,
+            self._terms_for_orders(M.Tail(orders)(), operation_label),
+        )()
+
+    def _terms(self, variables, operation_label):
+        orders = self._permutations(variables, variables)
+        return self._terms_for_orders(orders, operation_label)
+
+    def _equations_with_left(self, law, variables, remaining):
+        if M.IdentityCompare(remaining, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        candidate = M.Head(remaining)()
+        if M.Compare(law, candidate)() is M.false_value:
+            equation = M.Pair(
+                L.DiscoveredEquationLabel,
+                M.Pair(variables, M.Pair(law, M.Pair(candidate, M.EmptyList))),
+            )
+            return M.Pair(
+                equation,
+                self._equations_with_left(
+                    law, variables, M.Tail(remaining)()
+                )
+            )
+        return self._equations_with_left(law, variables, M.Tail(remaining)())
+
+    def _equations(self, terms, variables):
+        if M.IdentityCompare(terms, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        law = M.Head(terms)()
+        return PG.ChainConcat(
+            self._equations_with_left(law, variables, M.Tail(terms)()),
+            self._equations(M.Tail(terms)(), variables),
+        )()
+
+    def _domains_for_variables(self, variables, domain):
+        if M.IdentityCompare(variables, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        return M.Pair(
+            domain, self._domains_for_variables(M.Tail(variables)(), domain)
         )
-        return findings, cur
+
+    def _equation_value(self, term, variables, assignment, registry, ops):
+        environment = PG.ZipEnvironment(variables, assignment)()
+        return PG.EvaluateNatExpr(term, environment, registry, ops)()
+
+    def _check_equation_tuples(self, equation, variables, tuples, reg, ops, witnesses):
+        if M.IdentityCompare(tuples, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.truth_value, M.Pair(reg, M.Pair(witnesses, M.EmptyList)))
+        assignment = M.Head(tuples)()
+        lhs = M.Head(M.Tail(M.Tail(equation)())())()
+        rhs = M.Head(M.Tail(M.Tail(M.Tail(equation)())())())()
+        lhs_res = self._equation_value(lhs, variables, assignment, reg, ops)
+        lhs_value = M.Head(lhs_res)()
+        reg1 = M.Head(M.Tail(lhs_res)())()
+        if M.IdentityCompare(lhs_value, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.false_value, M.Pair(reg1, M.Pair(M.EmptyList, M.EmptyList)))
+        rhs_res = self._equation_value(rhs, variables, assignment, reg1, ops)
+        rhs_value = M.Head(rhs_res)()
+        reg2 = M.Head(M.Tail(rhs_res)())()
+        if M.IdentityCompare(rhs_value, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.false_value, M.Pair(reg2, M.Pair(M.EmptyList, M.EmptyList)))
+        if M.NatEq(lhs_value, rhs_value, reg2)() is M.false_value:
+            return M.Pair(M.false_value, M.Pair(reg2, M.Pair(M.EmptyList, M.EmptyList)))
+        witness = M.Pair(assignment, M.Pair(lhs_value, M.Pair(rhs_value, M.EmptyList)))
+        return self._check_equation_tuples(
+            equation, variables, M.Tail(tuples)(), reg2, ops,
+            M.Pair(witness, witnesses),
+        )
+
+    def _check_equation_candidates(
+        self, op_name, equations, variables, domain, reg, ops, findings
+    ):
+        if M.IdentityCompare(equations, M.EmptyList)() is M.truth_value:
+            return M.Pair(findings, M.Pair(reg, M.EmptyList))
+        equation = M.Head(equations)()
+        domains = self._domains_for_variables(variables, domain)
+        tuples = PG.ProductOfDomains(domains)()
+        checked = self._check_equation_tuples(
+            equation, variables, tuples, reg, ops, M.EmptyList
+        )
+        verdict = M.Head(checked)()
+        reg1 = M.Head(M.Tail(checked)())()
+        witnesses = M.Head(M.Tail(M.Tail(checked)())())()
+        if verdict is M.truth_value:
+            finding = self._finding(
+                op_name, equation, verdict, witnesses, domain
+            )
+            findings = M.Pair(finding, findings)
+        return self._check_equation_candidates(
+            op_name, M.Tail(equations)(), variables, domain, reg1, ops, findings
+        )
+
+    def _laws_for_variables(self, op_name, operation_label, variables, domain, reg, ops):
+        terms = self._terms(variables, operation_label)
+        equations = self._equations(terms, variables)
+        checked = self._check_equation_candidates(
+            op_name, equations, variables, domain, reg, ops, M.EmptyList
+        )
+        findings = PG.ChainReverse(M.Head(checked)())()
+        reg1 = M.Head(M.Tail(checked)())()
+        return M.Pair(findings, M.Pair(reg1, M.EmptyList))
 
     def _mine_all(self, domain, cur_ops, reg, ops):
         if M.IdentityCompare(cur_ops, M.EmptyList)() is M.truth_value:
@@ -826,86 +749,113 @@ class MineOperationInvariantsAcrossRegister(M.Edge):
 
 class ProposeNextRegularityOrStructure(M.Edge):
     """
-    Traverses active operations and verified ledger entries to propose the next unnamed law
-    or synthesized structure template without Python loops or hardcoded strings.
-    inputs: [ops_chain, domain, ledger, registry]
+    Scans every mined operation-law finding, skips named findings on the same
+    finite domain, then proposes a bundle of named laws for that domain.
+    `known_nodes` is the graph's machine-native node chain.
+    inputs: [ops_chain, domain, known_nodes, registry]
     results: Pair(proposal_status, Pair(proposal_record, Pair(registry, EmptyList)))
     """
 
-    def __init__(self, ops_chain, domain, ledger, registry):
+    def __init__(self, ops_chain, domain, known_nodes, registry):
         self.registry = registry
-        self.result = self._sweep_ops(ops_chain, domain, ledger, registry)
+        mined = MineOperationInvariantsAcrossRegister(
+            domain, registry, ops_chain
+        )()
+        findings = M.Head(mined)()
+        reg1 = M.Head(M.Tail(mined)())()
+        self.result = self._propose(findings, domain, known_nodes, reg1)
         super().__init__(
             inputs=M.Pair(
                 ops_chain,
-                M.Pair(domain, M.Pair(ledger, M.Pair(registry, M.EmptyList))),
+                M.Pair(domain, M.Pair(known_nodes, M.Pair(registry, M.EmptyList))),
             ),
             results=self.result,
         )
 
-    def _sweep_ops(self, cur_ops, domain, ledger, reg):
-        # Base case: All operations exhausted -> attempt structure synthesis
-        if M.IdentityCompare(cur_ops, M.EmptyList)() is M.truth_value:
-            return self._synthesize_structure(domain, ledger, reg)
-
-        head_op = M.Head(cur_ops)()
-        tail_ops = M.Tail(cur_ops)()
-
-        op_name = M.Head(head_op)()
-        op_variables = M.Head(M.Tail(head_op)())()
-        op_operation = M.Head(M.Tail(M.Tail(head_op)())())()
-
-        # Mine universal laws over ground domain
-        mine_res = MineOperationInvariants(
-            op_name, op_variables, op_operation, domain, reg
-        )()
-        mined_rec = M.Head(mine_res)()
-        r1 = M.Head(M.Tail(mine_res)())()
-
-        # If a law is mined, check if already recorded in ledger
-        if M.IdentityCompare(mined_rec, M.EmptyList)() is M.false_value:
-            law_type = M.Head(M.Tail(M.Tail(mined_rec)())())()
-            is_recorded = self._is_law_recorded(op_name, law_type, ledger)
-            if is_recorded is M.false_value:
-                # Return this un-named regularity
-                witnesses = M.Head(M.Tail(M.Tail(M.Tail(mined_rec)())())())()
-                proposal = M.Pair(
-                    L.ObservedRegularityLabel,
-                    M.Pair(op_name, M.Pair(law_type, M.Pair(witnesses, M.EmptyList))),
-                )
-                return M.Pair(L.ObservedRegularityLabel, M.Pair(proposal, M.Pair(r1, M.EmptyList)))
-
-        # Recurse to next operation in chain
-        return self._sweep_ops(tail_ops, domain, ledger, r1)
-
-    def _is_law_recorded(self, op_name, law_type, ledger):
-        if M.IdentityCompare(ledger, M.EmptyList)() is M.truth_value:
-            return M.false_value
-        schemata = PL.PromotionLedgerProofSchemata(ledger)()
-        return self._search_schemata(schemata, op_name, law_type)
-
-    def _search_schemata(self, cur_entries, op_name, law_type):
-        if M.IdentityCompare(cur_entries, M.EmptyList)() is M.truth_value:
-            return M.false_value
-        entry = M.Head(cur_entries)()
-        prov = PL.LedgerEntryProvenance(entry)()
-        if M.Compare(prov, op_name)() is M.truth_value:
-            return M.truth_value
-        return self._search_schemata(M.Tail(cur_entries)(), op_name, law_type)
-
-    def _synthesize_structure(self, domain, ledger, reg):
-        # Bundles carrier domain and verified laws present in ledger
-        if M.IdentityCompare(ledger, M.EmptyList)() is M.truth_value:
-            return M.Pair(M.EmptyList, M.Pair(M.EmptyList, M.Pair(reg, M.EmptyList)))
-        schemata = PL.PromotionLedgerProofSchemata(ledger)()
-        if M.IdentityCompare(schemata, M.EmptyList)() is M.truth_value:
-            return M.Pair(M.EmptyList, M.Pair(M.EmptyList, M.Pair(reg, M.EmptyList)))
-
-        struct_node = M.Pair(
-            L.AlgebraicTemplateLabel,
-            M.Pair(domain, M.Pair(schemata, M.EmptyList)),
+    def _propose(self, findings, domain, known_nodes, reg):
+        if M.IdentityCompare(findings, M.EmptyList)() is M.truth_value:
+            return self._synthesize_structure(domain, known_nodes, reg)
+        finding = M.Head(findings)()
+        finding_body = M.Tail(finding)()
+        op_name = M.Head(finding_body)()
+        law_body = M.Tail(finding_body)()
+        law_type = M.Head(law_body)()
+        verdict_body = M.Tail(law_body)()
+        verdict = M.Head(verdict_body)()
+        witness_body = M.Tail(verdict_body)()
+        witnesses = M.Head(witness_body)()
+        scope = M.Head(M.Tail(witness_body)())()
+        found_domain = M.Head(M.Tail(scope)())()
+        is_named = self._law_recorded(
+            known_nodes, op_name, law_type, found_domain
         )
-        return M.Pair(L.AlgebraicTemplateLabel, M.Pair(struct_node, M.Pair(reg, M.EmptyList)))
+        if verdict is M.truth_value:
+            if is_named is M.false_value:
+                return M.Pair(
+                    L.ObservedRegularityLabel,
+                    M.Pair(finding, M.Pair(reg, M.EmptyList)),
+                )
+        return self._propose(M.Tail(findings)(), domain, known_nodes, reg)
+
+    def _law_recorded(self, nodes, op_name, law_type, domain):
+        if M.IdentityCompare(nodes, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        node = M.Head(nodes)()
+        tag = M.Head(node)()
+        if M.IdentityCompare(tag, L.NamedRegularityLabel)() is M.truth_value:
+            body = M.Tail(node)()
+            name_body = M.Tail(body)()
+            saved_op = M.Head(name_body)()
+            law_body = M.Tail(name_body)()
+            saved_law = M.Head(law_body)()
+            domain_body = M.Tail(law_body)()
+            saved_domain = M.Head(domain_body)()
+            same_op = M.Compare(saved_op, op_name)()
+            same_law = M.Compare(saved_law, law_type)()
+            same_domain = M.Compare(saved_domain, domain)()
+            if M.AndAtom(same_op, M.AndAtom(same_law, same_domain)())() is M.truth_value:
+                return M.truth_value
+        return self._law_recorded(M.Tail(nodes)(), op_name, law_type, domain)
+
+    def _laws_for_domain(self, nodes, domain):
+        if M.IdentityCompare(nodes, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        node = M.Head(nodes)()
+        rest = self._laws_for_domain(M.Tail(nodes)(), domain)
+        tag = M.Head(node)()
+        if M.IdentityCompare(tag, L.NamedRegularityLabel)() is M.false_value:
+            return rest
+        body = M.Tail(node)()
+        name_body = M.Tail(body)()
+        law_body = M.Tail(name_body)()
+        domain_body = M.Tail(law_body)()
+        saved_domain = M.Head(domain_body)()
+        if M.Compare(saved_domain, domain)() is M.false_value:
+            return rest
+        return M.Pair(node, rest)
+
+    def _structure_recorded(self, nodes, template):
+        if M.IdentityCompare(nodes, M.EmptyList)() is M.truth_value:
+            return M.false_value
+        node = M.Head(nodes)()
+        tag = M.Head(node)()
+        if M.IdentityCompare(tag, L.NamedStructureLabel)() is M.truth_value:
+            saved_template = M.Head(M.Tail(M.Tail(node)())())()
+            if M.Compare(saved_template, template)() is M.truth_value:
+                return M.truth_value
+        return self._structure_recorded(M.Tail(nodes)(), template)
+
+    def _synthesize_structure(self, domain, known_nodes, reg):
+        named_laws = self._laws_for_domain(known_nodes, domain)
+        if M.IdentityCompare(named_laws, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.EmptyList, M.Pair(M.EmptyList, M.Pair(reg, M.EmptyList)))
+        template = M.Pair(
+            L.AlgebraicTemplateLabel,
+            M.Pair(domain, M.Pair(named_laws, M.EmptyList)),
+        )
+        if self._structure_recorded(known_nodes, template) is M.truth_value:
+            return M.Pair(M.EmptyList, M.Pair(M.EmptyList, M.Pair(reg, M.EmptyList)))
+        return M.Pair(L.AlgebraicTemplateLabel, M.Pair(template, M.Pair(reg, M.EmptyList)))
 
     def __call__(self):
         return self.result

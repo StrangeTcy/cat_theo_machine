@@ -38,7 +38,11 @@ class Hypergraph:
         self._search_compare_live_workers = M.EmptyList
         self._search_compare_live_idle_executors = M.EmptyList
         self._last_search_comparison_outcome = M.EmptyList
-        self.promotion_ledger = None
+        self.promotion_ledger = M.EmptyList
+        self._active_unproved_goal = M.EmptyList
+        self._active_unproved_claim = M.EmptyList
+        self._last_discovered_invariant = M.EmptyList
+        self._pending_discovery = M.EmptyList
         self.context = Ctx.Context(
             constructor_registry,
             M.EmptyList,
