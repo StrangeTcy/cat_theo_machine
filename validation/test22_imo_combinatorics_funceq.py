@@ -89,8 +89,9 @@
 #     only; no division/remainder reasoning exists (the trusted W7
 #     arithmetic primitives only build instance data and classify the
 #     sweep); held-out evidence is sweep-drawn, not curriculum cards —
-#     [31] verifies that every corpus card is blueprint-only and
-#     unloadable, so curriculum held-out evidence is impossible here.
+#     [31] measures the corpus's own status and its loadability instead
+#     of assuming either: W25 compiles two cards, refuses the other
+#     twenty-two with reasons, and none of them is used by this suite.
 #
 # No new labels, no kernel edits, no packs, no curriculum cards
 # encoded: instances below are data built from opaque nodes; the
@@ -1345,10 +1346,11 @@ print("      no Coprime premise, so full-theory preservation fails); the miner")
 print("      is run over [r_euclid] and that scope is stated, not hidden.")
 print("  (e) Held-out evidence for family 3 is drawn from the machine's own sweep")
 print("      over (a,b,c) in 2..8 — unseen instances plus refused decoys — not")
-print("      from curriculum cards: [31] verifies that every corpus card is")
-print("      blueprint-only and unloadable (including the coprimality card")
-print("      T1-PIG-2, which does exist — the earlier 'no number-theory cards'")
-print("      wording was imprecise and is corrected there).")
+print("      from curriculum cards: [31] measures corpus loadability instead")
+print("      of assuming it (W25 compiles two cards, refuses twenty-two with")
+print("      reasons).  The coprimality card T1-PIG-2 does exist but still")
+print("      does not compile; the earlier 'no number-theory cards' wording")
+print("      was imprecise and is corrected there.")
 print()
 # --- [31] curriculum-evidence boundary: checked, not assumed -----------------
 print("[31] Curriculum evidence boundary — why held-out evidence is machine-made...")
@@ -1383,27 +1385,68 @@ assert blueprint == len(corpus_files), (
     "every corpus file must be blueprint-only for the claim below to hold"
 )
 print()
-print("  (c) No loader exists in the tree: curriculum.py exposes only the seven")
-print("      rung-task builders and EvaluateCurriculumSuite (what test10")
-print("      exercises), there is no TrainingRecordLoader anywhere, and no module")
-print("      reads the card files.  A blueprint-only card therefore cannot be")
-print("      loaded, compiled, or scored — which is exactly the cards' own")
-print("      promotion gate (constructors present AND a genuine partial match).")
+print("  (c) A card loader now exists (W25): curriculum.py exposes")
+print("      TrainingRecordLoader, CompileCardTask and load_card_corpus, and")
+print("      test37 owns their evidence.  This suite therefore stops assuming")
+print("      'no loader' and measures what the loader actually does:")
 import cat_theo_machine.curriculum as Curric
-loader_names = [a for a in dir(Curric) if a.endswith("Loader")]
-assert not loader_names, "no card loader may exist for this claim to hold"
-print("      loader classes in curriculum.py: %s" % (loader_names or "none"))
+records_chain, card_gaps, card_paths = Curric.load_card_corpus(CORPUS, registry)
+compiled_ids = []
+refused_ids = []
+refusal_reasons = []
+cursor = records_chain
+while M.IdentityCompare(cursor, M.EmptyList)() is M.false_value:
+    record = M.Head(cursor)()
+    card_id = Curric.CardRecordId(record)()
+    outcome = Curric.CompileCardTask(record, M.EmptyList, registry)()
+    if M.IdentityCompare(M.Head(outcome)(), L.CardTaskLabel)() is M.truth_value:
+        compiled_ids.append(card_id)
+    else:
+        refused_ids.append(card_id)
+        refusal_reasons.append(Curric.CardNoBuilderReason(outcome)())
+    cursor = M.Tail(cursor)()
+print("      cards parsed: %d   compiled: %d   refused, with a reason: %d"
+      % (len(card_paths), len(compiled_ids), len(refused_ids)))
+assert len(card_paths) == len(corpus_files), (
+    "the loader must see every corpus file this section enumerated"
+)
+assert len(compiled_ids) + len(refused_ids) == len(card_paths), (
+    "every card is either compiled or explicitly refused"
+)
+assert all(refusal_reasons), "a refusal must carry a reason, not be silent"
+assert len(compiled_ids) == 2, (
+    "the two cards W25 compiles are the seven-glasses held-out and the"
+    " domino-board decoy; a change here is a change in the corpus contract"
+)
+print("      compiled: seven-glasses held-out (solved in test37) and"
+      " domino-board decoy (refused in test37)")
 print()
-print("  (d) The constructors those cards require are absent from labels.py, so")
-print("      their target propositions cannot be stated as machine terms at all:")
-MISSING_CONSTRUCTORS = (
+print("  (d) The ten constructors this section used to list as absent")
+print("      (IntegerLabel ... CheckerboardLabel) are now present: W25 appended")
+print("      them to labels.py.  What is still absent is measured from the")
+print("      cards' own constructor sections, via the loader's records:")
+FORMERLY_MISSING = (
     "IntegerLabel", "IntegersLabel", "RemainderLabel", "ResidueLabel",
     "CongruentLabel", "PrefixSumLabel", "SubsetLabel", "ColoringLabel",
     "DominoLabel", "CheckerboardLabel",
 )
-for name in MISSING_CONSTRUCTORS:
-    assert not hasattr(L, name), "%s must be absent" % name
-print("      absent: " + ", ".join(MISSING_CONSTRUCTORS))
+for name in FORMERLY_MISSING:
+    assert hasattr(L, name), "%s is appended by W25" % name
+cited_names = set()
+for record in to_list(records_chain):
+    for field in (Curric.CardRecordCited(record)(),
+                  Curric.CardRecordMissing(record)()):
+        for name in to_list(field):
+            cited_names.add(name())
+still_absent = sorted(name for name in cited_names if not hasattr(L, name))
+print("      constructors cited by the corpus: %d   still absent: %d"
+      % (len(cited_names), len(still_absent)))
+assert still_absent, (
+    "if every cited constructor existed, the 'most cards cannot be stated'"
+    " boundary below would be false"
+)
+assert len(card_paths) == len(corpus_files)
+print("      still absent, e.g.: " + ", ".join(still_absent[:10]))
 print()
 print("  (e) Per family, does a matching card exist?  (scanned, not assumed)")
 fe_hits = []
@@ -1414,8 +1457,9 @@ for path in corpus_files:
         fe_hits.append(os.path.basename(path))
 assert not fe_hits, "no corpus card may be a functional equation"
 print("      family 1 (combinatorics): pigeonhole / extremal / symmetry / divide")
-print("        cards EXIST (tier0 + tier1) — but they are blueprint-only and")
-print("        unloadable, so they cannot serve as held-out evidence.")
+print("        cards EXIST (tier0 + tier1); two of the 24 compile (the")
+print("        seven-glasses held-out and the domino-board decoy), the other 22")
+print("        are refused with reasons.  No combinatorics card is used here.")
 print("      family 2 (functional equations): NO corpus card mentions Cauchy, a")
 print("        functional equation, or d'Alembert (%d hits) — the [20](d) claim is"
       % len(fe_hits))
@@ -1423,7 +1467,8 @@ print("        now checked rather than asserted.")
 print("      family 3 (number theory): a coprimality card DOES exist (T1-PIG-2,")
 print("        'two coprime from 1..100'), so the earlier wording 'the curriculum")
 print("        has no number-theory cards' was IMPRECISE.  The correct statement:")
-print("        the card exists but is blueprint-only and unloadable, like the rest.")
+print("        the card exists; like the rest it stays blueprint-only (its")
+print("        constructors do not resolve), and this suite does not use it.")
 print()
 print("  (f) Machine check: every fact the families derive is headed by a label")
 print("      that exists in labels.py — no residue/integer/congruence vocabulary")
@@ -1441,10 +1486,12 @@ for f in closure:
 print("      OK: %d family-3 closure facts, every head is Divides/Coprime/Gcd/"
       "ExprMul." % len(closure))
 print()
-print("  CONSEQUENCE: held-out evidence for all three families is machine-")
-print("  generated (sweep classes and unseen instances) plus refused decoys, NOT")
-print("  curriculum cards — and that is a verified property of the corpus, not a")
-print("  choice made by this suite.  No card coverage is claimed.")
+print("  CONSEQUENCE: held-out evidence for all three families in THIS suite is")
+print("  machine-generated (sweep classes and unseen instances) plus refused")
+print("  decoys.  The corpus is no longer wholly unloadable — two cards compile,")
+print("  22 are refused with reasons, both measured — but no combinatorics card")
+print("  compiles, so no card coverage is claimed here.  test37 owns the")
+print("  two-card evidence (one held-out solved, one decoy refused).")
 print()
 # --- [32] measured engine limitation: first-join saturation ------------------
 print("[32] Measuring the closure engine's join enumeration — not arguing it...")

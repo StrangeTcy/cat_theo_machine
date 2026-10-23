@@ -46,6 +46,22 @@ description: >
     prod_even_even / even_odd / odd_even
     prod_odd_odd               parity of a machine-computed product
 
+  Residues and divisibility (W24). `Divides`, `Gcd`, `Coprime` and `Mod` are
+  records of what math/arithmetic's edges computed over the same GMP-backed
+  naturals the parity block uses. The schemas are the generic algebra over
+  those records and contain no constants:
+    divisibility_transitive       a | b and b | c imply a | c
+    gcd_divides_both              the gcd is a common divisor
+    gcd_commutative               Gcd(a, b, g) <-> Gcd(b, a, g)
+    coprime_commutative           Coprime(a, b) <-> Coprime(b, a)
+    gcd_greatest_common_divisor   every common divisor divides the gcd
+    coprimality_euclid            coprime(a, b) and a | b*c imply a | c
+    residue_of_sum                residues add under the modulus, reduced by
+                                  the machine's own Mod record
+    residue_of_product            residues multiply the same way
+  Nothing here computes and nothing names a modulus: the edges compute, the
+  instance records the result, and the schemas say what follows from it.
+
 requires: []
 
 phi:
@@ -634,3 +650,157 @@ rules:
         - call:
             head: {sym: OddLabel}
             args: [{var: p}]
+
+  # --- residue and divisibility wiring (W24) ---------------------------------
+  # Instance vocabulary, all of it the record of what the machine's own
+  # arithmetic edges computed over GMP-backed naturals:
+  #   Divides(a, b)   an edge call returned truth for "a divides b"
+  #   Gcd(a, b, g)    the Gcd edge returned g
+  #   Coprime(a, b)   the IsCoprime edge returned truth
+  #   Mod(a, m, r)    the Modulo edge returned r (so m > 0 by construction)
+  # Nothing in this block computes.  The schemas say only what follows from
+  # records the machine made, which is the same division of labour the parity
+  # block above uses with NatSum / NatProduct.
+
+  - id: divisibility_transitive
+    # a | b and b | c imply a | c.  No constant, no named number.
+    premises:
+      - call:
+          head: {sym: DividesLabel}
+          args: [{var: a}, {var: b}]
+      - call:
+          head: {sym: DividesLabel}
+          args: [{var: b}, {var: c}]
+    replacement:
+      list:
+        - call:
+            head: {sym: DividesLabel}
+            args: [{var: a}, {var: c}]
+
+  - id: gcd_divides_both
+    # The gcd is a common divisor -- both halves, as a fact list.
+    premises:
+      - call:
+          head: {sym: GcdLabel}
+          args: [{var: a}, {var: b}, {var: g}]
+    replacement:
+      list:
+        - call:
+            head: {sym: DividesLabel}
+            args: [{var: g}, {var: a}]
+        - call:
+            head: {sym: DividesLabel}
+            args: [{var: g}, {var: b}]
+
+  - id: gcd_commutative
+    premises:
+      - call:
+          head: {sym: GcdLabel}
+          args: [{var: a}, {var: b}, {var: g}]
+    replacement:
+      list:
+        - call:
+            head: {sym: GcdLabel}
+            args: [{var: b}, {var: a}, {var: g}]
+
+  - id: coprime_commutative
+    premises:
+      - call:
+          head: {sym: CoprimeLabel}
+          args: [{var: a}, {var: b}]
+    replacement:
+      list:
+        - call:
+            head: {sym: CoprimeLabel}
+            args: [{var: b}, {var: a}]
+
+  - id: gcd_greatest_common_divisor
+    # Every common divisor divides the gcd.  This is the universal property
+    # of the gcd, not a computed number: the rule is handed d and concludes
+    # a divisibility fact about it.
+    premises:
+      - call:
+          head: {sym: GcdLabel}
+          args: [{var: a}, {var: b}, {var: g}]
+      - call:
+          head: {sym: DividesLabel}
+          args: [{var: d}, {var: a}]
+      - call:
+          head: {sym: DividesLabel}
+          args: [{var: d}, {var: b}]
+    replacement:
+      list:
+        - call:
+            head: {sym: DividesLabel}
+            args: [{var: d}, {var: g}]
+
+  - id: coprimality_euclid
+    # Euclid's lemma: coprime(a, b) and a | b*c imply a | c.  The Coprime
+    # premise is load-bearing: withhold it and a | b*c does not license
+    # a | c (the suite pins the decoy 6 | 9*4 without 6 | 4).
+    premises:
+      - call:
+          head: {sym: CoprimeLabel}
+          args: [{var: a}, {var: b}]
+      - call:
+          head: {sym: NatProductLabel}
+          args: [{var: b}, {var: c}, {var: p}]
+      - call:
+          head: {sym: DividesLabel}
+          args: [{var: a}, {var: p}]
+    replacement:
+      list:
+        - call:
+            head: {sym: DividesLabel}
+            args: [{var: a}, {var: c}]
+
+  - id: residue_of_sum
+    # x = rx (mod m), y = ry (mod m), s = x + y, rxy = rx + ry and
+    # rs = rxy (mod m) imply s = rs (mod m).  The two NatSum facts are the
+    # machine's computation records; the schema reduces the residue sum
+    # rather than pretending rx + ry is already a residue.
+    premises:
+      - call:
+          head: {sym: ModLabel}
+          args: [{var: x}, {var: m}, {var: rx}]
+      - call:
+          head: {sym: ModLabel}
+          args: [{var: y}, {var: m}, {var: ry}]
+      - call:
+          head: {sym: NatSumLabel}
+          args: [{var: x}, {var: y}, {var: s}]
+      - call:
+          head: {sym: NatSumLabel}
+          args: [{var: rx}, {var: ry}, {var: rxy}]
+      - call:
+          head: {sym: ModLabel}
+          args: [{var: rxy}, {var: m}, {var: rs}]
+    replacement:
+      list:
+        - call:
+            head: {sym: ModLabel}
+            args: [{var: s}, {var: m}, {var: rs}]
+
+  - id: residue_of_product
+    # The same law for multiplication: p = x*y and rp = rx*ry, reduced.
+    premises:
+      - call:
+          head: {sym: ModLabel}
+          args: [{var: x}, {var: m}, {var: rx}]
+      - call:
+          head: {sym: ModLabel}
+          args: [{var: y}, {var: m}, {var: ry}]
+      - call:
+          head: {sym: NatProductLabel}
+          args: [{var: x}, {var: y}, {var: p}]
+      - call:
+          head: {sym: NatProductLabel}
+          args: [{var: rx}, {var: ry}, {var: rp}]
+      - call:
+          head: {sym: ModLabel}
+          args: [{var: rp}, {var: m}, {var: rpm}]
+    replacement:
+      list:
+        - call:
+            head: {sym: ModLabel}
+            args: [{var: p}, {var: m}, {var: rpm}]

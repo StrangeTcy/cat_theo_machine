@@ -238,9 +238,54 @@ def CircumcircleCompletion():
     )()
 
 
+def AntipodeCompletion():
+    """
+    A goal asking that a chord from `c` meet a second segment at a right
+    angle is borne by completing the diameter through `a`: sound when `k` is
+    a circle with centre `o` and `a` already lies on it, effective because
+    the fresh antipode `aux` is what makes the chord a diameter, and a
+    diameter is seen at a right angle from every other point of the circle.
+
+    The goal's own variable is the existential witness -- "there is a point
+    such that ..." -- and the generator instantiates the effects on it, the
+    same way the circumcircle schema instantiates on the goal's circle. A
+    caller that needs ground terms mints the leftover variable with the
+    machine's own `MintUnboundWitnessesInList`, which records the
+    introduction; nothing here invents a named point.
+    """
+    env = _var_env()
+    a = _var(env, "a")
+    b = _var(env, "b")
+    c = _var(env, "c")
+    k = _var(env, "k")
+    o = _var(env, "o")
+    aux = _var(env, "aux")
+
+    goal_shape = _call(
+        L.PerpendicularLabel,
+        _call(L.SegmentLabel, c, a),
+        _call(L.SegmentLabel, c, b),
+    )
+    premises = M.Pair(
+        _call(L.CentreOfLabel, o, k),
+        M.Pair(_call(L.OnCircleLabel, a, k), M.EmptyList),
+    )
+    effects = M.Pair(
+        _call(L.DiameterLineLabel, k, _call(L.SegmentLabel, a, b)),
+        M.Pair(_call(L.OnCircleLabel, b, k), M.EmptyList),
+    )
+    return ConstructionSchema(M.Char("antipode-completion"), aux, goal_shape, premises, effects)()
+
+
 def DefaultSchemas():
     """The schema chain this branch ships: completion schemas, nothing else."""
-    return M.Pair(BisectorCompletion(), M.Pair(CircumcircleCompletion(), M.EmptyList))
+    return M.Pair(
+        BisectorCompletion(),
+        M.Pair(
+            CircumcircleCompletion(),
+            M.Pair(AntipodeCompletion(), M.EmptyList),
+        ),
+    )
 
 
 __all__ = (
@@ -255,5 +300,6 @@ __all__ = (
     "ConstructionProposals",
     "BisectorCompletion",
     "CircumcircleCompletion",
+    "AntipodeCompletion",
     "DefaultSchemas",
 )
