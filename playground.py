@@ -556,8 +556,11 @@ class UniversalQuantify(M.Edge):
         self.registry = registry
         ops = operation_register
         if M.IdentityCompare(ops, M.EmptyList)() is M.truth_value:
+            terms = relation
+            if self._is_derivation_relation(relation) is M.truth_value:
+                terms = M.EmptyList
             built = BuildNatOperationRegister(
-                registry, M.Pair(relation, M.EmptyList)
+                registry, terms
             )()
             ops = M.Head(built)()
         self.result = self._eval(
@@ -603,11 +606,10 @@ class UniversalQuantify(M.Edge):
         if M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
             inst_res = M.Instantiate(M.Head(remaining)(), environment)()
             config_fact = M.Head(inst_res)()
-            reg1 = M.Head(M.Tail(inst_res)())()
             return self._derivation_holds(
                 relation,
                 environment,
-                reg1,
+                registry,
                 ops,
                 M.Tail(remaining)(),
                 ChainAppendEnd(config, config_fact)(),
@@ -668,8 +670,11 @@ class ExistentialQuantify(M.Edge):
         self.registry = registry
         ops = operation_register
         if M.IdentityCompare(ops, M.EmptyList)() is M.truth_value:
+            terms = relation
+            if self._is_derivation_relation(relation) is M.truth_value:
+                terms = M.EmptyList
             built = BuildNatOperationRegister(
-                registry, M.Pair(relation, M.EmptyList)
+                registry, terms
             )()
             ops = M.Head(built)()
         self.result = self._eval(
@@ -715,11 +720,10 @@ class ExistentialQuantify(M.Edge):
         if M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
             inst_res = M.Instantiate(M.Head(remaining)(), environment)()
             config_fact = M.Head(inst_res)()
-            reg1 = M.Head(M.Tail(inst_res)())()
             return self._derivation_holds(
                 relation,
                 environment,
-                reg1,
+                registry,
                 ops,
                 M.Tail(remaining)(),
                 ChainAppendEnd(config, config_fact)(),
@@ -1720,6 +1724,8 @@ class RenderNatExpr(M.Edge):
         head = M.Head(head_args)()
         args = M.Head(M.Tail(head_args)())()
         if M.IdentityCompare(head, L.ExprIntLabel)() is M.truth_value:
+            if ExactArity(args, M.one, registry)() is M.false_value:
+                return "?"
             return self._render(M.Head(args)(), registry, ops)
         if ExactArity(args, M.two, registry)() is M.false_value:
             return "?"
@@ -1733,6 +1739,8 @@ class RenderNatExpr(M.Edge):
                 is M.truth_value
             ):
                 b_str = "(" + b_str + ")"
+            if self._pair_not_head(right, L.ExprIntLabel) is M.truth_value:
+                e_str = "(" + e_str + ")"
             return b_str + "^" + e_str
         entry = LookupOperationByLabel(head, ops)()
         if M.IdentityCompare(entry, M.EmptyList)() is M.truth_value:
@@ -2002,10 +2010,14 @@ class EvaluateNatExpr(M.Edge):
         head = M.Head(head_args)()
         args = M.Head(M.Tail(head_args)())()
         if M.IdentityCompare(head, L.ExprIntLabel)() is M.truth_value:
+            if ExactArity(args, M.one, registry)() is M.false_value:
+                return self._refuse(registry)
             constant = M.Head(args)()
             if A.IsNat(constant, registry)() is M.false_value:
                 return self._refuse(registry)
             return M.Pair(constant, M.Pair(registry, M.EmptyList))
+        if ExactArity(args, M.two, registry)() is M.false_value:
+            return self._refuse(registry)
         if M.IdentityCompare(head, L.ExprPowLabel)() is M.truth_value:
             base_res = self._eval(M.Head(args)(), environment, registry, ops)
             base = M.Head(base_res)()
@@ -2966,6 +2978,10 @@ class FindTensorEqualityWitness(M.Edge):
         return M.false_value
 
     def _values_agree(self, val_l, val_r, registry):
+        if A.IsNat(val_l, registry)() is M.false_value:
+            return M.false_value
+        if A.IsNat(val_r, registry)() is M.false_value:
+            return M.false_value
         agrees = M.OrAtom(
             M.IdentityCompare(val_l, val_r)(),
             M.NatEq(val_l, val_r, registry)(),
@@ -3754,7 +3770,7 @@ class ParseSurfaceGoalSpec(M.Edge):
                         M.Char("."),
                         M.Pair(
                             M.Char("?"),
-                            M.Pair(M.Char("!"), M.Pair(M.Char("\""), M.Pair(M.Char("'"), M.EmptyList))),
+                            M.Pair(M.Char("\""), M.Pair(M.Char("'"), M.EmptyList)),
                         ),
                     ),
                 ),
@@ -3882,7 +3898,7 @@ class ParseSurfaceGoalSpec(M.Edge):
         tok = M.Head(cur)()
         s = tok()
         if M.Compare(tok, M.Char(")"))() is M.truth_value:
-            if expect_operand is M.false_value:
+            if expect_operand is M.truth_value:
                 succ_res = M.Succ(depth, reg)()
                 depth = M.Head(succ_res)()
                 reg = M.Head(M.Tail(succ_res)())()
@@ -4653,7 +4669,7 @@ class FormatDiscoveriesReport(M.Edge):
         mods_str = FormatSetChain(moduli_chain, reg)()
         if M.IdentityCompare(domain_chain, M.EmptyList)() is M.false_value:
             domain_text = FormatSetChain(domain_chain, reg)()
-            if M.IdentityCompare(witness_env, M.EmptyList)() is M.truth_value:
+            if M.IdentityCompare(witness_env, M.EmptyList)() is M.false_value:
                 w_str = FormatEnvChain(witness_env, reg)()
                 report_text = f"{indent}- Ground Tensor Witness (domain {domain_text}): Counterexample solution found at ({w_str}) where {lhs_str} = {rhs_str}."
             else:
@@ -4665,7 +4681,7 @@ class FormatDiscoveriesReport(M.Edge):
             min_elem_val = 0
             if positive_only is M.truth_value:
                 min_elem_val = 1
-            if M.IdentityCompare(witness_env, M.EmptyList)() is M.truth_value:
+            if M.IdentityCompare(witness_env, M.EmptyList)() is M.false_value:
                 w_str = FormatEnvChain(witness_env, reg)()
                 report_text = f"{indent}- Ground Tensor Witness ({min_elem_val}..{max_elem_val}): Counterexample solution found at ({w_str}) where {lhs_str} = {rhs_str}."
             else:
@@ -4881,7 +4897,7 @@ class FilterCandidateParameters(M.Edge):
     the candidates admitted by the parsed machine parameter constraints:
     candidates are 1-tuples over [exp_var] and FilterTuples evaluates the
     constraint chain itself, with no host callable. The first two admitted
-    candidates are returned, or the machine default when none are admitted.
+    candidates are returned; no admitted candidate yields an empty chain.
     Result: Pair(candidates_chain, Pair(registry, EmptyList)).
     """
 
@@ -4927,11 +4943,6 @@ class FilterCandidateParameters(M.Edge):
             M.NatLess(taken, M.two, registry)(),
         )()
         if M.IdentityCompare(take_more, M.false_value)() is M.truth_value:
-            if M.IdentityCompare(out, M.EmptyList)() is M.truth_value:
-                return M.Pair(
-                    M.Pair(M.three, M.Pair(M.four, M.EmptyList)),
-                    M.Pair(registry, M.EmptyList),
-                )
             return M.Pair(out, M.Pair(registry, M.EmptyList))
         tup = M.Head(cur)()
         out = ChainAppendEnd(out, M.Head(tup)())()
@@ -5525,6 +5536,8 @@ class ValidNatConstraints(M.Edge):
         if M.IsPair(cursor)() is M.false_value:
             return M.false_value
         constraint = M.Head(cursor)()
+        if M.IsPair(constraint)() is M.false_value:
+            return M.false_value
         head_args = ExprHeadArgs(constraint)()
         head = M.Head(head_args)()
         args = M.Head(M.Tail(head_args)())()
@@ -5670,6 +5683,8 @@ class EvaluateNatConstraints(M.Edge):
         mod_res = A.Modulo(term_val, modulus_val, reg3)()
         rem = M.Head(mod_res)()
         reg4 = M.Head(M.Tail(mod_res)())()
+        if M.IdentityCompare(rem, M.EmptyList)() is M.truth_value:
+            return M.EmptyList, reg4
         return M.NatEq(rem, residue_val, reg4)(), reg4
 
     def _binary(self, head, args, environment, registry, ops):
@@ -5691,14 +5706,20 @@ class EvaluateNatConstraints(M.Edge):
             cursor = constraints
         if M.IdentityCompare(cursor, M.EmptyList)() is M.truth_value:
             return M.Pair(M.truth_value, M.Pair(registry, M.EmptyList))
+        if M.IsPair(cursor)() is M.false_value:
+            return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
         constraint = M.Head(cursor)()
         if M.IsPair(constraint)() is M.false_value:
             return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
         head = M.Head(constraint)()
         args = M.Tail(constraint)()
         if M.IdentityCompare(head, L.NatModEqLabel)() is M.truth_value:
+            if ExactArity(args, M.three, registry)() is M.false_value:
+                return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
             verdict, registry = self._mod_eq(args, environment, registry, ops)
         else:
+            if ExactArity(args, M.two, registry)() is M.false_value:
+                return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
             verdict, registry = self._binary(head, args, environment, registry, ops)
         if M.IdentityCompare(verdict, M.false_value)() is M.truth_value:
             return M.Pair(M.false_value, M.Pair(registry, M.EmptyList))
