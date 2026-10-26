@@ -1937,6 +1937,12 @@ def run_live_mode(debug: bool = False):
                     + PG.RenderDiscoveredEquation(law_type, reg)()
                     + " on "
                     + PG.FormatSetChain(domain, reg)()
+                    + " | Supporting examples: "
+                    + PG.FormatOperationLawExamples(
+                        law_type, witnesses,
+                        runtime.graph._last_playground_operation_register,
+                        reg, M.truth_value,
+                    )()
                 )
                 runtime.graph.add_node(named_record)
                 print(f"[machine] Recorded '{name_part}' as a named finite-domain observation.")
@@ -1953,6 +1959,7 @@ def run_live_mode(debug: bool = False):
             log_line = f"Lesson named: '{name_part}' | Discovery: {description}\n"
             with open("talk_lessons.log", "a", encoding="utf-8") as f_log:
                 f_log.write(log_line)
+            print("[machine] Yes, recorded to talk_lessons.log.")
             pending_proposal = M.EmptyList
             runtime.graph._pending_discovery = M.EmptyList
         elif cmd == "suggest lemmas":
@@ -2030,6 +2037,8 @@ def run_live_mode(debug: bool = False):
                 )()
                 prop_status = M.Head(prop_res)()
                 prop_rec = M.Head(M.Tail(prop_res)())()
+                reg2 = M.Head(M.Tail(M.Tail(prop_res)())())()
+                runtime.graph._replace_context(constructors=reg2)
 
                 if M.IdentityCompare(prop_status, Lmod.ObservedRegularityLabel)() is M.truth_value:
                     finding = prop_rec
@@ -2048,9 +2057,15 @@ def run_live_mode(debug: bool = False):
                     )
                     runtime.graph._pending_discovery = pending_proposal
                     domain_str = PG.FormatSetChain(found_domain, reg2)()
+                    examples = PG.FormatOperationLawExamples(
+                        law_char, M.Head(witness_body)(), ops_chain, reg2
+                    )()
                     print(f"[machine] Observed: {op_str} satisfies {law_str} on tested domain {domain_str}.")
-                    print("[machine] Supporting witnesses are stored with this observation.")
-                    print("[machine] Would you care to give it a name?")
+                    PG.NaturalPlaygroundDebugEmit(M.Char(
+                        "Proposing the observed regularity: [" + examples
+                        + "]; please provide a name for the property of " + op_str
+                        + "(); the name and tested-domain examples will be stored in talk_lessons.log."
+                    ))()
                 elif M.IdentityCompare(prop_status, Lmod.AlgebraicTemplateLabel)() is M.truth_value:
                     pending_proposal = M.Pair(
                         prop_status, M.Pair(prop_rec, M.EmptyList)

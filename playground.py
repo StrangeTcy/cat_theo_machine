@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import os
+import sys
 
 from . import constructors as C
 from . import graph_task as GT
@@ -50,6 +51,7 @@ class NaturalPlaygroundDebugEmit(M.Edge):
             message(),
             sep="",
         )
+        sys.stdout.flush()
         super().__init__(
             inputs=M.Pair(message, M.EmptyList),
             results=self.result,
@@ -1799,6 +1801,58 @@ class RenderDiscoveredEquation(M.Edge):
         return self.result
 
 
+class RenderOperationValue(M.Edge):
+    """Surface text for a ground evaluation, including an undefined cell."""
+
+    def __init__(self, value, registry):
+        self.result = "undefined"
+        if M.IdentityCompare(value, M.truth_value)() is M.truth_value:
+            self.result = "truth_value"
+        elif M.IdentityCompare(value, M.false_value)() is M.truth_value:
+            self.result = "false_value"
+        elif A.IsNat(value, registry)() is M.truth_value:
+            self.result = M.GMPRepText(M.NatRepOf(value, registry)())()
+        super().__init__(inputs=M.Pair(value, M.Pair(registry, M.EmptyList)), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
+class RenderOperationCall(M.Edge):
+    """Render the supplied term and assignment without evaluating it."""
+
+    def __init__(self, term, environment, operations, registry):
+        self.result = "operation(?)"
+        if A.IsNat(term, registry)() is M.truth_value:
+            self.result = RenderOperationValue(term, registry)()
+        elif M.IsPair(term)() is M.truth_value:
+            head_args = ExprHeadArgs(term)()
+            label = M.Head(head_args)()
+            args = M.Head(M.Tail(head_args)())()
+            if M.IdentityCompare(label, L.ExprIntLabel)() is M.truth_value:
+                self.result = RenderOperationCall(M.Head(args)(), environment, operations, registry)()
+            else:
+                entry = LookupOperationByLabel(label, operations)()
+                if M.IdentityCompare(entry, M.EmptyList)() is M.false_value:
+                    if ExactArity(args, M.two, registry)() is M.truth_value:
+                        left = RenderOperationCall(M.Head(args)(), environment, operations, registry)()
+                        right = RenderOperationCall(M.Head(M.Tail(args)())(), environment, operations, registry)()
+                        self.result = M.Head(entry)()() + "(" + left + ", " + right + ")"
+        else:
+            value = EnvLookup(environment, term)()
+            if M.IdentityCompare(value, M.EmptyList)() is M.false_value:
+                self.result = RenderOperationValue(value, registry)()
+            elif M.IdentityCompare(term, M.EmptyList)() is M.false_value:
+                self.result = term()
+        super().__init__(
+            inputs=M.Pair(term, M.Pair(environment, M.Pair(operations, M.Pair(registry, M.EmptyList)))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class FormatOperationLawExamples(M.Edge):
     """Render a few ground witnesses as operation calls."""
 
@@ -1811,9 +1865,15 @@ class FormatOperationLawExamples(M.Edge):
         lhs = M.Head(M.Tail(body)())()
         rhs = M.Head(M.Tail(M.Tail(body)())())()
         self.result = self._format(
-            lhs, rhs, variables, ChainReverse(witnesses)(), operations,
+            lhs, rhs, variables, witnesses, operations,
             registry, M.three, "", include_trivial,
         )
+        if M.Compare(M.Char(self.result), M.Char(""))() is M.truth_value:
+            if include_trivial is M.false_value:
+                self.result = self._format(
+                    lhs, rhs, variables, witnesses, operations,
+                    registry, M.three, "", M.truth_value,
+                )
         super().__init__(
             inputs=M.Pair(
                 equation,
@@ -1827,41 +1887,6 @@ class FormatOperationLawExamples(M.Edge):
             ),
             results=self.result,
         )
-
-    def _nat_text(self, value, registry):
-        rep = M.NatRepOf(value, registry)()
-        if M.IdentityCompare(rep, M.EmptyList)() is M.truth_value:
-            return "?"
-        return M.GMPRepText(rep)()
-
-    def _render_term(self, term, environment, operations, registry):
-        if M.IsPair(term)() is M.false_value:
-            if A.IsNat(term, registry)() is M.truth_value:
-                return self._nat_text(term, registry)
-            value = EnvLookup(environment, term)()
-            if M.IdentityCompare(value, M.EmptyList)() is M.false_value:
-                return self._nat_text(value, registry)
-            if M.IdentityCompare(term, M.EmptyList)() is M.truth_value:
-                return "?"
-            return term()
-        head_args = ExprHeadArgs(term)()
-        label = M.Head(head_args)()
-        args = M.Head(M.Tail(head_args)())()
-        if M.IdentityCompare(label, L.ExprIntLabel)() is M.truth_value:
-            return self._render_term(
-                M.Head(args)(), environment, operations, registry
-            )
-        entry = LookupOperationByLabel(label, operations)()
-        if M.IdentityCompare(entry, M.EmptyList)() is M.truth_value:
-            return "operation(?)"
-        name = M.Head(entry)()()
-        left = self._render_term(
-            M.Head(args)(), environment, operations, registry
-        )
-        right = self._render_term(
-            M.Head(M.Tail(args)())(), environment, operations, registry
-        )
-        return name + "(" + left + ", " + right + ")"
 
     def _format(self, lhs, rhs, variables, witnesses, operations, registry,
                 remaining, out, include_trivial):
@@ -1880,18 +1905,14 @@ class FormatOperationLawExamples(M.Edge):
             first_is_zero,
             M.OrAtom(second_is_zero, args_are_equal)(),
         )()
-        if (
-            include_trivial is M.false_value
-            and M.IdentityCompare(trivial_pair, M.truth_value)()
-            is M.truth_value
-        ):
+        if M.AndAtom(M.IdentityCompare(include_trivial, M.false_value)(), trivial_pair)() is M.truth_value:
             return self._format(
                 lhs, rhs, variables, M.Tail(witnesses)(), operations,
                 registry, remaining, out, include_trivial,
             )
         environment = ZipEnvironment(variables, assignment)()
-        left_text = self._render_term(lhs, environment, operations, registry)
-        right_text = self._render_term(rhs, environment, operations, registry)
+        left_text = RenderOperationCall(lhs, environment, operations, registry)()
+        right_text = RenderOperationCall(rhs, environment, operations, registry)()
         example = left_text + " == " + right_text
         if M.Compare(M.Char(out), M.Char(""))() is M.truth_value:
             next_out = example
@@ -3019,6 +3040,14 @@ class BuildOperationTensor(M.Edge):
         cur = domain
         while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
             a = M.Head(cur)()
+            entry = LookupOperationByLabel(label, ops)()
+            row_message = "Evaluating tensor row: "
+            if M.IdentityCompare(cur, domain)() is M.truth_value:
+                row_message = "Evaluating the first row of the tensor: "
+            NaturalPlaygroundDebugEmit(M.Char(
+                row_message + M.Head(entry)()() + " with first argument "
+                + RenderOperationValue(a, registry)()
+            ))()
             acc = M.Pair(M.Pair(a, self._cells(values, a, label, registry, ops)), acc)
             cur = M.Tail(cur)()
         return self._reverse(acc)
@@ -3029,7 +3058,13 @@ class BuildOperationTensor(M.Edge):
         while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
             b = M.Head(cur)()
             term = M.Pair(label, M.Pair(a, M.Pair(b, M.EmptyList)))
+            call_text = RenderOperationCall(term, M.EmptyList, ops, registry)()
+            NaturalPlaygroundDebugEmit(M.Char("Evaluating tensor cell: " + call_text))()
             evaluated = EvaluateNatExpr(term, M.EmptyList, registry, ops)()
+            NaturalPlaygroundDebugEmit(M.Char(
+                "Evaluated tensor cell: " + call_text + " -> "
+                + RenderOperationValue(M.Head(evaluated)(), M.Head(M.Tail(evaluated)())())()
+            ))()
             acc = M.Pair(M.Pair(b, M.Head(evaluated)()), acc)
             cur = M.Tail(cur)()
         return self._reverse(acc)
@@ -5319,31 +5354,14 @@ class RunPlaygroundInteractive(M.Edge):
             return report + "\n[machine] No Nat-valued expression operations were available for law mining."
         from . import invariant_miner as Miner
 
-        # Process-tagged progress, emitted where the work actually happens
-        # rather than from a canned preamble. The tensor is domain x domain x
-        # operations; its first row fixes the domain's first element and runs
-        # every registered operation against the whole domain.
-        NaturalPlaygroundDebugEmit(M.Char(
-            "Evaluating the first row of the tensor: "
-            + FormatDiscoveredOperationNames(operations)()
-            + " applied to "
-            + M.GMPRepText(M.NatRepOf(M.Head(domain)(), registry)())()
-            + " against every element of "
-            + FormatSetChain(domain, registry)()
-        ))()
-        NaturalPlaygroundDebugEmit(M.Char(
-            "Pairwise comparing the results of the same operation: for every "
-            "registered operation, does op(a, b) equal op(b, a) across "
-            + FormatSetChain(domain, registry)()
-            + "?"
-        ))()
-
         known_nodes = M.FromContextGetNodes(graph)()
         proposal = Miner.ProposeNextRegularityOrStructure(
             operations, domain, known_nodes, registry
         )()
         status = M.Head(proposal)()
         payload = M.Head(M.Tail(proposal)())()
+        registry = M.Head(M.Tail(M.Tail(proposal)())())()
+        graph._replace_context(constructors=registry)
         if M.IdentityCompare(status, L.ObservedRegularityLabel)() is M.truth_value:
             graph._pending_discovery = M.Pair(
                 status, M.Pair(payload, M.EmptyList)
@@ -5361,13 +5379,12 @@ class RunPlaygroundInteractive(M.Edge):
                 law_type, witnesses, operations, registry
             )()
             NaturalPlaygroundDebugEmit(M.Char(
-                "Gathering observations of a regularity: ["
+                "Proposing the observed regularity: ["
                 + examples
-                + "]; I propose a name for this property; please provide it: "
+                + "]; please provide a name for "
                 "the property of "
                 + operation_name()
-                + "(); it will be stored in task_lesson.log and reused in "
-                "later reasoning."
+                + "(); the name and tested-domain examples will be stored in talk_lessons.log."
             ))()
             return report + (
                 "\n[machine] Observed on tested domain "
@@ -6140,6 +6157,10 @@ class FindNatWitness(M.Edge):
 
 __all__ = (
     "PlaygroundDebugEmit",
+    "NaturalPlaygroundDebugEmit",
+    "RenderOperationValue",
+    "RenderOperationCall",
+    "FormatOperationLawExamples",
     "ChainLength",
     "ChainContains",
     "SetInsert",

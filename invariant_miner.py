@@ -720,12 +720,25 @@ class MineOperationInvariantsAcrossRegister(M.Edge):
         active = reg
         while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
             assignment = M.Head(cur)()
+            environment = PG.ZipEnvironment(variables, assignment)()
+            comparison_text = (
+                PG.RenderOperationCall(lhs, environment, ops, active)()
+                + " == "
+                + PG.RenderOperationCall(rhs, environment, ops, active)()
+            )
+            PG.NaturalPlaygroundDebugEmit(M.Char(
+                "Pairwise comparing the results of the same operation: "
+                + comparison_text + "?"
+            ))()
             lhs_res = self._equation_value(
                 lhs, variables, assignment, active, ops, tensor
             )
             lhs_value = M.Head(lhs_res)()
             active = M.Head(M.Tail(lhs_res)())()
             if M.IdentityCompare(lhs_value, M.EmptyList)() is M.truth_value:
+                PG.NaturalPlaygroundDebugEmit(M.Char(
+                    comparison_text + " -> undefined left operand; candidate not established"
+                ))()
                 return M.Pair(
                     M.false_value, M.Pair(active, M.Pair(M.EmptyList, M.EmptyList))
                 )
@@ -735,10 +748,19 @@ class MineOperationInvariantsAcrossRegister(M.Edge):
             rhs_value = M.Head(rhs_res)()
             active = M.Head(M.Tail(rhs_res)())()
             if M.IdentityCompare(rhs_value, M.EmptyList)() is M.truth_value:
+                PG.NaturalPlaygroundDebugEmit(M.Char(
+                    comparison_text + " -> undefined right operand; candidate not established"
+                ))()
                 return M.Pair(
                     M.false_value, M.Pair(active, M.Pair(M.EmptyList, M.EmptyList))
                 )
-            if M.NatEq(lhs_value, rhs_value, active)() is M.false_value:
+            equal = M.NatEq(lhs_value, rhs_value, active)()
+            PG.NaturalPlaygroundDebugEmit(M.Char(
+                comparison_text + " -> " + PG.RenderOperationValue(equal, active)()
+                + " (" + PG.RenderOperationValue(lhs_value, active)()
+                + " == " + PG.RenderOperationValue(rhs_value, active)() + ")"
+            ))()
+            if equal is M.false_value:
                 return M.Pair(
                     M.false_value, M.Pair(active, M.Pair(M.EmptyList, M.EmptyList))
                 )
@@ -784,6 +806,11 @@ class MineOperationInvariantsAcrossRegister(M.Edge):
                     op_name, equation, verdict, witnesses, domain
                 )
                 found = M.Pair(finding, found)
+                PG.NaturalPlaygroundDebugEmit(M.Char(
+                    "Gathering observations of a regularity for " + op_name()
+                    + "(): [" + PG.FormatOperationLawExamples(equation, witnesses, ops, active)()
+                    + "]; held across the tested domain " + PG.FormatSetChain(domain, active)()
+                ))()
             cur = M.Tail(cur)()
         return M.Pair(found, M.Pair(active, M.EmptyList))
 
