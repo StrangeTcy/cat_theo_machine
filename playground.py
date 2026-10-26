@@ -15,6 +15,7 @@ from . import labels as L
 from . import machine as M
 from . import proof as P
 from .math import arithmetic as A
+from .trees import TreeEntries
 
 
 class PlaygroundDebugEmit(M.Edge):
@@ -373,32 +374,43 @@ class ProductOfDomains(M.Edge):
         )
 
     def _prod(self, domains):
-        if M.IdentityCompare(domains, M.EmptyList)() is M.truth_value:
-            return M.Pair(M.EmptyList, M.EmptyList)
-        head_dom = M.Head(domains)()
-        tail_doms = M.Tail(domains)()
-        rest_prod = self._prod(tail_doms)
-        return self._distribute_outer(head_dom, rest_prod)
+        """Build the Cartesian product iteratively.
 
-    def _distribute_outer(self, cur_head, rest_prod):
-        if M.IdentityCompare(cur_head, M.EmptyList)() is M.truth_value:
-            return M.EmptyList
-        x = M.Head(cur_head)()
-        with_x = self._distribute_inner(x, rest_prod)
-        rest = self._distribute_outer(M.Tail(cur_head)(), rest_prod)
-        return self._concat(with_x, rest)
+        The recursive shape walked one chain per domain and then concatenated
+        the pieces, which spent a stack frame per element and made the
+        concatenation quadratic in the number of tuples. Extending an
+        accumulator in a loop allocates once per tuple and keeps the depth
+        constant. Domains are consumed right to left because a tuple is built
+        by prepending, so the leftmost domain still varies slowest and still
+        leads each tuple, exactly as before.
+        """
+        acc = M.Pair(M.EmptyList, M.EmptyList)
+        cur = self._reverse(domains)
+        while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
+            acc = self._extend(M.Head(cur)(), acc)
+            cur = M.Tail(cur)()
+        return acc
 
-    def _distribute_inner(self, x, cur_tuples):
-        if M.IdentityCompare(cur_tuples, M.EmptyList)() is M.truth_value:
-            return M.EmptyList
-        t = M.Head(cur_tuples)()
-        new_tuple = M.Pair(x, t)
-        return M.Pair(new_tuple, self._distribute_inner(x, M.Tail(cur_tuples)()))
+    def _extend(self, domain, acc):
+        """Prepend every element of domain onto every tuple of acc."""
+        built = M.EmptyList
+        cur_x = domain
+        while M.IdentityCompare(cur_x, M.EmptyList)() is M.false_value:
+            x = M.Head(cur_x)()
+            cur_t = acc
+            while M.IdentityCompare(cur_t, M.EmptyList)() is M.false_value:
+                built = M.Pair(M.Pair(x, M.Head(cur_t)()), built)
+                cur_t = M.Tail(cur_t)()
+            cur_x = M.Tail(cur_x)()
+        return self._reverse(built)
 
-    def _concat(self, list1, list2):
-        if M.IdentityCompare(list1, M.EmptyList)() is M.truth_value:
-            return list2
-        return M.Pair(M.Head(list1)(), self._concat(M.Tail(list1)(), list2))
+    def _reverse(self, chain):
+        out = M.EmptyList
+        cur = chain
+        while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
+            out = M.Pair(M.Head(cur)(), out)
+            cur = M.Tail(cur)()
+        return out
 
     def __call__(self):
         return self.result
@@ -2047,6 +2059,24 @@ class EvaluateNatExpr(M.Edge):
         reg2 = M.Head(M.Tail(right_res)())()
         if M.IdentityCompare(right, M.EmptyList)() is M.truth_value:
             return self._refuse(reg2)
+        # The operation is chosen by the label the term carries, and every
+        # branch names one of the machine's arithmetic edges directly. No
+        # class is read out of machine data and called: that is a host
+        # callable as a machine parameter (CTM-ODR-5 3.3). The register above
+        # still decides which labels are admitted and what metadata they
+        # carry -- it describes operations, it does not execute them.
+        # The operation is chosen by the label the term carries, and every
+        # branch names one of the machine's arithmetic edges directly. No
+        # class is read out of machine data and called: that is a host
+        # callable as a machine parameter (CTM-ODR-5 3.3). The register above
+        # still decides which labels are admitted and what metadata they
+        # carry -- it describes operations, it does not execute them.
+        #
+        # Nothing is entered into the constructor registry here. An applied
+        # edge would be registered under a label the register has already
+        # admitted and described, so it adds no operation the scan could not
+        # already find, while costing an atom allocation -- and therefore a
+        # uuid4 -- on every single evaluation.
         computed = M.EmptyList
         if M.IdentityCompare(head, L.ExprAddLabel)() is M.truth_value:
             computed = A.Add(left, right, reg2)()
@@ -2792,7 +2822,8 @@ class BuildNatOperationRegister(M.Edge):
 
     def __init__(self, registry, terms=M.EmptyList):
         self.registry = registry
-        entries = self._scan_terms(terms, M.EmptyList)
+        entries = self._scan_registry(M.EmptyList)
+        entries = self._scan_terms(terms, entries)
         self.result = M.Pair(entries, M.Pair(registry, M.EmptyList))
         super().__init__(
             inputs=M.Pair(registry, M.Pair(terms, M.EmptyList)),
@@ -2857,8 +2888,55 @@ class BuildNatOperationRegister(M.Edge):
             ),
         )
 
+    def _scan_registry(self, entries):
+        """Scan the machine's own edge registry for the arithmetic it has run.
+
+        TreeEntries walks the constructor registry, and every operation the
+        machine has applied is entered there under the label the term carried.
+        An entry is an operation when it is an edge whose label names one, so
+        the catalog is what the machine has actually run rather than a list
+        written out by hand. This is the scan that finds the whole operation
+        set; the term walk below only adds operations named by the terms it
+        is handed.
+        """
+        registered = TreeEntries(self.registry)()
+        return self._scan_entries(registered, entries)
+
+    def _scan_entries(self, remaining, entries):
+        if M.IdentityCompare(remaining, M.EmptyList)() is M.truth_value:
+            return entries
+        if M.IsPair(remaining)() is M.false_value:
+            return entries
+        entry = M.Head(remaining)()
+        fact = M.Head(M.Tail(entry)())()
+        entries = self._scan_registered(fact, entries)
+        return self._scan_entries(M.Tail(remaining)(), entries)
+
+    def _scan_registered(self, fact, entries):
+        if M.IsEdge(fact, self.registry)() is M.false_value:
+            return entries
+        constructor = M.GetConstructor(fact, self.registry)()
+        if M.IdentityCompare(constructor, M.EmptyList)() is M.truth_value:
+            return entries
+        label = M.Head(constructor)()
+        found = self._entry(label)
+        if M.IdentityCompare(found, M.EmptyList)() is M.false_value:
+            prior = LookupOperationByLabel(label, entries)()
+            if M.IdentityCompare(prior, M.EmptyList)() is M.truth_value:
+                entries = ChainAppendEnd(entries, found)()
+        return entries
+
     def _scan_terms(self, terms, entries):
+        """Walk the chain of supplied terms looking for operations.
+
+        A malformed term chain has a tail that is a bare atom rather than a
+        chain, and taking its head crashes. Stopping at the first non-pair
+        tail lets the register come back with whatever it did find and leaves
+        the caller's own admission to refuse the malformed term.
+        """
         if M.IdentityCompare(terms, M.EmptyList)() is M.truth_value:
+            return entries
+        if M.IsPair(terms)() is M.false_value:
             return entries
         entries = self._scan(M.Head(terms)(), entries)
         return self._scan_terms(M.Tail(terms)(), entries)
@@ -2879,13 +2957,174 @@ class BuildNatOperationRegister(M.Edge):
         return self._scan_args(args, entries)
 
     def _scan_args(self, args, entries):
+        """Walk the argument chain of a term looking for nested operations.
+
+        A malformed term such as Pair(label, Pair(x, x)) has a tail that is a
+        bare atom rather than a chain, and taking the head of that tail
+        crashes. Stopping at the first non-pair tail lets the walk end and
+        the caller's own admission decide whether the term was well formed,
+        instead of the register raising before it can.
+        """
         if M.IdentityCompare(args, M.EmptyList)() is M.truth_value:
+            return entries
+        if M.IsPair(args)() is M.false_value:
             return entries
         entries = self._scan(M.Head(args)(), entries)
         return self._scan_args(M.Tail(args)(), entries)
 
     def __call__(self):
         return self.result
+
+
+class BuildOperationTensor(M.Edge):
+    """Precomputes every admitted operation's result over the tested domain.
+
+    Mining a law currently re-evaluates the same operation cells once per
+    candidate law and once per assignment, which is the bulk of the work: a
+    two-variable domain needs 121 cells per operation, and each candidate
+    touches many of them again. Building the grid once and reading it makes
+    the cost of testing a law proportional to the lookups it needs rather
+    than to fresh evaluations.
+
+    Layout is a chain of Pair(operation_label, rows), where rows is a chain
+    of Pair(a, cells) and cells is a chain of Pair(b, result). The nesting
+    keeps a lookup proportional to the operation count plus the domain size
+    instead of to the whole tensor, and it lets a nested term such as
+    op(op(x, y), z) be answered by two lookups.
+    """
+
+    def __init__(self, domain, operation_register, registry):
+        self.registry = registry
+        self.result = self._build(domain, operation_register, registry)
+        super().__init__(
+            inputs=M.Pair(
+                domain,
+                M.Pair(operation_register, M.Pair(registry, M.EmptyList)),
+            ),
+            results=self.result,
+        )
+
+    def _build(self, domain, ops, registry):
+        acc = M.EmptyList
+        cur = ops
+        while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
+            entry = M.Head(cur)()
+            label = M.Head(M.Head(M.Tail(M.Tail(entry)())())())()
+            acc = M.Pair(M.Pair(label, self._rows(domain, domain, label, registry, ops)), acc)
+            cur = M.Tail(cur)()
+        return self._reverse(acc)
+
+    def _rows(self, domain, values, label, registry, ops):
+        acc = M.EmptyList
+        cur = domain
+        while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
+            a = M.Head(cur)()
+            acc = M.Pair(M.Pair(a, self._cells(values, a, label, registry, ops)), acc)
+            cur = M.Tail(cur)()
+        return self._reverse(acc)
+
+    def _cells(self, values, a, label, registry, ops):
+        acc = M.EmptyList
+        cur = values
+        while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
+            b = M.Head(cur)()
+            term = M.Pair(label, M.Pair(a, M.Pair(b, M.EmptyList)))
+            evaluated = EvaluateNatExpr(term, M.EmptyList, registry, ops)()
+            acc = M.Pair(M.Pair(b, M.Head(evaluated)()), acc)
+            cur = M.Tail(cur)()
+        return self._reverse(acc)
+
+    def _reverse(self, chain):
+        out = M.EmptyList
+        cur = chain
+        while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
+            out = M.Pair(M.Head(cur)(), out)
+            cur = M.Tail(cur)()
+        return out
+
+
+class TensorOperationValue(M.Edge):
+    """Evaluates an expression term by reading the operation result tensor.
+
+    A bare natural is itself; an operation application reads its two operands
+    from the tensor and then the cell for the pair. Recursing on the operands
+    is what lets a nested term such as op(op(x, y), z) be answered by two
+    lookups instead of a fresh evaluation of the whole term.
+    """
+
+    def __init__(self, tensor, term, environment, registry):
+        self.registry = registry
+        self.result = self._value(tensor, term, environment, registry)
+        super().__init__(
+            inputs=M.Pair(
+                tensor,
+                M.Pair(term, M.Pair(environment, M.Pair(registry, M.EmptyList))),
+            ),
+            results=self.result,
+        )
+
+    def _value(self, tensor, term, environment, registry):
+        if M.IsPair(term)() is M.false_value:
+            # A leaf is either a natural standing for itself or a variable
+            # that has to be read out of the environment before it can index
+            # a cell; skipping that lookup would make every variable read as
+            # undefined.
+            if A.IsNat(term, registry)() is M.truth_value:
+                return M.Pair(term, M.Pair(registry, M.EmptyList))
+            value = EnvLookup(environment, term)()
+            if M.IdentityCompare(value, M.EmptyList)() is M.truth_value:
+                return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+            return M.Pair(value, M.Pair(registry, M.EmptyList))
+        args = M.Tail(term)()
+        label = M.Head(term)()
+        left_res = self._value(tensor, M.Head(args)(), environment, registry)
+        left_value = M.Head(left_res)()
+        if M.IdentityCompare(left_value, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+        right_res = self._value(
+            tensor, M.Head(M.Tail(args)())(), environment, registry
+        )
+        right_value = M.Head(right_res)()
+        if M.IdentityCompare(right_value, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+        cell = self._cell(tensor, label, left_value, right_value)
+        return M.Pair(cell, M.Pair(registry, M.EmptyList))
+
+    def _cell(self, tensor, label, a, b):
+        rows = self._operation(tensor, label)
+        if M.IdentityCompare(rows, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        cells = self._row(rows, a)
+        if M.IdentityCompare(cells, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        return self._value_of(cells, b)
+
+    def _operation(self, tensor, label):
+        cur = tensor
+        while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
+            entry = M.Head(cur)()
+            if M.IdentityCompare(M.Head(entry)(), label)() is M.truth_value:
+                return M.Tail(entry)()
+            cur = M.Tail(cur)()
+        return M.EmptyList
+
+    def _row(self, rows, a):
+        cur = rows
+        while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
+            entry = M.Head(cur)()
+            if M.IdentityCompare(M.Head(entry)(), a)() is M.truth_value:
+                return M.Tail(entry)()
+            cur = M.Tail(cur)()
+        return M.EmptyList
+
+    def _value_of(self, cells, b):
+        cur = cells
+        while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
+            entry = M.Head(cur)()
+            if M.IdentityCompare(M.Head(entry)(), b)() is M.truth_value:
+                return M.Tail(entry)()
+            cur = M.Tail(cur)()
+        return M.EmptyList
 
 
 class LookupOperationByLabel(M.Edge):
@@ -5080,6 +5319,25 @@ class RunPlaygroundInteractive(M.Edge):
             return report + "\n[machine] No Nat-valued expression operations were available for law mining."
         from . import invariant_miner as Miner
 
+        # Process-tagged progress, emitted where the work actually happens
+        # rather than from a canned preamble. The tensor is domain x domain x
+        # operations; its first row fixes the domain's first element and runs
+        # every registered operation against the whole domain.
+        NaturalPlaygroundDebugEmit(M.Char(
+            "Evaluating the first row of the tensor: "
+            + FormatDiscoveredOperationNames(operations)()
+            + " applied to "
+            + M.GMPRepText(M.NatRepOf(M.Head(domain)(), registry)())()
+            + " against every element of "
+            + FormatSetChain(domain, registry)()
+        ))()
+        NaturalPlaygroundDebugEmit(M.Char(
+            "Pairwise comparing the results of the same operation: for every "
+            "registered operation, does op(a, b) equal op(b, a) across "
+            + FormatSetChain(domain, registry)()
+            + "?"
+        ))()
+
         known_nodes = M.FromContextGetNodes(graph)()
         proposal = Miner.ProposeNextRegularityOrStructure(
             operations, domain, known_nodes, registry
@@ -5102,6 +5360,15 @@ class RunPlaygroundInteractive(M.Edge):
             examples = FormatOperationLawExamples(
                 law_type, witnesses, operations, registry
             )()
+            NaturalPlaygroundDebugEmit(M.Char(
+                "Gathering observations of a regularity: ["
+                + examples
+                + "]; I propose a name for this property; please provide it: "
+                "the property of "
+                + operation_name()
+                + "(); it will be stored in task_lesson.log and reused in "
+                "later reasoning."
+            ))()
             return report + (
                 "\n[machine] Observed on tested domain "
                 + FormatSetChain(found_domain, registry)()

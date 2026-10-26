@@ -373,15 +373,25 @@ class MineOperationInvariants(M.Edge):
         )
 
     def _mine(self, op_name, variables, operation, domain, registry):
-        entry = M.Pair(op_name, M.Pair(variables, M.Pair(operation, M.EmptyList)))
-        mined = MineOperationInvariantsAcrossRegister(
-            domain, registry, M.Pair(entry, M.EmptyList)
+        # The entry handed to the miner has to carry the same eight fields a
+        # discovered register entry does, because the miner reads an
+        # operation's law depth out of the tail of that description. Building
+        # a three-field entry here made that read walk off the end of the
+        # chain and crash on the fourth Tail. Describing the operation
+        # through the register keeps one description of it for every consumer.
+        built = PG.BuildNatOperationRegister(
+            registry, M.Pair(operation, M.EmptyList)
         )()
-        findings = M.Head(mined)()
-        reg1 = M.Head(M.Tail(mined)())()
-        if M.IdentityCompare(findings, M.EmptyList)() is M.truth_value:
+        entries = M.Head(built)()
+        reg1 = M.Head(M.Tail(built)())()
+        if M.IdentityCompare(entries, M.EmptyList)() is M.truth_value:
             return M.Pair(M.EmptyList, M.Pair(reg1, M.EmptyList))
-        return M.Pair(M.Head(findings)(), M.Pair(reg1, M.EmptyList))
+        mined = MineOperationInvariantsAcrossRegister(domain, reg1, entries)()
+        findings = M.Head(mined)()
+        reg2 = M.Head(M.Tail(mined)())()
+        if M.IdentityCompare(findings, M.EmptyList)() is M.truth_value:
+            return M.Pair(M.EmptyList, M.Pair(reg2, M.EmptyList))
+        return M.Pair(M.Head(findings)(), M.Pair(reg2, M.EmptyList))
 
     def __call__(self):
         return self.result
@@ -665,62 +675,124 @@ class MineOperationInvariantsAcrossRegister(M.Edge):
             domain, self._domains_for_variables(M.Tail(variables)(), domain)
         )
 
-    def _equation_value(self, term, variables, assignment, registry, ops):
+    def _equation_value(
+        self, term, variables, assignment, registry, ops, tensor
+    ):
+        """Value of one side of a candidate law at one assignment.
+
+        The term is read out of the operation result grid rather than
+        evaluated afresh, so the cells a law needs were computed once when
+        the grid was built instead of once per candidate and per assignment.
+        """
         environment = PG.ZipEnvironment(variables, assignment)()
+        # A flat operation term -- both operands are leaves bound to domain
+        # elements -- is read out of the result grid. A nested term is
+        # evaluated instead, because an intermediate result can fall outside
+        # the tested domain and the grid holds cells for domain elements
+        # only, so reading it would report undefined for a term that in fact
+        # has a value.
+        if M.IsPair(term)() is M.truth_value:
+            args = M.Tail(term)()
+            if M.IsPair(M.Head(args)())() is M.false_value:
+                if M.IsPair(M.Head(M.Tail(args)())())() is M.false_value:
+                    return PG.TensorOperationValue(
+                        tensor, term, environment, registry
+                    )()
         return PG.EvaluateNatExpr(term, environment, registry, ops)()
 
-    def _check_equation_tuples(self, equation, variables, tuples, reg, ops, witnesses):
-        if M.IdentityCompare(tuples, M.EmptyList)() is M.truth_value:
-            return M.Pair(M.truth_value, M.Pair(reg, M.Pair(witnesses, M.EmptyList)))
-        assignment = M.Head(tuples)()
+    def _check_equation_tuples(
+        self, equation, variables, tuples, reg, ops, tensor, witnesses
+    ):
+        """Check every assignment of one candidate law, iteratively.
+
+        Recursing once per assignment makes the recursion depth the size of
+        the Cartesian product, so a three-variable domain over 0..10 needs
+        1331 frames and overflows Python's limit before the product is even
+        exhausted. Walking the tuple chain in a loop keeps the depth
+        constant regardless of how many assignments there are, and hoists
+        the two operand extractions out of the walk so each assignment pays
+        for its own evaluations only.
+        """
         lhs = M.Head(M.Tail(M.Tail(equation)())())()
         rhs = M.Head(M.Tail(M.Tail(M.Tail(equation)())())())()
-        lhs_res = self._equation_value(lhs, variables, assignment, reg, ops)
-        lhs_value = M.Head(lhs_res)()
-        reg1 = M.Head(M.Tail(lhs_res)())()
-        if M.IdentityCompare(lhs_value, M.EmptyList)() is M.truth_value:
-            return M.Pair(M.false_value, M.Pair(reg1, M.Pair(M.EmptyList, M.EmptyList)))
-        rhs_res = self._equation_value(rhs, variables, assignment, reg1, ops)
-        rhs_value = M.Head(rhs_res)()
-        reg2 = M.Head(M.Tail(rhs_res)())()
-        if M.IdentityCompare(rhs_value, M.EmptyList)() is M.truth_value:
-            return M.Pair(M.false_value, M.Pair(reg2, M.Pair(M.EmptyList, M.EmptyList)))
-        if M.NatEq(lhs_value, rhs_value, reg2)() is M.false_value:
-            return M.Pair(M.false_value, M.Pair(reg2, M.Pair(M.EmptyList, M.EmptyList)))
-        witness = M.Pair(assignment, M.Pair(lhs_value, M.Pair(rhs_value, M.EmptyList)))
-        return self._check_equation_tuples(
-            equation, variables, M.Tail(tuples)(), reg2, ops,
-            M.Pair(witness, witnesses),
-        )
+        cur = tuples
+        found = witnesses
+        active = reg
+        while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
+            assignment = M.Head(cur)()
+            lhs_res = self._equation_value(
+                lhs, variables, assignment, active, ops, tensor
+            )
+            lhs_value = M.Head(lhs_res)()
+            active = M.Head(M.Tail(lhs_res)())()
+            if M.IdentityCompare(lhs_value, M.EmptyList)() is M.truth_value:
+                return M.Pair(
+                    M.false_value, M.Pair(active, M.Pair(M.EmptyList, M.EmptyList))
+                )
+            rhs_res = self._equation_value(
+                rhs, variables, assignment, active, ops, tensor
+            )
+            rhs_value = M.Head(rhs_res)()
+            active = M.Head(M.Tail(rhs_res)())()
+            if M.IdentityCompare(rhs_value, M.EmptyList)() is M.truth_value:
+                return M.Pair(
+                    M.false_value, M.Pair(active, M.Pair(M.EmptyList, M.EmptyList))
+                )
+            if M.NatEq(lhs_value, rhs_value, active)() is M.false_value:
+                return M.Pair(
+                    M.false_value, M.Pair(active, M.Pair(M.EmptyList, M.EmptyList))
+                )
+            found = M.Pair(
+                M.Pair(assignment, M.Pair(lhs_value, M.Pair(rhs_value, M.EmptyList))),
+                found,
+            )
+            cur = M.Tail(cur)()
+        return M.Pair(M.truth_value, M.Pair(active, M.Pair(found, M.EmptyList)))
 
     def _check_equation_candidates(
-        self, op_name, equations, variables, domain, reg, ops, findings
+        self, op_name, operation_label, equations, variables, domain, reg,
+        ops, findings,
     ):
         if M.IdentityCompare(equations, M.EmptyList)() is M.truth_value:
             return M.Pair(findings, M.Pair(reg, M.EmptyList))
-        equation = M.Head(equations)()
+        # The Cartesian product depends only on the variables and the domain,
+        # never on which law is being checked, so it is built once here rather
+        # than once per candidate. Walking the equation chain in a loop keeps
+        # the recursion depth constant as well.
         domains = self._domains_for_variables(variables, domain)
         tuples = PG.ProductOfDomains(domains)()
-        checked = self._check_equation_tuples(
-            equation, variables, tuples, reg, ops, M.EmptyList
-        )
-        verdict = M.Head(checked)()
-        reg1 = M.Head(M.Tail(checked)())()
-        witnesses = M.Head(M.Tail(M.Tail(checked)())())()
-        if verdict is M.truth_value:
-            finding = self._finding(
-                op_name, equation, verdict, witnesses, domain
+        # One result grid per operation, built once here and read by every
+        # candidate law below, so testing a law costs lookups into cells that
+        # have already been computed rather than fresh evaluations of them.
+        entry = PG.LookupOperationByLabel(operation_label, ops)()
+        tensor = PG.BuildOperationTensor(
+            domain, M.Pair(entry, M.EmptyList), reg
+        )()
+        cur = equations
+        found = findings
+        active = reg
+        while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
+            equation = M.Head(cur)()
+            checked = self._check_equation_tuples(
+                equation, variables, tuples, active, ops, tensor, M.EmptyList
             )
-            findings = M.Pair(finding, findings)
-        return self._check_equation_candidates(
-            op_name, M.Tail(equations)(), variables, domain, reg1, ops, findings
-        )
+            verdict = M.Head(checked)()
+            active = M.Head(M.Tail(checked)())()
+            witnesses = M.Head(M.Tail(M.Tail(checked)())())()
+            if verdict is M.truth_value:
+                finding = self._finding(
+                    op_name, equation, verdict, witnesses, domain
+                )
+                found = M.Pair(finding, found)
+            cur = M.Tail(cur)()
+        return M.Pair(found, M.Pair(active, M.EmptyList))
 
     def _laws_for_variables(self, op_name, operation_label, variables, domain, reg, ops):
         terms = self._terms(variables, operation_label)
         equations = self._equations(terms, variables)
         checked = self._check_equation_candidates(
-            op_name, equations, variables, domain, reg, ops, M.EmptyList
+            op_name, operation_label, equations, variables, domain, reg,
+            ops, M.EmptyList,
         )
         findings = PG.ChainReverse(M.Head(checked)())()
         reg1 = M.Head(M.Tail(checked)())()

@@ -679,6 +679,175 @@ __all__ = [
 ]
 
 
+class NatAddPeano(M.Edge):
+    """a + b by recursion on b through the machine's own successor edges.
+
+    Composes NatLess, NatPred and Succ instead of reading both operands as
+    host integers and adding them, so the operation is expressed in the
+    machine's arithmetic vocabulary rather than bypassing it. b is zero
+    exactly when it is less than one.
+    """
+
+    def __init__(self, a, b, registry):
+        self.result = self._add(a, b, registry)
+        super().__init__(
+            inputs=M.Pair(a, M.Pair(b, M.Pair(registry, M.EmptyList))),
+            results=self.result,
+        )
+
+    def _add(self, a, b, registry):
+        if M.NatLess(b, M.one, registry)() is M.truth_value:
+            return M.Pair(a, M.Pair(registry, M.EmptyList))
+        pred_b = M.NatPred(b, registry)()
+        rest = M.Head(pred_b)()
+        reg1 = M.Head(M.Tail(pred_b)())()
+        lifted = M.Succ(a, reg1)()
+        return self._add(
+            M.Head(lifted)(), rest, M.Head(M.Tail(lifted)())()
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class NatSubtractPeano(M.Edge):
+    """Partial a - b by paired recursion. Underflow refuses.
+
+    Both operands step down together, so the recursion ends when b reaches
+    zero; if a reaches zero first the subtraction is refused rather than
+    saturated.
+    """
+
+    def __init__(self, a, b, registry):
+        self.result = self._sub(a, b, registry)
+        super().__init__(
+            inputs=M.Pair(a, M.Pair(b, M.Pair(registry, M.EmptyList))),
+            results=self.result,
+        )
+
+    def _sub(self, a, b, registry):
+        if M.NatLess(b, M.one, registry)() is M.truth_value:
+            return M.Pair(a, M.Pair(registry, M.EmptyList))
+        if M.NatLess(a, M.one, registry)() is M.truth_value:
+            return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+        pred_a = M.NatPred(a, registry)()
+        reg1 = M.Head(M.Tail(pred_a)())()
+        pred_b = M.NatPred(b, reg1)()
+        reg2 = M.Head(M.Tail(pred_b)())()
+        return self._sub(M.Head(pred_a)(), M.Head(pred_b)(), reg2)
+
+    def __call__(self):
+        return self.result
+
+
+class NatMultiplyPeano(M.Edge):
+    """a * b as b repeated additions, accumulated by recursion on b."""
+
+    def __init__(self, a, b, registry):
+        zero = M.NatPred(M.one, registry)()
+        start = M.Head(zero)()
+        reg1 = M.Head(M.Tail(zero)())()
+        self.result = self._mul(a, b, start, reg1)
+        super().__init__(
+            inputs=M.Pair(a, M.Pair(b, M.Pair(registry, M.EmptyList))),
+            results=self.result,
+        )
+
+    def _mul(self, a, b, acc, registry):
+        if M.NatLess(b, M.one, registry)() is M.truth_value:
+            return M.Pair(acc, M.Pair(registry, M.EmptyList))
+        pred_b = M.NatPred(b, registry)()
+        rest = M.Head(pred_b)()
+        reg1 = M.Head(M.Tail(pred_b)())()
+        summed = NatAddPeano(acc, a, reg1)()
+        return self._mul(
+            a, rest, M.Head(summed)(), M.Head(M.Tail(summed)())()
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class NatModuloPeano(M.Edge):
+    """a mod b by repeated subtraction. Refuses when b is zero."""
+
+    def __init__(self, a, b, registry):
+        self.result = self._mod(a, b, registry)
+        super().__init__(
+            inputs=M.Pair(a, M.Pair(b, M.Pair(registry, M.EmptyList))),
+            results=self.result,
+        )
+
+    def _mod(self, a, b, registry):
+        if M.NatLess(b, M.one, registry)() is M.truth_value:
+            return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+        if M.NatLess(a, b, registry)() is M.truth_value:
+            return M.Pair(a, M.Pair(registry, M.EmptyList))
+        diff = NatSubtractPeano(a, b, registry)()
+        return self._mod(M.Head(diff)(), b, M.Head(M.Tail(diff)())())
+
+    def __call__(self):
+        return self.result
+
+
+class NatGcdPeano(M.Edge):
+    """gcd by Euclid: gcd(a, b) = gcd(b, a mod b), ending when b is zero."""
+
+    def __init__(self, a, b, registry):
+        self.result = self._gcd(a, b, registry)
+        super().__init__(
+            inputs=M.Pair(a, M.Pair(b, M.Pair(registry, M.EmptyList))),
+            results=self.result,
+        )
+
+    def _gcd(self, a, b, registry):
+        if M.NatLess(b, M.one, registry)() is M.truth_value:
+            return M.Pair(a, M.Pair(registry, M.EmptyList))
+        rem = NatModuloPeano(a, b, registry)()
+        return self._gcd(b, M.Head(rem)(), M.Head(M.Tail(rem)())())
+
+    def __call__(self):
+        return self.result
+
+
+class NatDividePeano(M.Edge):
+    """Exact quotient by repeated subtraction.
+
+    Refuses when b is zero and refuses when b does not divide a, so no
+    rounding or truncation convention is introduced. a < b yields the
+    accumulator only when a is already zero, which is what makes 0 / b = 0
+    while 1 / b stays undefined.
+    """
+
+    def __init__(self, a, b, registry):
+        zero = M.NatPred(M.one, registry)()
+        start = M.Head(zero)()
+        reg1 = M.Head(M.Tail(zero)())()
+        self.result = self._divide(a, b, start, reg1)
+        super().__init__(
+            inputs=M.Pair(a, M.Pair(b, M.Pair(registry, M.EmptyList))),
+            results=self.result,
+        )
+
+    def _divide(self, a, b, acc, registry):
+        if M.NatLess(b, M.one, registry)() is M.truth_value:
+            return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+        if M.NatLess(a, b, registry)() is M.truth_value:
+            if M.NatLess(a, M.one, registry)() is M.truth_value:
+                return M.Pair(acc, M.Pair(registry, M.EmptyList))
+            return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
+        diff = NatSubtractPeano(a, b, registry)()
+        rest = M.Head(diff)()
+        reg1 = M.Head(M.Tail(diff)())()
+        bumped = M.Succ(acc, reg1)()
+        return self._divide(
+            rest, b, M.Head(bumped)(), M.Head(M.Tail(bumped)())()
+        )
+
+    def __call__(self):
+        return self.result
+
+
 def sync_from_namespace(namespace):
     for name in (
         "one",
