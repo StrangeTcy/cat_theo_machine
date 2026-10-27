@@ -239,6 +239,10 @@ class ExprGcdLabel(ConstructorLabel):
     pass
 
 
+class ImpliesLabel(ConstructorLabel):
+    pass
+
+
 class DFSLabel(ConstructorLabel):
     pass
 
@@ -2333,6 +2337,7 @@ ExprLtLabel = ExprLtLabel()
 ExprModuloLabel = ExprModuloLabel()
 ExprSubtractLabel = ExprSubtractLabel()
 ExprGcdLabel = ExprGcdLabel()
+ImpliesLabel = ImpliesLabel()
 DFSLabel = DFSLabel()
 BFSLabel = BFSLabel()
 BeamLabel = BeamLabel()
@@ -2627,6 +2632,7 @@ def sync_from_namespace(namespace):
         "ExprModuloLabel",
         "ExprSubtractLabel",
         "ExprGcdLabel",
+        "ImpliesLabel",
         "DFSLabel",
         "BFSLabel",
         "BeamLabel",

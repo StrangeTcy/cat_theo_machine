@@ -1615,6 +1615,11 @@ def run_live_mode(debug: bool = False):
     runtime_namespace = _runtime_namespace()
     from .runtime import make_fresh_runtime
     runtime = make_fresh_runtime()
+    try:
+        runtime = boot_from_snapshot(SNAPSHOT_PATH, runtime_namespace)
+        print("[machine] Restored the named-law graph from", SNAPSHOT_PATH)
+    except (OSError, RuntimeError, ValueError, KeyError, TypeError):
+        print("[machine] Starting a fresh live graph; no compatible named-law snapshot was restored.")
     runtime.graph._active_unproved_goal = M.EmptyList
     runtime.graph._active_goal_present = M.false_value
     runtime.graph._active_unproved_claim = M.EmptyList
@@ -1931,6 +1936,17 @@ def run_live_mode(debug: bool = False):
                         ),
                     ),
                 )
+                law_fields = M.Tail(law_type)()
+                law_variables = M.Head(law_fields)()
+                law_lhs = M.Head(M.Tail(law_fields)())()
+                law_rhs = M.Head(M.Tail(M.Tail(law_fields)())())()
+                rule_pattern = PG.VariableizeDiscoveredTerm(
+                    law_lhs, law_variables
+                )()
+                rule_replacement = PG.VariableizeDiscoveredTerm(
+                    law_rhs, law_variables
+                )()
+                runtime.graph.add_rule(P.Rule(rule_pattern, rule_replacement))
                 description = (
                     op_name()
                     + " satisfies "
@@ -1945,7 +1961,7 @@ def run_live_mode(debug: bool = False):
                     )()
                 )
                 runtime.graph.add_node(named_record)
-                print(f"[machine] Recorded '{name_part}' as a named finite-domain observation.")
+                print(f"[machine] Recorded '{name_part}' as a named finite-domain observation and active rewrite law.")
             else:
                 template = named_payload
                 named_record = M.Pair(
@@ -1960,6 +1976,8 @@ def run_live_mode(debug: bool = False):
             with open("talk_lessons.log", "a", encoding="utf-8") as f_log:
                 f_log.write(log_line)
             print("[machine] Yes, recorded to talk_lessons.log.")
+            _save_snapshot_now(runtime, runtime_namespace)
+            print("[machine] Named discovery is available to the next warm playground run.")
             pending_proposal = M.EmptyList
             runtime.graph._pending_discovery = M.EmptyList
         elif cmd == "suggest lemmas":
