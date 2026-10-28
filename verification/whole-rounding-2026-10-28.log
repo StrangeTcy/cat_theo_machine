@@ -1,0 +1,9 @@
+PASS positive and negative rounding on both sides of the nearest-integer midpoint
+PASS positive and negative half-integer ties round toward zero
+PASS exact quotients, zero numerator, and unit denominator
+PASS noncanonical Whole difference pairs preserve rounding and residual signs
+PASS exact half-integer rounding beyond the binary floating-point integer range
+PASS verifier rejects false reconstruction, excessive residual, and ties rounded away from zero
+PASS nonpositive denominators and wrong input sorts are refused without changing registry
+PASS malformed registered Whole shapes and non-Nat coordinates are refused before arithmetic
+Whole rounding regressions passed.

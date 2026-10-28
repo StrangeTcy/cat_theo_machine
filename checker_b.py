@@ -37,6 +37,12 @@ class VerifyProofStep(M.Edge):
         if M.IsPair(action)() is M.truth_value:
             if M.IdentityCompare(M.Head(action)(), L.PolynomialGridActionLabel)() is M.truth_value:
                 return self._verify_polynomial_grid(step, action, trusted_rules)
+            if M.IdentityCompare(M.Head(action)(), L.SignedPolynomialActionLabel)() is M.truth_value:
+                if self._rule_in_ruleset(L.SignedPolynomialRuleLabel, trusted_rules) is M.false_value:
+                    return M.Pair(L.UnknownRuleLabel, M.Pair(L.SignedPolynomialRuleLabel, M.EmptyList))
+                from .signed_polynomial import VerifySignedPolynomialStep
+
+                return VerifySignedPolynomialStep(step, action, trusted_rules, self.registry)()
         rule = P.ActionRule(action)()
         current = P.StepCurrent(step, self.registry)()
         next_term = P.StepNext(step, self.registry)()

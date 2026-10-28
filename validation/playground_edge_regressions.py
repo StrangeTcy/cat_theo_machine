@@ -1,9 +1,9 @@
 """Machine-native regressions for playground admission and reporting."""
 
-from cat_theo_machine import labels as L
-from cat_theo_machine import machine as M
-from cat_theo_machine import playground as PG
-from cat_theo_machine.runtime import make_fresh_runtime
+from hyge import labels as L
+from hyge import machine as M
+from hyge import playground as PG
+from hyge.runtime import make_fresh_runtime
 
 
 runtime = make_fresh_runtime()

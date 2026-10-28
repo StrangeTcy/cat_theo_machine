@@ -1,0 +1,21 @@
+[machine] Restored the live graph from X:\hyge\verification\live-learning-13559-1136.json
+you> Proved: prove x+y=y+x
+Checker B verified the derivation against the active rule snapshot.
+Saved proof receipt:
+  x + y = y + x
+
+you> [machine]
+### Equality proof: x + y = y + x
+
+A trusted rewrite rule changes `x + y` to `y + x`.
+
+Checker B verified the target from the displayed starting assumptions under the supplied trusted rules.
+you> [machine] Checking the live goal before playground exploration...
+Pending: prove there are no positive integers x, y, z and n > 2 such that x^n + y^n = z^n
+The no-solutions claim is preserved. A universal exclusion or descent proof is still required.
+[machine] Operations selected for tensor exploration: add(), pow().
+[you] Run the Cartesian playground? Reply 'no', 'yes' (then enter bounds), 'yes, 0 to 10', or 'try on positive integers from 1 to 10': [machine] Playground run declined or no valid domain was supplied.
+you> Pending: prove there are no positive integers x, y, z and n > 2 such that x^n + y^n = z^n
+The no-solutions claim is preserved. A universal exclusion or descent proof is still required.
+you> saved snapshot to X:\hyge\verification\live-learning-13559-1136.json
+[machine] goodbye

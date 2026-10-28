@@ -44,6 +44,8 @@ else:
     from . import evaluator as Eval
     from . import promotion_ledger as PL
     from . import playground as PG
+    from . import discovered_laws as DL
+    from . import live_proof as LP
     from . import story_renderer as SR
     from . import dialogue as Dlg
     from .consensus import (
@@ -195,12 +197,15 @@ def _paused_comparison_job_is_compatible(comparison_job, graph):
     return M.truth_value
 
 
-def _save_snapshot_now(runtime, runtime_namespace):
-    os.makedirs(SNAPSHOT_DIR, exist_ok=True)
-    temp_snapshot_path = SNAPSHOT_PATH + ".tmp"
+def _save_snapshot_now(runtime, runtime_namespace, snapshot_path=SNAPSHOT_PATH):
+    try:
+        os.makedirs(os.path.dirname(os.path.abspath(snapshot_path)))
+    except FileExistsError:
+        pass
+    temp_snapshot_path = snapshot_path + ".tmp"
     save_runtime(runtime, temp_snapshot_path, runtime_namespace)
-    os.replace(temp_snapshot_path, SNAPSHOT_PATH)
-    print("saved snapshot to", SNAPSHOT_PATH)
+    os.replace(temp_snapshot_path, snapshot_path)
+    print("saved snapshot to", snapshot_path)
 
 
 def _debug_log(debug_flag, *args, **kwargs):
@@ -1606,7 +1611,7 @@ def _strip_naming_prefix(text, prefixes):
     return _strip_naming_prefix(text, prefixes[1:])
 
 
-def run_live_mode(debug: bool = False):
+def run_live_mode(debug: bool = False, snapshot_path=SNAPSHOT_PATH):
     if debug:
         P.SetDebugTrace(M.truth_value)()
     else:
@@ -1616,8 +1621,8 @@ def run_live_mode(debug: bool = False):
     from .runtime import make_fresh_runtime
     runtime = make_fresh_runtime()
     try:
-        runtime = boot_from_snapshot(SNAPSHOT_PATH, runtime_namespace)
-        print("[machine] Restored the named-law graph from", SNAPSHOT_PATH)
+        runtime = boot_from_snapshot(snapshot_path, runtime_namespace)
+        print("[machine] Restored the live graph from", snapshot_path)
     except (OSError, RuntimeError, ValueError, KeyError, TypeError):
         print("[machine] Starting a fresh live graph; no compatible named-law snapshot was restored.")
     runtime.graph._active_unproved_goal = M.EmptyList
@@ -1628,6 +1633,10 @@ def run_live_mode(debug: bool = False):
     runtime.graph._last_playground_domain = M.EmptyList
     runtime.graph._last_playground_goal = M.EmptyList
     runtime.graph._pending_discovery = M.EmptyList
+    restored_request = LP.LatestLiveProofRequest(M.FromContextGetNodes(runtime.graph)())()
+    if M.IdentityCompare(restored_request, M.EmptyList)() is M.false_value:
+        runtime.graph._active_unproved_goal = LP.LiveProofRequestText(restored_request)()()
+        runtime.graph._active_goal_present = M.truth_value
     packs = None
 
     word_to_num = {
@@ -1721,10 +1730,14 @@ def run_live_mode(debug: bool = False):
         try:
             raw = input("you> ").strip()
         except (EOFError, KeyboardInterrupt):
+            if M.IdentityCompare(LP.LatestLiveProofRequest(M.FromContextGetNodes(runtime.graph)())(), M.EmptyList)() is M.false_value:
+                _save_snapshot_now(runtime, runtime_namespace, snapshot_path)
             print("\n[machine] goodbye")
             break
 
         if not raw or raw.lower() in ("goodbye", "exit", "quit"):
+            if M.IdentityCompare(LP.LatestLiveProofRequest(M.FromContextGetNodes(runtime.graph)())(), M.EmptyList)() is M.false_value:
+                _save_snapshot_now(runtime, runtime_namespace, snapshot_path)
             print("[machine] goodbye")
             break
 
@@ -1844,12 +1857,47 @@ def run_live_mode(debug: bool = False):
             res = _run_theorem_agenda(runtime, [("Square roots are real", start, goal, p.rule_chain, None)], "Square roots are real")
             if res and res[0][1]:
                 last_receipt = M.Pair(Lmod.ProofReceiptLabel, M.Pair(M.Char("sqrt2_real"), M.Pair(start, M.Pair(goal, M.Pair(res[0][4], M.FromContextGetConstructors(runtime.graph)())))))
+        elif cmd == "show goal":
+            request = LP.LatestLiveProofRequest(M.FromContextGetNodes(runtime.graph)())()
+            outcome = LP.LatestLiveProofOutcome(M.FromContextGetNodes(runtime.graph)(), request)()
+            if M.IdentityCompare(request, M.EmptyList)() is M.truth_value:
+                print("[machine] No live proof goal has been recorded.")
+            elif M.IdentityCompare(outcome, M.EmptyList)() is M.truth_value:
+                print("[machine] Pending: " + LP.LiveProofRequestText(request)()() + ". No proof attempt is recorded.")
+            else:
+                print(LP.FormatLiveProofOutcome(outcome, M.FromContextGetConstructors(runtime.graph)())())
+        elif cmd == "check goal":
+            outcome = LP.RetryLiveProofRequest(runtime.graph)()
+            print(LP.FormatLiveProofOutcome(outcome, M.FromContextGetConstructors(runtime.graph)())())
+            if M.IdentityCompare(LP.LiveProofOutcomeStatus(outcome)(), Lmod.ProvedLabel)() is M.truth_value:
+                last_receipt = LP.LiveProofOutcomeReceipt(outcome)()
         elif cmd in ("explain proof", "narrate proof", "show story", "proof story", "show proof story", "tell story", "tell proof story"):
+            latest_request = LP.LatestLiveProofRequest(M.FromContextGetNodes(runtime.graph)())()
+            latest_outcome = LP.LatestLiveProofOutcome(M.FromContextGetNodes(runtime.graph)(), latest_request)()
+            if M.IdentityCompare(LP.LiveProofOutcomeStatus(latest_outcome)(), Lmod.ProvedLabel)() is M.truth_value:
+                last_receipt = LP.LiveProofOutcomeReceipt(latest_outcome)()
+            elif M.IdentityCompare(latest_request, M.EmptyList)() is M.false_value:
+                print(LP.FormatLiveProofOutcome(latest_outcome, M.FromContextGetConstructors(runtime.graph)())())
+                if last_receipt is not None:
+                    print("[machine] The following receipt concerns a previously verified result; the active goal is still pending.")
             if last_receipt is not None:
                 reg = M.FromContextGetConstructors(runtime.graph)()
-                story_node = SR.RenderProofStory(last_receipt, reg)()
-                story_md = SR.FormatStoryToMarkdown(story_node)
-                print(f"[machine]\n{story_md}")
+                checked_story = SR.RenderCheckedProofStory(
+                    last_receipt,
+                    M.Pair(Lmod.PolynomialGridRuleLabel, M.FromContextGetRuleOrder(runtime.graph)()),
+                    reg,
+                )()
+                story_node = M.Head(checked_story)()
+                reg = M.Head(M.Tail(M.Tail(checked_story)())())()
+                runtime.graph._replace_context(constructors=reg)
+                if M.IdentityCompare(story_node, M.EmptyList)() is M.truth_value:
+                    print("[machine] This receipt did not pass independent checking under the active trusted rules.")
+                else:
+                    if M.Compare(last_receipt, LP.LiveProofOutcomeReceipt(latest_outcome)())() is M.truth_value:
+                        story_md = SR.FormatArithmeticStory(story_node, reg)()
+                    else:
+                        story_md = SR.FormatStoryToMarkdown(story_node)
+                    print(f"[machine]\n{story_md}")
             else:
                 print("[machine] No active proof derivation in current session. Solve a theorem or goal first.")
         elif cmd.startswith("fact:") or cmd.startswith("rule:") or cmd.startswith("word:"):
@@ -1936,17 +1984,12 @@ def run_live_mode(debug: bool = False):
                         ),
                     ),
                 )
-                law_fields = M.Tail(law_type)()
-                law_variables = M.Head(law_fields)()
-                law_lhs = M.Head(M.Tail(law_fields)())()
-                law_rhs = M.Head(M.Tail(M.Tail(law_fields)())())()
-                rule_pattern = PG.VariableizeDiscoveredTerm(
-                    law_lhs, law_variables
+                recorded = DL.RecordNamedDiscoveredLaw(
+                    runtime, named_record,
+                    M.Pair(Lmod.PolynomialGridRuleLabel, M.EmptyList),
                 )()
-                rule_replacement = PG.VariableizeDiscoveredTerm(
-                    law_rhs, law_variables
-                )()
-                runtime.graph.add_rule(P.Rule(rule_pattern, rule_replacement))
+                active_rule = M.Head(recorded)()
+                reg = M.Head(M.Tail(M.Tail(M.Tail(recorded)())())())()
                 description = (
                     op_name()
                     + " satisfies "
@@ -1960,23 +2003,30 @@ def run_live_mode(debug: bool = False):
                         reg, M.truth_value,
                     )()
                 )
-                runtime.graph.add_node(named_record)
-                print(f"[machine] Recorded '{name_part}' as a named finite-domain observation and active rewrite law.")
+                if M.IdentityCompare(active_rule, M.EmptyList)() is M.truth_value:
+                    print(f"[machine] Recorded '{name_part}' as a named finite-domain observation.")
+                else:
+                    last_receipt = M.Head(M.Tail(recorded)())()
+                    print(f"[machine] Recorded '{name_part}' as a verified polynomial rewrite law with an independently checked proof.")
+                    outcome = LP.RetryLiveProofRequest(runtime.graph)()
+                    print(LP.FormatLiveProofOutcome(outcome, M.FromContextGetConstructors(runtime.graph)())())
+                    if M.IdentityCompare(LP.LiveProofOutcomeStatus(outcome)(), Lmod.ProvedLabel)() is M.truth_value:
+                        last_receipt = LP.LiveProofOutcomeReceipt(outcome)()
             else:
                 template = named_payload
                 named_record = M.Pair(
                     Lmod.NamedStructureLabel,
                     M.Pair(M.Char(name_part), M.Pair(template, M.EmptyList)),
                 )
-                description = "algebraic structure over the recorded finite-domain laws"
+                description = "candidate structure template from named finite-domain observations; candidate matching and theorem transfer remain unverified"
                 runtime.graph.add_node(named_record)
-                print(f"[machine] Recorded '{name_part}' as a reusable structure template.")
+                print(f"[machine] Recorded '{name_part}' as a candidate structure template. Matching another carrier and transferring theorems still require verification.")
 
             log_line = f"Lesson named: '{name_part}' | Discovery: {description}\n"
             with open("talk_lessons.log", "a", encoding="utf-8") as f_log:
                 f_log.write(log_line)
             print("[machine] Yes, recorded to talk_lessons.log.")
-            _save_snapshot_now(runtime, runtime_namespace)
+            _save_snapshot_now(runtime, runtime_namespace, snapshot_path)
             print("[machine] Named discovery is available to the next warm playground run.")
             pending_proposal = M.EmptyList
             runtime.graph._pending_discovery = M.EmptyList
@@ -2089,109 +2139,31 @@ def run_live_mode(debug: bool = False):
                         prop_status, M.Pair(prop_rec, M.EmptyList)
                     )
                     runtime.graph._pending_discovery = pending_proposal
-                    print("[machine] These named laws form an un-named structure template on the tested domain.")
+                    print("[machine] These named observations form a candidate structure template on the tested domain.")
                     print("[machine] Would you care to give this structure a name?")
                 else:
                     print(PG.RunPlaygroundInteractive(runtime.graph, tutor=_get_tutor())())
-        elif cmd in ("ground lemma", "adopt lemma", "promote lemma", "promote candidate", "promote discovered lemma"):
-            print("[machine] Initiating autonomous promotion cycle for discovered Cartesian obstruction invariant...")
-            reg3 = M.FromContextGetConstructors(runtime.graph)()
+        elif M.OrAtom(
+            M.Compare(M.Char(cmd), M.Char("ground lemma"))(),
+            M.OrAtom(
+                M.Compare(M.Char(cmd), M.Char("adopt lemma"))(),
+                M.OrAtom(
+                    M.Compare(M.Char(cmd), M.Char("promote lemma"))(),
+                    M.OrAtom(
+                        M.Compare(M.Char(cmd), M.Char("promote candidate"))(),
+                        M.Compare(M.Char(cmd), M.Char("promote discovered lemma"))(),
+                    )(),
+                )(),
+            )(),
+        )() is M.truth_value:
             inv_rec = runtime.graph._last_discovered_invariant
             if M.IdentityCompare(inv_rec, M.EmptyList)() is M.truth_value:
-                PG.RunPlaygroundInteractive(runtime.graph, tutor=_get_tutor())()
-                reg3 = M.FromContextGetConstructors(runtime.graph)()
-                inv_rec = runtime.graph._last_discovered_invariant
-
-            res_mod = M.Head(M.Tail(inv_rec)())()
-            mod_val = M.NatRepOf(res_mod, reg3)()()
-            rhs_set = M.Head(M.Tail(M.Tail(inv_rec)())())()
-            lhs_set = M.Head(M.Tail(M.Tail(M.Tail(inv_rec)())())())()
-            rhs_set_str = PG.FormatSetChain(rhs_set, reg3)()
-            lhs_set_str = PG.FormatSetChain(lhs_set, reg3)()
-
-            lemma_name = f"mod_{mod_val}_disjoint_image_obstruction"
-            cand_id = M.Char(lemma_name)
-
-            ledger = runtime.graph.promotion_ledger
-            if M.IdentityCompare(ledger, M.EmptyList)() is M.truth_value:
-                ledger = PL.EmptyPromotionLedger(reg3)()
-
-            cand = Eval.CandidateMacro(
-                cand_id,
-                M.Atom(),
-                M.Atom(),
-                M.EmptyList,
-            )()
-
-            rhs_img_desc = f"rhs_image mod {mod_val} in {rhs_set_str}"
-            lhs_img_desc = f"lhs_image mod {mod_val} in {lhs_set_str}"
-            disj_desc = f"{rhs_set_str} /\\ {lhs_set_str}"
-
-            step1_res = P.Step(
-                M.Char("cartesian_ground_domain"),
-                P.RewriteAction(P.Rule(M.Char("rhs_projection"), M.Char(rhs_img_desc))(), M.EmptyList)(),
-                M.Char(rhs_img_desc),
-                reg3,
-            )()
-            s1 = M.Head(step1_res)()
-            reg4 = M.Head(M.Tail(step1_res)())()
-
-            step2_res = P.Step(
-                M.Char(rhs_img_desc),
-                P.RewriteAction(P.Rule(M.Char("lhs_subdomain_projection"), M.Char(lhs_img_desc))(), M.EmptyList)(),
-                M.Char(lhs_img_desc),
-                reg4,
-            )()
-            s2 = M.Head(step2_res)()
-            reg5 = M.Head(M.Tail(step2_res)())()
-
-            step3_res = P.Step(
-                M.Char(lhs_img_desc),
-                P.RewriteAction(P.Rule(M.Char(disj_desc), M.Char("DisjointImageObstruction"))(), M.EmptyList)(),
-                M.Char("DisjointImageObstruction"),
-                reg5,
-            )()
-            s3 = M.Head(step3_res)()
-            reg6 = M.Head(M.Tail(step3_res)())()
-
-            der_res = P.Derivation(
-                M.Pair(s1, M.Pair(s2, M.Pair(s3, M.EmptyList))),
-                P.ProofCost(M.Zero, M.Zero, M.Zero, M.Zero)(),
-                reg6,
-            )()
-            derivation = M.Head(der_res)()
-
-            rcpt = M.Pair(
-                Lmod.ProofReceiptLabel,
-                M.Pair(
-                    cand_id,
-                    M.Pair(
-                        M.Char("cartesian_ground_domain"),
-                        M.Pair(
-                            M.Char("DisjointImageObstruction"),
-                            M.Pair(derivation, reg6),
-                        ),
-                    ),
-                ),
-            )
-            last_receipt = rcpt
-            entry = PL.LedgerEntry(
-                M.Atom(),
-                Lmod.ProofSchemaPromotionLabel,
-                cand,
-                rcpt,
-                M.Char(f"cartesian_sweep_mod_{mod_val}"),
-                M.GMPRep(1),
-                Lmod.PromotionActiveLabel,
-            )()
-            new_ledger = PL.PromotionLedger(
-                M.Pair(entry, PL.PromotionLedgerProofSchemata(ledger)()),
-                PL.PromotionLedgerSearchPolicies(ledger)(),
-                M.GMPRep(1),
-            )()
-            runtime.graph.promotion_ledger = new_ledger
-            print("[machine] Verified by Independent Checker B. Ablation & holdout tests passed.")
-            print(f"[machine] Promoted: {lemma_name} -> Active Certified Ledger (version 1).")
+                print("[machine] No residue observation is available. Run a playground sweep first.")
+            else:
+                print(
+                    "[machine] The residue observation remains unproved. "
+                    "Promotion requires a replayable derivation and completed evaluation gates."
+                )
         elif cmd == "suggest premises":
             active_goal = runtime.graph._active_unproved_goal
             active_claim = runtime.graph._active_unproved_claim
@@ -2245,14 +2217,14 @@ def run_live_mode(debug: bool = False):
             if tutor_answer.kind != "fallthrough":
                 print(tutor_answer.text)
                 if tutor_answer.kind == "claim-undecided":
-                    runtime.graph._active_unproved_goal = cmd
+                    runtime.graph._active_unproved_goal = raw
                     runtime.graph._active_goal_present = M.truth_value
                     runtime.graph._active_unproved_claim = M.EmptyList
                     runtime.graph._active_tutor = tutor
-                    print("[machine] Running internal introspection and Cartesian playground sweep...")
+                    print("[machine] Checking the live goal before playground exploration...")
                     playground_report = PG.RunPlaygroundInteractive(
                         runtime.graph,
-                        goal_text=cmd,
+                        goal_text=raw,
                         tutor=tutor,
                         interactive=M.truth_value,
                     )()
@@ -2283,37 +2255,39 @@ def run_live_mode(debug: bool = False):
                     binding = GT.TaskResultBinding(exec_res)()
                     print(f"[machine] Task ({task_rung}) proved in {dt:.4f} seconds (binding: {binding}).")
                 else:
-                    print("[machine] no, I can't prove that")
                     if PG.IsProofOrMathGoal(M.Char(cmd))() is M.truth_value:
-                        runtime.graph._active_unproved_goal = cmd
+                        runtime.graph._active_unproved_goal = raw
                         runtime.graph._active_goal_present = M.truth_value
                         runtime.graph._active_unproved_claim = M.EmptyList
                         runtime.graph._active_tutor = tutor
-                        print("[machine] Running internal introspection and Cartesian playground sweep...")
+                        print("[machine] Checking the live goal before playground exploration...")
                         playground_report = PG.RunPlaygroundInteractive(
                             runtime.graph,
-                            goal_text=cmd,
+                            goal_text=raw,
                             tutor=tutor,
                             interactive=M.truth_value,
                         )()
                         print(playground_report)
                         pending_proposal = runtime.graph._pending_discovery
+                    else:
+                        print("[machine] no, I can't prove that")
             else:
-                print("[machine] no, I can't prove that")
                 if PG.IsProofOrMathGoal(M.Char(cmd))() is M.truth_value:
-                    runtime.graph._active_unproved_goal = cmd
+                    runtime.graph._active_unproved_goal = raw
                     runtime.graph._active_goal_present = M.truth_value
                     runtime.graph._active_unproved_claim = M.EmptyList
                     runtime.graph._active_tutor = tutor
-                    print("[machine] Running internal introspection and Cartesian playground sweep...")
+                    print("[machine] Checking the live goal before playground exploration...")
                     playground_report = PG.RunPlaygroundInteractive(
                         runtime.graph,
-                        goal_text=cmd,
+                        goal_text=raw,
                         tutor=tutor,
                         interactive=M.truth_value,
                     )()
                     print(playground_report)
                     pending_proposal = runtime.graph._pending_discovery
+                else:
+                    print("[machine] no, I can't prove that")
 
 
 def _consensus_scenario(runtime):
@@ -2502,6 +2476,7 @@ def main():
     parser.add_argument("arg1", nargs="?", default=None)
     parser.add_argument("arg2", nargs="?", default=None)
     parser.add_argument("arg3", nargs="?", default=None)
+    parser.add_argument("--live-snapshot", default=SNAPSHOT_PATH, help="Graph snapshot to load and save in live mode.")
     parser.add_argument("--port", type=int, default=INSPECTOR_DEFAULT_PORT, help="Inspector port for inspect mode.")
     parser.add_argument(
         "--max-rule-edges",
@@ -2646,7 +2621,7 @@ def main():
         elif args.mode == "warm":
             run_warm_mode(debug_enabled)
         elif args.mode == "live":
-            run_live_mode(debug_enabled)
+            run_live_mode(debug_enabled, args.live_snapshot)
         elif args.mode == "inspect":
             run_inspect_mode(
                 debug_enabled,

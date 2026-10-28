@@ -1,0 +1,5 @@
+[machine] Restored the live graph from X:\hyge\verification\live-flt-session-2026-10-28.json
+you> Pending: prove there are no positive integers x, y, z and n > 2 such that x^n + y^n = z^n
+The no-solutions claim is preserved. A universal exclusion or descent proof is still required.
+you> saved snapshot to X:\hyge\verification\live-flt-session-2026-10-28.json
+[machine] goodbye

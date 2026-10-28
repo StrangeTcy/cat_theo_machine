@@ -1,0 +1,7 @@
+PASS computed positive and negative Eisenstein divisions and a second step reaching zero remainder
+PASS zero dividend, unit divisor, and exact division
+PASS Gaussian division and half-coordinate ties in four quadratic relations
+PASS strict-norm boundary refusal without blanket rejection of the relation
+PASS zero divisor, malformed inputs, invalid coefficient sorts, and nonpositive divisor norms
+PASS noncanonical Whole coordinates and relation coefficients
+Quadratic quotient regressions passed: 19 cases.

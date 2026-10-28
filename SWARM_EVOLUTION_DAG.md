@@ -1759,3 +1759,115 @@ both histories survive. The earlier warning against re-dispatching W24–W26
 from the un-integrated tree is thereby discharged: on this tree they are
 landed work (`test36`–`test38`), and the next unoccupied allocated slot was
 `test39` (W27, since landed).
+
+### 8.3 Discovery continuation (2026-10-28)
+
+The interrupted catalog/tensor/named-law work was continued without reopening
+the completed worker briefs. Detailed changes, dated logs and remaining scope
+are recorded in [the discovery continuation report](verification/discovery-continuation-2026-10-28.md).
+
+Operation tensors now use nested machine axes, with complete-arity lookup and
+numeric equality across distinct Nat atoms. A 1,000-cell ternary tensor and an
+exhaustive 52-cell comparison against direct unary/binary/ternary/predicate
+evaluation complete. Invalid predicate operands are refused, so two undefined
+expressions cannot become supporting evidence of an equation. Named polynomial
+rules retain shared variable bindings through a real snapshot save/load and
+independent proof replay.
+
+The live residue-promotion command no longer invents receipts or asserts
+unexecuted Checker B, ablation and holdout checks. Raw residue observations
+remain unproved. This repairs the boundary stated in §7.5; it does not close a
+descent argument or demonstrate a new dual-ledger promotion.
+
+The next discovery work is proof-backed carrier/operation matching and theorem
+transfer for named structure bundles, plus a real evaluation-gated promotion
+path for discoveries with sufficient evidence. Arbitrary tensor arity remains
+separate from the current binary law-synthesis grammar. No new numbered suite
+slot was allocated; `validation/run_discovery_checks.cmd` collects the focused
+continuation checks.
+
+All six focused continuation suites completed with exit code 0, including the
+1,000-assignment miner check; the real live-console promotion-alias check also
+exited 0. The broader legacy suite was not re-run.
+
+### 8.4 Live goal, learned-law retry, and checked story continuation (2026-10-28)
+
+FLT is still open. The interactive route enters the operation-law playground
+before the separate noninteractive exponent/modulus sweep. The earlier live
+description involving fixed exponents 3/4 and moduli 2–5 was incorrect.
+
+- **Self-improvement:** `live_proof.py` stores the original request and full
+  parsed scope in `graph.nodes`, along with outcomes and receipts. Live mode
+  retries eligible equality goals after activating a certified learned law;
+  `show goal`, `check goal`, quit/save and restart retain the request. A
+  bounded machine-native equality traversal handles nested and multistep
+  rewrites; Checker B verifies every successful derivation. Unsupported
+  prose, no-solutions claims and parameterized/constrained scopes stay
+  pending. This supports future IMO/FLT work without claiming a new IMO
+  solution or an FLT proof.
+- **Self-improvement:** live proposals return the first fully evaluated,
+  unnamed operation law. Batch mining keeps its exhaustive default. The
+  first-law path was added after a real {1,2} session kept evaluating other
+  equations after already finding addition symmetry.
+- **Storytelling/explanations:** checked narratives take explicit trusted
+  rules and an optional external checking policy, refuse invalid receipts,
+  and display starting assumptions. Conditional `EveryStateMoves` is still
+  an assumption. Live equality stories render the concrete expressions;
+  unchecked stories no longer claim verification or Q.E.D.
+- **Proving FLT; concrete Engel norm-decrease evidence:**
+  `math/quadratic_division.py` independently checks a supplied quadratic-ring
+  division, including reconstruction and scalar nonnegative remainder norm
+  strictly below the positive divisor norm. Thirty focused cases passed.
+  This is arithmetic substrate for W28; it does not discharge universal
+  Euclideanity, unique factorization, cubic descent, or W29's movement
+  obligation. W28/W29 remain open and no numbered suite slot was consumed.
+
+Focused suites: `live_proof_regressions`, `live_proposal_regressions`,
+`checked_story_regressions`, `quadratic_division_regressions`, repaired legacy
+`test14_proof_story_narrative`, and `playground_edge_regressions`. Real live
+transcripts additionally exercise naming -> certification -> retry -> proof,
+story checking, save/restart, and the preserved pending FLT claim. Details
+and evidence are in [the live continuation report](verification/live-proof-continuation-2026-10-28.md).
+
+The proposed human-selected quadratic-division route is superseded by §8.5.
+Quartic descent still needs a checked construction covering every hypothetical
+source solution. The general search/planner gaps in §7.3 remain outside this
+local equality retry. No changes to `core.py`.
+
+### 8.5 Authored strategy withdrawn; signed verification retained (2026-10-28)
+
+The user rejected the authored conjugate-and-round quotient strategy as
+hardcoding. Parameterizing that algorithm did not make it Machine discovery.
+The implementation and its focused tests have been removed:
+`math/whole_rounding.py`, `math/quadratic_quotient.py`,
+`validation/whole_rounding_regressions.py`, and
+`validation/quadratic_quotient_regressions.py`. The 39-case rounding and
+19-case quotient logs are historical evidence of withdrawn code; they count
+as no delivered discovery, Engel-strategy or FLT progress.
+
+- **Self-improvement; storytelling/explanations:** this correction removes
+  the authored strategy from the delivered-work record and supersedes the
+  proposed norm-bound/factorization route. The governing objective is the
+  specs' general discovery -> certification -> structural matching -> transfer
+  loop. The Machine must discover the question, not receive a planted route.
+- **Self-improvement verification infrastructure:** `signed_polynomial.py`
+  checks supplied signed identities by translation to formal differences of
+  natural-coefficient polynomials and the existing degree-complete grid proof.
+  It selects no identity, quotient algorithm or proof strategy. Original
+  signed endpoints are retained. Both signed-translation and polynomial-grid
+  authorities are required, including on direct verifier calls. Replay also
+  binds the supplied action to the action recorded in the proof step.
+  The focused suite passes, including action substitution refusal and snapshot
+  replay. This is reusable verification for future FLT/IMO work, not a new
+  theorem discovered, an IMO problem solved or a strategy learned.
+
+The existing named-discovery and checked-story regression controls also pass
+after the checker extension. No new law or strategy was activated in the live
+graph. Signed text and signed playground evaluation remain unsupported; §8.4
+live behavior is unchanged. The earlier supplied-witness verifier
+`math/quadratic_division.py` remains and supplies no quotient strategy.
+
+FLT and W28 remain open, as do the quartic movement obligation and general
+search/planner gaps. `core.py` is unchanged. No numbered suite slot was used.
+Details and the distinction between retained and historical evidence are in
+[the corrected continuation report](verification/quadratic-signed-continuation-2026-10-28.md).

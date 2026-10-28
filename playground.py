@@ -14,6 +14,7 @@ from . import constructors as C
 from . import graph_task as GT
 from . import labels as L
 from . import machine as M
+from . import operation_catalog as OC
 from . import proof as P
 from .math import arithmetic as A
 from .trees import TreeEntries
@@ -1880,32 +1881,50 @@ class RenderOperationCall(M.Edge):
         )
 
 
-class VariableizeDiscoveredTerm(M.Edge):
-    """Turn finite-miner variables into the machine's rule variable patterns."""
+class DiscoveredVariableBindings(M.Edge):
+    """Allocate one anonymous rule pattern per discovered variable."""
 
-    def __init__(self, term, variables):
-        self.result = self._convert(term, variables)
+    def __init__(self, variables):
+        self.result = M.EmptyList
+        if M.IsPair(variables)() is M.truth_value:
+            variable = M.Head(variables)()
+            pattern = M.Pair(M.VarTag, M.Pair(M.Var(), M.EmptyList))
+            self.result = M.Pair(
+                M.Pair(variable, M.Pair(pattern, M.EmptyList)),
+                DiscoveredVariableBindings(M.Tail(variables)())(),
+            )
         super().__init__(
-            inputs=M.Pair(term, M.Pair(variables, M.EmptyList)),
+            inputs=M.Pair(variables, M.EmptyList), results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class VariableizeDiscoveredTerm(M.Edge):
+    """Share anonymous pattern identities throughout one term or equation."""
+
+    def __init__(self, term, variables, bindings=None):
+        if bindings is None:
+            bindings = DiscoveredVariableBindings(variables)()
+        self.result = term
+        if M.IsPair(term)() is M.truth_value:
+            self.result = M.Pair(
+                VariableizeDiscoveredTerm(
+                    M.Head(term)(), variables, bindings
+                )(),
+                VariableizeDiscoveredTerm(
+                    M.Tail(term)(), variables, bindings
+                )(),
+            )
+        else:
+            pattern = EnvLookup(bindings, term)()
+            if M.IdentityCompare(pattern, M.EmptyList)() is M.false_value:
+                self.result = pattern
+        super().__init__(
+            inputs=M.Pair(term, M.Pair(variables, M.Pair(bindings, M.EmptyList))),
             results=self.result,
         )
-
-    def _convert(self, term, variables):
-        if M.IsPair(term)() is M.false_value:
-            if self._contains_variable(variables, term) is M.truth_value:
-                return M.Pair(M.VarTag, M.Pair(term, M.EmptyList))
-            return term
-        return M.Pair(
-            self._convert(M.Head(term)(), variables),
-            self._convert(M.Tail(term)(), variables),
-        )
-
-    def _contains_variable(self, variables, term):
-        if M.IdentityCompare(variables, M.EmptyList)() is M.truth_value:
-            return M.false_value
-        if M.Compare(M.Head(variables)(), term)() is M.truth_value:
-            return M.truth_value
-        return self._contains_variable(M.Tail(variables)(), term)
 
     def __call__(self):
         return self.result
@@ -2163,6 +2182,8 @@ class EvaluateNatExpr(M.Edge):
             if M.IdentityCompare(third, M.EmptyList)() is M.truth_value:
                 return self._refuse(reg3)
             if M.IdentityCompare(head, L.NatModEqLabel)() is M.truth_value:
+                if A.IsNat(third, reg3)() is M.false_value:
+                    return self._refuse(reg3)
                 mod_res = A.Modulo(first, second, reg3)()
                 remainder = M.Head(mod_res)()
                 reg4 = M.Head(M.Tail(mod_res)())()
@@ -2182,12 +2203,22 @@ class EvaluateNatExpr(M.Edge):
         reg2 = M.Head(M.Tail(right_res)())()
         if M.IdentityCompare(right, M.EmptyList)() is M.truth_value:
             return self._refuse(reg2)
-        # The operation is chosen by the label the term carries, and every
-        # branch names one of the machine's arithmetic edges directly. No
-        # class is read out of machine data and called: that is a host
-        # callable as a machine parameter (CTM-ODR-5 3.3). The register above
-        # still decides which labels are admitted and what metadata they
-        # carry -- it describes operations, it does not execute them.
+        if M.IdentityCompare(head, L.ImpliesLabel)() is M.truth_value:
+            if M.OrAtom(
+                M.IdentityCompare(left, M.truth_value)(),
+                M.IdentityCompare(left, M.false_value)(),
+            )() is M.false_value:
+                return self._refuse(reg2)
+            if M.OrAtom(
+                M.IdentityCompare(right, M.truth_value)(),
+                M.IdentityCompare(right, M.false_value)(),
+            )() is M.false_value:
+                return self._refuse(reg2)
+        elif M.IdentityCompare(head, L.ExprEqLabel)() is M.false_value:
+            if A.IsNat(left, reg2)() is M.false_value:
+                return self._refuse(reg2)
+            if A.IsNat(right, reg2)() is M.false_value:
+                return self._refuse(reg2)
         # The operation is chosen by the label the term carries, and every
         # branch names one of the machine's arithmetic edges directly. No
         # class is read out of machine data and called: that is a host
@@ -2964,10 +2995,9 @@ class ProjectTensorModulo(M.Edge):
 
 class BuildNatOperationRegister(M.Edge):
     """
-    Builds the machine-visible arithmetic operation catalog, then adds any
-    operations present in supplied expression terms or registered constructor
-    evidence. The catalog is data, not a Python class inventory: arithmetic
-    Edge classes are not stored in AllConstructors.
+    Reads the arithmetic catalog registered at runtime boot, then adds any
+    operations present in supplied expressions or constructor evidence.
+    An unseeded registry exposes only its evidence and the supplied terms.
 
     Each entry carries the metadata the term-level edges share, so that
     rendering, admission, degree bounding and evaluation all read one
@@ -2987,14 +3017,14 @@ class BuildNatOperationRegister(M.Edge):
                    or "refuse" when the result is not a polynomial
       law_depth    whether nested candidate terms are bounded or expensive
 
-    The returned register contains the predetermined arithmetic vocabulary plus
-    operations found by the machine-term and constructor walks.
+    The returned register contains registered operation descriptions plus
+    operations found by the expression and constructor walks.
     """
 
     def __init__(self, registry, terms=M.EmptyList):
         self.registry = registry
-        entries = self._scan_registry(M.EmptyList)
-        entries = self._scan_terms(self._catalog_terms(), entries)
+        entries = OC.RegisteredNatOperationCatalog(registry)()
+        entries = self._scan_registry(entries)
         entries = self._scan_terms(terms, entries)
         self.result = M.Pair(entries, M.Pair(registry, M.EmptyList))
         super().__init__(
@@ -3002,137 +3032,8 @@ class BuildNatOperationRegister(M.Edge):
             results=self.result,
         )
 
-    def _catalog_terms(self):
-        x = M.Char("x")
-        y = M.Char("y")
-        z = M.Char("z")
-        vars2 = M.Pair(x, M.Pair(y, M.EmptyList))
-        vars3 = M.Pair(x, M.Pair(y, M.Pair(z, M.EmptyList)))
-        terms = M.EmptyList
-        terms = M.Pair(M.Pair(L.ExprNegLabel, M.Pair(x, M.EmptyList)), terms)
-        terms = M.Pair(M.Pair(L.ExprPowLabel, vars2), terms)
-        terms = M.Pair(M.Pair(L.ImpliesLabel, vars2), terms)
-        terms = M.Pair(M.Pair(L.NatModEqLabel, vars3), terms)
-        terms = M.Pair(M.Pair(L.NotCoprimeLabel, vars2), terms)
-        terms = M.Pair(M.Pair(L.CoprimeLabel, vars2), terms)
-        terms = M.Pair(M.Pair(L.DividesLabel, vars2), terms)
-        terms = M.Pair(M.Pair(L.ExprGcdLabel, vars2), terms)
-        terms = M.Pair(M.Pair(L.ExprSubtractLabel, vars2), terms)
-        terms = M.Pair(M.Pair(L.ExprModuloLabel, vars2), terms)
-        terms = M.Pair(M.Pair(L.ExprLtLabel, vars2), terms)
-        terms = M.Pair(M.Pair(L.ExprEqLabel, vars2), terms)
-        terms = M.Pair(M.Pair(L.ExprDivLabel, vars2), terms)
-        terms = M.Pair(M.Pair(L.ExprMulLabel, vars2), terms)
-        terms = M.Pair(M.Pair(L.ExprAddLabel, vars2), terms)
-        return terms
-
-    def _entry(self, label):
-        variables = M.Pair(M.Char("x"), M.Pair(M.Char("y"), M.EmptyList))
-        name = M.Char("operation")
-        print_form = M.Char(" ? ")
-        precedence = M.two
-        polynomial = M.false_value
-        degree_rule = M.Char("refuse")
-        law_depth = M.Char("bounded")
-        if M.IdentityCompare(label, L.ExprAddLabel)() is M.truth_value:
-            name = M.Char("add")
-            print_form = M.Char(" + ")
-            polynomial = M.truth_value
-            degree_rule = M.Char("max")
-        elif M.IdentityCompare(label, L.ExprMulLabel)() is M.truth_value:
-            name = M.Char("mul")
-            print_form = M.Char("*")
-            precedence = M.three
-            polynomial = M.truth_value
-            degree_rule = M.Char("sum")
-        elif M.IdentityCompare(label, L.ExprPowLabel)() is M.truth_value:
-            name = M.Char("pow")
-            print_form = M.Char("^")
-            precedence = M.four
-            law_depth = M.Char("expensive")
-        elif M.IdentityCompare(label, L.ExprModuloLabel)() is M.truth_value:
-            name = M.Char("modulo")
-            print_form = M.Char(" mod ")
-            precedence = M.one
-        elif M.IdentityCompare(label, L.ExprSubtractLabel)() is M.truth_value:
-            name = M.Char("natural subtraction")
-            print_form = M.Char(" - ")
-        elif M.IdentityCompare(label, L.ExprGcdLabel)() is M.truth_value:
-            name = M.Char("gcd")
-            print_form = M.Char(" gcd ")
-            precedence = M.three
-        elif M.IdentityCompare(label, L.ExprDivLabel)() is M.truth_value:
-            name = M.Char("divide")
-            print_form = M.Char(" / ")
-            precedence = M.three
-        elif M.IdentityCompare(label, L.ExprEqLabel)() is M.truth_value:
-            name = M.Char("compare_equality")
-            print_form = M.Char(" == ")
-            precedence = M.one
-        elif M.IdentityCompare(label, L.ExprLtLabel)() is M.truth_value:
-            name = M.Char("compare_less")
-            print_form = M.Char(" < ")
-            precedence = M.one
-        elif M.IdentityCompare(label, L.ExprNegLabel)() is M.truth_value:
-            variables = M.Pair(M.Char("x"), M.EmptyList)
-            name = M.Char("negate")
-            print_form = M.Char("neg")
-            precedence = M.four
-        elif M.IdentityCompare(label, L.DividesLabel)() is M.truth_value:
-            name = M.Char("divides")
-            print_form = M.Char(" divides ")
-            precedence = M.one
-        elif M.IdentityCompare(label, L.CoprimeLabel)() is M.truth_value:
-            name = M.Char("coprime")
-            print_form = M.Char(" coprime ")
-            precedence = M.one
-        elif M.IdentityCompare(label, L.NotCoprimeLabel)() is M.truth_value:
-            name = M.Char("not_coprime")
-            print_form = M.Char(" not_coprime ")
-            precedence = M.one
-        elif M.IdentityCompare(label, L.NatModEqLabel)() is M.truth_value:
-            variables = M.Pair(M.Char("x"), M.Pair(M.Char("m"), M.Pair(M.Char("r"), M.EmptyList)))
-            name = M.Char("compare_modulo")
-            print_form = M.Char(" mod_eq ")
-            precedence = M.one
-        elif M.IdentityCompare(label, L.ImpliesLabel)() is M.truth_value:
-            name = M.Char("implies")
-            print_form = M.Char(" implies ")
-            precedence = M.one
-        else:
-            return M.EmptyList
-        operation = M.Pair(label, variables)
-        return M.Pair(
-            name,
-            M.Pair(
-                variables,
-                M.Pair(
-                    operation,
-                    M.Pair(
-                        print_form,
-                        M.Pair(
-                            precedence,
-                            M.Pair(
-                                polynomial,
-                                M.Pair(degree_rule, M.Pair(law_depth, M.EmptyList)),
-                            ),
-                        ),
-                    ),
-                ),
-            ),
-        )
-
     def _scan_registry(self, entries):
-        """Scan the machine's own edge registry for the arithmetic it has run.
-
-        TreeEntries walks the constructor registry, and every operation the
-        machine has applied is entered there under the label the term carried.
-        An entry is an operation when it is an edge whose label names one, so
-        the catalog is what the machine has actually run rather than a list
-        written out by hand. This is the scan that finds the whole operation
-        set; the term walk below only adds operations named by the terms it
-        is handed.
-        """
+        """Add arithmetic constructors explicitly recorded by the machine."""
         registered = TreeEntries(self.registry)()
         return self._scan_entries(registered, entries)
 
@@ -3147,13 +3048,14 @@ class BuildNatOperationRegister(M.Edge):
         return self._scan_entries(M.Tail(remaining)(), entries)
 
     def _scan_registered(self, fact, entries):
-        if M.IsEdge(fact, self.registry)() is M.false_value:
-            return entries
-        constructor = M.GetConstructor(fact, self.registry)()
-        if M.IdentityCompare(constructor, M.EmptyList)() is M.truth_value:
+        if M.IsPair(fact)() is M.truth_value:
+            constructor = fact
+        else:
+            constructor = M.GetConstructor(fact, self.registry)()
+        if M.IsPair(constructor)() is M.false_value:
             return entries
         label = M.Head(constructor)()
-        found = self._entry(label)
+        found = OC.NatOperationDescription(label)()
         if M.IdentityCompare(found, M.EmptyList)() is M.false_value:
             prior = LookupOperationByLabel(label, entries)()
             if M.IdentityCompare(prior, M.EmptyList)() is M.truth_value:
@@ -3182,7 +3084,7 @@ class BuildNatOperationRegister(M.Edge):
         args = M.Tail(term)()
         if M.IdentityCompare(label, L.ExprIntLabel)() is M.truth_value:
             return entries
-        found = self._entry(label)
+        found = OC.NatOperationDescription(label)()
         if M.IdentityCompare(found, M.EmptyList)() is M.false_value:
             prior = LookupOperationByLabel(label, entries)()
             if M.IdentityCompare(prior, M.EmptyList)() is M.truth_value:
@@ -3209,175 +3111,43 @@ class BuildNatOperationRegister(M.Edge):
         return self.result
 
 
+class BuildOperationTensorState(M.Edge):
+    """Return indexed operation tensors together with their updated registry."""
+
+    def __init__(self, domain, operation_register, registry, all_operations=M.EmptyList):
+        from .operation_tensor import BuildOperationTensorState as BuildState
+
+        self.result = BuildState(domain, operation_register, registry, all_operations)()
+        super().__init__(inputs=M.Pair(domain, operation_register), results=self.result)
+
+    def __call__(self):
+        return self.result
+
+
 class BuildOperationTensor(M.Edge):
-    """Precomputes every admitted operation's result over the tested domain.
-
-    Mining a law currently re-evaluates the same operation cells once per
-    candidate law and once per assignment, which is the bulk of the work: a
-    two-variable domain needs 121 cells per operation, and each candidate
-    touches many of them again. Building the grid once and reading it makes
-    the cost of testing a law proportional to the lookups it needs rather
-    than to fresh evaluations.
-
-    Layout is a chain of Pair(operation_label, entries), where each entry is
-    Pair(argument_tuple, Pair(result, EmptyList)). The tuple is arbitrary-arity,
-    so the same tensor representation handles unary, binary, and ternary
-    operations.
-    """
+    """Build nested machine axes without a frame per Cartesian row."""
 
     def __init__(self, domain, operation_register, registry):
-        self.registry = registry
-        self.result = self._build(
-            domain, operation_register, registry, operation_register
-        )
-        super().__init__(
-            inputs=M.Pair(
-                domain,
-                M.Pair(operation_register, M.Pair(registry, M.EmptyList)),
-            ),
-            results=self.result,
-        )
+        built = BuildOperationTensorState(domain, operation_register, registry)()
+        self.registry = M.Head(M.Tail(built)())()
+        self.result = M.Head(built)()
+        super().__init__(inputs=M.Pair(domain, operation_register), results=self.result)
 
-    def _build(self, domain, ops, registry, all_ops):
-        if M.IdentityCompare(ops, M.EmptyList)() is M.truth_value:
-            return M.EmptyList
-        entry = M.Head(ops)()
-        label = M.Head(M.Head(M.Tail(M.Tail(entry)())())())()
-        variables = M.Head(M.Tail(entry)())()
-        domains = self._domains_for_variables(variables, domain)
-        tuples = ProductOfDomains(domains)()
-        built = self._tensor_entries(tuples, label, registry, all_ops)
-        cells = M.Head(built)()
-        active = M.Head(M.Tail(built)())()
-        return M.Pair(
-            M.Pair(label, cells),
-            self._build(domain, M.Tail(ops)(), active, all_ops),
-        )
+    def __call__(self):
+        return self.result
 
-    def _domains_for_variables(self, variables, domain):
-        if M.IdentityCompare(variables, M.EmptyList)() is M.truth_value:
-            return M.EmptyList
-        return M.Pair(
-            domain,
-            self._domains_for_variables(M.Tail(variables)(), domain),
-        )
-
-    def _tensor_entries(self, tuples, label, registry, ops):
-        if M.IdentityCompare(tuples, M.EmptyList)() is M.truth_value:
-            return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
-        point = M.Head(tuples)()
-        term = M.Pair(label, point)
-        call_text = RenderOperationCall(term, M.EmptyList, ops, registry)()
-        NaturalPlaygroundDebugEmit(M.Char("Evaluating tensor cell: " + call_text))()
-        evaluated = EvaluateNatExpr(term, M.EmptyList, registry, ops)()
-        value = M.Head(evaluated)()
-        active = M.Head(M.Tail(evaluated)())()
-        NaturalPlaygroundDebugEmit(M.Char(
-            "Evaluated tensor cell: " + call_text + " -> "
-            + RenderOperationValue(value, active)()
-        ))()
-        rest = self._tensor_entries(M.Tail(tuples)(), label, active, ops)
-        entries = M.Pair(
-            M.Pair(point, M.Pair(value, M.EmptyList)),
-            M.Head(rest)(),
-        )
-        return M.Pair(entries, M.Pair(M.Head(M.Tail(rest)())(), M.EmptyList))
 
 class TensorOperationValue(M.Edge):
-    """Evaluates an expression term by reading the operation result tensor.
-
-    A bare natural is itself; an operation application reads its two operands
-    from the tensor and then the cell for the pair. Recursing on the operands
-    is what lets a nested term such as op(op(x, y), z) be answered by two
-    lookups instead of a fresh evaluation of the whole term.
-    """
+    """Read an expression from the nested machine tensor axes."""
 
     def __init__(self, tensor, term, environment, registry):
-        self.registry = registry
-        self.result = self._value(tensor, term, environment, registry)
-        super().__init__(
-            inputs=M.Pair(
-                tensor,
-                M.Pair(term, M.Pair(environment, M.Pair(registry, M.EmptyList))),
-            ),
-            results=self.result,
-        )
+        from .operation_tensor import TensorOperationValue as ReadValue
 
-    def _value(self, tensor, term, environment, registry):
-        if M.IsPair(term)() is M.false_value:
-            # A leaf is either a natural standing for itself or a variable
-            # that has to be read out of the environment before it can index
-            # a cell; skipping that lookup would make every variable read as
-            # undefined.
-            if A.IsNat(term, registry)() is M.truth_value:
-                return M.Pair(term, M.Pair(registry, M.EmptyList))
-            value = EnvLookup(environment, term)()
-            if M.IdentityCompare(value, M.EmptyList)() is M.truth_value:
-                return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
-            return M.Pair(value, M.Pair(registry, M.EmptyList))
-        args = M.Tail(term)()
-        label = M.Head(term)()
-        values_res = self._values(tensor, args, environment, registry)
-        values = M.Head(values_res)()
-        active = M.Head(M.Tail(values_res)())()
-        if M.IdentityCompare(values, M.EmptyList)() is M.truth_value:
-            return M.Pair(M.EmptyList, M.Pair(active, M.EmptyList))
-        cell = self._cell(tensor, label, values)
-        return M.Pair(cell, M.Pair(active, M.EmptyList))
+        self.result = ReadValue(tensor, term, environment, registry)()
+        super().__init__(inputs=M.Pair(tensor, M.Pair(term, environment)), results=self.result)
 
-    def _values(self, tensor, args, environment, registry):
-        if M.IdentityCompare(args, M.EmptyList)() is M.truth_value:
-            return M.Pair(M.EmptyList, M.Pair(registry, M.EmptyList))
-        first = self._value(tensor, M.Head(args)(), environment, registry)
-        value = M.Head(first)()
-        active = M.Head(M.Tail(first)())()
-        if M.IdentityCompare(value, M.EmptyList)() is M.truth_value:
-            return M.Pair(M.EmptyList, M.Pair(active, M.EmptyList))
-        rest = self._values(tensor, M.Tail(args)(), environment, active)
-        return M.Pair(
-            M.Pair(value, M.Head(rest)()),
-            M.Pair(M.Head(M.Tail(rest)())(), M.EmptyList),
-        )
-
-    def _cell(self, tensor, label, values):
-        rows = self._operation(tensor, label)
-        if M.IdentityCompare(rows, M.EmptyList)() is M.truth_value:
-            return M.EmptyList
-        return self._find_values(rows, values)
-
-    def _find_values(self, entries, values):
-        if M.IdentityCompare(entries, M.EmptyList)() is M.truth_value:
-            return M.EmptyList
-        entry = M.Head(entries)()
-        point = M.Head(entry)()
-        if self._values_equal(point, values) is M.truth_value:
-            return M.Head(M.Tail(entry)())()
-        return self._find_values(M.Tail(entries)(), values)
-
-    def _values_equal(self, left, right):
-        if M.IdentityCompare(left, M.EmptyList)() is M.truth_value:
-            return M.IdentityCompare(right, M.EmptyList)()
-        if M.IdentityCompare(right, M.EmptyList)() is M.truth_value:
-            return M.false_value
-        left_head = M.Head(left)()
-        right_head = M.Head(right)()
-        if M.IdentityCompare(left_head, M.truth_value)() is M.truth_value:
-            if M.IdentityCompare(right_head, M.truth_value)() is M.false_value:
-                return M.false_value
-        elif M.IdentityCompare(left_head, M.false_value)() is M.truth_value:
-            if M.IdentityCompare(right_head, M.false_value)() is M.false_value:
-                return M.false_value
-        elif M.Compare(left_head, right_head)() is M.false_value:
-            return M.false_value
-        return self._values_equal(M.Tail(left)(), M.Tail(right)())
-
-    def _operation(self, tensor, label):
-        if M.IdentityCompare(tensor, M.EmptyList)() is M.truth_value:
-            return M.EmptyList
-        entry = M.Head(tensor)()
-        if M.IdentityCompare(M.Head(entry)(), label)() is M.truth_value:
-            return M.Tail(entry)()
-        return self._operation(M.Tail(tensor)(), label)
+    def __call__(self):
+        return self.result
 
 class LookupOperationByLabel(M.Edge):
     """
@@ -5636,6 +5406,22 @@ class RunPlaygroundInteractive(M.Edge):
             if M.Compare(M.Char(active_goal), M.Char(""))() is M.false_value
             else M.EmptyList
         )
+        if M.IdentityCompare(interactive, M.truth_value)() is M.truth_value:
+            if M.Compare(M.Char(active_goal), M.Char(""))() is M.false_value:
+                from . import live_proof as LP
+
+                request = LP.RecordLiveProofRequest(graph, M.Char(active_goal))()
+                spec_rec = LP.LiveProofRequestSpec(request)()
+                outcome = LP.RetryLiveProofRequest(graph, request)()
+                registry = M.FromContextGetConstructors(graph)()
+                status_text = LP.FormatLiveProofOutcome(outcome, registry)()
+                if M.IdentityCompare(LP.LiveProofOutcomeStatus(outcome)(), L.ProvedLabel)() is M.truth_value:
+                    graph._pending_discovery = M.EmptyList
+                    return status_text
+                if M.IdentityCompare(spec_rec, M.EmptyList)() is M.truth_value:
+                    graph._pending_discovery = M.EmptyList
+                    return status_text + "\n[machine] Supply an arithmetic equation and its constraints to explore this goal in the playground."
+                print(status_text)
         if M.IdentityCompare(spec_rec, M.EmptyList)() is M.false_value:
             lhs = GoalSpecLhs(spec_rec)()
             rhs = GoalSpecRhs(spec_rec)()
@@ -5644,7 +5430,7 @@ class RunPlaygroundInteractive(M.Edge):
             param_constraints = GoalSpecParamConstraints(spec_rec)()
             no_solutions = GoalSpecNoSolutions(spec_rec)()
             positive_only = GoalSpecPositiveOnly(spec_rec)()
-            reg = GoalSpecRegistry(spec_rec)()
+            reg = M.FromContextGetConstructors(graph)() if interactive is M.truth_value else GoalSpecRegistry(spec_rec)()
             operation_terms = M.Pair(lhs, M.Pair(rhs, M.EmptyList))
             operation_result = BuildNatOperationRegister(reg, operation_terms)()
             operation_register = M.Head(operation_result)()

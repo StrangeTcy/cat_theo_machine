@@ -1,0 +1,35 @@
+=== TEST 14: W14 Proof Storyteller & Derivation Narrative Generator ===
+
+[1] Initializing hypergraph runtime and registry...
+    Runtime and registry initialized.
+
+[2] Test Case 1: Narrative Step Construction & Rationale Classification...
+    Algebraic Step Rationale: <hyge.labels.RationaleAlgebraicLabel object at 0x0000022D2DD957F0> (Passed)
+    Parity Obstruction Step Rationale: <hyge.labels.RationaleParityObstructionLabel object at 0x0000022D2DD95850> (Passed)
+    Auxiliary Geometry Step Rationale: <hyge.labels.RationaleAuxiliaryConstructionLabel object at 0x0000022D2DD958B0> (Passed)
+    Monovariant Step Rationale: <hyge.labels.RationaleMonovariantLabel object at 0x0000022D2DD95910> (Passed)
+    Infinite Descent Step Rationale: <hyge.labels.RationaleDescentLabel object at 0x0000022D2DD95970> (Passed)
+
+[3] Test Case 2: Multi-Step Derivation & Checker B Verification...
+    Independent Checker B Verdict Tag: <hyge.labels.DerivationVerifiedLabel object at 0x0000022D2DD83F50> (Verified)
+
+[4] Test Case 3: Proof Receipt to Proof Story Rendering...
+    Proof Story Container Tag: <hyge.labels.ProofStoryLabel object at 0x0000022D2DD94F50> (Passed)
+
+[5] Test Case 4: Formatting Proof Story to Natural Mathematical Markdown...
+
+--- GENERATED PROOF STORY ---
+### Proof Narrative: Session `flt_session_001`
+**Target Goal**: `descent C`
+**Starting assumptions**: `mod 4 A`
+
+#### Derivation Steps & Mathematical Rationale:
+1. **Step 1** [ParityObstruction]: Applied `mod 4 A -> parity B` $\implies$ Derived `parity B`
+2. **Step 2** [ParityObstruction]: Applied `parity B -> descent C` $\implies$ Derived `descent C`
+
+**Narrative status**: Unchecked receipt narrative; proof verification has not been performed.
+--- END PROOF STORY ---
+
+    Markdown Narrative Content Verified.
+
+=== ALL TEST 14 PROOF STORYTELLER & NARRATIVE CHECKS PASSED in 5.487s ===

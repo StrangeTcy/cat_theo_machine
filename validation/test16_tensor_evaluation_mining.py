@@ -83,7 +83,7 @@ assert "commutativity of addition" in content, "talk_lessons.log entry missing"
 print("    talk_lessons.log correctly recorded.")
 
 print("\n[5] Test Case 4: Template Satisfaction Checking...")
-# Create a Monoid template with required commutativity law
+# A textual requirement supplies no equation or closure evidence.
 template_node = M.Pair(
     L.AlgebraicTemplateLabel,
     M.Pair(
@@ -101,7 +101,7 @@ reg5 = M.Head(M.Tail(check_res)())()
 inst_tag = M.Head(inst_node)()
 is_sat = M.Head(M.Tail(M.Tail(inst_node)())())()
 assert M.IdentityCompare(inst_tag, L.TemplateInstanceLabel)() is M.truth_value, "TemplateInstance tag mismatch"
-assert is_sat is M.truth_value, "Template check should be satisfied"
+assert is_sat is M.false_value, "A textual requirement must not certify a template instance"
 print(f"    Template satisfaction verdict: {is_sat} (Passed)")
 
 # Cleanup test log file

@@ -143,11 +143,11 @@ class ClassifyInferenceRationale(M.Edge):
 class ProofStory(M.Edge):
     """
     Full mathematical proof story container.
-    inputs: [story_id, goal, narrative_steps, summary_text]
-    results: Pair(ProofStoryLabel, Pair(story_id, Pair(goal, Pair(narrative_steps, Pair(summary_text, EmptyList)))))
+    Fields: story_id, goal, narrative_steps, summary_text, assumptions.
+    The original four-field prefix remains available to existing readers.
     """
 
-    def __init__(self, story_id, goal, narrative_steps, summary_text):
+    def __init__(self, story_id, goal, narrative_steps, summary_text, assumptions=M.EmptyList):
         self.story_id = story_id
         self.goal = goal
         self.narrative_steps = narrative_steps
@@ -160,7 +160,7 @@ class ProofStory(M.Edge):
                     goal,
                     M.Pair(
                         narrative_steps,
-                        M.Pair(summary_text, M.EmptyList),
+                        M.Pair(summary_text, M.Pair(assumptions, M.EmptyList)),
                     ),
                 ),
             ),
@@ -172,7 +172,7 @@ class ProofStory(M.Edge):
                     goal,
                     M.Pair(
                         narrative_steps,
-                        M.Pair(summary_text, M.EmptyList),
+                        M.Pair(summary_text, M.Pair(assumptions, M.EmptyList)),
                     ),
                 ),
             ),
@@ -185,7 +185,7 @@ class ProofStory(M.Edge):
 
 class RenderProofStory(M.Edge):
     """
-    Transforms a verified ProofReceipt into a structured ProofStory hyperedge.
+    Builds an unchecked receipt narrative without asserting proof validity.
     """
 
     def __init__(self, receipt, registry):
@@ -206,10 +206,10 @@ class RenderProofStory(M.Edge):
         steps = P.DerivationSteps(derivation, self.registry)()
         narrative_steps = self._compile_steps(steps, M.Zero)
 
-        summary = M.Char("Formal proof story successfully established target goal and verified receipt")
+        summary = M.Char("Unchecked receipt narrative; proof verification has not been performed.")
 
         return ProofStory(
-            session_id, goal_state, narrative_steps, summary
+            session_id, goal_state, narrative_steps, summary, start_state
         )()
 
     def _compile_steps(self, steps_cur, cur_idx_nat):
@@ -219,6 +219,7 @@ class RenderProofStory(M.Edge):
         step = M.Head(steps_cur)()
         succ_res = M.Succ(cur_idx_nat, self.registry)()
         next_idx_nat = M.Head(succ_res)()
+        self.registry = M.Head(M.Tail(succ_res)())()
 
         action = P.StepAction(step, self.registry)()
         rule = P.ActionRule(action)()
@@ -232,6 +233,113 @@ class RenderProofStory(M.Edge):
 
         rest_steps = self._compile_steps(M.Tail(steps_cur)(), next_idx_nat)
         return M.Pair(n_step, rest_steps)
+
+    def __call__(self):
+        return self.result
+
+
+class RenderCheckedProofStory(M.Edge):
+    """Return story, Checker B verdict, and registry after independent replay.
+
+    The caller supplies trusted rules. An optional CheckPolicyLabel record
+    fixes the expected session, starting assumptions, and goal; otherwise
+    replay checks the receipt's own scope. Rejected or malformed input has
+    no story. Starting assumptions remain attached to every successful story.
+    """
+
+    def __init__(self, receipt, trusted_rules, registry, policy=M.EmptyList):
+        input_policy = policy
+        input_registry = registry
+        story = M.EmptyList
+        malformed = M.Pair(
+            L.PremiseMismatchLabel,
+            M.Pair(M.Char("Malformed proof receipt or checking policy."), M.EmptyList),
+        )
+        verification = malformed
+        admitted = M.false_value
+        if M.IsPair(receipt)() is M.truth_value:
+            admitted = M.IdentityCompare(M.Head(receipt)(), L.ProofReceiptLabel)()
+        if admitted is M.truth_value:
+            try:
+                fields = M.Tail(receipt)()
+                session = M.Head(fields)()
+                start = M.Head(M.Tail(fields)())()
+                goal = M.Head(M.Tail(M.Tail(fields)())())()
+                derivation = M.Head(M.Tail(M.Tail(M.Tail(fields)())())())()
+                if M.IdentityCompare(policy, M.EmptyList)() is M.truth_value:
+                    policy = M.Pair(
+                        L.CheckPolicyLabel,
+                        M.Pair(session, M.Pair(start, M.Pair(goal, M.EmptyList))),
+                    )
+                admitted = M.false_value
+                if M.IsPair(policy)() is M.truth_value:
+                    admitted = M.AndAtom(
+                        M.IdentityCompare(M.Head(policy)(), L.CheckPolicyLabel)(),
+                        P.IsDerivation(derivation, registry)(),
+                    )()
+                if admitted is M.truth_value:
+                    verification = CheckerB.VerifyProofReceipt(
+                        receipt, policy, trusted_rules, registry,
+                    )()
+                    if M.IdentityCompare(
+                        M.Head(verification)(), L.DerivationVerifiedLabel,
+                    )() is M.truth_value:
+                        rendered = RenderProofStory(receipt, registry)
+                        raw_story = rendered()
+                        registry = rendered.registry
+                        story_fields = M.Tail(raw_story)()
+                        steps = M.Head(M.Tail(M.Tail(story_fields)())())()
+                        summary = M.Char(
+                            "Checker B verified the target from the displayed starting assumptions "
+                            "under the supplied trusted rules."
+                        )
+                        story = ProofStory(session, goal, steps, summary, start)()
+            except Exception:
+                story = M.EmptyList
+                verification = malformed
+        self.result = M.Pair(story, M.Pair(verification, M.Pair(registry, M.EmptyList)))
+        super().__init__(
+            inputs=M.Pair(receipt, M.Pair(trusted_rules, M.Pair(input_registry, M.Pair(input_policy, M.EmptyList)))),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
+class FormatArithmeticStory(M.Edge):
+    """Render the concrete expressions of a checked live equality story."""
+
+    def __init__(self, story, registry):
+        from . import playground as PG
+
+        self.registry = registry
+        fields = M.Tail(story)()
+        goal = M.Head(M.Tail(fields)())()
+        steps = M.Head(M.Tail(M.Tail(fields)())())()
+        summary_fields = M.Tail(M.Tail(M.Tail(fields)())())()
+        summary = M.Head(summary_fields)()
+        start = M.Head(M.Tail(summary_fields)())()
+        self.result = (
+            "### Equality proof: " + PG.RenderNatExpr(start, registry)()
+            + " = " + PG.RenderNatExpr(goal, registry)()
+            + "\n\n" + self._steps(steps) + "\n" + summary()
+        )
+        super().__init__(inputs=M.Pair(story, M.Pair(registry, M.EmptyList)), results=M.EmptyList)
+
+    def _steps(self, steps):
+        from . import playground as PG
+
+        if M.IdentityCompare(steps, M.EmptyList)() is M.truth_value:
+            return ""
+        fields = M.Tail(M.Head(steps)())()
+        premises = M.Head(M.Tail(M.Tail(fields)())())()
+        conclusion = M.Head(M.Tail(M.Tail(M.Tail(fields)())())())()
+        return (
+            "A trusted rewrite rule changes `" + PG.RenderNatExpr(premises, self.registry)()
+            + "` to `" + PG.RenderNatExpr(conclusion, self.registry)() + "`.\n"
+            + self._steps(M.Tail(steps)())
+        )
 
     def __call__(self):
         return self.result
@@ -280,14 +388,19 @@ def FormatStoryToMarkdown(story_node):
     goal = M.Head(M.Tail(story_fields)())()
     narrative_steps = M.Head(M.Tail(M.Tail(story_fields)())())()
     summary = M.Head(M.Tail(M.Tail(M.Tail(story_fields)())())())()
+    scope_fields = M.Tail(M.Tail(M.Tail(M.Tail(story_fields)())())())()
+    assumptions = M.EmptyList
+    if M.IsPair(scope_fields)() is M.truth_value:
+        assumptions = M.Head(scope_fields)()
 
     session_str = _to_str(session_id)
     goal_str = _to_str(goal)
     summary_str = _to_str(summary)
+    assumptions_str = _to_str(assumptions)
 
     lines = [
         f"### Proof Narrative: Session `{session_str}`",
-        f"**Target Goal**: `{goal_str}`",
+        f"**Target Goal**: `{goal_str}`\n**Starting assumptions**: `{assumptions_str}`",
         "",
         "#### Derivation Steps & Mathematical Rationale:",
     ]
@@ -319,7 +432,7 @@ def FormatStoryToMarkdown(story_node):
         cur = M.Tail(cur)()
 
     lines.append("")
-    lines.append(f"**Conclusion (Q.E.D.)**: {summary_str}")
+    lines.append(f"**Narrative status**: {summary_str}")
     return "\n".join(lines)
 
 
@@ -328,5 +441,7 @@ __all__ = (
     "ClassifyInferenceRationale",
     "ProofStory",
     "RenderProofStory",
+    "RenderCheckedProofStory",
+    "FormatArithmeticStory",
     "FormatStoryToMarkdown",
 )

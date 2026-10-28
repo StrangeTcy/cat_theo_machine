@@ -397,121 +397,229 @@ class MineOperationInvariants(M.Edge):
         return self.result
 
 class CheckTemplateSatisfaction(M.Edge):
-    """
-    Checks if a concrete carrier entity and machine operation term satisfy an
-    algebraic template's required laws.
-    inputs: [template_node, variables, operation, carrier_domain, registry]
-    results: Pair(TemplateInstanceLabel, Pair(template_name, Pair(is_satisfied, Pair(registry, EmptyList))))
+    """Check explicit equations and closure on the supplied finite carrier.
+
+    The returned instance retains its template, candidate, finite scope and
+    replay evidence. Unsupported templates are refused without mining laws.
     """
 
     def __init__(self, template_node, variables, operation, carrier_domain, registry):
-        self.registry = registry
-        self.result = self._check(
-            template_node, variables, operation, carrier_domain, registry
-        )
+        from .template_matching import CheckFiniteTemplate
+
+        result = CheckFiniteTemplate(
+            template_node, variables, operation, carrier_domain, registry,
+        )()
         super().__init__(
-            inputs=M.Pair(
-                template_node,
-                M.Pair(
-                    variables,
-                    M.Pair(
-                        operation,
-                        M.Pair(carrier_domain, M.Pair(registry, M.EmptyList)),
-                    ),
-                ),
-            ),
-            results=self.result,
+            inputs=M.Pair(template_node, M.Pair(variables, M.Pair(operation,
+                M.Pair(carrier_domain, M.Pair(registry, M.EmptyList))))),
+            results=result,
         )
 
-    def _check(self, template_node, variables, operation, carrier_domain, reg):
-        template_body = M.Tail(template_node)()
-        template_name = M.Head(template_body)()
-        required_laws = M.Head(M.Tail(template_body)())()
-        template_tail = M.Tail(M.Tail(template_body)())()
-        template_operations = M.EmptyList
-        if M.IdentityCompare(template_tail, M.EmptyList)() is M.false_value:
-            template_name = M.Char("finite-algebra-template")
-            template_operations = M.Head(M.Tail(template_body)())()
-            required_laws = M.Head(template_tail)()
 
-        if M.IdentityCompare(template_operations, M.EmptyList)() is M.truth_value:
-            built = PG.BuildNatOperationRegister(
-                reg, M.Pair(operation, M.EmptyList)
+
+
+class NamedOperationEquation(M.Edge):
+    """Find a recorded operation/equation pair in graph evidence."""
+
+    def __init__(self, operation, equation, domain, nodes):
+        result = M.false_value
+        if M.IsPair(nodes)() is M.truth_value:
+            node = M.Head(nodes)()
+            if M.IsPair(node)() is M.truth_value:
+                if M.IdentityCompare(M.Head(node)(), L.NamedRegularityLabel)() is M.truth_value:
+                    body = M.Tail(node)()
+                    if M.IsPair(body)() is M.truth_value:
+                        operation_body = M.Tail(body)()
+                        if M.IsPair(operation_body)() is M.truth_value:
+                            equation_body = M.Tail(operation_body)()
+                            if M.IsPair(equation_body)() is M.truth_value:
+                                domain_body = M.Tail(equation_body)()
+                                if M.IsPair(domain_body)() is M.truth_value:
+                                    result = M.AndAtom(
+                                        M.Compare(M.Head(operation_body)(), operation)(),
+                                        M.AndAtom(
+                                            M.Compare(M.Head(equation_body)(), equation)(),
+                                            M.Compare(M.Head(domain_body)(), domain)(),
+                                        )(),
+                                    )()
+            if result is M.false_value:
+                result = NamedOperationEquation(
+                    operation, equation, domain, M.Tail(nodes)()
+                )()
+        super().__init__(
+            inputs=M.Pair(operation, M.Pair(equation, M.Pair(domain, M.Pair(nodes, M.EmptyList)))),
+            results=result,
+        )
+
+
+class UnnamedOperationEquations(M.Edge):
+    """Remove named candidates before constructing evaluation domains."""
+
+    def __init__(self, operation, equations, domain, nodes):
+        result = M.EmptyList
+        if M.IsPair(equations)() is M.truth_value:
+            equation = M.Head(equations)()
+            rest = UnnamedOperationEquations(
+                operation, M.Tail(equations)(), domain, nodes
             )()
-            operations = M.Head(built)()
-            r1 = M.Head(M.Tail(built)())()
+            if NamedOperationEquation(operation, equation, domain, nodes)() is M.truth_value:
+                result = rest
+            else:
+                result = M.Pair(equation, rest)
+        super().__init__(
+            inputs=M.Pair(operation, M.Pair(equations, M.Pair(domain, M.Pair(nodes, M.EmptyList)))),
+            results=result,
+        )
+
+
+class OperationEquationValue(M.Edge):
+    """Read cached operation cells, evaluating missing nested cells directly."""
+
+    def __init__(self, term, environment, registry, operations, tensor):
+        cached = PG.TensorOperationValue(tensor, term, environment, registry)()
+        if M.IdentityCompare(M.Head(cached)(), M.EmptyList)() is M.truth_value:
+            result = PG.EvaluateNatExpr(term, environment, registry, operations)()
         else:
-            operations = template_operations
-            r1 = reg
-        mined = MineOperationInvariantsAcrossRegister(
-            carrier_domain, r1, operations
-        )()
-        findings = M.Head(mined)()
-        r2 = M.Head(M.Tail(mined)())()
-        is_sat = self._required_laws_hold(
-            required_laws, findings, carrier_domain
+            result = cached
+        super().__init__(
+            inputs=M.Pair(term, M.Pair(environment, M.Pair(registry,
+                M.Pair(operations, M.Pair(tensor, M.EmptyList))))),
+            results=result,
         )
-        r1 = r2
-        inst_node = M.Pair(
-            L.TemplateInstanceLabel,
-            M.Pair(
-                template_name,
-                M.Pair(is_sat, M.EmptyList),
-            ),
+
+
+class CheckOperationEquationPoint(M.Edge):
+    """Compare one candidate equation at one ground assignment."""
+
+    def __init__(self, equation, variables, assignment, registry, operations,
+                 tensor, witnesses):
+        lhs = M.Head(M.Tail(M.Tail(equation)())())()
+        rhs = M.Head(M.Tail(M.Tail(M.Tail(equation)())())())()
+        environment = PG.ZipEnvironment(variables, assignment)()
+        comparison = (
+            PG.RenderOperationCall(lhs, environment, operations, registry)()
+            + " == "
+            + PG.RenderOperationCall(rhs, environment, operations, registry)()
         )
-        return M.Pair(inst_node, M.Pair(r1, M.EmptyList))
+        PG.NaturalPlaygroundDebugEmit(M.Char(
+            "Pairwise comparing operation results: " + comparison + "?"
+        ))()
+        left = OperationEquationValue(lhs, environment, registry, operations, tensor)()
+        left_value = M.Head(left)()
+        active = M.Head(M.Tail(left)())()
+        verdict = M.false_value
+        right_value = M.EmptyList
+        if M.IdentityCompare(left_value, M.EmptyList)() is M.false_value:
+            right = OperationEquationValue(rhs, environment, active, operations, tensor)()
+            right_value = M.Head(right)()
+            active = M.Head(M.Tail(right)())()
+            if M.IdentityCompare(right_value, M.EmptyList)() is M.false_value:
+                if M.IdentityCompare(left_value, M.truth_value)() is M.truth_value:
+                    verdict = M.IdentityCompare(right_value, M.truth_value)()
+                elif M.IdentityCompare(left_value, M.false_value)() is M.truth_value:
+                    verdict = M.IdentityCompare(right_value, M.false_value)()
+                elif Arith.IsNat(left_value, active)() is M.truth_value:
+                    if Arith.IsNat(right_value, active)() is M.truth_value:
+                        verdict = M.NatEq(left_value, right_value, active)()
+                else:
+                    verdict = M.Compare(left_value, right_value)()
+        PG.NaturalPlaygroundDebugEmit(M.Char(
+            comparison + " -> " + PG.RenderOperationValue(verdict, active)()
+            + " (" + PG.RenderOperationValue(left_value, active)()
+            + " == " + PG.RenderOperationValue(right_value, active)() + ")"
+        ))()
+        found = M.EmptyList
+        if verdict is M.truth_value:
+            found = M.Pair(
+                M.Pair(assignment, M.Pair(left_value, M.Pair(right_value, M.EmptyList))),
+                witnesses,
+            )
+        super().__init__(
+            inputs=M.Pair(equation, M.Pair(variables, M.Pair(assignment,
+                M.Pair(registry, M.Pair(operations, M.Pair(tensor,
+                    M.Pair(witnesses, M.EmptyList))))))),
+            results=M.Pair(verdict, M.Pair(active, M.Pair(found, M.EmptyList))),
+        )
 
-    def _finding_matches(self, findings, operation_name, law, domain):
-        if M.IdentityCompare(findings, M.EmptyList)() is M.truth_value:
-            return M.false_value
-        finding = M.Head(findings)()
-        body = M.Tail(finding)()
-        found_operation = M.Head(body)()
-        found_law = M.Head(M.Tail(body)())()
-        verdict_body = M.Tail(M.Tail(body)())()
-        verdict = M.Head(verdict_body)()
-        witness_body = M.Tail(verdict_body)()
-        scope = M.Head(M.Tail(witness_body)())()
-        found_domain = M.Head(M.Tail(scope)())()
-        same = M.AndAtom(
-            M.Compare(found_operation, operation_name)(),
-            M.AndAtom(
-                M.Compare(found_law, law)(),
-                M.Compare(found_domain, domain)(),
-            )(),
-        )()
-        if M.AndAtom(same, M.IdentityCompare(verdict, M.truth_value)())() is M.truth_value:
-            return M.truth_value
-        return self._finding_matches(M.Tail(findings)(), operation_name, law, domain)
 
-    def _required_laws_hold(self, laws, findings, domain):
-        if M.IdentityCompare(laws, M.EmptyList)() is M.truth_value:
-            return M.truth_value
-        named = M.Head(laws)()
-        if M.IsPair(named)() is M.false_value:
-            if M.IdentityCompare(findings, M.EmptyList)() is M.false_value:
-                return self._required_laws_hold(
-                    M.Tail(laws)(), findings, domain
+class CheckOperationEquationDomain(M.Edge):
+    """Visit Cartesian axes without one recursive frame per product point."""
+
+    def __init__(self, equation, variables, remaining_variables, domain,
+                 remaining_domain, assignment, registry, operations, tensor,
+                 witnesses):
+        result = M.Pair(M.truth_value, M.Pair(registry, M.Pair(witnesses, M.EmptyList)))
+        if M.IsPair(domain)() is M.false_value:
+            result = M.Pair(M.false_value, M.Pair(registry, M.Pair(M.EmptyList, M.EmptyList)))
+        elif M.IdentityCompare(remaining_variables, M.EmptyList)() is M.truth_value:
+            result = CheckOperationEquationPoint(
+                equation, variables, PG.ChainReverse(assignment)(), registry,
+                operations, tensor, witnesses,
+            )()
+        elif M.IsPair(remaining_domain)() is M.truth_value:
+            first = CheckOperationEquationDomain(
+                equation, variables, M.Tail(remaining_variables)(), domain, domain,
+                M.Pair(M.Head(remaining_domain)(), assignment), registry,
+                operations, tensor, witnesses,
+            )()
+            result = first
+            if M.Head(first)() is M.truth_value:
+                result = CheckOperationEquationDomain(
+                    equation, variables, remaining_variables, domain,
+                    M.Tail(remaining_domain)(), assignment,
+                    M.Head(M.Tail(first)())(), operations, tensor,
+                    M.Head(M.Tail(M.Tail(first)())())(),
+                )()
+        super().__init__(
+            inputs=M.Pair(equation, M.Pair(variables, M.Pair(remaining_variables,
+                M.Pair(domain, M.Pair(remaining_domain, M.Pair(assignment,
+                    M.Pair(registry, M.Pair(operations, M.Pair(tensor,
+                        M.Pair(witnesses, M.EmptyList)))))))))),
+            results=result,
+        )
+
+
+class CheckOperationEquationCandidates(M.Edge):
+    """Reuse a tensor, optionally returning after the first complete finding."""
+
+    def __init__(self, operation_name, equations, variables, domain, registry,
+                 operations, tensor, findings, stop_after_first=M.false_value):
+        result = M.Pair(findings, M.Pair(registry, M.EmptyList))
+        if M.AndAtom(M.IsPair(equations)(), M.IsPair(domain)())() is M.truth_value:
+            equation = M.Head(equations)()
+            checked = CheckOperationEquationDomain(
+                equation, variables, variables, domain, domain, M.EmptyList,
+                registry, operations, tensor, M.EmptyList,
+            )()
+            active = M.Head(M.Tail(checked)())()
+            found = findings
+            if M.Head(checked)() is M.truth_value:
+                witnesses = M.Head(M.Tail(M.Tail(checked)())())()
+                scope = M.Pair(M.Char("holds"), M.Pair(domain, M.EmptyList))
+                finding = M.Pair(
+                    L.ObservedRegularityLabel,
+                    M.Pair(operation_name, M.Pair(equation, M.Pair(M.truth_value,
+                        M.Pair(witnesses, M.Pair(scope, M.EmptyList))))),
                 )
-            return M.false_value
-        if M.IdentityCompare(M.Head(named)(), L.NamedRegularityLabel)() is M.false_value:
-            if M.IdentityCompare(findings, M.EmptyList)() is M.false_value:
-                return self._required_laws_hold(
-                    M.Tail(laws)(), findings, domain
-                )
-            return M.false_value
-        body = M.Tail(named)()
-        named_operation = M.Head(M.Tail(body)())()
-        law = M.Head(M.Tail(M.Tail(body)())())()
-        present = self._finding_matches(
-            findings, named_operation, law, domain
+                found = M.Pair(finding, found)
+                PG.NaturalPlaygroundDebugEmit(M.Char(
+                    "Gathering observations of a regularity for " + operation_name()
+                    + "(): [" + PG.FormatOperationLawExamples(equation, witnesses, operations, active)()
+                    + "]; held across the tested domain " + PG.FormatSetChain(domain, active)()
+                ))()
+            if M.AndAtom(stop_after_first, M.Head(checked)())() is M.truth_value:
+                result = M.Pair(found, M.Pair(active, M.EmptyList))
+            else:
+                result = CheckOperationEquationCandidates(
+                    operation_name, M.Tail(equations)(), variables, domain, active,
+                    operations, tensor, found, stop_after_first,
+                )()
+        super().__init__(
+            inputs=M.Pair(operation_name, M.Pair(equations, M.Pair(variables,
+                M.Pair(domain, M.Pair(registry, M.Pair(operations,
+                    M.Pair(tensor, M.Pair(findings, M.Pair(stop_after_first, M.EmptyList))))))))),
+            results=result,
         )
-        if M.IdentityCompare(present, M.truth_value)() is M.false_value:
-            return M.false_value
-        return self._required_laws_hold(M.Tail(laws)(), findings, domain)
-
-    def __call__(self):
-        return self.result
 
 
 class MineOperationInvariantsAcrossRegister(M.Edge):
@@ -527,6 +635,9 @@ class MineOperationInvariantsAcrossRegister(M.Edge):
     shapes over two and three distinct variables and records every equation
     that holds throughout the tested domain.
 
+    The default is a complete batch scan. With stop_after_first set to the
+    machine truth atom, return after one complete unrecorded finding.
+
     inputs: [domain, registry, operation_register]
     results: Pair(findings_chain, Pair(registry, EmptyList)) where each
       finding is Pair(ObservedRegularityLabel,
@@ -536,13 +647,15 @@ class MineOperationInvariantsAcrossRegister(M.Edge):
     """
 
     def __init__(self, domain, registry, operation_register=M.EmptyList,
-                 known_nodes=M.EmptyList):
+                 known_nodes=M.EmptyList, stop_after_first=M.false_value):
         self.registry = registry
         self.known_nodes = known_nodes
+        self.stop_after_first = stop_after_first
         ops = operation_register
         if M.IdentityCompare(ops, M.EmptyList)() is M.truth_value:
             built = PG.BuildNatOperationRegister(registry)()
             ops = M.Head(built)()
+            registry = M.Head(M.Tail(built)())()
         self.result = self._mine_all(domain, ops, registry, ops)
 
     def _finding(self, op_name, law_type, verdict, witnesses, registry):
@@ -580,6 +693,8 @@ class MineOperationInvariantsAcrossRegister(M.Edge):
         )
         laws2 = M.Head(found2)()
         reg2 = M.Head(M.Tail(found2)())()
+        if M.AndAtom(self.stop_after_first, M.IsPair(laws2)())() is M.truth_value:
+            return M.Pair(laws2, M.Pair(reg2, M.EmptyList))
         operation_entry = PG.LookupOperationByLabel(equation_label, ops)()
         profile_tail = operation_entry
         profile_tail = M.Tail(profile_tail)()
@@ -591,13 +706,13 @@ class MineOperationInvariantsAcrossRegister(M.Edge):
         profile_tail = M.Tail(profile_tail)()
         law_depth = M.Head(profile_tail)()
         if M.Compare(law_depth, M.Char("expensive"))() is M.truth_value:
-            return laws2, reg2
+            return M.Pair(laws2, M.Pair(reg2, M.EmptyList))
         found3 = self._laws_for_variables(
             op_name, equation_label, vars3, domain, reg2, ops
         )
         laws3 = M.Head(found3)()
         reg3 = M.Head(M.Tail(found3)())()
-        return PG.ChainConcat(laws2, laws3)(), reg3
+        return M.Pair(PG.ChainConcat(laws2, laws3)(), M.Pair(reg3, M.EmptyList))
 
     def _append_chain(self, prefix, suffix):
         if M.IdentityCompare(prefix, M.EmptyList)() is M.truth_value:
@@ -738,179 +853,25 @@ class MineOperationInvariantsAcrossRegister(M.Edge):
             domain, self._domains_for_variables(M.Tail(variables)(), domain)
         )
 
-    def _equation_value(
-        self, term, variables, assignment, registry, ops, tensor
-    ):
-        """Value of one side of a candidate law at one assignment.
-
-        The term is read out of the operation result grid rather than
-        evaluated afresh, so the cells a law needs were computed once when
-        the grid was built instead of once per candidate and per assignment.
-        """
-        environment = PG.ZipEnvironment(variables, assignment)()
-        # A flat operation term -- both operands are leaves bound to domain
-        # elements -- is read out of the result grid. A nested term is
-        # evaluated instead, because an intermediate result can fall outside
-        # the tested domain and the grid holds cells for domain elements
-        # only, so reading it would report undefined for a term that in fact
-        # has a value.
-        if M.IsPair(term)() is M.truth_value:
-            args = M.Tail(term)()
-            if M.IsPair(M.Head(args)())() is M.false_value:
-                if M.IsPair(M.Head(M.Tail(args)())())() is M.false_value:
-                    return PG.TensorOperationValue(
-                        tensor, term, environment, registry
-                    )()
-        return PG.EvaluateNatExpr(term, environment, registry, ops)()
-
-    def _check_equation_tuples(
-        self, equation, variables, tuples, reg, ops, tensor, witnesses
-    ):
-        """Check every assignment of one candidate law, iteratively.
-
-        Recursing once per assignment makes the recursion depth the size of
-        the Cartesian product, so a three-variable domain over 0..10 needs
-        1331 frames and overflows Python's limit before the product is even
-        exhausted. Walking the tuple chain in a loop keeps the depth
-        constant regardless of how many assignments there are, and hoists
-        the two operand extractions out of the walk so each assignment pays
-        for its own evaluations only.
-        """
-        lhs = M.Head(M.Tail(M.Tail(equation)())())()
-        rhs = M.Head(M.Tail(M.Tail(M.Tail(equation)())())())()
-        cur = tuples
-        found = witnesses
-        active = reg
-        while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
-            assignment = M.Head(cur)()
-            environment = PG.ZipEnvironment(variables, assignment)()
-            comparison_text = (
-                PG.RenderOperationCall(lhs, environment, ops, active)()
-                + " == "
-                + PG.RenderOperationCall(rhs, environment, ops, active)()
-            )
-            PG.NaturalPlaygroundDebugEmit(M.Char(
-                "Pairwise comparing the results of the same operation: "
-                + comparison_text + "?"
-            ))()
-            lhs_res = self._equation_value(
-                lhs, variables, assignment, active, ops, tensor
-            )
-            lhs_value = M.Head(lhs_res)()
-            active = M.Head(M.Tail(lhs_res)())()
-            if M.IdentityCompare(lhs_value, M.EmptyList)() is M.truth_value:
-                PG.NaturalPlaygroundDebugEmit(M.Char(
-                    comparison_text + " -> undefined left operand; candidate not established"
-                ))()
-                return M.Pair(
-                    M.false_value, M.Pair(active, M.Pair(M.EmptyList, M.EmptyList))
-                )
-            rhs_res = self._equation_value(
-                rhs, variables, assignment, active, ops, tensor
-            )
-            rhs_value = M.Head(rhs_res)()
-            active = M.Head(M.Tail(rhs_res)())()
-            if M.IdentityCompare(rhs_value, M.EmptyList)() is M.truth_value:
-                PG.NaturalPlaygroundDebugEmit(M.Char(
-                    comparison_text + " -> undefined right operand; candidate not established"
-                ))()
-                return M.Pair(
-                    M.false_value, M.Pair(active, M.Pair(M.EmptyList, M.EmptyList))
-                )
-            if M.IdentityCompare(lhs_value, M.truth_value)() is M.truth_value:
-                equal = M.IdentityCompare(rhs_value, M.truth_value)()
-            elif M.IdentityCompare(lhs_value, M.false_value)() is M.truth_value:
-                equal = M.IdentityCompare(rhs_value, M.false_value)()
-            elif A.IsNat(lhs_value, active)() is M.truth_value:
-                if A.IsNat(rhs_value, active)() is M.truth_value:
-                    equal = M.NatEq(lhs_value, rhs_value, active)()
-                else:
-                    equal = M.false_value
-            else:
-                equal = M.Compare(lhs_value, rhs_value)()
-            PG.NaturalPlaygroundDebugEmit(M.Char(
-                comparison_text + " -> " + PG.RenderOperationValue(equal, active)()
-                + " (" + PG.RenderOperationValue(lhs_value, active)()
-                + " == " + PG.RenderOperationValue(rhs_value, active)() + ")"
-            ))()
-            if equal is M.false_value:
-                return M.Pair(
-                    M.false_value, M.Pair(active, M.Pair(M.EmptyList, M.EmptyList))
-                )
-            found = M.Pair(
-                M.Pair(assignment, M.Pair(lhs_value, M.Pair(rhs_value, M.EmptyList))),
-                found,
-            )
-            cur = M.Tail(cur)()
-        return M.Pair(M.truth_value, M.Pair(active, M.Pair(found, M.EmptyList)))
-
     def _check_equation_candidates(
         self, op_name, operation_label, equations, variables, domain, reg,
         ops, findings,
     ):
+        equations = UnnamedOperationEquations(
+            op_name, equations, domain, self.known_nodes
+        )()
         if M.IdentityCompare(equations, M.EmptyList)() is M.truth_value:
             return M.Pair(findings, M.Pair(reg, M.EmptyList))
-        # The Cartesian product depends only on the variables and the domain,
-        # never on which law is being checked, so it is built once here rather
-        # than once per candidate. Walking the equation chain in a loop keeps
-        # the recursion depth constant as well.
-        domains = self._domains_for_variables(variables, domain)
-        tuples = PG.ProductOfDomains(domains)()
-        # One result grid per operation, built once here and read by every
-        # candidate law below, so testing a law costs lookups into cells that
-        # have already been computed rather than fresh evaluations of them.
+        if M.IdentityCompare(domain, M.EmptyList)() is M.truth_value:
+            return M.Pair(findings, M.Pair(reg, M.EmptyList))
         entry = PG.LookupOperationByLabel(operation_label, ops)()
-        tensor = M.EmptyList
-        cur = equations
-        found = findings
-        active = reg
-        while M.IdentityCompare(cur, M.EmptyList)() is M.false_value:
-            equation = M.Head(cur)()
-            if self._known_equation(op_name, equation) is M.false_value:
-                if M.IdentityCompare(tensor, M.EmptyList)() is M.truth_value:
-                    tensor = PG.BuildOperationTensor(
-                        domain, M.Pair(entry, M.EmptyList), active
-                    )()
-                checked = self._check_equation_tuples(
-                    equation, variables, tuples, active, ops, tensor, M.EmptyList
-                )
-                verdict = M.Head(checked)()
-                active = M.Head(M.Tail(checked)())()
-                witnesses = M.Head(M.Tail(M.Tail(checked)())())()
-                if verdict is M.truth_value:
-                    finding = self._finding(
-                        op_name, equation, verdict, witnesses, domain
-                    )
-                    found = M.Pair(finding, found)
-                    PG.NaturalPlaygroundDebugEmit(M.Char(
-                        "Gathering observations of a regularity for " + op_name()
-                        + "(): [" + PG.FormatOperationLawExamples(equation, witnesses, ops, active)()
-                        + "]; held across the tested domain " + PG.FormatSetChain(domain, active)()
-                    ))()
-            cur = M.Tail(cur)()
-        return M.Pair(found, M.Pair(active, M.EmptyList))
-
-    def _known_equation(self, operation, equation, nodes=M.EmptyList,
-                        initialized=M.false_value):
-        if M.IdentityCompare(initialized, M.false_value)() is M.truth_value:
-            nodes = self.known_nodes
-        if M.IdentityCompare(nodes, M.EmptyList)() is M.truth_value:
-            return M.false_value
-        node = M.Head(nodes)()
-        if M.IdentityCompare(M.Head(node)(), L.NamedRegularityLabel)() is M.truth_value:
-            body = M.Tail(node)()
-            name_body = M.Tail(body)()
-            saved_operation = M.Head(name_body)()
-            saved_law = M.Head(M.Tail(name_body)())()
-            if M.AndAtom(
-                M.Compare(saved_operation, operation)(),
-                M.Compare(saved_law, equation)(),
-            )() is M.truth_value:
-                return M.truth_value
-        return self._known_equation(
-            operation, equation, M.Tail(nodes)(), M.truth_value
-        )
-
+        built = PG.BuildOperationTensorState(domain, M.Pair(entry, M.EmptyList), reg, ops)()
+        tensor = M.Head(built)()
+        active = M.Head(M.Tail(built)())()
+        return CheckOperationEquationCandidates(
+            op_name, equations, variables, domain, active, ops, tensor, findings,
+            self.stop_after_first,
+        )()
     def _laws_for_variables(self, op_name, operation_label, variables, domain, reg, ops):
         terms = self._terms(variables, operation_label)
         equations = self._equations(terms, variables)
@@ -973,40 +934,41 @@ class MineOperationInvariantsAcrossRegister(M.Edge):
             ),
         )
 
-    def _mixed_laws_for(self, outer_entry, domain, reg, ops):
+    def _mixed_laws_for(self, outer_entry, domain, reg, ops,
+                        remaining=M.EmptyList, findings=M.EmptyList,
+                        initialized=M.false_value):
+        if M.AndAtom(self.stop_after_first, M.IsPair(findings)())() is M.truth_value:
+            return M.Pair(findings, M.Pair(reg, M.EmptyList))
         if self._binary_entry(outer_entry) is M.false_value:
-            return M.Pair(M.EmptyList, M.Pair(reg, M.EmptyList))
+            return M.Pair(findings, M.Pair(reg, M.EmptyList))
         if self._entry_is_expensive(outer_entry) is M.truth_value:
-            return M.Pair(M.EmptyList, M.Pair(reg, M.EmptyList))
+            return M.Pair(findings, M.Pair(reg, M.EmptyList))
+        if initialized is M.false_value:
+            remaining = ops
+        if M.IdentityCompare(remaining, M.EmptyList)() is M.truth_value:
+            return M.Pair(findings, M.Pair(reg, M.EmptyList))
         outer_name = M.Head(outer_entry)()
         outer_label = M.Head(M.Head(M.Tail(M.Tail(outer_entry)())())())()
-        remaining = ops
-        findings = M.EmptyList
+        inner_entry = M.Head(remaining)()
+        inner_label = M.Head(M.Head(M.Tail(M.Tail(inner_entry)())())())()
         active = reg
-        while M.IdentityCompare(remaining, M.EmptyList)() is M.false_value:
-            inner_entry = M.Head(remaining)()
-            inner_label = M.Head(M.Head(M.Tail(M.Tail(inner_entry)())())())()
-            if M.IdentityCompare(inner_label, outer_label)() is M.false_value:
-                if self._binary_entry(inner_entry) is M.truth_value:
-                    if self._entry_is_expensive(inner_entry) is M.false_value:
-                        inner_name = M.Head(inner_entry)()
-                        equation = self._mixed_equation(outer_label, inner_label)
-                        mixed_name = M.Char(outer_name() + " over " + inner_name() )
-                        checked = self._check_equation_candidates(
-                            mixed_name,
-                            outer_label,
-                            M.Pair(equation, M.EmptyList),
-                            M.Pair(M.Char("x"), M.Pair(M.Char("y"), M.Pair(M.Char("z"), M.EmptyList))),
-                            domain,
-                            active,
-                            ops,
-                            findings,
-                        )
-                        findings = M.Head(checked)()
-                        active = M.Head(M.Tail(checked)())()
-            remaining = M.Tail(remaining)()
-        return M.Pair(findings, M.Pair(active, M.EmptyList))
-
+        if M.IdentityCompare(inner_label, outer_label)() is M.false_value:
+            if self._binary_entry(inner_entry) is M.truth_value:
+                if self._entry_is_expensive(inner_entry) is M.false_value:
+                    inner_name = M.Head(inner_entry)()
+                    equation = self._mixed_equation(outer_label, inner_label)
+                    mixed_name = M.Char(outer_name() + " over " + inner_name())
+                    checked = self._check_equation_candidates(
+                        mixed_name, outer_label, M.Pair(equation, M.EmptyList),
+                        M.Pair(M.Char("x"), M.Pair(M.Char("y"), M.Pair(M.Char("z"), M.EmptyList))),
+                        domain, active, ops, findings,
+                    )
+                    findings = M.Head(checked)()
+                    active = M.Head(M.Tail(checked)())()
+        return self._mixed_laws_for(
+            outer_entry, domain, active, ops, M.Tail(remaining)(), findings,
+            M.truth_value,
+        )
     def _divisibility_laws(self, domain, reg, ops):
         divides = PG.LookupOperationByLabel(L.DividesLabel, ops)()
         multiply = PG.LookupOperationByLabel(L.ExprMulLabel, ops)()
@@ -1023,15 +985,15 @@ class MineOperationInvariantsAcrossRegister(M.Edge):
         vars3 = M.Pair(x, M.Pair(y, M.Pair(z, M.EmptyList)))
         antecedent = M.Pair(
             L.DividesLabel,
-            M.Pair(x, M.Pair(z, M.EmptyList)),
+            M.Pair(x, M.Pair(y, M.EmptyList)),
         )
         product = M.Pair(
             L.ExprMulLabel,
-            M.Pair(x, M.Pair(y, M.EmptyList)),
+            M.Pair(y, M.Pair(z, M.EmptyList)),
         )
         conclusion = M.Pair(
             L.DividesLabel,
-            M.Pair(product, M.Pair(z, M.EmptyList)),
+            M.Pair(x, M.Pair(product, M.EmptyList)),
         )
         implication = M.Pair(
             L.ImpliesLabel,
@@ -1064,13 +1026,19 @@ class MineOperationInvariantsAcrossRegister(M.Edge):
         op_name = M.Head(entry)()
         op_variables = M.Head(M.Tail(entry)())()
         op_operation = M.Head(M.Tail(M.Tail(entry)())())()
-        findings, r1 = self._laws_for(
+        mined = self._laws_for(
             op_name, op_variables, op_operation, domain, reg, ops
         )
+        findings = M.Head(mined)()
+        r1 = M.Head(M.Tail(mined)())()
+        if M.AndAtom(self.stop_after_first, M.IsPair(findings)())() is M.truth_value:
+            return M.Pair(findings, M.Pair(r1, M.EmptyList))
         mixed = self._mixed_laws_for(entry, domain, r1, ops)
         mixed_findings = M.Head(mixed)()
         r1 = M.Head(M.Tail(mixed)())()
         findings = PG.ChainConcat(findings, mixed_findings)()
+        if M.AndAtom(self.stop_after_first, M.IsPair(findings)())() is M.truth_value:
+            return M.Pair(findings, M.Pair(r1, M.EmptyList))
         if M.IdentityCompare(
             M.Head(M.Head(M.Tail(M.Tail(entry)())())())(),
             L.DividesLabel,
@@ -1078,6 +1046,8 @@ class MineOperationInvariantsAcrossRegister(M.Edge):
             divisibility = self._divisibility_laws(domain, r1, ops)
             findings = PG.ChainConcat(findings, M.Head(divisibility)())()
             r1 = M.Head(M.Tail(divisibility)())()
+            if M.AndAtom(self.stop_after_first, M.IsPair(findings)())() is M.truth_value:
+                return M.Pair(findings, M.Pair(r1, M.EmptyList))
         rest_res = self._mine_all(domain, rest_ops, r1, ops)
         rest_findings = M.Head(rest_res)()
         r2 = M.Head(M.Tail(rest_res)())()
@@ -1090,8 +1060,8 @@ class MineOperationInvariantsAcrossRegister(M.Edge):
 
 class ProposeNextRegularityOrStructure(M.Edge):
     """
-    Scans every mined operation-law finding, skips laws already named for the
-    same operation/equation even when the new finite domain is different, then
+    Returns the first complete finding not already named for the same
+    operation/equation on the same finite domain. When the scan is exhausted,
     proposes a bundle of named laws for the current operation set.
     `known_nodes` is the graph's machine-native node chain.
     inputs: [ops_chain, domain, known_nodes, registry]
@@ -1101,7 +1071,7 @@ class ProposeNextRegularityOrStructure(M.Edge):
     def __init__(self, ops_chain, domain, known_nodes, registry):
         self.registry = registry
         mined = MineOperationInvariantsAcrossRegister(
-            domain, registry, ops_chain, known_nodes
+            domain, registry, ops_chain, known_nodes, M.truth_value,
         )()
         findings = M.Head(mined)()
         reg1 = M.Head(M.Tail(mined)())()
@@ -1140,22 +1110,7 @@ class ProposeNextRegularityOrStructure(M.Edge):
         return self._propose(M.Tail(findings)(), domain, known_nodes, reg, ops)
 
     def _law_recorded(self, nodes, op_name, law_type, domain):
-        if M.IdentityCompare(nodes, M.EmptyList)() is M.truth_value:
-            return M.false_value
-        node = M.Head(nodes)()
-        tag = M.Head(node)()
-        if M.IdentityCompare(tag, L.NamedRegularityLabel)() is M.truth_value:
-            body = M.Tail(node)()
-            name_body = M.Tail(body)()
-            saved_op = M.Head(name_body)()
-            law_body = M.Tail(name_body)()
-            saved_law = M.Head(law_body)()
-            same_op = M.Compare(saved_op, op_name)()
-            same_law = M.Compare(saved_law, law_type)()
-            if M.AndAtom(same_op, same_law)() is M.truth_value:
-                return M.truth_value
-        return self._law_recorded(M.Tail(nodes)(), op_name, law_type, domain)
-
+        return NamedOperationEquation(op_name, law_type, domain, nodes)()
     def _operation_is_registered(self, operations, operation_name):
         if M.IdentityCompare(operations, M.EmptyList)() is M.truth_value:
             return M.false_value
@@ -1164,18 +1119,26 @@ class ProposeNextRegularityOrStructure(M.Edge):
             return M.truth_value
         return self._operation_is_registered(M.Tail(operations)(), operation_name)
 
-    def _laws_for_domain(self, nodes, operations):
+    def _laws_for_domain(self, nodes, operations, domain):
         if M.IdentityCompare(nodes, M.EmptyList)() is M.truth_value:
             return M.EmptyList
         node = M.Head(nodes)()
-        rest = self._laws_for_domain(M.Tail(nodes)(), operations)
+        rest = self._laws_for_domain(M.Tail(nodes)(), operations, domain)
+        if M.IsPair(node)() is M.false_value:
+            return rest
         tag = M.Head(node)()
         if M.IdentityCompare(tag, L.NamedRegularityLabel)() is M.false_value:
             return rest
         body = M.Tail(node)()
         name_body = M.Tail(body)()
         operation_name = M.Head(name_body)()
-        if self._operation_is_registered(operations, operation_name)() is M.false_value:
+        if self._operation_is_registered(operations, operation_name) is M.false_value:
+            return rest
+        law_body = M.Tail(name_body)()
+        domain_body = M.Tail(law_body)()
+        if M.IsPair(domain_body)() is M.false_value:
+            return rest
+        if M.Compare(M.Head(domain_body)(), domain)() is M.false_value:
             return rest
         return M.Pair(node, rest)
 
@@ -1183,6 +1146,8 @@ class ProposeNextRegularityOrStructure(M.Edge):
         if M.IdentityCompare(nodes, M.EmptyList)() is M.truth_value:
             return M.false_value
         node = M.Head(nodes)()
+        if M.IsPair(node)() is M.false_value:
+            return self._structure_recorded(M.Tail(nodes)(), template)
         tag = M.Head(node)()
         if M.IdentityCompare(tag, L.NamedStructureLabel)() is M.truth_value:
             saved_template = M.Head(M.Tail(M.Tail(node)())())()
@@ -1191,7 +1156,7 @@ class ProposeNextRegularityOrStructure(M.Edge):
         return self._structure_recorded(M.Tail(nodes)(), template)
 
     def _synthesize_structure(self, domain, operations, known_nodes, reg):
-        named_laws = self._laws_for_domain(known_nodes, operations)
+        named_laws = self._laws_for_domain(known_nodes, operations, domain)
         if M.IdentityCompare(named_laws, M.EmptyList)() is M.truth_value:
             return M.Pair(M.EmptyList, M.Pair(M.EmptyList, M.Pair(reg, M.EmptyList)))
         template = M.Pair(

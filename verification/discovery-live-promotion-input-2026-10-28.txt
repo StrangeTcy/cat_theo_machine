@@ -1,0 +1,7 @@
+ground lemma
+adopt lemma
+promote lemma
+promote candidate
+promote discovered lemma
+show lemmas
+exit

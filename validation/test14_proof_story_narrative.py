@@ -16,12 +16,12 @@ IMPORT_ROOT = os.path.dirname(
 if IMPORT_ROOT not in sys.path:
     sys.path.insert(0, IMPORT_ROOT)
 
-from cat_theo_machine import labels as L
-from cat_theo_machine import machine as M
-from cat_theo_machine import proof as P
-from cat_theo_machine import checker_b as CB
-from cat_theo_machine import story_renderer as SR
-from cat_theo_machine.runtime import make_fresh_runtime
+from hyge import labels as L
+from hyge import machine as M
+from hyge import proof as P
+from hyge import checker_b as CB
+from hyge import story_renderer as SR
+from hyge.runtime import make_fresh_runtime
 
 t0 = time.time()
 print("=== TEST 14: W14 Proof Storyteller & Derivation Narrative Generator ===")
@@ -126,7 +126,8 @@ print(f"\n--- GENERATED PROOF STORY ---\n{md_output}\n--- END PROOF STORY ---")
 assert "Proof Narrative: Session `flt_session_001`" in md_output
 assert "mod 4 A -> parity B" in md_output
 assert "parity B -> descent C" in md_output
-assert "Conclusion (Q.E.D.)" in md_output
+assert M.Compare(M.Char(md_output), M.Char(md_output.replace("Narrative status", "")))() is M.false_value
+assert M.Compare(M.Char(md_output), M.Char(md_output.replace("Q.E.D.", "")))() is M.truth_value
 print("\n    Markdown Narrative Content Verified.")
 
 print()

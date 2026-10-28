@@ -1,0 +1,119 @@
+[debug natural_playground process 19976]: Evaluating tensor cell: negate(0)
+[debug natural_playground process 19976]: Evaluated tensor cell: negate(0) -> 0
+[debug natural_playground process 19976]: Evaluating tensor cell: negate(1)
+[debug natural_playground process 19976]: Evaluated tensor cell: negate(1) -> undefined
+[debug natural_playground process 19976]: Evaluating tensor cell: negate(2)
+[debug natural_playground process 19976]: Evaluated tensor cell: negate(2) -> undefined
+[debug natural_playground process 19976]: Evaluating tensor cell: add(0, 0)
+[debug natural_playground process 19976]: Evaluated tensor cell: add(0, 0) -> 0
+[debug natural_playground process 19976]: Evaluating tensor cell: add(0, 1)
+[debug natural_playground process 19976]: Evaluated tensor cell: add(0, 1) -> 1
+[debug natural_playground process 19976]: Evaluating tensor cell: add(0, 2)
+[debug natural_playground process 19976]: Evaluated tensor cell: add(0, 2) -> 2
+[debug natural_playground process 19976]: Evaluating tensor cell: add(1, 0)
+[debug natural_playground process 19976]: Evaluated tensor cell: add(1, 0) -> 1
+[debug natural_playground process 19976]: Evaluating tensor cell: add(1, 1)
+[debug natural_playground process 19976]: Evaluated tensor cell: add(1, 1) -> 2
+[debug natural_playground process 19976]: Evaluating tensor cell: add(1, 2)
+[debug natural_playground process 19976]: Evaluated tensor cell: add(1, 2) -> 3
+[debug natural_playground process 19976]: Evaluating tensor cell: add(2, 0)
+[debug natural_playground process 19976]: Evaluated tensor cell: add(2, 0) -> 2
+[debug natural_playground process 19976]: Evaluating tensor cell: add(2, 1)
+[debug natural_playground process 19976]: Evaluated tensor cell: add(2, 1) -> 3
+[debug natural_playground process 19976]: Evaluating tensor cell: add(2, 2)
+[debug natural_playground process 19976]: Evaluated tensor cell: add(2, 2) -> 4
+[debug natural_playground process 19976]: Evaluating tensor cell: compare_modulo(0, 0, 0)
+[debug natural_playground process 19976]: Evaluated tensor cell: compare_modulo(0, 0, 0) -> undefined
+[debug natural_playground process 19976]: Evaluating tensor cell: compare_modulo(0, 0, 1)
+[debug natural_playground process 19976]: Evaluated tensor cell: compare_modulo(0, 0, 1) -> undefined
+[debug natural_playground process 19976]: Evaluating tensor cell: compare_modulo(0, 0, 2)
+[debug natural_playground process 19976]: Evaluated tensor cell: compare_modulo(0, 0, 2) -> undefined
+[debug natural_playground process 19976]: Evaluating tensor cell: compare_modulo(0, 1, 0)
+[debug natural_playground process 19976]: Evaluated tensor cell: compare_modulo(0, 1, 0) -> truth_value
+[debug natural_playground process 19976]: Evaluating tensor cell: compare_modulo(0, 1, 1)
+[debug natural_playground process 19976]: Evaluated tensor cell: compare_modulo(0, 1, 1) -> false_value
+[debug natural_playground process 19976]: Evaluating tensor cell: compare_modulo(0, 1, 2)
+[debug natural_playground process 19976]: Evaluated tensor cell: compare_modulo(0, 1, 2) -> false_value
+[debug natural_playground process 19976]: Evaluating tensor cell: compare_modulo(0, 2, 0)
+[debug natural_playground process 19976]: Evaluated tensor cell: compare_modulo(0, 2, 0) -> truth_value
+[debug natural_playground process 19976]: Evaluating tensor cell: compare_modulo(0, 2, 1)
+[debug natural_playground process 19976]: Evaluated tensor cell: compare_modulo(0, 2, 1) -> false_value
+[debug natural_playground process 19976]: Evaluating tensor cell: compare_modulo(0, 2, 2)
+[debug natural_playground process 19976]: Evaluated tensor cell: compare_modulo(0, 2, 2) -> false_value
+[debug natural_playground process 19976]: Evaluating tensor cell: compare_modulo(1, 0, 0)
+[debug natural_playground process 19976]: Evaluated tensor cell: compare_modulo(1, 0, 0) -> undefined
+[debug natural_playground process 19976]: Evaluating tensor cell: compare_modulo(1, 0, 1)
+[debug natural_playground process 19976]: Evaluated tensor cell: compare_modulo(1, 0, 1) -> undefined
+[debug natural_playground process 19976]: Evaluating tensor cell: compare_modulo(1, 0, 2)
+[debug natural_playground process 19976]: Evaluated tensor cell: compare_modulo(1, 0, 2) -> undefined
+[debug natural_playground process 19976]: Evaluating tensor cell: compare_modulo(1, 1, 0)
+[debug natural_playground process 19976]: Evaluated tensor cell: compare_modulo(1, 1, 0) -> truth_value
+[debug natural_playground process 19976]: Evaluating tensor cell: compare_modulo(1, 1, 1)
+[debug natural_playground process 19976]: Evaluated tensor cell: compare_modulo(1, 1, 1) -> false_value
+[debug natural_playground process 19976]: Evaluating tensor cell: compare_modulo(1, 1, 2)
+[debug natural_playground process 19976]: Evaluated tensor cell: compare_modulo(1, 1, 2) -> false_value
+[debug natural_playground process 19976]: Evaluating tensor cell: compare_modulo(1, 2, 0)
+[debug natural_playground process 19976]: Evaluated tensor cell: compare_modulo(1, 2, 0) -> false_value
+[debug natural_playground process 19976]: Evaluating tensor cell: compare_modulo(1, 2, 1)
+[debug natural_playground process 19976]: Evaluated tensor cell: compare_modulo(1, 2, 1) -> truth_value
+[debug natural_playground process 19976]: Evaluating tensor cell: compare_modulo(1, 2, 2)
+[debug natural_playground process 19976]: Evaluated tensor cell: compare_modulo(1, 2, 2) -> false_value
+[debug natural_playground process 19976]: Evaluating tensor cell: compare_modulo(2, 0, 0)
+[debug natural_playground process 19976]: Evaluated tensor cell: compare_modulo(2, 0, 0) -> undefined
+[debug natural_playground process 19976]: Evaluating tensor cell: compare_modulo(2, 0, 1)
+[debug natural_playground process 19976]: Evaluated tensor cell: compare_modulo(2, 0, 1) -> undefined
+[debug natural_playground process 19976]: Evaluating tensor cell: compare_modulo(2, 0, 2)
+[debug natural_playground process 19976]: Evaluated tensor cell: compare_modulo(2, 0, 2) -> undefined
+[debug natural_playground process 19976]: Evaluating tensor cell: compare_modulo(2, 1, 0)
+[debug natural_playground process 19976]: Evaluated tensor cell: compare_modulo(2, 1, 0) -> truth_value
+[debug natural_playground process 19976]: Evaluating tensor cell: compare_modulo(2, 1, 1)
+[debug natural_playground process 19976]: Evaluated tensor cell: compare_modulo(2, 1, 1) -> false_value
+[debug natural_playground process 19976]: Evaluating tensor cell: compare_modulo(2, 1, 2)
+[debug natural_playground process 19976]: Evaluated tensor cell: compare_modulo(2, 1, 2) -> false_value
+[debug natural_playground process 19976]: Evaluating tensor cell: compare_modulo(2, 2, 0)
+[debug natural_playground process 19976]: Evaluated tensor cell: compare_modulo(2, 2, 0) -> truth_value
+[debug natural_playground process 19976]: Evaluating tensor cell: compare_modulo(2, 2, 1)
+[debug natural_playground process 19976]: Evaluated tensor cell: compare_modulo(2, 2, 1) -> false_value
+[debug natural_playground process 19976]: Evaluating tensor cell: compare_modulo(2, 2, 2)
+[debug natural_playground process 19976]: Evaluated tensor cell: compare_modulo(2, 2, 2) -> false_value
+[debug natural_playground process 19976]: Evaluating tensor cell: divides(0, 0)
+[debug natural_playground process 19976]: Evaluated tensor cell: divides(0, 0) -> truth_value
+[debug natural_playground process 19976]: Evaluating tensor cell: divides(0, 1)
+[debug natural_playground process 19976]: Evaluated tensor cell: divides(0, 1) -> false_value
+[debug natural_playground process 19976]: Evaluating tensor cell: divides(0, 2)
+[debug natural_playground process 19976]: Evaluated tensor cell: divides(0, 2) -> false_value
+[debug natural_playground process 19976]: Evaluating tensor cell: divides(1, 0)
+[debug natural_playground process 19976]: Evaluated tensor cell: divides(1, 0) -> truth_value
+[debug natural_playground process 19976]: Evaluating tensor cell: divides(1, 1)
+[debug natural_playground process 19976]: Evaluated tensor cell: divides(1, 1) -> truth_value
+[debug natural_playground process 19976]: Evaluating tensor cell: divides(1, 2)
+[debug natural_playground process 19976]: Evaluated tensor cell: divides(1, 2) -> truth_value
+[debug natural_playground process 19976]: Evaluating tensor cell: divides(2, 0)
+[debug natural_playground process 19976]: Evaluated tensor cell: divides(2, 0) -> truth_value
+[debug natural_playground process 19976]: Evaluating tensor cell: divides(2, 1)
+[debug natural_playground process 19976]: Evaluated tensor cell: divides(2, 1) -> false_value
+[debug natural_playground process 19976]: Evaluating tensor cell: divides(2, 2)
+[debug natural_playground process 19976]: Evaluated tensor cell: divides(2, 2) -> truth_value
+[debug natural_playground process 19976]: Evaluating tensor cell: implies(false_value, false_value)
+[debug natural_playground process 19976]: Evaluated tensor cell: implies(false_value, false_value) -> truth_value
+[debug natural_playground process 19976]: Evaluating tensor cell: implies(false_value, truth_value)
+[debug natural_playground process 19976]: Evaluated tensor cell: implies(false_value, truth_value) -> truth_value
+[debug natural_playground process 19976]: Evaluating tensor cell: implies(truth_value, false_value)
+[debug natural_playground process 19976]: Evaluated tensor cell: implies(truth_value, false_value) -> false_value
+[debug natural_playground process 19976]: Evaluating tensor cell: implies(truth_value, truth_value)
+[debug natural_playground process 19976]: Evaluated tensor cell: implies(truth_value, truth_value) -> truth_value
+PASS all 52 unary, binary, ternary and implication cells agree with direct evaluation
+PASS natural aliases, variable bindings and nested cached operations
+[debug natural_playground process 19976]: Evaluating tensor cell: implies(false_value, false_value)
+[debug natural_playground process 19976]: Evaluated tensor cell: implies(false_value, false_value) -> truth_value
+[debug natural_playground process 19976]: Evaluating tensor cell: implies(false_value, truth_value)
+[debug natural_playground process 19976]: Evaluated tensor cell: implies(false_value, truth_value) -> truth_value
+[debug natural_playground process 19976]: Evaluating tensor cell: implies(truth_value, false_value)
+[debug natural_playground process 19976]: Evaluated tensor cell: implies(truth_value, false_value) -> false_value
+[debug natural_playground process 19976]: Evaluating tensor cell: implies(truth_value, truth_value)
+[debug natural_playground process 19976]: Evaluated tensor cell: implies(truth_value, truth_value) -> truth_value
+PASS malformed, missing and out-of-domain cells are refused
+[debug natural_playground process 19976]: Pairwise comparing operation results: divides(1, truth_value) == divides(1, truth_value)?
+[debug natural_playground process 19976]: divides(1, truth_value) == divides(1, truth_value) -> false_value (undefined == undefined)
+PASS invalid predicate arguments cannot supply evidence of an equation
+Discovery tensor axes regressions passed.

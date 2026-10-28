@@ -1642,7 +1642,9 @@ def make_fresh_runtime():
     nine_pair = M.Succ(M.eight, M.AllConstructors)()
     M.nine = M.Head(nine_pair)()
     M.AllConstructors = C.set_all_constructors(M.Head(M.Tail(nine_pair)())())
-    base_registry = M.AllConstructors
+    from .operation_catalog import RegisterNatOperationCatalog
+
+    base_registry = RegisterNatOperationCatalog(M.AllConstructors)()
 
     C.set_all_constructors(base_registry)
     C.one = M.one

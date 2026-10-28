@@ -1,0 +1,7 @@
+Checking signed difference-of-squares receipt.
+Checking both explicit authorities and original endpoint binding.
+Checking malformed action and certificate refusal.
+Checking signed constants and a signed base under a fixed power.
+Checking nonidentities and unsupported syntax.
+Checking a file snapshot roundtrip with the live runtime namespace.
+Signed polynomial regressions passed: signed-endpoint receipt, recorded-action binding, exact translation replay, explicit authorities, constants, powers, mutations, malformed records, nonidentity refusal, and snapshot roundtrip.

@@ -1,0 +1,7 @@
+PASS named polynomial law is certified, linked to its proof, and enters the compiled rule chain
+PASS named rule rewrites outside the sampled domain with shared variable bindings and replayable proof
+PASS snapshot round trip preserves shared rule identities and the independently replayable named proof
+PASS repeated occurrences enforce one binding and instantiate the replacement
+PASS universal promotion requires explicit polynomial decision authority
+PASS finite singleton agreement stays recorded without an unrestricted rule
+PASS unsupported and malformed equations cannot enter the active rule chain

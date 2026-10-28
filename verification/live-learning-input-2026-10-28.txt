@@ -1,0 +1,8 @@
+prove x+y=y+x
+yes
+1
+2
+call this live addition symmetry
+show goal
+explain proof
+quit

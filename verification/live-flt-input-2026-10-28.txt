@@ -1,0 +1,5 @@
+prove there are no positive integers x, y, z and n > 2 such that x^n + y^n = z^n
+no
+show goal
+check goal
+quit

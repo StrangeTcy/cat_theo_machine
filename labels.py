@@ -243,6 +243,10 @@ class ImpliesLabel(ConstructorLabel):
     pass
 
 
+class NatOperationCatalogLabel(ConstructorLabel):
+    pass
+
+
 class DFSLabel(ConstructorLabel):
     pass
 
@@ -2338,6 +2342,7 @@ ExprModuloLabel = ExprModuloLabel()
 ExprSubtractLabel = ExprSubtractLabel()
 ExprGcdLabel = ExprGcdLabel()
 ImpliesLabel = ImpliesLabel()
+NatOperationCatalogLabel = NatOperationCatalogLabel()
 DFSLabel = DFSLabel()
 BFSLabel = BFSLabel()
 BeamLabel = BeamLabel()
@@ -2633,6 +2638,7 @@ def sync_from_namespace(namespace):
         "ExprSubtractLabel",
         "ExprGcdLabel",
         "ImpliesLabel",
+        "NatOperationCatalogLabel",
         "DFSLabel",
         "BFSLabel",
         "BeamLabel",
@@ -3089,3 +3095,27 @@ def sync_from_namespace(namespace):
 
 
 __all__ = [name for name in globals() if not name.startswith("_")]
+
+
+class SignedPolynomialActionLabel(ConstructorLabel):
+    pass
+
+
+class SignedPolynomialRuleLabel(ConstructorLabel):
+    pass
+
+
+class SignedPolynomialCertificateLabel(ConstructorLabel):
+    pass
+
+
+SignedPolynomialActionLabel = SignedPolynomialActionLabel()
+SignedPolynomialRuleLabel = SignedPolynomialRuleLabel()
+SignedPolynomialCertificateLabel = SignedPolynomialCertificateLabel()
+
+__all__ = (
+    *__all__,
+    "SignedPolynomialActionLabel",
+    "SignedPolynomialRuleLabel",
+    "SignedPolynomialCertificateLabel",
+)
