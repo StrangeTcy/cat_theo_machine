@@ -2151,6 +2151,10 @@ class EvaluateNatExpr(M.Edge):
         entry = LookupOperationByLabel(head, ops)()
         if M.IdentityCompare(entry, M.EmptyList)() is M.truth_value:
             return self._refuse(registry)
+        from . import defined_operations as DO
+
+        if M.IsPair(DO.RegisteredDefinedNatOperation(head, registry)())() is M.truth_value:
+            return DO.EvaluateDefinedNatOperation(head, args, environment, registry, ops)()
         entry_variables = M.Head(M.Tail(entry)())()
         if M.IdentityCompare(M.Tail(entry_variables)(), M.EmptyList)() is M.truth_value:
             if ExactArity(args, M.one, registry)() is M.false_value:
@@ -5215,6 +5219,57 @@ class FilterCandidateParameters(M.Edge):
         )
 
 
+class ParsePlaygroundDomain(M.Edge):
+    """Read an inclusive natural range into the playground's domain record.
+
+    Accepted text forms are ``a to b``, ``yes, a to b``, and
+    ``try on positive integers from a to b``. The last form excludes zero.
+    Text splitting stays at the input boundary; digit admission, bounds,
+    cardinality and domain construction use machine terms.
+    """
+
+    def __init__(self, text_char, registry):
+        self.result = M.EmptyList
+        text = text_char().strip().lower().removeprefix("yes,").strip()
+        range_text = text.removeprefix("try on positive integers from ")
+        positive_only = M.NotAtom(M.Compare(M.Char(text), M.Char(range_text))())()
+        lower_text, separator, upper_text = range_text.partition(" to ")
+        if M.Compare(M.Char(separator), M.Char(" to "))() is M.truth_value:
+            lower_text = lower_text.strip()
+            upper_text = upper_text.strip()
+            parser = ParseSurfaceGoalSpec(M.Char(""), registry)
+            if M.AndAtom(
+                parser._is_digits(lower_text), parser._is_digits(upper_text)
+            )() is M.truth_value:
+                lower_res = M.NatFromRep(M.GMPRep(lower_text), registry)()
+                lower = M.Head(lower_res)()
+                reg1 = M.Head(M.Tail(lower_res)())()
+                upper_res = M.NatFromRep(M.GMPRep(upper_text), reg1)()
+                upper = M.Head(upper_res)()
+                reg2 = M.Head(M.Tail(upper_res)())()
+                if M.OrAtom(
+                    M.NatLess(upper, lower, reg2)(),
+                    M.AndAtom(positive_only, M.NatEq(lower, M.Zero, reg2)())(),
+                )() is M.false_value:
+                    difference = A.NatSubtract(upper, lower, reg2)()
+                    span = M.Head(difference)()
+                    reg3 = M.Head(M.Tail(difference)())()
+                    count_res = A.Add(span, M.one, reg3)()
+                    count = M.Head(count_res)()
+                    reg4 = M.Head(M.Tail(count_res)())()
+                    domain_res = BuildNatRange(lower, count, reg4)()
+                    domain = M.Head(domain_res)()
+                    reg5 = M.Head(M.Tail(domain_res)())()
+                    self.result = M.Pair(domain, M.Pair(lower, M.Pair(count, M.Pair(reg5, M.EmptyList))))
+        super().__init__(
+            inputs=M.Pair(text_char, M.Pair(registry, M.EmptyList)),
+            results=self.result,
+        )
+
+    def __call__(self):
+        return self.result
+
+
 class RunPlaygroundInteractive(M.Edge):
     """
     Runs the machine-native Cartesian exploration sweep over the active
@@ -5278,62 +5333,26 @@ class RunPlaygroundInteractive(M.Edge):
     def _ask_domain(self, registry):
         try:
             reply = input(
-                "[you] Run the Cartesian playground? Reply 'no', 'yes' (then enter bounds), 'yes, 0 to 10', or 'try on positive integers from 1 to 10': "
-            )
+                "[you] Run the Cartesian playground? Reply 'no', 'yes' (then enter bounds), 'yes, a to b', or 'try on positive integers from a to b' with natural bounds: "
+            ).strip().lower()
         except EOFError:
             return M.EmptyList
         if M.Compare(M.Char(reply), M.Char("no"))() is M.truth_value:
             return M.EmptyList
-        if M.Compare(
-            M.Char(reply), M.Char("yes, 0 to 10")
-        )() is M.truth_value:
-            lower_text = "0"
-            upper_text = "10"
-        elif M.Compare(
-            M.Char(reply), M.Char("yes, 1 to 10")
-        )() is M.truth_value:
-            lower_text = "1"
-            upper_text = "10"
-        elif M.Compare(
-            M.Char(reply),
-            M.Char("try on positive integers from 1 to 10"),
-        )() is M.truth_value:
-            lower_text = "1"
-            upper_text = "10"
-        elif M.Compare(M.Char(reply), M.Char("yes"))() is M.truth_value:
+        if M.Compare(M.Char(reply), M.Char("yes"))() is M.truth_value:
             try:
                 lower_text = input("[you] Natural-domain lower bound: ")
                 upper_text = input("[you] Natural-domain upper bound: ")
             except EOFError:
                 return M.EmptyList
-        else:
-            print("[machine] Reply 'no', 'yes', 'yes, 0 to 10', or give a natural-number range.")
-            return M.EmptyList
-        try:
-            lower_rep = M.GMPRep(lower_text)
-            upper_rep = M.GMPRep(upper_text)
-        except (ValueError, TypeError):
-            print("[machine] Bounds must be natural-number numerals.")
-            return M.EmptyList
-        lower_res = M.NatFromRep(lower_rep, registry)()
-        lower = M.Head(lower_res)()
-        reg1 = M.Head(M.Tail(lower_res)())()
-        upper_res = M.NatFromRep(upper_rep, reg1)()
-        upper = M.Head(upper_res)()
-        reg2 = M.Head(M.Tail(upper_res)())()
-        if M.NatLess(upper, lower, reg2)() is M.truth_value:
-            print("[machine] Bounds must be natural numbers with upper at least lower.")
-            return M.EmptyList
-        difference = A.NatSubtract(upper, lower, reg2)()
-        span = M.Head(difference)()
-        reg3 = M.Head(M.Tail(difference)())()
-        count_res = A.Add(span, M.one, reg3)()
-        count = M.Head(count_res)()
-        reg4 = M.Head(M.Tail(count_res)())()
-        domain_res = BuildNatRange(lower, count, reg4)()
-        domain = M.Head(domain_res)()
-        reg5 = M.Head(M.Tail(domain_res)())()
-        return M.Pair(domain, M.Pair(lower, M.Pair(count, M.Pair(reg5, M.EmptyList))))
+            reply = lower_text + " to " + upper_text
+        domain = ParsePlaygroundDomain(M.Char(reply), registry)()
+        if M.IdentityCompare(domain, M.EmptyList)() is M.truth_value:
+            print(
+                "[machine] Use 'yes, a to b' with natural-number numerals and upper at least lower. "
+                "The positive-integers form requires a positive lower bound."
+            )
+        return domain
 
     def _offer_operation_law(self, graph, operations, domain, registry, report):
         if M.IdentityCompare(operations, M.EmptyList)() is M.truth_value:
@@ -5350,6 +5369,13 @@ class RunPlaygroundInteractive(M.Edge):
         registry = M.Head(M.Tail(M.Tail(proposal)())())()
         graph._replace_context(constructors=registry)
         if M.IdentityCompare(status, L.ObservedRegularityLabel)() is M.truth_value:
+            from .live_structures import RecordObservedStructureBundle
+
+            recorded = RecordObservedStructureBundle(graph, payload, domain, operations)()
+            registry = M.Head(M.Tail(recorded)())()
+            candidate_notice = " The observation could not form a replayed structure candidate; its failed attempt was saved."
+            if M.IsPair(M.Head(recorded)())() is M.truth_value:
+                candidate_notice = " Use 'show structure' to inspect saved finite evidence."
             graph._pending_discovery = M.Pair(
                 status, M.Pair(payload, M.EmptyList)
             )
@@ -5382,13 +5408,13 @@ class RunPlaygroundInteractive(M.Edge):
                 + RenderDiscoveredEquation(law_type, registry)()
                 + ". Supporting examples: "
                 + examples
-                + ". Please provide a name for this property."
+                + ". Please provide a name for this property." + candidate_notice
             )
         if M.IdentityCompare(status, L.AlgebraicTemplateLabel)() is M.truth_value:
             graph._pending_discovery = M.Pair(
                 status, M.Pair(payload, M.EmptyList)
             )
-            return report + "\n[machine] Discovered a structure from the recorded laws. Name this structure?"
+            return report + "\n[machine] A candidate template groups named finite observations. Matching and theorem transfer remain unchecked. Name this candidate?"
         graph._pending_discovery = M.EmptyList
         return report + "\n[machine] No new operation law was found on this finite domain."
 

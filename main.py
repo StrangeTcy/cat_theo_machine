@@ -1866,6 +1866,10 @@ def run_live_mode(debug: bool = False, snapshot_path=SNAPSHOT_PATH):
                 print("[machine] Pending: " + LP.LiveProofRequestText(request)()() + ". No proof attempt is recorded.")
             else:
                 print(LP.FormatLiveProofOutcome(outcome, M.FromContextGetConstructors(runtime.graph)())())
+        elif cmd == "show structure":
+            from .live_structures import ExplainObservedStructureBundle
+
+            print(ExplainObservedStructureBundle(runtime.graph)())
         elif cmd == "check goal":
             outcome = LP.RetryLiveProofRequest(runtime.graph)()
             print(LP.FormatLiveProofOutcome(outcome, M.FromContextGetConstructors(runtime.graph)())())
@@ -2109,6 +2113,10 @@ def run_live_mode(debug: bool = False, snapshot_path=SNAPSHOT_PATH):
                 runtime.graph._replace_context(constructors=reg2)
 
                 if M.IdentityCompare(prop_status, Lmod.ObservedRegularityLabel)() is M.truth_value:
+                    from .live_structures import RecordObservedStructureBundle
+
+                    recorded_bundle = RecordObservedStructureBundle(runtime.graph, prop_rec, previous_domain, ops_chain)()
+                    reg2 = M.Head(M.Tail(recorded_bundle)())()
                     finding = prop_rec
                     finding_body = M.Tail(finding)()
                     op_char = M.Head(finding_body)()

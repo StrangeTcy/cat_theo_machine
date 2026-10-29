@@ -132,3 +132,16 @@ class RegisterNatOperationCatalog(M.Edge):
             record = M.Pair(L.NatOperationCatalogLabel, entries)
             result = M.TreeInsert(registry, key, record, registry)()
         super().__init__(inputs=M.Pair(registry, M.EmptyList), results=result)
+
+
+class ExtendNatOperationCatalog(M.Edge):
+    """Append a validated descriptor; its registered body remains execution authority."""
+
+    def __init__(self, descriptor, registry):
+        from .playground import ChainAppendEnd
+
+        key = M.Pair(L.NatOperationCatalogLabel, M.EmptyList)
+        entries = RegisteredNatOperationCatalog(registry)()
+        record = M.Pair(L.NatOperationCatalogLabel, ChainAppendEnd(entries, descriptor)())
+        result = M.TreeInsert(registry, key, record, registry)()
+        super().__init__(inputs=M.Pair(descriptor, M.Pair(registry, M.EmptyList)), results=result)

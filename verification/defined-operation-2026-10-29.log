@@ -1,0 +1,45 @@
+PASS an inert expression and fresh operation label remain unavailable before explicit registration
+Composite result: 7 direct result: 7
+PASS one registered body executes through primitive expansion and binds anonymous formals without capture
+[debug natural_playground process 20308]: Evaluating tensor cell: defined Nat operation(0, 0)
+[debug natural_playground process 20308]: Evaluated tensor cell: defined Nat operation(0, 0) -> 0
+[debug natural_playground process 20308]: Evaluating tensor cell: defined Nat operation(0, 1)
+[debug natural_playground process 20308]: Evaluated tensor cell: defined Nat operation(0, 1) -> 1
+[debug natural_playground process 20308]: Evaluating tensor cell: defined Nat operation(0, 2)
+[debug natural_playground process 20308]: Evaluated tensor cell: defined Nat operation(0, 2) -> 2
+[debug natural_playground process 20308]: Evaluating tensor cell: defined Nat operation(1, 0)
+[debug natural_playground process 20308]: Evaluated tensor cell: defined Nat operation(1, 0) -> 1
+[debug natural_playground process 20308]: Evaluating tensor cell: defined Nat operation(1, 1)
+[debug natural_playground process 20308]: Evaluated tensor cell: defined Nat operation(1, 1) -> 2
+[debug natural_playground process 20308]: Evaluating tensor cell: defined Nat operation(1, 2)
+[debug natural_playground process 20308]: Evaluated tensor cell: defined Nat operation(1, 2) -> 3
+[debug natural_playground process 20308]: Evaluating tensor cell: defined Nat operation(2, 0)
+[debug natural_playground process 20308]: Evaluated tensor cell: defined Nat operation(2, 0) -> 4
+[debug natural_playground process 20308]: Evaluating tensor cell: defined Nat operation(2, 1)
+[debug natural_playground process 20308]: Evaluated tensor cell: defined Nat operation(2, 1) -> 5
+[debug natural_playground process 20308]: Evaluating tensor cell: defined Nat operation(2, 2)
+[debug natural_playground process 20308]: Evaluated tensor cell: defined Nat operation(2, 2) -> 6
+PASS every cell of the registered operation tensor agrees with direct evaluation
+PASS explicit formal chains support composite operations beyond builtin unary/binary/ternary dispatch
+PASS duplicate, conflicting, builtin, malformed, unbound, cyclic, unsupported, and wrong-arity definitions or calls are refused
+[debug natural_playground process 20308]: Pairwise comparing operation results: gcd(0, 0) == gcd(0, 0)?
+[debug natural_playground process 20308]: gcd(0, 0) == gcd(0, 0) -> truth_value (0 == 0)
+[debug natural_playground process 20308]: Pairwise comparing operation results: gcd(0, 1) == gcd(1, 0)?
+[debug natural_playground process 20308]: gcd(0, 1) == gcd(1, 0) -> truth_value (1 == 1)
+[debug natural_playground process 20308]: Pairwise comparing operation results: gcd(0, 2) == gcd(2, 0)?
+[debug natural_playground process 20308]: gcd(0, 2) == gcd(2, 0) -> truth_value (2 == 2)
+[debug natural_playground process 20308]: Pairwise comparing operation results: gcd(1, 0) == gcd(0, 1)?
+[debug natural_playground process 20308]: gcd(1, 0) == gcd(0, 1) -> truth_value (1 == 1)
+[debug natural_playground process 20308]: Pairwise comparing operation results: gcd(1, 1) == gcd(1, 1)?
+[debug natural_playground process 20308]: gcd(1, 1) == gcd(1, 1) -> truth_value (1 == 1)
+[debug natural_playground process 20308]: Pairwise comparing operation results: gcd(1, 2) == gcd(2, 1)?
+[debug natural_playground process 20308]: gcd(1, 2) == gcd(2, 1) -> truth_value (1 == 1)
+[debug natural_playground process 20308]: Pairwise comparing operation results: gcd(2, 0) == gcd(0, 2)?
+[debug natural_playground process 20308]: gcd(2, 0) == gcd(0, 2) -> truth_value (2 == 2)
+[debug natural_playground process 20308]: Pairwise comparing operation results: gcd(2, 1) == gcd(1, 2)?
+[debug natural_playground process 20308]: gcd(2, 1) == gcd(1, 2) -> truth_value (1 == 1)
+[debug natural_playground process 20308]: Pairwise comparing operation results: gcd(2, 2) == gcd(2, 2)?
+[debug natural_playground process 20308]: gcd(2, 2) == gcd(2, 2) -> truth_value (2 == 2)
+PASS forged bodies and descriptor-only entries cannot execute; custom finite template roles receive no authority
+PASS file-backed snapshot restoration retains the definition, opaque label, and executable behavior without graph rules
+Defined operation regressions passed.

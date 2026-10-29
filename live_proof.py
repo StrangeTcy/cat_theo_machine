@@ -494,6 +494,68 @@ verification, registry, search job. Pending is never a disproof.
         return self.result
 
 
+class FormatLiveProofScopeItems(M.Edge):
+    """Render a machine chain of retained variables or constraints."""
+
+    def __init__(self, terms, registry):
+        if M.IdentityCompare(terms, M.EmptyList)() is M.truth_value:
+            self.result = ""
+        elif M.IsPair(terms)() is M.truth_value:
+            self.result = PG.RenderNatExpr(M.Head(terms)(), registry)()
+            rest = M.Tail(terms)()
+            if M.IdentityCompare(rest, M.EmptyList)() is M.false_value:
+                self.result = self.result + ", " + FormatLiveProofScopeItems(rest, registry)()
+        else:
+            self.result = "unavailable"
+        super().__init__(inputs=M.Pair(terms, M.Pair(registry, M.EmptyList)), results=M.EmptyList)
+
+    def __call__(self):
+        return self.result
+
+
+class FormatLiveProofScope(M.Edge):
+    """Explain retained scope without searching, certifying, or changing it."""
+
+    def __init__(self, request, registry):
+        spec = LiveProofRequestSpec(request)()
+        self.result = "Parsed scope unavailable; the original request remains pending."
+        if PG.ExactArity(spec, M.eight, registry)() is M.truth_value:
+            self.result = (
+                "Parsed relation: " + PG.RenderNatExpr(PG.GoalSpecLhs(spec)(), registry)()
+                + " = " + PG.RenderNatExpr(PG.GoalSpecRhs(spec)(), registry)() + "."
+            )
+            if PG.GoalSpecNoSolutions(spec)() is M.truth_value:
+                self.result = self.result + "\nClaim: no solutions in the stated scope."
+            elif PG.GoalSpecNoSolutions(spec)() is M.false_value:
+                self.result = self.result + "\nClaim: equality in the stated scope."
+            else:
+                self.result = self.result + "\nClaim scope unavailable."
+            variables = PG.GoalSpecBaseVars(spec)()
+            if M.IdentityCompare(variables, M.EmptyList)() is M.false_value:
+                self.result = self.result + "\nBase variables: " + FormatLiveProofScopeItems(variables, registry)() + "."
+            if PG.GoalSpecPositiveOnly(spec)() is M.truth_value:
+                self.result = self.result + "\nDomain restriction: positive variables."
+            elif PG.GoalSpecPositiveOnly(spec)() is M.false_value:
+                self.result = self.result + "\nArithmetic domain: natural numbers, including zero."
+            else:
+                self.result = self.result + "\nDomain restriction unavailable."
+            exponents = PG.GoalSpecExpVars(spec)()
+            if M.IdentityCompare(exponents, M.EmptyList)() is M.false_value:
+                self.result = self.result + "\nExponent parameters: " + FormatLiveProofScopeItems(exponents, registry)() + "."
+            constraints = PG.GoalSpecParamConstraints(spec)()
+            if M.IdentityCompare(constraints, M.EmptyList)() is M.false_value:
+                self.result = self.result + "\nParameter restrictions: " + FormatLiveProofScopeItems(constraints, registry)() + "."
+            if PG.GoalSpecNoSolutions(spec)() is M.truth_value:
+                self.result = self.result + (
+                    "\nRequired proof: exclude every assignment satisfying the original request."
+                    " Finite observations alone do not establish this."
+                )
+        super().__init__(inputs=M.Pair(request, M.Pair(registry, M.EmptyList)), results=M.EmptyList)
+
+    def __call__(self):
+        return self.result
+
+
 class FormatLiveProofOutcome(M.Edge):
     def __init__(self, outcome, registry):
         self.registry = registry
@@ -510,8 +572,9 @@ class FormatLiveProofOutcome(M.Edge):
         except (AttributeError, TypeError):
             goal_text = "unavailable goal text"
         reason = LiveProofOutcomeReason(outcome)()()
+        scope = FormatLiveProofScope(request, self.registry)()
         if M.IdentityCompare(LiveProofOutcomeStatus(outcome)(), L.ProvedLabel)() is M.false_value:
-            return "Pending: " + goal_text + "\n" + reason
+            return "Pending: " + goal_text + "\n" + scope + "\n" + reason
         receipt = LiveProofOutcomeReceipt(outcome)()
         derivation = LiveProofRecordField(receipt, M.four)()
         steps = P.DerivationSteps(derivation, self.registry)()
@@ -519,7 +582,7 @@ class FormatLiveProofOutcome(M.Edge):
             explanation = "Reflexivity: both sides are the same term."
         else:
             explanation = self._steps(steps)
-        return "Proved: " + goal_text + "\n" + reason + "\nSaved proof receipt:\n" + explanation
+        return "Proved: " + goal_text + "\n" + scope + "\n" + reason + "\nSaved proof receipt:\n" + explanation
 
     def _steps(self, steps):
         if M.IdentityCompare(steps, M.EmptyList)() is M.truth_value:

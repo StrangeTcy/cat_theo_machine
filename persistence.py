@@ -746,8 +746,12 @@ class SnapshotCodec:
             snapshot_path = state.snapshot_path
         except AttributeError:
             snapshot_path = ""
+        loaded_registry = state.roots["constructor_registry"]
+        # The shard reader handles legacy TreeNode records; current Patricia
+        # payloads already share the decoded graph's opaque identities.
+        if self._is_current_tree(loaded_registry) is M.truth_value:
+            return loaded_registry
         if not snapshot_path:
-            loaded_registry = state.roots["constructor_registry"]
             return self._restore_tree_root(state, "constructor_registry", loaded_registry)
 
         ctx = multiprocessing.get_context("spawn")
@@ -1114,6 +1118,14 @@ class SnapshotCodec:
     def _record_for(self, obj):
         oid = self.obj_to_id[obj]
         namespace_name = self._name_by_objid.get(id(obj))
+        if namespace_name is not None:
+            # Runtime aliases such as AllConstructors name mutable state.
+            # Reusing that object would detach restored terms from its keys.
+            if M.AndAtom(
+                M.NotAtom(M.IdentityCompare(obj, self._ns_get("EmptyList"))())(),
+                self._is_current_tree(obj),
+            )() is M.truth_value:
+                namespace_name = None
         if namespace_name is not None:
             return {
                 "id": oid,

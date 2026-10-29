@@ -106,6 +106,34 @@ if __name__ == "__main__":
     assert M.FromContextGetRuleOrder(rt.graph)() is M.EmptyList
     print("PASS the discovered operation role rebinds to gcd with renamed candidate variables and replays on the new carrier")
 
+    template_requirements = M.Head(M.Tail(M.Tail(M.Tail(template)())())())()
+    catalog_template = M.Pair(L.AlgebraicTemplateLabel,
+        M.Pair(source_carrier, M.Pair(catalog, M.Pair(template_requirements, M.EmptyList))))
+    matched = CheckFiniteMatchCase(catalog_template, variables, gcd_operation, carrier, registry, M.truth_value)()
+    catalog_receipt = M.Head(matched)()
+    registry = M.Head(M.Tail(matched)())()
+    registry = CheckFiniteReplayCase(catalog_receipt, catalog_template, variables,
+        gcd_operation, carrier, registry, M.truth_value)()
+    renamed_catalog = M.Pair(M.Pair(M.Char("an unrelated display name"), M.Tail(power_entry)()),
+        M.Pair(gcd_entry, M.EmptyList))
+    renamed_catalog_template = M.Pair(L.AlgebraicTemplateLabel,
+        M.Pair(source_carrier, M.Pair(renamed_catalog, M.Pair(template_requirements, M.EmptyList))))
+    matched = CheckFiniteMatchCase(renamed_catalog_template, variables, gcd_operation,
+        carrier, registry, M.truth_value)()
+    registry = M.Head(M.Tail(matched)())()
+    renamed_requirement = M.Pair(L.NamedRegularityLabel,
+        M.Pair(M.Char("the equation determines the role"), M.Pair(M.Char("gcd"),
+            M.Pair(equation, M.Pair(source_carrier, M.Pair(witnesses, M.EmptyList))))))
+    renamed_requirement_template = M.Pair(L.AlgebraicTemplateLabel,
+        M.Pair(source_carrier, M.Pair(catalog, M.Pair(M.Pair(renamed_requirement, M.EmptyList), M.EmptyList))))
+    matched = CheckFiniteMatchCase(renamed_requirement_template, variables, gcd_operation,
+        carrier, registry, M.truth_value)()
+    registry = M.Head(M.Tail(matched)())()
+    registry = CheckFiniteReplayCase(catalog_receipt, renamed_catalog_template, variables,
+        gcd_operation, carrier, registry, M.false_value)()
+    assert M.FromContextGetRuleOrder(rt.graph)() is M.EmptyList
+    print("PASS ambient operation catalogs and display names do not select the source role; replay remains bound to the original template")
+
     rejected = CheckFiniteMatchCase(template, variables, power_operation, carrier, registry, M.false_value)()
     registry = M.Head(M.Tail(rejected)())()
     rejected = CheckFiniteMatchCase(template, variables, power_operation, binary_carrier, registry, M.false_value)()
@@ -172,6 +200,12 @@ if __name__ == "__main__":
         M.Pair(source_carrier, M.Pair(powers, M.Pair(M.Pair(foreign_requirement, M.EmptyList), M.EmptyList))))
     rejected = CheckFiniteMatchCase(foreign_template, variables, gcd_operation, carrier, registry, M.false_value)()
     registry = M.Head(M.Tail(rejected)())()
+    mixed_template = M.Pair(L.AlgebraicTemplateLabel,
+        M.Pair(source_carrier, M.Pair(catalog, M.Pair(M.Pair(foreign_requirement, M.EmptyList), M.EmptyList))))
+    rejected = CheckFiniteMatchCase(mixed_template, variables, gcd_operation, carrier, registry, M.false_value)()
+    registry = M.Head(M.Tail(rejected)())()
+    preserved_mixed = M.Head(M.Tail(M.Tail(M.Tail(M.Head(rejected)())())())())()
+    assert M.Compare(preserved_mixed, mixed_template)() is M.truth_value
     print("PASS textual, vacuous, wrapped, substituted-source, and foreign-operation requirements cannot impersonate an explicit template")
 
     repeated_variables = M.Pair(a, M.Pair(a, M.EmptyList))

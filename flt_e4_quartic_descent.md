@@ -1,5 +1,17 @@
 # W6 — FLT n = 4 quartic descent
 
+> **Superseded historical account — 2026-10-28.** The original quartic pack
+> and the descent claimed below are not current proof evidence. FLT remains
+> unproved; the universal `EveryStateMoves(descent)` obligation remains open.
+> Current evidence is in [test18](validation/test18_flt_residue_discovery.py),
+> [test26](validation/test26_flt_descent.py), and
+> [test41](validation/test41_flt_n4_everystate.py). See also the
+> [strategy-withdrawal report](verification/quadratic-signed-continuation-2026-10-28.md)
+> and [current dependency DAG, §8.6](SWARM_EVOLUTION_DAG.md#86-live-flt-audit-and-next-discovery-dependencies-2026-10-28).
+> This notice improves **natural-language explanations** and **self-improvement**
+> by identifying the provenance and limits of the historical claims. It adds
+> no theorem. The original account is preserved below.
+
 Fermat's last theorem at exponent four: no positive integers `x, y, z` satisfy
 `x^4 + y^4 = z^4`. The pack is `packs/flt-quartic.pack.yaml` and its suite is
 `validation/test15_flt_quartic_descent.py`.

@@ -1871,3 +1871,97 @@ FLT and W28 remain open, as do the quartic movement obligation and general
 search/planner gaps. `core.py` is unchanged. No numbered suite slot was used.
 Details and the distinction between retained and historical evidence are in
 [the corrected continuation report](verification/quadratic-signed-continuation-2026-10-28.md).
+
+### 8.6 Live FLT audit and next discovery dependencies (2026-10-28)
+
+**Current result: FLT remains open.** A fresh live request for no positive
+integers satisfying `x^n + y^n = z^n`, with `n > 2`, returned `Pending` before
+playground exploration. `RetryLiveProofRequest` preserves the no-solutions
+claim and requires a universal exclusion or descent proof; its equality
+search does not discharge that obligation. No completed FLT proof or new
+FLT receipt was obtained in this audit. **G0 live scope reporting is now
+verified** through a fresh live run, `show goal`, `check goal`, `explain proof`
+and save/resume. The original claim, positive domain, exponent parameters
+and parsed restrictions are displayed together. Reporting adds no proof.
+
+The current cubic branch has residue and quadratic-arithmetic evidence,
+but no derived universal division theorem, unique factorization or cubic
+descent. The quartic branch still lacks a checked construction covering
+every hypothetical source solution, preserving solution membership and
+strictly decreasing a well-founded measure. Completing the cases `n = 3`
+and `n = 4` alone would not prove the full exponent family. W28 remains
+open and W29 retains its precise negative; neither is re-dispatched here.
+
+The retained signed-polynomial verifier certifies supplied identities.
+The retained quadratic-division verifier checks supplied concrete witnesses.
+Neither selects a strategy. The authored quotient route withdrawn in §8.5
+stays withdrawn. The following work follows the generic discovery loop in
+`PLAYGROUND_SPECIFICATION.md` and `HYPERGRAPH_MATCHING_SPECIFICATION.md`.
+It does not prescribe a number-theoretic route for the Machine.
+
+The dimension names below follow the user's five dimensions verbatim,
+without reusing the older document's numeric ordering. A node's dimensions
+state the capability it targets; no proposed node counts as a delivered
+FLT proof, IMO solution, learned Engel strategy or universal transfer.
+
+```text
+Existing operation catalog, tensor observations and discovered-law records
+    |
+    v
+G1 Discover candidate structure bundles
+    |
+    v
+G2 Certify each required law with its exact scope
+    |
+    v
+G3 Match carriers and operations with checked obligations
+    |
+    v
+G4 Transfer and replay a dependent theorem derivation
+    |
+    v
+G5 Reuse the checked result on the preserved live goal
+    |
+    +----> new observations / open obligations ----> G1
+
+G0 Explain the live proof scope and unmet obligations
+    receives the preserved request now, and G1-G5 evidence as it becomes available
+```
+
+| Node | Status | Dimension and reason | Acceptance evidence required |
+| :--- | :--- | :--- | :--- |
+| **G0 — Live scope and obligation reporting** | **Verified live and after restart, 2026-10-28** | **storytelling/explanations in a natural language**: display the original claim, domain restrictions and unmet proof obligation together; **proving FLT**: keep the exclusion claim visible throughout exploration, without claiming a new proof step. | `live-flt-audit-2026-10-28.log` and its resume log preserve the same pending FLT scope through exploration, show, retry and explanation. `live_proof_regressions` retains checked learned-equality proofs and scoped/malformed refusals. Reporting creates no receipt or promotion. |
+| **G1 — Discover candidate structure bundles** | **Open; existing law discovery is prerequisite** | **self-improvement**: build reusable candidate structures from the Machine's own operation-law observations and existing graph relations; **using Engel strategies**: provide a generic way to discover shared observable or move structure when that vocabulary is present. | Candidate provenance must lead back to observations and operations, with no problem name or planted route selecting the bundle. Renaming operations and carriers must preserve structural behavior. Incompatible carriers or operations must stay separate. Candidate status and finite tested scope must survive a snapshot roundtrip. A strategy is not learned merely because a candidate bundle exists. |
+| **G2 — Certify every required law** | **Open integration; polynomial and finite replay verifiers already exist** | **self-improvement**: separate reusable proved laws from observations; **proving FLT** and **solving IMO problems**: prevent sampled regularities from satisfying universal proof obligations. | Each requirement must carry an independently replayable receipt or an explicitly finite satisfaction record, bound to its exact law, carrier, operations, assumptions and authority. Missing laws, changed endpoints, forged evidence and attempts to widen a finite carrier must be refused. Existing signed-polynomial receipts may be reused only within their supported grammar and explicit authorities. |
+| **G3 — Checked structural matching** | **Open beyond the existing one-operation finite matcher** | **self-improvement**: recognize reusable structure through operation and carrier bindings; **solving IMO problems**: expose justified correspondences between structures without special cases for named problems. | Match a bundle with consistent bindings across all required laws; independently replay every matched requirement. Record whether the correspondence is an isomorphism, embedding or a weaker shared structure and restrict consequences accordingly. Renamed instances must match; conflicting bindings, omitted requirements and unsupported carrier scope must be refused. `template_matching.py` currently supplies finite satisfaction checks, not this general theorem-transfer contract. |
+| **G4 — Proof-producing theorem transfer** | **Open; universal transfer is not delivered** | **self-improvement**: reuse a proved argument through a checked correspondence; **proving FLT**, **solving IMO problems** and **using Engel strategies**: make previously proved structural results available only when their exact hypotheses are discharged. | A transferred result must include the source derivation, checked substitutions, discharged premises and an instantiated endpoint. Checker B must replay the resulting argument under the receiving context's authorities. Wrong endpoints, missing hypotheses, global conclusions taken from an embedding and finite-to-infinite scope changes must fail. A template match alone must never activate a theorem. |
+| **G5 — Checked reuse on the live goal** | **Open beyond the existing learned-equality retry** | **self-improvement**: close the discovery and reuse loop; **storytelling/explanations in a natural language**: explain which verified step advances the request and which obligations remain; **proving FLT** and **solving IMO problems**: connect reusable results to the original scoped goal. | A live run must discover a candidate, certify its requirements, match structure, replay a transferred derivation and retry the unchanged request. Every goal-status change must have a matching receipt. Withholding a required law or correspondence must remove the claimed advance. Save/resume must preserve provenance and proof scope. Any performance or promotion claim additionally needs the real evaluator and ledger evidence. |
+
+These nodes extend the current implementation; they do not reopen completed
+historical workers or relabel old checks as new achievements. Independent
+work can proceed on G1 candidate discovery. G2-G5 may be
+designed against explicit evidence contracts, but their completed status
+depends on the preceding checked artifacts. A concrete finite result is
+useful within its stated carrier; it supplies no universal theorem by itself.
+
+This entry records the live audit and remaining dependency plan. No new
+numbered suite slot, theorem, strategy, trusted rule or promotion is claimed
+by this documentation change. `core.py` is unchanged.
+
+#### G0 live verification and domain-input repair
+
+The actual live prompt rejected `yes, 1 to 2`: only three fixed range
+strings were accepted. `ParsePlaygroundDomain` now accepts arbitrary
+inclusive natural ranges in the advertised forms. Negative, malformed and
+reversed bounds are refused; the positive-integers form also refuses zero.
+The existing `yes` followed by two bounds and `no` paths are retained.
+This improves **self-improvement** by admitting user-selected discovery
+domains and **storytelling/explanations in a natural language** by aligning
+the prompt with its grammar. It supplies no FLT theorem, IMO solution or
+learned Engel strategy.
+
+`validation/run_flt_live_audit.cmd` reproduces the live run and restart with
+an isolated snapshot. The run observes addition symmetry on `{1,2}`, leaves
+the observation unnamed, and retains FLT as pending with no proof receipt.
+The detailed intervention record and evidence are in
+`verification/live-flt-audit-2026-10-28.md`. G1-G5 remain open.

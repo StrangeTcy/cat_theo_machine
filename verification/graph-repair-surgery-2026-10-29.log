@@ -1,0 +1,9 @@
+PASS: distinct K/L/R/host identities are glued; old graph and rule stay unchanged
+PASS: repeated insertion cannot duplicate an admitted node
+PASS: structurally equal nodes remain distinct during deletion and boundary scans
+PASS: a preserved interface edge remains shared and usable as an endpoint
+PASS: stale host scope, unknown dangling policy, and unbound endpoints are refused
+PASS: dangling refusal and explicit deletion preserve the old snapshot
+PASS: deletion closes over dependent edges and unproved obligations cannot fire
+PASS: malformed stores and interface incidence cannot authorize surgery
+Graph surgery regressions passed.

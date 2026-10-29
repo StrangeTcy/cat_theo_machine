@@ -1,0 +1,31 @@
+[machine] Restored the live graph from X:\hyge\verification\live-flt-audit-29697-12375.json
+you> Pending: prove there are no positive integers x, y, z and n > 2 such that x^n + y^n = z^n
+Parsed relation: x^n + y^n = z^n.
+Claim: no solutions in the stated scope.
+Base variables: x, y, z.
+Domain restriction: positive variables.
+Exponent parameters: n.
+Parameter restrictions: 2 < n.
+Required proof: exclude every assignment satisfying the original request. Finite observations alone do not establish this.
+The no-solutions claim is preserved. A universal exclusion or descent proof is still required.
+you> Pending: prove there are no positive integers x, y, z and n > 2 such that x^n + y^n = z^n
+Parsed relation: x^n + y^n = z^n.
+Claim: no solutions in the stated scope.
+Base variables: x, y, z.
+Domain restriction: positive variables.
+Exponent parameters: n.
+Parameter restrictions: 2 < n.
+Required proof: exclude every assignment satisfying the original request. Finite observations alone do not establish this.
+The no-solutions claim is preserved. A universal exclusion or descent proof is still required.
+you> Pending: prove there are no positive integers x, y, z and n > 2 such that x^n + y^n = z^n
+Parsed relation: x^n + y^n = z^n.
+Claim: no solutions in the stated scope.
+Base variables: x, y, z.
+Domain restriction: positive variables.
+Exponent parameters: n.
+Parameter restrictions: 2 < n.
+Required proof: exclude every assignment satisfying the original request. Finite observations alone do not establish this.
+The no-solutions claim is preserved. A universal exclusion or descent proof is still required.
+[machine] No active proof derivation in current session. Solve a theorem or goal first.
+you> saved snapshot to X:\hyge\verification\live-flt-audit-29697-12375.json
+[machine] goodbye

@@ -869,7 +869,7 @@ class EdgeSendPositionalConsistencyTest(M.Edge):
         host = Gmod.Hypergraph(_registry(pattern))
         h_x = M.Thingy()
         h_y = M.Thingy()
-        host_edge = M.Pair(M.Char("h"), M.Pair(h_x, M.Pair(h_y, empty)))
+        host_edge = M.Pair(M.Char("p"), M.Pair(h_x, M.Pair(h_y, empty)))
         host.add_node(h_x)
         host.add_node(h_y)
         host.add_edge(host_edge)

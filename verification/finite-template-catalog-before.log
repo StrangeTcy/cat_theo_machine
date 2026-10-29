@@ -1,0 +1,71 @@
+[debug natural_playground process 38824]: Evaluating tensor cell: pow(1, 1)
+[debug natural_playground process 38824]: Evaluated tensor cell: pow(1, 1) -> 1
+[debug natural_playground process 38824]: Pairwise comparing operation results: pow(1, 1) == pow(1, 1)?
+[debug natural_playground process 38824]: pow(1, 1) == pow(1, 1) -> truth_value (1 == 1)
+[debug natural_playground process 38824]: Gathering observations of a regularity for pow(): [pow(1, 1) == pow(1, 1)]; held across the tested domain {1}
+PASS a mined observation becomes a template without activating a rule or receiving proof authority
+[debug natural_playground process 38824]: Pairwise comparing operation results: gcd(1, 1) == gcd(1, 1)?
+[debug natural_playground process 38824]: gcd(1, 1) == gcd(1, 1) -> truth_value (1 == 1)
+[debug natural_playground process 38824]: Pairwise comparing operation results: gcd(1, 2) == gcd(2, 1)?
+[debug natural_playground process 38824]: gcd(1, 2) == gcd(2, 1) -> truth_value (1 == 1)
+[debug natural_playground process 38824]: Pairwise comparing operation results: gcd(1, 3) == gcd(3, 1)?
+[debug natural_playground process 38824]: gcd(1, 3) == gcd(3, 1) -> truth_value (1 == 1)
+[debug natural_playground process 38824]: Pairwise comparing operation results: gcd(2, 1) == gcd(1, 2)?
+[debug natural_playground process 38824]: gcd(2, 1) == gcd(1, 2) -> truth_value (1 == 1)
+[debug natural_playground process 38824]: Pairwise comparing operation results: gcd(2, 2) == gcd(2, 2)?
+[debug natural_playground process 38824]: gcd(2, 2) == gcd(2, 2) -> truth_value (2 == 2)
+[debug natural_playground process 38824]: Pairwise comparing operation results: gcd(2, 3) == gcd(3, 2)?
+[debug natural_playground process 38824]: gcd(2, 3) == gcd(3, 2) -> truth_value (1 == 1)
+[debug natural_playground process 38824]: Pairwise comparing operation results: gcd(3, 1) == gcd(1, 3)?
+[debug natural_playground process 38824]: gcd(3, 1) == gcd(1, 3) -> truth_value (1 == 1)
+[debug natural_playground process 38824]: Pairwise comparing operation results: gcd(3, 2) == gcd(2, 3)?
+[debug natural_playground process 38824]: gcd(3, 2) == gcd(2, 3) -> truth_value (1 == 1)
+[debug natural_playground process 38824]: Pairwise comparing operation results: gcd(3, 3) == gcd(3, 3)?
+[debug natural_playground process 38824]: gcd(3, 3) == gcd(3, 3) -> truth_value (3 == 3)
+[debug natural_playground process 38824]: Pairwise comparing operation results: gcd(1, 1) == gcd(1, 1)?
+[debug natural_playground process 38824]: gcd(1, 1) == gcd(1, 1) -> truth_value (1 == 1)
+[debug natural_playground process 38824]: Pairwise comparing operation results: gcd(1, 2) == gcd(2, 1)?
+[debug natural_playground process 38824]: gcd(1, 2) == gcd(2, 1) -> truth_value (1 == 1)
+[debug natural_playground process 38824]: Pairwise comparing operation results: gcd(1, 3) == gcd(3, 1)?
+[debug natural_playground process 38824]: gcd(1, 3) == gcd(3, 1) -> truth_value (1 == 1)
+[debug natural_playground process 38824]: Pairwise comparing operation results: gcd(2, 1) == gcd(1, 2)?
+[debug natural_playground process 38824]: gcd(2, 1) == gcd(1, 2) -> truth_value (1 == 1)
+[debug natural_playground process 38824]: Pairwise comparing operation results: gcd(2, 2) == gcd(2, 2)?
+[debug natural_playground process 38824]: gcd(2, 2) == gcd(2, 2) -> truth_value (2 == 2)
+[debug natural_playground process 38824]: Pairwise comparing operation results: gcd(2, 3) == gcd(3, 2)?
+[debug natural_playground process 38824]: gcd(2, 3) == gcd(3, 2) -> truth_value (1 == 1)
+[debug natural_playground process 38824]: Pairwise comparing operation results: gcd(3, 1) == gcd(1, 3)?
+[debug natural_playground process 38824]: gcd(3, 1) == gcd(1, 3) -> truth_value (1 == 1)
+[debug natural_playground process 38824]: Pairwise comparing operation results: gcd(3, 2) == gcd(2, 3)?
+[debug natural_playground process 38824]: gcd(3, 2) == gcd(2, 3) -> truth_value (1 == 1)
+[debug natural_playground process 38824]: Pairwise comparing operation results: gcd(3, 3) == gcd(3, 3)?
+[debug natural_playground process 38824]: gcd(3, 3) == gcd(3, 3) -> truth_value (3 == 3)
+[debug natural_playground process 38824]: Pairwise comparing operation results: gcd(1, 1) == gcd(1, 1)?
+[debug natural_playground process 38824]: gcd(1, 1) == gcd(1, 1) -> truth_value (1 == 1)
+[debug natural_playground process 38824]: Pairwise comparing operation results: gcd(1, 2) == gcd(2, 1)?
+[debug natural_playground process 38824]: gcd(1, 2) == gcd(2, 1) -> truth_value (1 == 1)
+[debug natural_playground process 38824]: Pairwise comparing operation results: gcd(1, 3) == gcd(3, 1)?
+[debug natural_playground process 38824]: gcd(1, 3) == gcd(3, 1) -> truth_value (1 == 1)
+[debug natural_playground process 38824]: Pairwise comparing operation results: gcd(2, 1) == gcd(1, 2)?
+[debug natural_playground process 38824]: gcd(2, 1) == gcd(1, 2) -> truth_value (1 == 1)
+[debug natural_playground process 38824]: Pairwise comparing operation results: gcd(2, 2) == gcd(2, 2)?
+[debug natural_playground process 38824]: gcd(2, 2) == gcd(2, 2) -> truth_value (2 == 2)
+[debug natural_playground process 38824]: Pairwise comparing operation results: gcd(2, 3) == gcd(3, 2)?
+[debug natural_playground process 38824]: gcd(2, 3) == gcd(3, 2) -> truth_value (1 == 1)
+[debug natural_playground process 38824]: Pairwise comparing operation results: gcd(3, 1) == gcd(1, 3)?
+[debug natural_playground process 38824]: gcd(3, 1) == gcd(1, 3) -> truth_value (1 == 1)
+[debug natural_playground process 38824]: Pairwise comparing operation results: gcd(3, 2) == gcd(2, 3)?
+[debug natural_playground process 38824]: gcd(3, 2) == gcd(2, 3) -> truth_value (1 == 1)
+[debug natural_playground process 38824]: Pairwise comparing operation results: gcd(3, 3) == gcd(3, 3)?
+[debug natural_playground process 38824]: gcd(3, 3) == gcd(3, 3) -> truth_value (3 == 3)
+PASS the discovered operation role rebinds to gcd with renamed candidate variables and replays on the new carrier
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "X:\hyge\validation\finite_template_matching_regressions.py", line 112, in <module>
+    matched = CheckFiniteMatchCase(catalog_template, variables, gcd_operation, carrier, registry, M.truth_value)()
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "X:\hyge\validation\finite_template_matching_regressions.py", line 22, in __init__
+    assert M.Head(M.Tail(M.Tail(instance)())())() is expected
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError

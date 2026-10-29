@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "X:\hyge\validation\defined_composition_regressions.py", line 33, in <module>
+    assert M.Head(composed)() is M.truth_value, "an operation cannot yet depend on an earlier registered definition"
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: an operation cannot yet depend on an earlier registered definition

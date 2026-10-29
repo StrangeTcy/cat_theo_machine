@@ -1,0 +1,2 @@
+PASS: all ten existing graph rewriting fixtures
+PASS: enumerated mapping retains rejected alternatives and fires a correctly glued rewrite

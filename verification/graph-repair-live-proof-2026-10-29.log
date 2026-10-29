@@ -1,0 +1,18 @@
+PASS a live equality stays pending without an active law
+PASS the same request closes after learning a law and Checker B independently replays its receipt
+Proved: prove x+y=y+x
+Parsed relation: x + y = y + x.
+Claim: equality in the stated scope.
+Base variables: x, y.
+Arithmetic domain: natural numbers, including zero.
+Checker B verified the derivation against the active rule snapshot.
+Saved proof receipt:
+  x + y = y + x
+
+PASS an active learned law rewrites a nested subterm with a checked path
+PASS a multistep proof combines learned laws and remains independently replayable
+PASS FLT retains no-solutions, positivity, exponent family, constraints, and original text
+PASS scoped, prose, malformed, and unsupported goals cannot become reflexive equality proofs
+PASS malformed records, mismatched supplied specs, and invalid or zero budgets stay pending
+PASS reflexivity still requires a saved derivation and independent verification
+PASS snapshot restore retains scope, current request, outcome history, and checked learned-rule reuse

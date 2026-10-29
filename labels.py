@@ -1055,6 +1055,14 @@ class MapLabel(ConstructorLabel):
     pass
 
 
+class MapExplorationLabel(ConstructorLabel):
+    pass
+
+
+class MapAttemptLabel(ConstructorLabel):
+    pass
+
+
 class SendLabel(ConstructorLabel):
     pass
 
@@ -2123,6 +2131,8 @@ GoalDemandRewriteStrategyLabel = GoalDemandRewriteStrategyLabel()
 PremiseUnlockRewriteStrategyLabel = PremiseUnlockRewriteStrategyLabel()
 BoundaryLabel = BoundaryLabel()
 MapLabel = MapLabel()
+MapExplorationLabel = MapExplorationLabel()
+MapAttemptLabel = MapAttemptLabel()
 SendLabel = SendLabel()
 ApartLabel = ApartLabel()
 ReasonApartLabel = ReasonApartLabel()

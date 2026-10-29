@@ -1,6 +1,8 @@
 """Replayable finite matching of explicit one-operation equation templates.
 
 This checker admits only exact binary catalogue calls as candidate bodies.
+The source catalog may contain unrelated operations; equation bodies must
+jointly select exactly one source operation role. Display names do not bind it.
 Source observations select equation obligations; their flags and witnesses do
 not establish those obligations for the candidate. Closure and every equation
 are evaluated again on the bound finite Nat carrier. No theorem or rule is
@@ -49,10 +51,83 @@ class FiniteVariableChain(M.Edge):
         super().__init__(inputs=M.Pair(chain, M.Pair(registry, M.Pair(seen, M.EmptyList))), results=verdict)
 
 
+class FiniteTemplateDependencies(M.Edge):
+    """Collect source operation roles from every explicit equation body."""
+
+    def __init__(self, requirements, source_carrier, operations, registry, used=M.EmptyList):
+        from . import observed_structures as OS
+
+        verdict = M.false_value
+        dependencies = used
+        if M.IdentityCompare(requirements, M.EmptyList)() is M.truth_value:
+            verdict = M.truth_value
+        elif M.IsPair(requirements)() is M.truth_value:
+            named = M.Head(requirements)()
+            admitted = PG.ExactArity(named, M.six, registry)()
+            if admitted is M.truth_value:
+                admitted = M.IdentityCompare(M.Head(named)(), L.NamedRegularityLabel)()
+            if admitted is M.truth_value:
+                fields = M.Tail(named)()
+                fields = M.Tail(M.Tail(fields)())()
+                equation = M.Head(fields)()
+                required_carrier = M.Head(M.Tail(fields)())()
+                admitted = M.AndAtom(M.Compare(required_carrier, source_carrier)(),
+                    PG.ExactArity(equation, M.four, registry)())()
+            if admitted is M.truth_value:
+                admitted = M.IdentityCompare(M.Head(equation)(), L.DiscoveredEquationLabel)()
+            if admitted is M.truth_value:
+                fields = M.Tail(equation)()
+                variables = M.Head(fields)()
+                admitted = M.AndAtom(M.IsPair(variables)(), FiniteVariableChain(variables, registry)())()
+            if admitted is M.truth_value:
+                checked = OS.ObservedArgumentOperations(
+                    M.Tail(fields)(), variables, operations, registry, used,
+                )()
+                if M.Head(checked)() is M.truth_value:
+                    remaining = FiniteTemplateDependencies(
+                        M.Tail(requirements)(), source_carrier, operations, registry,
+                        M.Head(M.Tail(checked)())(),
+                    )()
+                    verdict = M.Head(remaining)()
+                    dependencies = M.Head(M.Tail(remaining)())()
+        super().__init__(
+            inputs=M.Pair(requirements, M.Pair(source_carrier,
+                M.Pair(operations, M.Pair(registry, M.Pair(used, M.EmptyList))))),
+            results=M.Pair(verdict, M.Pair(dependencies, M.EmptyList)),
+        )
+
+
+class FiniteTemplateSelectedOperations(M.Edge):
+    """Retain every descriptor for referenced heads, preserving duplicate detection."""
+
+    def __init__(self, operations, used, registry):
+        verdict = M.false_value
+        selected = M.EmptyList
+        if M.IdentityCompare(operations, M.EmptyList)() is M.truth_value:
+            verdict = M.truth_value
+        elif M.IsPair(operations)() is M.truth_value:
+            entry = M.Head(operations)()
+            admitted = PG.ExactArity(entry, M.eight, registry)()
+            if admitted is M.truth_value:
+                body = M.Head(M.Tail(M.Tail(entry)())())()
+                admitted = M.IsPair(body)()
+            if admitted is M.truth_value:
+                remaining = FiniteTemplateSelectedOperations(M.Tail(operations)(), used, registry)()
+                verdict = M.Head(remaining)()
+                selected = M.Head(M.Tail(remaining)())()
+                if verdict is M.truth_value:
+                    if M.IsPair(PG.LookupOperationByLabel(M.Head(body)(), used)())() is M.truth_value:
+                        selected = M.Pair(entry, selected)
+        super().__init__(inputs=M.Pair(operations, M.Pair(used, M.Pair(registry, M.EmptyList))),
+            results=M.Pair(verdict, M.Pair(selected, M.EmptyList)))
+
+
 class FiniteTemplateScope(M.Edge):
-    """Admit one synthesized template and the exact supplied binary candidate."""
+    """Select one structural source role from an ambient operation catalog."""
 
     def __init__(self, template, variables, operation, carrier, registry):
+        from . import observed_structures as OS
+
         result = M.EmptyList
         admitted = M.false_value
         try:
@@ -82,12 +157,23 @@ class FiniteTemplateScope(M.Edge):
                 source_operations = M.Head(M.Tail(fields)())()
                 requirements = M.Head(M.Tail(M.Tail(fields)())())()
                 admitted = M.AndAtom(M.IsPair(source_carrier)(), FiniteNatChain(source_carrier, registry)())()
-                admitted = M.AndAtom(admitted, PG.ExactArity(source_operations, M.one, registry)())()
+                admitted = M.AndAtom(admitted, M.IsPair(source_operations)())()
                 admitted = M.AndAtom(admitted, M.IsPair(requirements)())()
             if admitted is M.truth_value:
-                source_entry = M.Head(source_operations)()
-                admitted = PG.ExactArity(source_entry, M.eight, registry)()
+                dependencies = FiniteTemplateDependencies(
+                    requirements, source_carrier, source_operations, registry,
+                )()
+                used = M.Head(M.Tail(dependencies)())()
+                admitted = M.Head(dependencies)()
             if admitted is M.truth_value:
+                selected = FiniteTemplateSelectedOperations(source_operations, used, registry)()
+                admitted = M.Head(selected)()
+            if admitted is M.truth_value:
+                described = OS.ObservedExecutableOperations(M.Head(M.Tail(selected)())(), registry)()
+                used = M.Head(M.Tail(described)())()
+                admitted = M.AndAtom(M.Head(described)(), PG.ExactArity(used, M.one, registry)())()
+            if admitted is M.truth_value:
+                source_entry = M.Head(used)()
                 source_name = M.Head(source_entry)()
                 source_formals = M.Head(M.Tail(source_entry)())()
                 source_operation = M.Head(M.Tail(M.Tail(source_entry)())())()
@@ -177,12 +263,10 @@ class FiniteTemplateRequirements(M.Edge):
                 admitted = PG.ExactArity(fields, M.five, registry)()
             if admitted is M.truth_value:
                 fields = M.Tail(fields)()
-                required_operation = M.Head(fields)()
                 fields = M.Tail(fields)()
                 equation = M.Head(fields)()
                 required_carrier = M.Head(M.Tail(fields)())()
-                admitted = M.AndAtom(M.Compare(required_operation, source_name)(), M.Compare(required_carrier, source_carrier)())()
-                admitted = M.AndAtom(admitted, M.IsPair(equation)())()
+                admitted = M.AndAtom(M.Compare(required_carrier, source_carrier)(), M.IsPair(equation)())()
             if admitted is M.truth_value:
                 admitted = M.IdentityCompare(M.Head(equation)(), L.DiscoveredEquationLabel)()
             if admitted is M.truth_value:

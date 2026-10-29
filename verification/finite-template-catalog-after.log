@@ -1,0 +1,202 @@
+[debug natural_playground process 37516]: Evaluating tensor cell: pow(1, 1)
+[debug natural_playground process 37516]: Evaluated tensor cell: pow(1, 1) -> 1
+[debug natural_playground process 37516]: Pairwise comparing operation results: pow(1, 1) == pow(1, 1)?
+[debug natural_playground process 37516]: pow(1, 1) == pow(1, 1) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Gathering observations of a regularity for pow(): [pow(1, 1) == pow(1, 1)]; held across the tested domain {1}
+PASS a mined observation becomes a template without activating a rule or receiving proof authority
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(1, 1) == gcd(1, 1)?
+[debug natural_playground process 37516]: gcd(1, 1) == gcd(1, 1) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(1, 2) == gcd(2, 1)?
+[debug natural_playground process 37516]: gcd(1, 2) == gcd(2, 1) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(1, 3) == gcd(3, 1)?
+[debug natural_playground process 37516]: gcd(1, 3) == gcd(3, 1) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(2, 1) == gcd(1, 2)?
+[debug natural_playground process 37516]: gcd(2, 1) == gcd(1, 2) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(2, 2) == gcd(2, 2)?
+[debug natural_playground process 37516]: gcd(2, 2) == gcd(2, 2) -> truth_value (2 == 2)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(2, 3) == gcd(3, 2)?
+[debug natural_playground process 37516]: gcd(2, 3) == gcd(3, 2) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(3, 1) == gcd(1, 3)?
+[debug natural_playground process 37516]: gcd(3, 1) == gcd(1, 3) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(3, 2) == gcd(2, 3)?
+[debug natural_playground process 37516]: gcd(3, 2) == gcd(2, 3) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(3, 3) == gcd(3, 3)?
+[debug natural_playground process 37516]: gcd(3, 3) == gcd(3, 3) -> truth_value (3 == 3)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(1, 1) == gcd(1, 1)?
+[debug natural_playground process 37516]: gcd(1, 1) == gcd(1, 1) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(1, 2) == gcd(2, 1)?
+[debug natural_playground process 37516]: gcd(1, 2) == gcd(2, 1) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(1, 3) == gcd(3, 1)?
+[debug natural_playground process 37516]: gcd(1, 3) == gcd(3, 1) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(2, 1) == gcd(1, 2)?
+[debug natural_playground process 37516]: gcd(2, 1) == gcd(1, 2) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(2, 2) == gcd(2, 2)?
+[debug natural_playground process 37516]: gcd(2, 2) == gcd(2, 2) -> truth_value (2 == 2)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(2, 3) == gcd(3, 2)?
+[debug natural_playground process 37516]: gcd(2, 3) == gcd(3, 2) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(3, 1) == gcd(1, 3)?
+[debug natural_playground process 37516]: gcd(3, 1) == gcd(1, 3) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(3, 2) == gcd(2, 3)?
+[debug natural_playground process 37516]: gcd(3, 2) == gcd(2, 3) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(3, 3) == gcd(3, 3)?
+[debug natural_playground process 37516]: gcd(3, 3) == gcd(3, 3) -> truth_value (3 == 3)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(1, 1) == gcd(1, 1)?
+[debug natural_playground process 37516]: gcd(1, 1) == gcd(1, 1) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(1, 2) == gcd(2, 1)?
+[debug natural_playground process 37516]: gcd(1, 2) == gcd(2, 1) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(1, 3) == gcd(3, 1)?
+[debug natural_playground process 37516]: gcd(1, 3) == gcd(3, 1) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(2, 1) == gcd(1, 2)?
+[debug natural_playground process 37516]: gcd(2, 1) == gcd(1, 2) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(2, 2) == gcd(2, 2)?
+[debug natural_playground process 37516]: gcd(2, 2) == gcd(2, 2) -> truth_value (2 == 2)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(2, 3) == gcd(3, 2)?
+[debug natural_playground process 37516]: gcd(2, 3) == gcd(3, 2) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(3, 1) == gcd(1, 3)?
+[debug natural_playground process 37516]: gcd(3, 1) == gcd(1, 3) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(3, 2) == gcd(2, 3)?
+[debug natural_playground process 37516]: gcd(3, 2) == gcd(2, 3) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(3, 3) == gcd(3, 3)?
+[debug natural_playground process 37516]: gcd(3, 3) == gcd(3, 3) -> truth_value (3 == 3)
+PASS the discovered operation role rebinds to gcd with renamed candidate variables and replays on the new carrier
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(1, 1) == gcd(1, 1)?
+[debug natural_playground process 37516]: gcd(1, 1) == gcd(1, 1) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(1, 2) == gcd(2, 1)?
+[debug natural_playground process 37516]: gcd(1, 2) == gcd(2, 1) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(1, 3) == gcd(3, 1)?
+[debug natural_playground process 37516]: gcd(1, 3) == gcd(3, 1) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(2, 1) == gcd(1, 2)?
+[debug natural_playground process 37516]: gcd(2, 1) == gcd(1, 2) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(2, 2) == gcd(2, 2)?
+[debug natural_playground process 37516]: gcd(2, 2) == gcd(2, 2) -> truth_value (2 == 2)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(2, 3) == gcd(3, 2)?
+[debug natural_playground process 37516]: gcd(2, 3) == gcd(3, 2) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(3, 1) == gcd(1, 3)?
+[debug natural_playground process 37516]: gcd(3, 1) == gcd(1, 3) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(3, 2) == gcd(2, 3)?
+[debug natural_playground process 37516]: gcd(3, 2) == gcd(2, 3) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(3, 3) == gcd(3, 3)?
+[debug natural_playground process 37516]: gcd(3, 3) == gcd(3, 3) -> truth_value (3 == 3)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(1, 1) == gcd(1, 1)?
+[debug natural_playground process 37516]: gcd(1, 1) == gcd(1, 1) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(1, 2) == gcd(2, 1)?
+[debug natural_playground process 37516]: gcd(1, 2) == gcd(2, 1) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(1, 3) == gcd(3, 1)?
+[debug natural_playground process 37516]: gcd(1, 3) == gcd(3, 1) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(2, 1) == gcd(1, 2)?
+[debug natural_playground process 37516]: gcd(2, 1) == gcd(1, 2) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(2, 2) == gcd(2, 2)?
+[debug natural_playground process 37516]: gcd(2, 2) == gcd(2, 2) -> truth_value (2 == 2)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(2, 3) == gcd(3, 2)?
+[debug natural_playground process 37516]: gcd(2, 3) == gcd(3, 2) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(3, 1) == gcd(1, 3)?
+[debug natural_playground process 37516]: gcd(3, 1) == gcd(1, 3) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(3, 2) == gcd(2, 3)?
+[debug natural_playground process 37516]: gcd(3, 2) == gcd(2, 3) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(3, 3) == gcd(3, 3)?
+[debug natural_playground process 37516]: gcd(3, 3) == gcd(3, 3) -> truth_value (3 == 3)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(1, 1) == gcd(1, 1)?
+[debug natural_playground process 37516]: gcd(1, 1) == gcd(1, 1) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(1, 2) == gcd(2, 1)?
+[debug natural_playground process 37516]: gcd(1, 2) == gcd(2, 1) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(1, 3) == gcd(3, 1)?
+[debug natural_playground process 37516]: gcd(1, 3) == gcd(3, 1) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(2, 1) == gcd(1, 2)?
+[debug natural_playground process 37516]: gcd(2, 1) == gcd(1, 2) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(2, 2) == gcd(2, 2)?
+[debug natural_playground process 37516]: gcd(2, 2) == gcd(2, 2) -> truth_value (2 == 2)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(2, 3) == gcd(3, 2)?
+[debug natural_playground process 37516]: gcd(2, 3) == gcd(3, 2) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(3, 1) == gcd(1, 3)?
+[debug natural_playground process 37516]: gcd(3, 1) == gcd(1, 3) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(3, 2) == gcd(2, 3)?
+[debug natural_playground process 37516]: gcd(3, 2) == gcd(2, 3) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(3, 3) == gcd(3, 3)?
+[debug natural_playground process 37516]: gcd(3, 3) == gcd(3, 3) -> truth_value (3 == 3)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(1, 1) == gcd(1, 1)?
+[debug natural_playground process 37516]: gcd(1, 1) == gcd(1, 1) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(1, 2) == gcd(2, 1)?
+[debug natural_playground process 37516]: gcd(1, 2) == gcd(2, 1) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(1, 3) == gcd(3, 1)?
+[debug natural_playground process 37516]: gcd(1, 3) == gcd(3, 1) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(2, 1) == gcd(1, 2)?
+[debug natural_playground process 37516]: gcd(2, 1) == gcd(1, 2) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(2, 2) == gcd(2, 2)?
+[debug natural_playground process 37516]: gcd(2, 2) == gcd(2, 2) -> truth_value (2 == 2)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(2, 3) == gcd(3, 2)?
+[debug natural_playground process 37516]: gcd(2, 3) == gcd(3, 2) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(3, 1) == gcd(1, 3)?
+[debug natural_playground process 37516]: gcd(3, 1) == gcd(1, 3) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(3, 2) == gcd(2, 3)?
+[debug natural_playground process 37516]: gcd(3, 2) == gcd(2, 3) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(3, 3) == gcd(3, 3)?
+[debug natural_playground process 37516]: gcd(3, 3) == gcd(3, 3) -> truth_value (3 == 3)
+PASS ambient operation catalogs and display names do not select the source role; replay remains bound to the original template
+[debug natural_playground process 37516]: Pairwise comparing operation results: pow(0, 0) == pow(0, 0)?
+[debug natural_playground process 37516]: pow(0, 0) == pow(0, 0) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: pow(0, 1) == pow(1, 0)?
+[debug natural_playground process 37516]: pow(0, 1) == pow(1, 0) -> false_value (0 == 1)
+PASS a closed operation with a false equation and an equation-preserving nonclosed operation fail independently
+PASS textual, vacuous, wrapped, substituted-source, and foreign-operation requirements cannot impersonate an explicit template
+PASS malformed candidate bodies, repeated formals, unknown operations, and empty or malformed finite scopes are refused
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(1, 1) == gcd(1, 1)?
+[debug natural_playground process 37516]: gcd(1, 1) == gcd(1, 1) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(1, 2) == gcd(2, 1)?
+[debug natural_playground process 37516]: gcd(1, 2) == gcd(2, 1) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(1, 3) == gcd(3, 1)?
+[debug natural_playground process 37516]: gcd(1, 3) == gcd(3, 1) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(2, 1) == gcd(1, 2)?
+[debug natural_playground process 37516]: gcd(2, 1) == gcd(1, 2) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(2, 2) == gcd(2, 2)?
+[debug natural_playground process 37516]: gcd(2, 2) == gcd(2, 2) -> truth_value (2 == 2)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(2, 3) == gcd(3, 2)?
+[debug natural_playground process 37516]: gcd(2, 3) == gcd(3, 2) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(3, 1) == gcd(1, 3)?
+[debug natural_playground process 37516]: gcd(3, 1) == gcd(1, 3) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(3, 2) == gcd(2, 3)?
+[debug natural_playground process 37516]: gcd(3, 2) == gcd(2, 3) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(3, 3) == gcd(3, 3)?
+[debug natural_playground process 37516]: gcd(3, 3) == gcd(3, 3) -> truth_value (3 == 3)
+[debug natural_playground process 37516]: Pairwise comparing operation results: pow(0, 0) == pow(0, 0)?
+[debug natural_playground process 37516]: pow(0, 0) == pow(0, 0) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: pow(0, 1) == pow(1, 0)?
+[debug natural_playground process 37516]: pow(0, 1) == pow(1, 0) -> false_value (0 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(1, 1) == gcd(1, 1)?
+[debug natural_playground process 37516]: gcd(1, 1) == gcd(1, 1) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(1, 2) == gcd(2, 1)?
+[debug natural_playground process 37516]: gcd(1, 2) == gcd(2, 1) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(1, 3) == gcd(3, 1)?
+[debug natural_playground process 37516]: gcd(1, 3) == gcd(3, 1) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(2, 1) == gcd(1, 2)?
+[debug natural_playground process 37516]: gcd(2, 1) == gcd(1, 2) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(2, 2) == gcd(2, 2)?
+[debug natural_playground process 37516]: gcd(2, 2) == gcd(2, 2) -> truth_value (2 == 2)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(2, 3) == gcd(3, 2)?
+[debug natural_playground process 37516]: gcd(2, 3) == gcd(3, 2) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(3, 1) == gcd(1, 3)?
+[debug natural_playground process 37516]: gcd(3, 1) == gcd(1, 3) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(3, 2) == gcd(2, 3)?
+[debug natural_playground process 37516]: gcd(3, 2) == gcd(2, 3) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(3, 3) == gcd(3, 3)?
+[debug natural_playground process 37516]: gcd(3, 3) == gcd(3, 3) -> truth_value (3 == 3)
+PASS replay ignores claimed verdicts and rejects forged evidence, method changes, malformed receipts, and every changed scope input
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(1, 1) == gcd(1, 1)?
+[debug natural_playground process 37516]: gcd(1, 1) == gcd(1, 1) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(1, 2) == gcd(2, 1)?
+[debug natural_playground process 37516]: gcd(1, 2) == gcd(2, 1) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(1, 3) == gcd(3, 1)?
+[debug natural_playground process 37516]: gcd(1, 3) == gcd(3, 1) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(2, 1) == gcd(1, 2)?
+[debug natural_playground process 37516]: gcd(2, 1) == gcd(1, 2) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(2, 2) == gcd(2, 2)?
+[debug natural_playground process 37516]: gcd(2, 2) == gcd(2, 2) -> truth_value (2 == 2)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(2, 3) == gcd(3, 2)?
+[debug natural_playground process 37516]: gcd(2, 3) == gcd(3, 2) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(3, 1) == gcd(1, 3)?
+[debug natural_playground process 37516]: gcd(3, 1) == gcd(1, 3) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(3, 2) == gcd(2, 3)?
+[debug natural_playground process 37516]: gcd(3, 2) == gcd(2, 3) -> truth_value (1 == 1)
+[debug natural_playground process 37516]: Pairwise comparing operation results: gcd(3, 3) == gcd(3, 3)?
+[debug natural_playground process 37516]: gcd(3, 3) == gcd(3, 3) -> truth_value (3 == 3)
+PASS snapshot roundtrip preserves independent expected scope and replayable finite evidence without activating graph rules
+Finite template matching regressions passed.

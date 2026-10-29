@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "X:\hyge\validation\graph_edge_dependencies_regressions.py", line 28, in <module>
+    assert result is not empty, "new-edge dependencies were refused despite a finite acyclic construction"
+           ^^^^^^^^^^^^^^^^^^^
+AssertionError: new-edge dependencies were refused despite a finite acyclic construction
