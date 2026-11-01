@@ -1,0 +1,16 @@
+PASS a live equality stays pending without an active law
+PASS the same request closes after learning a law and Checker B independently replays its receipt
+Proved: prove x+y=y+x
+Parsed relation: x + y = y + x.
+Claim: equality in the stated scope.
+Base variables: x, y.
+Arithmetic domain: natural numbers, including zero.
+Search job: success.
+Expanded expressions: 1.
+Generated expressions: 1.
+Proof receipt: recorded.
+Checker result: verified.
+Saved proof receipt:
+  x + y = y + x
+
+PASS an active learned law rewrites a nested subterm with a checked path

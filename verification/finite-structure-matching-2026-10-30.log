@@ -1,0 +1,333 @@
+[debug natural_playground process 37900]: Evaluating tensor cell: mul(0, 0)
+[debug natural_playground process 37900]: Evaluated tensor cell: mul(0, 0) -> 0
+[debug natural_playground process 37900]: Evaluating tensor cell: mul(0, 1)
+[debug natural_playground process 37900]: Evaluated tensor cell: mul(0, 1) -> 0
+[debug natural_playground process 37900]: Evaluating tensor cell: mul(1, 0)
+[debug natural_playground process 37900]: Evaluated tensor cell: mul(1, 0) -> 0
+[debug natural_playground process 37900]: Evaluating tensor cell: mul(1, 1)
+[debug natural_playground process 37900]: Evaluated tensor cell: mul(1, 1) -> 1
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(0, 0) == mul(0, 0)?
+[debug natural_playground process 37900]: mul(0, 0) == mul(0, 0) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(0, 1) == mul(1, 0)?
+[debug natural_playground process 37900]: mul(0, 1) == mul(1, 0) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(1, 0) == mul(0, 1)?
+[debug natural_playground process 37900]: mul(1, 0) == mul(0, 1) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(1, 1) == mul(1, 1)?
+[debug natural_playground process 37900]: mul(1, 1) == mul(1, 1) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Gathering observations of a regularity for mul(): [mul(1, 1) == mul(1, 1); mul(1, 0) == mul(0, 1); mul(0, 1) == mul(1, 0)]; held across the tested domain {0, 1}
+[debug natural_playground process 37900]: Evaluating tensor cell: mul(0, 0)
+[debug natural_playground process 37900]: Evaluated tensor cell: mul(0, 0) -> 0
+[debug natural_playground process 37900]: Evaluating tensor cell: mul(0, 1)
+[debug natural_playground process 37900]: Evaluated tensor cell: mul(0, 1) -> 0
+[debug natural_playground process 37900]: Evaluating tensor cell: mul(1, 0)
+[debug natural_playground process 37900]: Evaluated tensor cell: mul(1, 0) -> 0
+[debug natural_playground process 37900]: Evaluating tensor cell: mul(1, 1)
+[debug natural_playground process 37900]: Evaluated tensor cell: mul(1, 1) -> 1
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(0, gcd(0, 0)) == gcd(mul(0, 0), mul(0, 0))?
+[debug natural_playground process 37900]: mul(0, gcd(0, 0)) == gcd(mul(0, 0), mul(0, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(0, gcd(0, 1)) == gcd(mul(0, 0), mul(0, 1))?
+[debug natural_playground process 37900]: mul(0, gcd(0, 1)) == gcd(mul(0, 0), mul(0, 1)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(0, gcd(1, 0)) == gcd(mul(0, 1), mul(0, 0))?
+[debug natural_playground process 37900]: mul(0, gcd(1, 0)) == gcd(mul(0, 1), mul(0, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(0, gcd(1, 1)) == gcd(mul(0, 1), mul(0, 1))?
+[debug natural_playground process 37900]: mul(0, gcd(1, 1)) == gcd(mul(0, 1), mul(0, 1)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(1, gcd(0, 0)) == gcd(mul(1, 0), mul(1, 0))?
+[debug natural_playground process 37900]: mul(1, gcd(0, 0)) == gcd(mul(1, 0), mul(1, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(1, gcd(0, 1)) == gcd(mul(1, 0), mul(1, 1))?
+[debug natural_playground process 37900]: mul(1, gcd(0, 1)) == gcd(mul(1, 0), mul(1, 1)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(1, gcd(1, 0)) == gcd(mul(1, 1), mul(1, 0))?
+[debug natural_playground process 37900]: mul(1, gcd(1, 0)) == gcd(mul(1, 1), mul(1, 0)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(1, gcd(1, 1)) == gcd(mul(1, 1), mul(1, 1))?
+[debug natural_playground process 37900]: mul(1, gcd(1, 1)) == gcd(mul(1, 1), mul(1, 1)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Gathering observations of a regularity for mul over gcd(): [mul(1, gcd(1, 1)) == gcd(mul(1, 1), mul(1, 1)); mul(1, gcd(1, 0)) == gcd(mul(1, 1), mul(1, 0)); mul(1, gcd(0, 1)) == gcd(mul(1, 0), mul(1, 1))]; held across the tested domain {0, 1}
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(0, gcd(0, 0)) == gcd(mul(0, 0), mul(0, 0))?
+[debug natural_playground process 37900]: mul(0, gcd(0, 0)) == gcd(mul(0, 0), mul(0, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(0, gcd(0, 1)) == gcd(mul(0, 0), mul(0, 1))?
+[debug natural_playground process 37900]: mul(0, gcd(0, 1)) == gcd(mul(0, 0), mul(0, 1)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(0, gcd(1, 0)) == gcd(mul(0, 1), mul(0, 0))?
+[debug natural_playground process 37900]: mul(0, gcd(1, 0)) == gcd(mul(0, 1), mul(0, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(0, gcd(1, 1)) == gcd(mul(0, 1), mul(0, 1))?
+[debug natural_playground process 37900]: mul(0, gcd(1, 1)) == gcd(mul(0, 1), mul(0, 1)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(1, gcd(0, 0)) == gcd(mul(1, 0), mul(1, 0))?
+[debug natural_playground process 37900]: mul(1, gcd(0, 0)) == gcd(mul(1, 0), mul(1, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(1, gcd(0, 1)) == gcd(mul(1, 0), mul(1, 1))?
+[debug natural_playground process 37900]: mul(1, gcd(0, 1)) == gcd(mul(1, 0), mul(1, 1)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(1, gcd(1, 0)) == gcd(mul(1, 1), mul(1, 0))?
+[debug natural_playground process 37900]: mul(1, gcd(1, 0)) == gcd(mul(1, 1), mul(1, 0)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(1, gcd(1, 1)) == gcd(mul(1, 1), mul(1, 1))?
+[debug natural_playground process 37900]: mul(1, gcd(1, 1)) == gcd(mul(1, 1), mul(1, 1)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(0, gcd(0, 0)) == gcd(mul(0, 0), mul(0, 0))?
+[debug natural_playground process 37900]: mul(0, gcd(0, 0)) == gcd(mul(0, 0), mul(0, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(0, gcd(0, 1)) == gcd(mul(0, 0), mul(0, 1))?
+[debug natural_playground process 37900]: mul(0, gcd(0, 1)) == gcd(mul(0, 0), mul(0, 1)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(0, gcd(1, 0)) == gcd(mul(0, 1), mul(0, 0))?
+[debug natural_playground process 37900]: mul(0, gcd(1, 0)) == gcd(mul(0, 1), mul(0, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(0, gcd(1, 1)) == gcd(mul(0, 1), mul(0, 1))?
+[debug natural_playground process 37900]: mul(0, gcd(1, 1)) == gcd(mul(0, 1), mul(0, 1)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(1, gcd(0, 0)) == gcd(mul(1, 0), mul(1, 0))?
+[debug natural_playground process 37900]: mul(1, gcd(0, 0)) == gcd(mul(1, 0), mul(1, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(1, gcd(0, 1)) == gcd(mul(1, 0), mul(1, 1))?
+[debug natural_playground process 37900]: mul(1, gcd(0, 1)) == gcd(mul(1, 0), mul(1, 1)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(1, gcd(1, 0)) == gcd(mul(1, 1), mul(1, 0))?
+[debug natural_playground process 37900]: mul(1, gcd(1, 0)) == gcd(mul(1, 1), mul(1, 0)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(1, gcd(1, 1)) == gcd(mul(1, 1), mul(1, 1))?
+[debug natural_playground process 37900]: mul(1, gcd(1, 1)) == gcd(mul(1, 1), mul(1, 1)) -> truth_value (1 == 1)
+PASS a miner-generated multiplication-over-gcd equation needs two explicit roles and now matches and replays
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(0, gcd(0, 0)) == gcd(defined Nat operation(0, 0), defined Nat operation(0, 0))?
+[debug natural_playground process 37900]: defined Nat operation(0, gcd(0, 0)) == gcd(defined Nat operation(0, 0), defined Nat operation(0, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(0, gcd(0, 1)) == gcd(defined Nat operation(0, 0), defined Nat operation(0, 1))?
+[debug natural_playground process 37900]: defined Nat operation(0, gcd(0, 1)) == gcd(defined Nat operation(0, 0), defined Nat operation(0, 1)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(0, gcd(1, 0)) == gcd(defined Nat operation(0, 1), defined Nat operation(0, 0))?
+[debug natural_playground process 37900]: defined Nat operation(0, gcd(1, 0)) == gcd(defined Nat operation(0, 1), defined Nat operation(0, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(0, gcd(1, 1)) == gcd(defined Nat operation(0, 1), defined Nat operation(0, 1))?
+[debug natural_playground process 37900]: defined Nat operation(0, gcd(1, 1)) == gcd(defined Nat operation(0, 1), defined Nat operation(0, 1)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(1, gcd(0, 0)) == gcd(defined Nat operation(1, 0), defined Nat operation(1, 0))?
+[debug natural_playground process 37900]: defined Nat operation(1, gcd(0, 0)) == gcd(defined Nat operation(1, 0), defined Nat operation(1, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(1, gcd(0, 1)) == gcd(defined Nat operation(1, 0), defined Nat operation(1, 1))?
+[debug natural_playground process 37900]: defined Nat operation(1, gcd(0, 1)) == gcd(defined Nat operation(1, 0), defined Nat operation(1, 1)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(1, gcd(1, 0)) == gcd(defined Nat operation(1, 1), defined Nat operation(1, 0))?
+[debug natural_playground process 37900]: defined Nat operation(1, gcd(1, 0)) == gcd(defined Nat operation(1, 1), defined Nat operation(1, 0)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(1, gcd(1, 1)) == gcd(defined Nat operation(1, 1), defined Nat operation(1, 1))?
+[debug natural_playground process 37900]: defined Nat operation(1, gcd(1, 1)) == gcd(defined Nat operation(1, 1), defined Nat operation(1, 1)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(0, gcd(0, 0)) == gcd(defined Nat operation(0, 0), defined Nat operation(0, 0))?
+[debug natural_playground process 37900]: defined Nat operation(0, gcd(0, 0)) == gcd(defined Nat operation(0, 0), defined Nat operation(0, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(0, gcd(0, 1)) == gcd(defined Nat operation(0, 0), defined Nat operation(0, 1))?
+[debug natural_playground process 37900]: defined Nat operation(0, gcd(0, 1)) == gcd(defined Nat operation(0, 0), defined Nat operation(0, 1)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(0, gcd(1, 0)) == gcd(defined Nat operation(0, 1), defined Nat operation(0, 0))?
+[debug natural_playground process 37900]: defined Nat operation(0, gcd(1, 0)) == gcd(defined Nat operation(0, 1), defined Nat operation(0, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(0, gcd(1, 1)) == gcd(defined Nat operation(0, 1), defined Nat operation(0, 1))?
+[debug natural_playground process 37900]: defined Nat operation(0, gcd(1, 1)) == gcd(defined Nat operation(0, 1), defined Nat operation(0, 1)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(1, gcd(0, 0)) == gcd(defined Nat operation(1, 0), defined Nat operation(1, 0))?
+[debug natural_playground process 37900]: defined Nat operation(1, gcd(0, 0)) == gcd(defined Nat operation(1, 0), defined Nat operation(1, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(1, gcd(0, 1)) == gcd(defined Nat operation(1, 0), defined Nat operation(1, 1))?
+[debug natural_playground process 37900]: defined Nat operation(1, gcd(0, 1)) == gcd(defined Nat operation(1, 0), defined Nat operation(1, 1)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(1, gcd(1, 0)) == gcd(defined Nat operation(1, 1), defined Nat operation(1, 0))?
+[debug natural_playground process 37900]: defined Nat operation(1, gcd(1, 0)) == gcd(defined Nat operation(1, 1), defined Nat operation(1, 0)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(1, gcd(1, 1)) == gcd(defined Nat operation(1, 1), defined Nat operation(1, 1))?
+[debug natural_playground process 37900]: defined Nat operation(1, gcd(1, 1)) == gcd(defined Nat operation(1, 1), defined Nat operation(1, 1)) -> truth_value (1 == 1)
+PASS a registered product definition fills one role with checked closure and all eight mixed-law assignments
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(0, gcd(0, 0)) == gcd(defined Nat operation(0, 0), defined Nat operation(0, 0))?
+[debug natural_playground process 37900]: defined Nat operation(0, gcd(0, 0)) == gcd(defined Nat operation(0, 0), defined Nat operation(0, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(0, gcd(0, 1)) == gcd(defined Nat operation(0, 0), defined Nat operation(0, 1))?
+[debug natural_playground process 37900]: defined Nat operation(0, gcd(0, 1)) == gcd(defined Nat operation(0, 0), defined Nat operation(0, 1)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(0, gcd(1, 0)) == gcd(defined Nat operation(0, 1), defined Nat operation(0, 0))?
+[debug natural_playground process 37900]: defined Nat operation(0, gcd(1, 0)) == gcd(defined Nat operation(0, 1), defined Nat operation(0, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(0, gcd(1, 1)) == gcd(defined Nat operation(0, 1), defined Nat operation(0, 1))?
+[debug natural_playground process 37900]: defined Nat operation(0, gcd(1, 1)) == gcd(defined Nat operation(0, 1), defined Nat operation(0, 1)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(1, gcd(0, 0)) == gcd(defined Nat operation(1, 0), defined Nat operation(1, 0))?
+[debug natural_playground process 37900]: defined Nat operation(1, gcd(0, 0)) == gcd(defined Nat operation(1, 0), defined Nat operation(1, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(1, gcd(0, 1)) == gcd(defined Nat operation(1, 0), defined Nat operation(1, 1))?
+[debug natural_playground process 37900]: defined Nat operation(1, gcd(0, 1)) == gcd(defined Nat operation(1, 0), defined Nat operation(1, 1)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(1, gcd(1, 0)) == gcd(defined Nat operation(1, 1), defined Nat operation(1, 0))?
+[debug natural_playground process 37900]: defined Nat operation(1, gcd(1, 0)) == gcd(defined Nat operation(1, 1), defined Nat operation(1, 0)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(1, gcd(1, 1)) == gcd(defined Nat operation(1, 1), defined Nat operation(1, 1))?
+[debug natural_playground process 37900]: defined Nat operation(1, gcd(1, 1)) == gcd(defined Nat operation(1, 1), defined Nat operation(1, 1)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(0, gcd(0, 0)) == gcd(defined Nat operation(0, 0), defined Nat operation(0, 0))?
+[debug natural_playground process 37900]: defined Nat operation(0, gcd(0, 0)) == gcd(defined Nat operation(0, 0), defined Nat operation(0, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(0, gcd(0, 1)) == gcd(defined Nat operation(0, 0), defined Nat operation(0, 1))?
+[debug natural_playground process 37900]: defined Nat operation(0, gcd(0, 1)) == gcd(defined Nat operation(0, 0), defined Nat operation(0, 1)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(0, gcd(1, 0)) == gcd(defined Nat operation(0, 1), defined Nat operation(0, 0))?
+[debug natural_playground process 37900]: defined Nat operation(0, gcd(1, 0)) == gcd(defined Nat operation(0, 1), defined Nat operation(0, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(0, gcd(1, 1)) == gcd(defined Nat operation(0, 1), defined Nat operation(0, 1))?
+[debug natural_playground process 37900]: defined Nat operation(0, gcd(1, 1)) == gcd(defined Nat operation(0, 1), defined Nat operation(0, 1)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(1, gcd(0, 0)) == gcd(defined Nat operation(1, 0), defined Nat operation(1, 0))?
+[debug natural_playground process 37900]: defined Nat operation(1, gcd(0, 0)) == gcd(defined Nat operation(1, 0), defined Nat operation(1, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(1, gcd(0, 1)) == gcd(defined Nat operation(1, 0), defined Nat operation(1, 1))?
+[debug natural_playground process 37900]: defined Nat operation(1, gcd(0, 1)) == gcd(defined Nat operation(1, 0), defined Nat operation(1, 1)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(1, gcd(1, 0)) == gcd(defined Nat operation(1, 1), defined Nat operation(1, 0))?
+[debug natural_playground process 37900]: defined Nat operation(1, gcd(1, 0)) == gcd(defined Nat operation(1, 1), defined Nat operation(1, 0)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(1, gcd(1, 1)) == gcd(defined Nat operation(1, 1), defined Nat operation(1, 1))?
+[debug natural_playground process 37900]: defined Nat operation(1, gcd(1, 1)) == gcd(defined Nat operation(1, 1), defined Nat operation(1, 1)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(0, gcd(0, 0)) == gcd(mul(0, 0), mul(0, 0))?
+[debug natural_playground process 37900]: mul(0, gcd(0, 0)) == gcd(mul(0, 0), mul(0, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(0, gcd(0, 1)) == gcd(mul(0, 0), mul(0, 1))?
+[debug natural_playground process 37900]: mul(0, gcd(0, 1)) == gcd(mul(0, 0), mul(0, 1)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(0, gcd(1, 0)) == gcd(mul(0, 1), mul(0, 0))?
+[debug natural_playground process 37900]: mul(0, gcd(1, 0)) == gcd(mul(0, 1), mul(0, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(0, gcd(1, 1)) == gcd(mul(0, 1), mul(0, 1))?
+[debug natural_playground process 37900]: mul(0, gcd(1, 1)) == gcd(mul(0, 1), mul(0, 1)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(1, gcd(0, 0)) == gcd(mul(1, 0), mul(1, 0))?
+[debug natural_playground process 37900]: mul(1, gcd(0, 0)) == gcd(mul(1, 0), mul(1, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(1, gcd(0, 1)) == gcd(mul(1, 0), mul(1, 1))?
+[debug natural_playground process 37900]: mul(1, gcd(0, 1)) == gcd(mul(1, 0), mul(1, 1)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(1, gcd(1, 0)) == gcd(mul(1, 1), mul(1, 0))?
+[debug natural_playground process 37900]: mul(1, gcd(1, 0)) == gcd(mul(1, 1), mul(1, 0)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(1, gcd(1, 1)) == gcd(mul(1, 1), mul(1, 1))?
+[debug natural_playground process 37900]: mul(1, gcd(1, 1)) == gcd(mul(1, 1), mul(1, 1)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(0, gcd(0, 0)) == gcd(mul(0, 0), mul(0, 0))?
+[debug natural_playground process 37900]: mul(0, gcd(0, 0)) == gcd(mul(0, 0), mul(0, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(0, gcd(0, 1)) == gcd(mul(0, 0), mul(0, 1))?
+[debug natural_playground process 37900]: mul(0, gcd(0, 1)) == gcd(mul(0, 0), mul(0, 1)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(0, gcd(1, 0)) == gcd(mul(0, 1), mul(0, 0))?
+[debug natural_playground process 37900]: mul(0, gcd(1, 0)) == gcd(mul(0, 1), mul(0, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(0, gcd(1, 1)) == gcd(mul(0, 1), mul(0, 1))?
+[debug natural_playground process 37900]: mul(0, gcd(1, 1)) == gcd(mul(0, 1), mul(0, 1)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(1, gcd(0, 0)) == gcd(mul(1, 0), mul(1, 0))?
+[debug natural_playground process 37900]: mul(1, gcd(0, 0)) == gcd(mul(1, 0), mul(1, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(1, gcd(0, 1)) == gcd(mul(1, 0), mul(1, 1))?
+[debug natural_playground process 37900]: mul(1, gcd(0, 1)) == gcd(mul(1, 0), mul(1, 1)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(1, gcd(1, 0)) == gcd(mul(1, 1), mul(1, 0))?
+[debug natural_playground process 37900]: mul(1, gcd(1, 0)) == gcd(mul(1, 1), mul(1, 0)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(1, gcd(1, 1)) == gcd(mul(1, 1), mul(1, 1))?
+[debug natural_playground process 37900]: mul(1, gcd(1, 1)) == gcd(mul(1, 1), mul(1, 1)) -> truth_value (1 == 1)
+PASS composed v2 definitions fill target roles and registered custom source roles bind back to builtin operations
+PASS missing, duplicate, conflicting, unused, malformed and wrong-arity bindings and malformed carriers are refused
+[debug natural_playground process 37900]: Pairwise comparing operation results: pow(0, gcd(0, 0)) == gcd(pow(0, 0), pow(0, 0))?
+[debug natural_playground process 37900]: pow(0, gcd(0, 0)) == gcd(pow(0, 0), pow(0, 0)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: pow(0, gcd(0, 1)) == gcd(pow(0, 0), pow(0, 1))?
+[debug natural_playground process 37900]: pow(0, gcd(0, 1)) == gcd(pow(0, 0), pow(0, 1)) -> false_value (0 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: pow(0, gcd(0, 0)) == gcd(pow(0, 0), pow(0, 0))?
+[debug natural_playground process 37900]: pow(0, gcd(0, 0)) == gcd(pow(0, 0), pow(0, 0)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: pow(0, gcd(0, 1)) == gcd(pow(0, 0), pow(0, 1))?
+[debug natural_playground process 37900]: pow(0, gcd(0, 1)) == gcd(pow(0, 0), pow(0, 1)) -> false_value (0 == 1)
+PASS nonclosed addition and closed exponentiation with a false mixed equation fail independently
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(0, gcd(0, 0)) == gcd(defined Nat operation(0, 0), defined Nat operation(0, 0))?
+[debug natural_playground process 37900]: defined Nat operation(0, gcd(0, 0)) == gcd(defined Nat operation(0, 0), defined Nat operation(0, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(0, gcd(0, 1)) == gcd(defined Nat operation(0, 0), defined Nat operation(0, 1))?
+[debug natural_playground process 37900]: defined Nat operation(0, gcd(0, 1)) == gcd(defined Nat operation(0, 0), defined Nat operation(0, 1)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(0, gcd(1, 0)) == gcd(defined Nat operation(0, 1), defined Nat operation(0, 0))?
+[debug natural_playground process 37900]: defined Nat operation(0, gcd(1, 0)) == gcd(defined Nat operation(0, 1), defined Nat operation(0, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(0, gcd(1, 1)) == gcd(defined Nat operation(0, 1), defined Nat operation(0, 1))?
+[debug natural_playground process 37900]: defined Nat operation(0, gcd(1, 1)) == gcd(defined Nat operation(0, 1), defined Nat operation(0, 1)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(1, gcd(0, 0)) == gcd(defined Nat operation(1, 0), defined Nat operation(1, 0))?
+[debug natural_playground process 37900]: defined Nat operation(1, gcd(0, 0)) == gcd(defined Nat operation(1, 0), defined Nat operation(1, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(1, gcd(0, 1)) == gcd(defined Nat operation(1, 0), defined Nat operation(1, 1))?
+[debug natural_playground process 37900]: defined Nat operation(1, gcd(0, 1)) == gcd(defined Nat operation(1, 0), defined Nat operation(1, 1)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(1, gcd(1, 0)) == gcd(defined Nat operation(1, 1), defined Nat operation(1, 0))?
+[debug natural_playground process 37900]: defined Nat operation(1, gcd(1, 0)) == gcd(defined Nat operation(1, 1), defined Nat operation(1, 0)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(1, gcd(1, 1)) == gcd(defined Nat operation(1, 1), defined Nat operation(1, 1))?
+[debug natural_playground process 37900]: defined Nat operation(1, gcd(1, 1)) == gcd(defined Nat operation(1, 1), defined Nat operation(1, 1)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(0, gcd(0, 0)) == gcd(mul(0, 0), mul(0, 0))?
+[debug natural_playground process 37900]: mul(0, gcd(0, 0)) == gcd(mul(0, 0), mul(0, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(0, gcd(0, 1)) == gcd(mul(0, 0), mul(0, 1))?
+[debug natural_playground process 37900]: mul(0, gcd(0, 1)) == gcd(mul(0, 0), mul(0, 1)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(0, gcd(1, 0)) == gcd(mul(0, 1), mul(0, 0))?
+[debug natural_playground process 37900]: mul(0, gcd(1, 0)) == gcd(mul(0, 1), mul(0, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(0, gcd(1, 1)) == gcd(mul(0, 1), mul(0, 1))?
+[debug natural_playground process 37900]: mul(0, gcd(1, 1)) == gcd(mul(0, 1), mul(0, 1)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(1, gcd(0, 0)) == gcd(mul(1, 0), mul(1, 0))?
+[debug natural_playground process 37900]: mul(1, gcd(0, 0)) == gcd(mul(1, 0), mul(1, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(1, gcd(0, 1)) == gcd(mul(1, 0), mul(1, 1))?
+[debug natural_playground process 37900]: mul(1, gcd(0, 1)) == gcd(mul(1, 0), mul(1, 1)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(1, gcd(1, 0)) == gcd(mul(1, 1), mul(1, 0))?
+[debug natural_playground process 37900]: mul(1, gcd(1, 0)) == gcd(mul(1, 1), mul(1, 0)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(1, gcd(1, 1)) == gcd(mul(1, 1), mul(1, 1))?
+[debug natural_playground process 37900]: mul(1, gcd(1, 1)) == gcd(mul(1, 1), mul(1, 1)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(1, gcd(1, 1)) == gcd(defined Nat operation(1, 1), defined Nat operation(1, 1))?
+[debug natural_playground process 37900]: defined Nat operation(1, gcd(1, 1)) == gcd(defined Nat operation(1, 1), defined Nat operation(1, 1)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(0, gcd(0, 0)) == gcd(defined Nat operation(0, 0), defined Nat operation(0, 0))?
+[debug natural_playground process 37900]: defined Nat operation(0, gcd(0, 0)) == gcd(defined Nat operation(0, 0), defined Nat operation(0, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(0, gcd(0, 1)) == gcd(defined Nat operation(0, 0), defined Nat operation(0, 1))?
+[debug natural_playground process 37900]: defined Nat operation(0, gcd(0, 1)) == gcd(defined Nat operation(0, 0), defined Nat operation(0, 1)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(0, gcd(1, 0)) == gcd(defined Nat operation(0, 1), defined Nat operation(0, 0))?
+[debug natural_playground process 37900]: defined Nat operation(0, gcd(1, 0)) == gcd(defined Nat operation(0, 1), defined Nat operation(0, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(0, gcd(1, 1)) == gcd(defined Nat operation(0, 1), defined Nat operation(0, 1))?
+[debug natural_playground process 37900]: defined Nat operation(0, gcd(1, 1)) == gcd(defined Nat operation(0, 1), defined Nat operation(0, 1)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(1, gcd(0, 0)) == gcd(defined Nat operation(1, 0), defined Nat operation(1, 0))?
+[debug natural_playground process 37900]: defined Nat operation(1, gcd(0, 0)) == gcd(defined Nat operation(1, 0), defined Nat operation(1, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(1, gcd(0, 1)) == gcd(defined Nat operation(1, 0), defined Nat operation(1, 1))?
+[debug natural_playground process 37900]: defined Nat operation(1, gcd(0, 1)) == gcd(defined Nat operation(1, 0), defined Nat operation(1, 1)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(1, gcd(1, 0)) == gcd(defined Nat operation(1, 1), defined Nat operation(1, 0))?
+[debug natural_playground process 37900]: defined Nat operation(1, gcd(1, 0)) == gcd(defined Nat operation(1, 1), defined Nat operation(1, 0)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(1, gcd(1, 1)) == gcd(defined Nat operation(1, 1), defined Nat operation(1, 1))?
+[debug natural_playground process 37900]: defined Nat operation(1, gcd(1, 1)) == gcd(defined Nat operation(1, 1), defined Nat operation(1, 1)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(0, gcd(0, 0)) == gcd(defined Nat operation(0, 0), defined Nat operation(0, 0))?
+[debug natural_playground process 37900]: defined Nat operation(0, gcd(0, 0)) == gcd(defined Nat operation(0, 0), defined Nat operation(0, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(0, gcd(0, 1)) == gcd(defined Nat operation(0, 0), defined Nat operation(0, 1))?
+[debug natural_playground process 37900]: defined Nat operation(0, gcd(0, 1)) == gcd(defined Nat operation(0, 0), defined Nat operation(0, 1)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(0, gcd(1, 0)) == gcd(defined Nat operation(0, 1), defined Nat operation(0, 0))?
+[debug natural_playground process 37900]: defined Nat operation(0, gcd(1, 0)) == gcd(defined Nat operation(0, 1), defined Nat operation(0, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(0, gcd(1, 1)) == gcd(defined Nat operation(0, 1), defined Nat operation(0, 1))?
+[debug natural_playground process 37900]: defined Nat operation(0, gcd(1, 1)) == gcd(defined Nat operation(0, 1), defined Nat operation(0, 1)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(1, gcd(0, 0)) == gcd(defined Nat operation(1, 0), defined Nat operation(1, 0))?
+[debug natural_playground process 37900]: defined Nat operation(1, gcd(0, 0)) == gcd(defined Nat operation(1, 0), defined Nat operation(1, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(1, gcd(0, 1)) == gcd(defined Nat operation(1, 0), defined Nat operation(1, 1))?
+[debug natural_playground process 37900]: defined Nat operation(1, gcd(0, 1)) == gcd(defined Nat operation(1, 0), defined Nat operation(1, 1)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(1, gcd(1, 0)) == gcd(defined Nat operation(1, 1), defined Nat operation(1, 0))?
+[debug natural_playground process 37900]: defined Nat operation(1, gcd(1, 0)) == gcd(defined Nat operation(1, 1), defined Nat operation(1, 0)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(1, gcd(1, 1)) == gcd(defined Nat operation(1, 1), defined Nat operation(1, 1))?
+[debug natural_playground process 37900]: defined Nat operation(1, gcd(1, 1)) == gcd(defined Nat operation(1, 1), defined Nat operation(1, 1)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(0, gcd(0, 0)) == gcd(mul(0, 0), mul(0, 0))?
+[debug natural_playground process 37900]: mul(0, gcd(0, 0)) == gcd(mul(0, 0), mul(0, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(0, gcd(0, 1)) == gcd(mul(0, 0), mul(0, 1))?
+[debug natural_playground process 37900]: mul(0, gcd(0, 1)) == gcd(mul(0, 0), mul(0, 1)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(0, gcd(1, 0)) == gcd(mul(0, 1), mul(0, 0))?
+[debug natural_playground process 37900]: mul(0, gcd(1, 0)) == gcd(mul(0, 1), mul(0, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(0, gcd(1, 1)) == gcd(mul(0, 1), mul(0, 1))?
+[debug natural_playground process 37900]: mul(0, gcd(1, 1)) == gcd(mul(0, 1), mul(0, 1)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(1, gcd(0, 0)) == gcd(mul(1, 0), mul(1, 0))?
+[debug natural_playground process 37900]: mul(1, gcd(0, 0)) == gcd(mul(1, 0), mul(1, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(1, gcd(0, 1)) == gcd(mul(1, 0), mul(1, 1))?
+[debug natural_playground process 37900]: mul(1, gcd(0, 1)) == gcd(mul(1, 0), mul(1, 1)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(1, gcd(1, 0)) == gcd(mul(1, 1), mul(1, 0))?
+[debug natural_playground process 37900]: mul(1, gcd(1, 0)) == gcd(mul(1, 1), mul(1, 0)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(1, gcd(1, 1)) == gcd(mul(1, 1), mul(1, 1))?
+[debug natural_playground process 37900]: mul(1, gcd(1, 1)) == gcd(mul(1, 1), mul(1, 1)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(0, gcd(0, 0)) == gcd(mul(0, 0), mul(0, 0))?
+[debug natural_playground process 37900]: mul(0, gcd(0, 0)) == gcd(mul(0, 0), mul(0, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(0, gcd(0, 1)) == gcd(mul(0, 0), mul(0, 1))?
+[debug natural_playground process 37900]: mul(0, gcd(0, 1)) == gcd(mul(0, 0), mul(0, 1)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(0, gcd(1, 0)) == gcd(mul(0, 1), mul(0, 0))?
+[debug natural_playground process 37900]: mul(0, gcd(1, 0)) == gcd(mul(0, 1), mul(0, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(0, gcd(1, 1)) == gcd(mul(0, 1), mul(0, 1))?
+[debug natural_playground process 37900]: mul(0, gcd(1, 1)) == gcd(mul(0, 1), mul(0, 1)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(1, gcd(0, 0)) == gcd(mul(1, 0), mul(1, 0))?
+[debug natural_playground process 37900]: mul(1, gcd(0, 0)) == gcd(mul(1, 0), mul(1, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(1, gcd(0, 1)) == gcd(mul(1, 0), mul(1, 1))?
+[debug natural_playground process 37900]: mul(1, gcd(0, 1)) == gcd(mul(1, 0), mul(1, 1)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(1, gcd(1, 0)) == gcd(mul(1, 1), mul(1, 0))?
+[debug natural_playground process 37900]: mul(1, gcd(1, 0)) == gcd(mul(1, 1), mul(1, 0)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(1, gcd(1, 1)) == gcd(mul(1, 1), mul(1, 1))?
+[debug natural_playground process 37900]: mul(1, gcd(1, 1)) == gcd(mul(1, 1), mul(1, 1)) -> truth_value (1 == 1)
+PASS receipt replay rejects forged evidence, scope changes and a changed definition even when every finite value agrees
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(0, gcd(0, 0)) == gcd(mul(0, 0), mul(0, 0))?
+[debug natural_playground process 37900]: mul(0, gcd(0, 0)) == gcd(mul(0, 0), mul(0, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(0, gcd(0, 1)) == gcd(mul(0, 0), mul(0, 1))?
+[debug natural_playground process 37900]: mul(0, gcd(0, 1)) == gcd(mul(0, 0), mul(0, 1)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(0, gcd(1, 0)) == gcd(mul(0, 1), mul(0, 0))?
+[debug natural_playground process 37900]: mul(0, gcd(1, 0)) == gcd(mul(0, 1), mul(0, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(0, gcd(1, 1)) == gcd(mul(0, 1), mul(0, 1))?
+[debug natural_playground process 37900]: mul(0, gcd(1, 1)) == gcd(mul(0, 1), mul(0, 1)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(1, gcd(0, 0)) == gcd(mul(1, 0), mul(1, 0))?
+[debug natural_playground process 37900]: mul(1, gcd(0, 0)) == gcd(mul(1, 0), mul(1, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(1, gcd(0, 1)) == gcd(mul(1, 0), mul(1, 1))?
+[debug natural_playground process 37900]: mul(1, gcd(0, 1)) == gcd(mul(1, 0), mul(1, 1)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(1, gcd(1, 0)) == gcd(mul(1, 1), mul(1, 0))?
+[debug natural_playground process 37900]: mul(1, gcd(1, 0)) == gcd(mul(1, 1), mul(1, 0)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(1, gcd(1, 1)) == gcd(mul(1, 1), mul(1, 1))?
+[debug natural_playground process 37900]: mul(1, gcd(1, 1)) == gcd(mul(1, 1), mul(1, 1)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(0, 1) == mul(0, 1)?
+[debug natural_playground process 37900]: mul(0, 1) == mul(0, 1) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(0, 1) == mul(0, 1)?
+[debug natural_playground process 37900]: mul(0, 1) == mul(0, 1) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(0, 1) == mul(0, 1)?
+[debug natural_playground process 37900]: mul(0, 1) == mul(0, 1) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(0, 1) == mul(0, 1)?
+[debug natural_playground process 37900]: mul(0, 1) == mul(0, 1) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(1, 1) == mul(1, 1)?
+[debug natural_playground process 37900]: mul(1, 1) == mul(1, 1) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(1, 1) == mul(1, 1)?
+[debug natural_playground process 37900]: mul(1, 1) == mul(1, 1) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(1, 1) == mul(1, 1)?
+[debug natural_playground process 37900]: mul(1, 1) == mul(1, 1) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: mul(1, 1) == mul(1, 1)?
+[debug natural_playground process 37900]: mul(1, 1) == mul(1, 1) -> truth_value (1 == 1)
+PASS operation roles in later equations also require bindings and cannot widen an earlier receipt
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(0, gcd(0, 0)) == gcd(defined Nat operation(0, 0), defined Nat operation(0, 0))?
+[debug natural_playground process 37900]: defined Nat operation(0, gcd(0, 0)) == gcd(defined Nat operation(0, 0), defined Nat operation(0, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(0, gcd(0, 1)) == gcd(defined Nat operation(0, 0), defined Nat operation(0, 1))?
+[debug natural_playground process 37900]: defined Nat operation(0, gcd(0, 1)) == gcd(defined Nat operation(0, 0), defined Nat operation(0, 1)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(0, gcd(1, 0)) == gcd(defined Nat operation(0, 1), defined Nat operation(0, 0))?
+[debug natural_playground process 37900]: defined Nat operation(0, gcd(1, 0)) == gcd(defined Nat operation(0, 1), defined Nat operation(0, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(0, gcd(1, 1)) == gcd(defined Nat operation(0, 1), defined Nat operation(0, 1))?
+[debug natural_playground process 37900]: defined Nat operation(0, gcd(1, 1)) == gcd(defined Nat operation(0, 1), defined Nat operation(0, 1)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(1, gcd(0, 0)) == gcd(defined Nat operation(1, 0), defined Nat operation(1, 0))?
+[debug natural_playground process 37900]: defined Nat operation(1, gcd(0, 0)) == gcd(defined Nat operation(1, 0), defined Nat operation(1, 0)) -> truth_value (0 == 0)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(1, gcd(0, 1)) == gcd(defined Nat operation(1, 0), defined Nat operation(1, 1))?
+[debug natural_playground process 37900]: defined Nat operation(1, gcd(0, 1)) == gcd(defined Nat operation(1, 0), defined Nat operation(1, 1)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(1, gcd(1, 0)) == gcd(defined Nat operation(1, 1), defined Nat operation(1, 0))?
+[debug natural_playground process 37900]: defined Nat operation(1, gcd(1, 0)) == gcd(defined Nat operation(1, 1), defined Nat operation(1, 0)) -> truth_value (1 == 1)
+[debug natural_playground process 37900]: Pairwise comparing operation results: defined Nat operation(1, gcd(1, 1)) == gcd(defined Nat operation(1, 1), defined Nat operation(1, 1))?
+[debug natural_playground process 37900]: defined Nat operation(1, gcd(1, 1)) == gcd(defined Nat operation(1, 1), defined Nat operation(1, 1)) -> truth_value (1 == 1)
+PASS file-backed restoration retains multiple operation roles, custom semantics and replay without activating rules
+Finite structure matching regressions passed.

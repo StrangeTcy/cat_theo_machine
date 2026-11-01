@@ -2153,7 +2153,7 @@ class EvaluateNatExpr(M.Edge):
             return self._refuse(registry)
         from . import defined_operations as DO
 
-        if M.IsPair(DO.RegisteredDefinedNatOperation(head, registry)())() is M.truth_value:
+        if M.IdentityCompare(OC.NatOperationDescription(head)(), M.EmptyList)() is M.truth_value:
             return DO.EvaluateDefinedNatOperation(head, args, environment, registry, ops)()
         entry_variables = M.Head(M.Tail(entry)())()
         if M.IdentityCompare(M.Tail(entry_variables)(), M.EmptyList)() is M.truth_value:
@@ -5369,13 +5369,6 @@ class RunPlaygroundInteractive(M.Edge):
         registry = M.Head(M.Tail(M.Tail(proposal)())())()
         graph._replace_context(constructors=registry)
         if M.IdentityCompare(status, L.ObservedRegularityLabel)() is M.truth_value:
-            from .live_structures import RecordObservedStructureBundle
-
-            recorded = RecordObservedStructureBundle(graph, payload, domain, operations)()
-            registry = M.Head(M.Tail(recorded)())()
-            candidate_notice = " The observation could not form a replayed structure candidate; its failed attempt was saved."
-            if M.IsPair(M.Head(recorded)())() is M.truth_value:
-                candidate_notice = " Use 'show structure' to inspect saved finite evidence."
             graph._pending_discovery = M.Pair(
                 status, M.Pair(payload, M.EmptyList)
             )
@@ -5391,14 +5384,6 @@ class RunPlaygroundInteractive(M.Edge):
             examples = FormatOperationLawExamples(
                 law_type, witnesses, operations, registry
             )()
-            NaturalPlaygroundDebugEmit(M.Char(
-                "Proposing the observed regularity: ["
-                + examples
-                + "]; please provide a name for "
-                "the property of "
-                + operation_name()
-                + "(); the name and tested-domain examples will be stored in talk_lessons.log."
-            ))()
             return report + (
                 "\n[machine] Observed on tested domain "
                 + FormatSetChain(found_domain, registry)()
@@ -5408,13 +5393,13 @@ class RunPlaygroundInteractive(M.Edge):
                 + RenderDiscoveredEquation(law_type, registry)()
                 + ". Supporting examples: "
                 + examples
-                + ". Please provide a name for this property." + candidate_notice
+                + "."
             )
         if M.IdentityCompare(status, L.AlgebraicTemplateLabel)() is M.truth_value:
             graph._pending_discovery = M.Pair(
                 status, M.Pair(payload, M.EmptyList)
             )
-            return report + "\n[machine] A candidate template groups named finite observations. Matching and theorem transfer remain unchecked. Name this candidate?"
+            return report + "\n[machine] A candidate template groups named finite observations. Matching and theorem transfer remain unchecked."
         graph._pending_discovery = M.EmptyList
         return report + "\n[machine] No new operation law was found on this finite domain."
 

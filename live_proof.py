@@ -91,6 +91,32 @@ class LiveProofOutcomeSearchJob(LiveProofRecordField):
         super().__init__(outcome, M.seven)
 
 
+class LiveEqualityScopeAdmission(M.Edge):
+    """Record the equality retry's required scope, supplied scope and admission.
+
+    Scope fields: no-solutions flag, exponent parameters, parameter
+    constraints, positive-only flag. This is an executor admission record,
+    not a mathematical obligation or a proposed proof method.
+    """
+
+    def __init__(self, spec):
+        required = M.Pair(M.false_value, M.Pair(M.EmptyList,
+            M.Pair(M.EmptyList, M.Pair(M.false_value, M.EmptyList))))
+        no_solutions = PG.GoalSpecNoSolutions(spec)()
+        exponents = PG.GoalSpecExpVars(spec)()
+        constraints = PG.GoalSpecParamConstraints(spec)()
+        positive_only = PG.GoalSpecPositiveOnly(spec)()
+        supplied = M.Pair(no_solutions, M.Pair(exponents,
+            M.Pair(constraints, M.Pair(positive_only, M.EmptyList))))
+        admitted = M.AndAtom(M.IdentityCompare(no_solutions, M.false_value)(),
+            M.AndAtom(M.IdentityCompare(exponents, M.EmptyList)(),
+                M.AndAtom(M.IdentityCompare(constraints, M.EmptyList)(),
+                    M.IdentityCompare(positive_only, M.false_value)())())())()
+        result = M.Pair(M.Char("live-equality-scope-admission-v1"),
+            M.Pair(required, M.Pair(supplied, M.Pair(admitted, M.EmptyList))))
+        super().__init__(inputs=M.Pair(spec, M.EmptyList), results=result)
+
+
 class LatestLiveProofRequest(M.Edge):
     def __init__(self, nodes):
         self.result = self._find(nodes)
@@ -363,7 +389,8 @@ class RetryLiveProofRequest(M.Edge):
     """Return a persisted outcome after one finite active-rule equality retry.
 
 Outcome fields after the Char tag: request, status, reason, receipt,
-verification, registry, search job. Pending is never a disproof.
+verification, registry, search job. Scope refusals retain an admission record
+in the reason field; older outcomes can retain text. Pending is never a disproof.
 """
 
     def __init__(self, graph, request=M.EmptyList, step_budget=M.three):
@@ -379,7 +406,10 @@ verification, registry, search job. Pending is never a disproof.
             inputs=M.Pair(request, M.Pair(step_budget, M.EmptyList)), results=self.result
         )
 
-    def _outcome(self, reason, status=L.PendingLabel, receipt=M.EmptyList, verification=M.EmptyList, job=M.EmptyList):
+    def _outcome(self, reason, status=L.PendingLabel, receipt=M.EmptyList, verification=M.EmptyList, job=M.EmptyList, admission=M.EmptyList):
+        recorded_reason = M.Char(reason)
+        if M.IsPair(admission)() is M.truth_value:
+            recorded_reason = admission
         return M.Pair(
             M.Char("live-proof-outcome-v1"),
             M.Pair(
@@ -387,7 +417,7 @@ verification, registry, search job. Pending is never a disproof.
                 M.Pair(
                     status,
                     M.Pair(
-                        M.Char(reason),
+                        recorded_reason,
                         M.Pair(
                             receipt,
                             M.Pair(verification, M.Pair(self.registry, M.Pair(job, M.EmptyList))),
@@ -413,14 +443,9 @@ verification, registry, search job. Pending is never a disproof.
             return self._outcome("The supplied goal specification has no constructor registry.")
         if M.IdentityCompare(M.Head(registry_record)(), M.TreeLabel)() is M.false_value:
             return self._outcome("The supplied goal specification has no constructor registry.")
-        if PG.GoalSpecNoSolutions(spec)() is not M.false_value:
-            return self._outcome("The no-solutions claim is preserved. A universal exclusion or descent proof is still required.")
-        if M.IdentityCompare(PG.GoalSpecExpVars(spec)(), M.EmptyList)() is M.false_value:
-            return self._outcome("The exponent family is preserved. Equality rewriting does not discharge its universal obligation.")
-        if M.IdentityCompare(PG.GoalSpecParamConstraints(spec)(), M.EmptyList)() is M.false_value:
-            return self._outcome("The parameter constraints are preserved. Their scoped proof obligations remain open.")
-        if PG.GoalSpecPositiveOnly(spec)() is not M.false_value:
-            return self._outcome("The positive-variable scope is preserved. A proof under that scope is still required.")
+        admission = LiveEqualityScopeAdmission(spec)()
+        if LiveProofRecordField(admission, M.three)() is M.false_value:
+            return self._outcome("", admission=admission)
         if LiveProofSurfaceMatches(LiveProofRequestText(self.request)(), spec, self.registry)() is M.false_value:
             return self._outcome("The complete surface goal is not a supported bare arithmetic equality. No extracted equation was substituted for it.")
         lhs = PG.GoalSpecLhs(spec)()
@@ -545,12 +570,51 @@ class FormatLiveProofScope(M.Edge):
             constraints = PG.GoalSpecParamConstraints(spec)()
             if M.IdentityCompare(constraints, M.EmptyList)() is M.false_value:
                 self.result = self.result + "\nParameter restrictions: " + FormatLiveProofScopeItems(constraints, registry)() + "."
-            if PG.GoalSpecNoSolutions(spec)() is M.truth_value:
-                self.result = self.result + (
-                    "\nRequired proof: exclude every assignment satisfying the original request."
-                    " Finite observations alone do not establish this."
-                )
         super().__init__(inputs=M.Pair(request, M.Pair(registry, M.EmptyList)), results=M.EmptyList)
+
+    def __call__(self):
+        return self.result
+
+
+class FormatLiveProofEvidence(M.Edge):
+    """Render recorded execution evidence without recommending a proof method."""
+
+    def __init__(self, outcome, registry):
+        result = ""
+        admission = LiveProofOutcomeReason(outcome)()
+        if PG.ExactArity(admission, M.four, registry)() is M.truth_value:
+            if M.Compare(M.Head(admission)(), M.Char("live-equality-scope-admission-v1"))() is M.truth_value:
+                verdict = LiveProofRecordField(admission, M.three)()
+                status = "unavailable"
+                if M.IdentityCompare(verdict, M.truth_value)() is M.truth_value:
+                    status = "accepted"
+                elif M.IdentityCompare(verdict, M.false_value)() is M.truth_value:
+                    status = "declined"
+                result = "Equality retry scope: " + status + ".\n"
+        job = LiveProofOutcomeSearchJob(outcome)()
+        if M.IdentityCompare(job, M.EmptyList)() is M.truth_value:
+            result = result + "Search job: none recorded."
+        else:
+            result = result + "Search job: " + S.SearchStatusText(S.SearchJobStatus(job)())() + "."
+            result = result + "\nExpanded expressions: " + PG.RenderOperationValue(S.SearchJobExpanded(job)(), registry)() + "."
+            result = result + "\nGenerated expressions: " + PG.RenderOperationValue(S.SearchJobGenerated(job)(), registry)() + "."
+        if M.IdentityCompare(LiveProofOutcomeReceipt(outcome)(), M.EmptyList)() is M.truth_value:
+            result = result + "\nProof receipt: none recorded."
+        else:
+            result = result + "\nProof receipt: recorded."
+        verification = LiveProofOutcomeVerification(outcome)()
+        if M.IdentityCompare(verification, M.EmptyList)() is M.truth_value:
+            result = result + "\nChecker result: none recorded."
+        else:
+            verdict = M.false_value
+            if M.IsPair(verification)() is M.truth_value:
+                verdict = M.IdentityCompare(M.Head(verification)(), L.DerivationVerifiedLabel)()
+            if verdict is M.truth_value:
+                result = result + "\nChecker result: verified."
+            else:
+                result = result + "\nChecker result: not verified."
+        self.result = result
+        super().__init__(inputs=M.Pair(outcome, M.Pair(registry, M.EmptyList)), results=M.EmptyList)
 
     def __call__(self):
         return self.result
@@ -571,10 +635,10 @@ class FormatLiveProofOutcome(M.Edge):
             goal_text = text().strip()
         except (AttributeError, TypeError):
             goal_text = "unavailable goal text"
-        reason = LiveProofOutcomeReason(outcome)()()
+        evidence = FormatLiveProofEvidence(outcome, self.registry)()
         scope = FormatLiveProofScope(request, self.registry)()
         if M.IdentityCompare(LiveProofOutcomeStatus(outcome)(), L.ProvedLabel)() is M.false_value:
-            return "Pending: " + goal_text + "\n" + scope + "\n" + reason
+            return "Pending: " + goal_text + "\n" + scope + "\n" + evidence
         receipt = LiveProofOutcomeReceipt(outcome)()
         derivation = LiveProofRecordField(receipt, M.four)()
         steps = P.DerivationSteps(derivation, self.registry)()
@@ -582,7 +646,7 @@ class FormatLiveProofOutcome(M.Edge):
             explanation = "Reflexivity: both sides are the same term."
         else:
             explanation = self._steps(steps)
-        return "Proved: " + goal_text + "\n" + scope + "\n" + reason + "\nSaved proof receipt:\n" + explanation
+        return "Proved: " + goal_text + "\n" + scope + "\n" + evidence + "\nSaved proof receipt:\n" + explanation
 
     def _steps(self, steps):
         if M.IdentityCompare(steps, M.EmptyList)() is M.truth_value:

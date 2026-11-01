@@ -1,0 +1,9 @@
+PASS reversed three-edge dependency chain preserves sharing and R order
+PASS insertion provenance binds every source edge to its fresh result
+PASS separate firings allocate separate edges with shared internal dependencies
+PASS forward and reverse declaration orders both resolve
+PASS a stalled dependency remainder refuses the whole insertion without partial output
+PASS two-edge and self cycles terminate with refusal, including after an independent edge resolves
+PASS new-edge dependencies preserve K edge identity and the host snapshot
+PASS duplicate, malformed, and prebound insertion sources are refused
+Graph edge dependency regressions passed.

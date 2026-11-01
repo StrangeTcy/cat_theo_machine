@@ -1,0 +1,24 @@
+[debug natural_playground process 35460]: Evaluating tensor cell: defined Nat operation(0, 0)
+[debug natural_playground process 35460]: Evaluated tensor cell: defined Nat operation(0, 0) -> 0
+[debug natural_playground process 35460]: Evaluating tensor cell: defined Nat operation(0, 1)
+[debug natural_playground process 35460]: Evaluated tensor cell: defined Nat operation(0, 1) -> 0
+[debug natural_playground process 35460]: Evaluating tensor cell: defined Nat operation(1, 0)
+[debug natural_playground process 35460]: Evaluated tensor cell: defined Nat operation(1, 0) -> 0
+[debug natural_playground process 35460]: Evaluating tensor cell: defined Nat operation(1, 1)
+[debug natural_playground process 35460]: Evaluated tensor cell: defined Nat operation(1, 1) -> 1
+[debug natural_playground process 35460]: Pairwise comparing operation results: defined Nat operation(0, 0) == defined Nat operation(0, 0)?
+[debug natural_playground process 35460]: defined Nat operation(0, 0) == defined Nat operation(0, 0) -> truth_value (0 == 0)
+[debug natural_playground process 35460]: Pairwise comparing operation results: defined Nat operation(0, 1) == defined Nat operation(1, 0)?
+[debug natural_playground process 35460]: defined Nat operation(0, 1) == defined Nat operation(1, 0) -> truth_value (0 == 0)
+[debug natural_playground process 35460]: Pairwise comparing operation results: defined Nat operation(1, 0) == defined Nat operation(0, 1)?
+[debug natural_playground process 35460]: defined Nat operation(1, 0) == defined Nat operation(0, 1) -> truth_value (0 == 0)
+[debug natural_playground process 35460]: Pairwise comparing operation results: defined Nat operation(1, 1) == defined Nat operation(1, 1)?
+[debug natural_playground process 35460]: defined Nat operation(1, 1) == defined Nat operation(1, 1) -> truth_value (1 == 1)
+[debug natural_playground process 35460]: Gathering observations of a regularity for defined Nat operation(): [defined Nat operation(1, 1) == defined Nat operation(1, 1); defined Nat operation(1, 0) == defined Nat operation(0, 1); defined Nat operation(0, 1) == defined Nat operation(1, 0)]; held across the tested domain {0, 1}
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "X:\hyge\validation\defined_discovery_integration.py", line 45, in <module>
+    assert M.IsPair(bundle)() is M.truth_value, "mined custom operations cannot yet enter observation bundles"
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: mined custom operations cannot yet enter observation bundles

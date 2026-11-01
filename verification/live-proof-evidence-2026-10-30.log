@@ -1,0 +1,10 @@
+PASS arbitrary exclusion claims and the full exponent-family request retain scope and report absent search, receipt, and checker evidence
+PASS blank requests, zero search budgets, and malformed scope flags remain pending without starting search
+PASS a learned addition law proves its bare equality with checked evidence and cannot prove the exclusion claim containing that equality
+Traceback (most recent call last):
+  File "<frozen runpy>", line 198, in _run_module_as_main
+  File "<frozen runpy>", line 88, in _run_code
+  File "X:\hyge\validation\live_proof_evidence_regressions.py", line 128, in <module>
+    assert M.Compare(M.Char(evidence.replace("expanded", "")), M.Char(evidence))() is M.false_value
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError

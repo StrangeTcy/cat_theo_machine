@@ -17,6 +17,8 @@ from .math import arithmetic as A
 
 
 class StructureOperationBinding(M.Edge):
+    """Build Pair(source_label, Pair(formals, Pair(candidate_call, EmptyList)))."""
+
     def __init__(self, source_label, formals, candidate_call):
         result = M.Pair(source_label, M.Pair(formals, M.Pair(candidate_call, M.EmptyList)))
         super().__init__(inputs=result, results=result)
@@ -212,7 +214,12 @@ class StructureRequirements(M.Edge):
 
 
 class CheckFiniteStructure(M.Edge):
-    """Return a bound finite receipt and registry after replaying all obligations."""
+    """Return Pair(receipt, Pair(registry, EmptyList)) after finite replay.
+
+    The seven-field receipt holds TemplateInstanceLabel, version, verdict,
+    template, bindings, carrier, and evidence. Evidence contains the exact
+    executable records, closure witnesses, and rebound equation witnesses.
+    """
 
     def __init__(self, template, bindings, carrier, registry):
         verdict = M.false_value
@@ -289,3 +296,10 @@ class VerifyFiniteStructureInstance(M.Edge):
         super().__init__(inputs=M.Pair(instance, M.Pair(template, M.Pair(bindings,
             M.Pair(carrier, M.Pair(registry, M.EmptyList))))),
             results=M.Pair(verdict, M.Pair(active, M.EmptyList)))
+
+
+__all__ = (
+    "StructureOperationBinding",
+    "CheckFiniteStructure",
+    "VerifyFiniteStructureInstance",
+)

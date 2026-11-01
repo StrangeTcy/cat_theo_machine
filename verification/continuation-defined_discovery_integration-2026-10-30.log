@@ -1,0 +1,89 @@
+[debug natural_playground process 33812]: Evaluating tensor cell: defined Nat operation(0, 0)
+[debug natural_playground process 33812]: Evaluated tensor cell: defined Nat operation(0, 0) -> 0
+[debug natural_playground process 33812]: Evaluating tensor cell: defined Nat operation(0, 1)
+[debug natural_playground process 33812]: Evaluated tensor cell: defined Nat operation(0, 1) -> 0
+[debug natural_playground process 33812]: Evaluating tensor cell: defined Nat operation(1, 0)
+[debug natural_playground process 33812]: Evaluated tensor cell: defined Nat operation(1, 0) -> 0
+[debug natural_playground process 33812]: Evaluating tensor cell: defined Nat operation(1, 1)
+[debug natural_playground process 33812]: Evaluated tensor cell: defined Nat operation(1, 1) -> 1
+[debug natural_playground process 33812]: Pairwise comparing operation results: defined Nat operation(0, 0) == defined Nat operation(0, 0)?
+[debug natural_playground process 33812]: defined Nat operation(0, 0) == defined Nat operation(0, 0) -> truth_value (0 == 0)
+[debug natural_playground process 33812]: Pairwise comparing operation results: defined Nat operation(0, 1) == defined Nat operation(1, 0)?
+[debug natural_playground process 33812]: defined Nat operation(0, 1) == defined Nat operation(1, 0) -> truth_value (0 == 0)
+[debug natural_playground process 33812]: Pairwise comparing operation results: defined Nat operation(1, 0) == defined Nat operation(0, 1)?
+[debug natural_playground process 33812]: defined Nat operation(1, 0) == defined Nat operation(0, 1) -> truth_value (0 == 0)
+[debug natural_playground process 33812]: Pairwise comparing operation results: defined Nat operation(1, 1) == defined Nat operation(1, 1)?
+[debug natural_playground process 33812]: defined Nat operation(1, 1) == defined Nat operation(1, 1) -> truth_value (1 == 1)
+[debug natural_playground process 33812]: Gathering observations of a regularity for defined Nat operation(): [defined Nat operation(1, 1) == defined Nat operation(1, 1); defined Nat operation(1, 0) == defined Nat operation(0, 1); defined Nat operation(0, 1) == defined Nat operation(1, 0)]; held across the tested domain {0, 1}
+[debug natural_playground process 33812]: Pairwise comparing operation results: defined Nat operation(0, 0) == defined Nat operation(0, 0)?
+[debug natural_playground process 33812]: defined Nat operation(0, 0) == defined Nat operation(0, 0) -> truth_value (0 == 0)
+[debug natural_playground process 33812]: Pairwise comparing operation results: defined Nat operation(0, 1) == defined Nat operation(1, 0)?
+[debug natural_playground process 33812]: defined Nat operation(0, 1) == defined Nat operation(1, 0) -> truth_value (0 == 0)
+[debug natural_playground process 33812]: Pairwise comparing operation results: defined Nat operation(1, 0) == defined Nat operation(0, 1)?
+[debug natural_playground process 33812]: defined Nat operation(1, 0) == defined Nat operation(0, 1) -> truth_value (0 == 0)
+[debug natural_playground process 33812]: Pairwise comparing operation results: defined Nat operation(1, 1) == defined Nat operation(1, 1)?
+[debug natural_playground process 33812]: defined Nat operation(1, 1) == defined Nat operation(1, 1) -> truth_value (1 == 1)
+[debug natural_playground process 33812]: Pairwise comparing operation results: defined Nat operation(0, 0) == defined Nat operation(0, 0)?
+[debug natural_playground process 33812]: defined Nat operation(0, 0) == defined Nat operation(0, 0) -> truth_value (0 == 0)
+[debug natural_playground process 33812]: Pairwise comparing operation results: defined Nat operation(0, 1) == defined Nat operation(1, 0)?
+[debug natural_playground process 33812]: defined Nat operation(0, 1) == defined Nat operation(1, 0) -> truth_value (0 == 0)
+[debug natural_playground process 33812]: Pairwise comparing operation results: defined Nat operation(1, 0) == defined Nat operation(0, 1)?
+[debug natural_playground process 33812]: defined Nat operation(1, 0) == defined Nat operation(0, 1) -> truth_value (0 == 0)
+[debug natural_playground process 33812]: Pairwise comparing operation results: defined Nat operation(1, 1) == defined Nat operation(1, 1)?
+[debug natural_playground process 33812]: defined Nat operation(1, 1) == defined Nat operation(1, 1) -> truth_value (1 == 1)
+PASS the existing miner discovers and replays a finite equation of a registered operation
+[debug natural_playground process 33812]: Pairwise comparing operation results: defined Nat operation(0, 0) == defined Nat operation(0, 0)?
+[debug natural_playground process 33812]: defined Nat operation(0, 0) == defined Nat operation(0, 0) -> truth_value (0 == 0)
+[debug natural_playground process 33812]: Pairwise comparing operation results: defined Nat operation(0, 1) == defined Nat operation(1, 0)?
+[debug natural_playground process 33812]: defined Nat operation(0, 1) == defined Nat operation(1, 0) -> truth_value (0 == 0)
+[debug natural_playground process 33812]: Pairwise comparing operation results: defined Nat operation(1, 0) == defined Nat operation(0, 1)?
+[debug natural_playground process 33812]: defined Nat operation(1, 0) == defined Nat operation(0, 1) -> truth_value (0 == 0)
+[debug natural_playground process 33812]: Pairwise comparing operation results: defined Nat operation(1, 1) == defined Nat operation(1, 1)?
+[debug natural_playground process 33812]: defined Nat operation(1, 1) == defined Nat operation(1, 1) -> truth_value (1 == 1)
+PASS replay refuses changed scope, forged evidence, duplicate or misbound descriptors, and invalid definitions
+[debug natural_playground process 33812]: Pairwise comparing operation results: defined Nat operation(0, 0) == defined Nat operation(0, 0)?
+[debug natural_playground process 33812]: defined Nat operation(0, 0) == defined Nat operation(0, 0) -> truth_value (0 == 0)
+[debug natural_playground process 33812]: Pairwise comparing operation results: defined Nat operation(0, 1) == defined Nat operation(1, 0)?
+[debug natural_playground process 33812]: defined Nat operation(0, 1) == defined Nat operation(1, 0) -> truth_value (0 == 0)
+[debug natural_playground process 33812]: Pairwise comparing operation results: defined Nat operation(1, 0) == defined Nat operation(0, 1)?
+[debug natural_playground process 33812]: defined Nat operation(1, 0) == defined Nat operation(0, 1) -> truth_value (0 == 0)
+[debug natural_playground process 33812]: Pairwise comparing operation results: defined Nat operation(1, 1) == defined Nat operation(1, 1)?
+[debug natural_playground process 33812]: defined Nat operation(1, 1) == defined Nat operation(1, 1) -> truth_value (1 == 1)
+[debug natural_playground process 33812]: Pairwise comparing operation results: defined Nat operation(0, 0) == defined Nat operation(0, 0)?
+[debug natural_playground process 33812]: defined Nat operation(0, 0) == defined Nat operation(0, 0) -> truth_value (0 == 0)
+[debug natural_playground process 33812]: Pairwise comparing operation results: defined Nat operation(0, 1) == defined Nat operation(1, 0)?
+[debug natural_playground process 33812]: defined Nat operation(0, 1) == defined Nat operation(1, 0) -> truth_value (0 == 0)
+[debug natural_playground process 33812]: Pairwise comparing operation results: defined Nat operation(1, 0) == defined Nat operation(0, 1)?
+[debug natural_playground process 33812]: defined Nat operation(1, 0) == defined Nat operation(0, 1) -> truth_value (0 == 0)
+[debug natural_playground process 33812]: Pairwise comparing operation results: defined Nat operation(1, 1) == defined Nat operation(1, 1)?
+[debug natural_playground process 33812]: defined Nat operation(1, 1) == defined Nat operation(1, 1) -> truth_value (1 == 1)
+Observed structure candidate on finite carrier {0, 1}.
+Operations used: defined Nat operation().
+Observed equations:
+  x defined y = y defined x
+Each equation and its source witnesses were checked again on this carrier.
+Carrier closure, universal laws and theorem transfer remain unchecked.
+[debug natural_playground process 33812]: Pairwise comparing operation results: defined Nat operation(0, 0) == defined Nat operation(0, 0)?
+[debug natural_playground process 33812]: defined Nat operation(0, 0) == defined Nat operation(0, 0) -> truth_value (0 == 0)
+[debug natural_playground process 33812]: Pairwise comparing operation results: defined Nat operation(0, 1) == defined Nat operation(1, 0)?
+[debug natural_playground process 33812]: defined Nat operation(0, 1) == defined Nat operation(1, 0) -> truth_value (0 == 0)
+[debug natural_playground process 33812]: Pairwise comparing operation results: defined Nat operation(1, 0) == defined Nat operation(0, 1)?
+[debug natural_playground process 33812]: defined Nat operation(1, 0) == defined Nat operation(0, 1) -> truth_value (0 == 0)
+[debug natural_playground process 33812]: Pairwise comparing operation results: defined Nat operation(1, 1) == defined Nat operation(1, 1)?
+[debug natural_playground process 33812]: defined Nat operation(1, 1) == defined Nat operation(1, 1) -> truth_value (1 == 1)
+[debug natural_playground process 33812]: Pairwise comparing operation results: defined Nat operation(0, 0) == defined Nat operation(0, 0)?
+[debug natural_playground process 33812]: defined Nat operation(0, 0) == defined Nat operation(0, 0) -> truth_value (0 == 0)
+[debug natural_playground process 33812]: Pairwise comparing operation results: defined Nat operation(0, 1) == defined Nat operation(1, 0)?
+[debug natural_playground process 33812]: defined Nat operation(0, 1) == defined Nat operation(1, 0) -> truth_value (0 == 0)
+[debug natural_playground process 33812]: Pairwise comparing operation results: defined Nat operation(1, 0) == defined Nat operation(0, 1)?
+[debug natural_playground process 33812]: defined Nat operation(1, 0) == defined Nat operation(0, 1) -> truth_value (0 == 0)
+[debug natural_playground process 33812]: Pairwise comparing operation results: defined Nat operation(1, 1) == defined Nat operation(1, 1)?
+[debug natural_playground process 33812]: defined Nat operation(1, 1) == defined Nat operation(1, 1) -> truth_value (1 == 1)
+Observed structure candidate on finite carrier {0, 1}.
+Operations used: defined Nat operation().
+Observed equations:
+  x defined y = y defined x
+Each equation and its source witnesses were checked again on this carrier.
+Carrier closure, universal laws and theorem transfer remain unchecked.
+PASS live recording, explanation and file-backed restoration retain custom finite observations without adding proof rules
+Defined discovery integration passed.

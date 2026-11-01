@@ -423,6 +423,7 @@ class NamedOperationEquation(M.Edge):
 
     def __init__(self, operation, equation, domain, nodes):
         result = M.false_value
+        named_record = M.EmptyList
         if M.IsPair(nodes)() is M.truth_value:
             node = M.Head(nodes)()
             if M.IsPair(node)() is M.truth_value:
@@ -442,10 +443,15 @@ class NamedOperationEquation(M.Edge):
                                             M.Compare(M.Head(domain_body)(), domain)(),
                                         )(),
                                     )()
+                                    if result is M.truth_value:
+                                        named_record = node
             if result is M.false_value:
-                result = NamedOperationEquation(
+                remaining = NamedOperationEquation(
                     operation, equation, domain, M.Tail(nodes)()
-                )()
+                )
+                result = remaining()
+                named_record = remaining.named_record
+        self.named_record = named_record
         super().__init__(
             inputs=M.Pair(operation, M.Pair(equation, M.Pair(domain, M.Pair(nodes, M.EmptyList)))),
             results=result,
@@ -453,19 +459,30 @@ class NamedOperationEquation(M.Edge):
 
 
 class UnnamedOperationEquations(M.Edge):
-    """Remove named candidates before constructing evaluation domains."""
+    """Remove named candidates and retain the exact evidence for every skip."""
 
-    def __init__(self, operation, equations, domain, nodes):
+    def __init__(self, operation, equations, domain, nodes, operation_label=M.EmptyList):
         result = M.EmptyList
+        skipped = M.EmptyList
         if M.IsPair(equations)() is M.truth_value:
             equation = M.Head(equations)()
-            rest = UnnamedOperationEquations(
-                operation, M.Tail(equations)(), domain, nodes
-            )()
-            if NamedOperationEquation(operation, equation, domain, nodes)() is M.truth_value:
-                result = rest
+            named = NamedOperationEquation(operation, equation, domain, nodes)
+            if named() is M.truth_value:
+                name = M.Head(M.Tail(named.named_record)())()
+                print("[machine] Skipping candidate already recorded as '", name(),
+                    "' for ", operation(), " on this finite domain.", sep="")
+                skipped = M.Pair(M.Pair(M.Char("named-operation-candidate-skip-v1"),
+                    M.Pair(named.named_record, M.Pair(operation_label, M.Pair(operation,
+                        M.Pair(equation, M.Pair(domain, M.EmptyList)))))), M.EmptyList)
+            remaining = UnnamedOperationEquations(
+                operation, M.Tail(equations)(), domain, nodes, operation_label,
+            )
+            skipped = PG.ChainConcat(skipped, remaining.skip_records)()
+            if named() is M.truth_value:
+                result = remaining()
             else:
-                result = M.Pair(equation, rest)
+                result = M.Pair(equation, remaining())
+        self.skip_records = skipped
         super().__init__(
             inputs=M.Pair(operation, M.Pair(equations, M.Pair(domain, M.Pair(nodes, M.EmptyList)))),
             results=result,
@@ -651,6 +668,7 @@ class MineOperationInvariantsAcrossRegister(M.Edge):
         self.registry = registry
         self.known_nodes = known_nodes
         self.stop_after_first = stop_after_first
+        self.skip_records = M.EmptyList
         ops = operation_register
         if M.IdentityCompare(ops, M.EmptyList)() is M.truth_value:
             built = PG.BuildNatOperationRegister(registry)()
@@ -857,9 +875,11 @@ class MineOperationInvariantsAcrossRegister(M.Edge):
         self, op_name, operation_label, equations, variables, domain, reg,
         ops, findings,
     ):
-        equations = UnnamedOperationEquations(
-            op_name, equations, domain, self.known_nodes
-        )()
+        selected = UnnamedOperationEquations(
+            op_name, equations, domain, self.known_nodes, operation_label,
+        )
+        equations = selected()
+        self.skip_records = PG.ChainConcat(self.skip_records, selected.skip_records)()
         if M.IdentityCompare(equations, M.EmptyList)() is M.truth_value:
             return M.Pair(findings, M.Pair(reg, M.EmptyList))
         if M.IdentityCompare(domain, M.EmptyList)() is M.truth_value:
@@ -1070,9 +1090,11 @@ class ProposeNextRegularityOrStructure(M.Edge):
 
     def __init__(self, ops_chain, domain, known_nodes, registry):
         self.registry = registry
-        mined = MineOperationInvariantsAcrossRegister(
+        mining = MineOperationInvariantsAcrossRegister(
             domain, registry, ops_chain, known_nodes, M.truth_value,
-        )()
+        )
+        mined = mining()
+        self.skip_records = mining.skip_records
         findings = M.Head(mined)()
         reg1 = M.Head(M.Tail(mined)())()
         self.result = self._propose(findings, domain, known_nodes, reg1, ops_chain)

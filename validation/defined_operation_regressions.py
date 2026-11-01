@@ -127,7 +127,7 @@ if __name__ == "__main__":
     CheckDefinitionRefused(M.Atom(), M.EmptyList, body, registry)()
     CheckDefinitionRefused(M.Atom(), formals, c, registry)()
     CheckDefinitionRefused(M.Atom(), formals, M.Pair(L.ExprGcdLabel, formals), registry)()
-    CheckDefinitionRefused(M.Atom(), formals, M.Pair(label, formals), registry)()
+    CheckDefinitionRefused(M.Atom(), formals, M.Pair(M.Atom(), formals), registry)()
     CheckDefinitionRefused(M.Atom(), formals, M.Pair(L.ExprPowLabel, formals), registry)()
     CheckDefinitionRefused(M.Atom(), formals, M.Pair(L.ExprAddLabel, M.Pair(a, M.EmptyList)), registry)()
     self_label = M.Atom()

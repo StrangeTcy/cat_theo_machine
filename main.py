@@ -1728,7 +1728,12 @@ def run_live_mode(debug: bool = False, snapshot_path=SNAPSHOT_PATH):
 
     while True:
         try:
-            raw = input("you> ").strip()
+            if M.IdentityCompare(pending_proposal, M.EmptyList)() is M.truth_value:
+                raw = input("you> ").strip()
+            else:
+                from .live_naming import ReadPendingDiscoveryName
+
+                raw = ReadPendingDiscoveryName(pending_proposal)()()
         except (EOFError, KeyboardInterrupt):
             if M.IdentityCompare(LP.LatestLiveProofRequest(M.FromContextGetNodes(runtime.graph)())(), M.EmptyList)() is M.false_value:
                 _save_snapshot_now(runtime, runtime_namespace, snapshot_path)
@@ -1906,61 +1911,8 @@ def run_live_mode(debug: bool = False, snapshot_path=SNAPSHOT_PATH):
                 print("[machine] No active proof derivation in current session. Solve a theorem or goal first.")
         elif cmd.startswith("fact:") or cmd.startswith("rule:") or cmd.startswith("word:"):
             print(f"[machine] Ingested declarative knowledge into hypergraph context: {raw}")
-        elif M.IdentityCompare(pending_proposal, M.EmptyList)() is M.false_value and cmd in ("no", "no thanks", "skip", "cancel", "pass", "none"):
-            pending_proposal = M.EmptyList
-            runtime.graph._pending_discovery = M.EmptyList
-            print("[machine] Understood, leaving the observation unnamed.")
-        elif (
-            cmd.startswith("call this ")
-            or cmd.startswith("yes, call this ")
-            or cmd.startswith("name this ")
-            or cmd.startswith("call it ")
-            or (
-                M.IdentityCompare(pending_proposal, M.EmptyList)() is M.false_value
-                and cmd
-                not in (
-                    "suggest lemmas",
-                    "ground lemma",
-                    "adopt lemma",
-                    "promote lemma",
-                    "promote candidate",
-                    "promote discovered lemma",
-                    "suggest premises",
-                    "show lemmas",
-                    "run self-diagnostics",
-                    "next",
-                    "hint",
-                    "what next",
-                    "check",
-                    "prove it",
-                    "verify",
-                    "why",
-                    "explain",
-                    "ledger",
-                    "show candidates",
-                )
-                and not cmd.startswith(
-                    (
-                        "load pack ",
-                        "prove ",
-                        "solve ",
-                        "what is ",
-                        "define ",
-                        "what do you know about ",
-                        "is it true",
-                        "claim:",
-                        "focus",
-                        "let's work on",
-                        "fact:",
-                        "rule:",
-                        "word:",
-                    )
-                )
-            )
-        ):
-            name_part = _strip_naming_prefix(
-                raw, ("yes, call this ", "call this ", "name this ", "call it ", "yes, ")
-            )
+        elif M.IdentityCompare(pending_proposal, M.EmptyList)() is M.false_value:
+            name_part = raw.removeprefix("call this ")
 
             reg = M.FromContextGetConstructors(runtime.graph)()
             named_payload = M.Head(M.Tail(pending_proposal)())()
@@ -2030,6 +1982,20 @@ def run_live_mode(debug: bool = False, snapshot_path=SNAPSHOT_PATH):
             with open("talk_lessons.log", "a", encoding="utf-8") as f_log:
                 f_log.write(log_line)
             print("[machine] Yes, recorded to talk_lessons.log.")
+            if M.IdentityCompare(proposal_status, Lmod.ObservedRegularityLabel)() is M.truth_value:
+                from .live_structures import RecordObservedStructureBundle
+
+                try:
+                    recorded_bundle = RecordObservedStructureBundle(
+                        runtime.graph, named_payload, domain,
+                        runtime.graph._last_playground_operation_register,
+                    )()
+                    if M.IsPair(M.Head(recorded_bundle)())() is M.truth_value:
+                        print("[machine] Saved finite structure evidence. Use 'show structure' to inspect it.")
+                    else:
+                        print("[machine] The named observation was retained; finite structure replay did not succeed.")
+                except Exception:
+                    print("[machine] The named observation was retained; finite structure replay did not succeed.")
             _save_snapshot_now(runtime, runtime_namespace, snapshot_path)
             print("[machine] Named discovery is available to the next warm playground run.")
             pending_proposal = M.EmptyList
@@ -2100,6 +2066,12 @@ def run_live_mode(debug: bool = False, snapshot_path=SNAPSHOT_PATH):
                 else:
                     reg2 = reg1
                     domain = previous_domain
+                if M.IdentityCompare(ops_chain, M.EmptyList)() is M.truth_value:
+                    built_operations = PG.BuildNatOperationRegister(reg2)()
+                    ops_chain = M.Head(built_operations)()
+                    reg2 = M.Head(M.Tail(built_operations)())()
+                runtime.graph._last_playground_operation_register = ops_chain
+                runtime.graph._last_playground_domain = previous_domain
                 PG.PlaygroundDebugEmit(M.Char(
                     "scanning discovered expression operations over the selected finite domain..."
                 ))()
@@ -2113,10 +2085,6 @@ def run_live_mode(debug: bool = False, snapshot_path=SNAPSHOT_PATH):
                 runtime.graph._replace_context(constructors=reg2)
 
                 if M.IdentityCompare(prop_status, Lmod.ObservedRegularityLabel)() is M.truth_value:
-                    from .live_structures import RecordObservedStructureBundle
-
-                    recorded_bundle = RecordObservedStructureBundle(runtime.graph, prop_rec, previous_domain, ops_chain)()
-                    reg2 = M.Head(M.Tail(recorded_bundle)())()
                     finding = prop_rec
                     finding_body = M.Tail(finding)()
                     op_char = M.Head(finding_body)()
@@ -2137,18 +2105,13 @@ def run_live_mode(debug: bool = False, snapshot_path=SNAPSHOT_PATH):
                         law_char, M.Head(witness_body)(), ops_chain, reg2
                     )()
                     print(f"[machine] Observed: {op_str} satisfies {law_str} on tested domain {domain_str}.")
-                    PG.NaturalPlaygroundDebugEmit(M.Char(
-                        "Proposing the observed regularity: [" + examples
-                        + "]; please provide a name for the property of " + op_str
-                        + "(); the name and tested-domain examples will be stored in talk_lessons.log."
-                    ))()
+                    print("[machine] Supporting examples: " + examples + ".")
                 elif M.IdentityCompare(prop_status, Lmod.AlgebraicTemplateLabel)() is M.truth_value:
                     pending_proposal = M.Pair(
                         prop_status, M.Pair(prop_rec, M.EmptyList)
                     )
                     runtime.graph._pending_discovery = pending_proposal
                     print("[machine] These named observations form a candidate structure template on the tested domain.")
-                    print("[machine] Would you care to give this structure a name?")
                 else:
                     print(PG.RunPlaygroundInteractive(runtime.graph, tutor=_get_tutor())())
         elif M.OrAtom(

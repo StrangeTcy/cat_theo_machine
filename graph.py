@@ -1214,26 +1214,68 @@ class GluedEndpoints(M.Edge):
         )
 
 
-class GluedInsertionEdges(M.Edge):
-    """Build fresh edge terms; an unbound endpoint refuses the insertion."""
+class InsertionEdgePass(M.Edge):
+    """Bind ready edges and retain unresolved edges in their source order."""
 
     def __init__(self, edges, bindings):
         verdict = M.IdentityCompare(edges, M.EmptyList)()
-        result = M.EmptyList
+        pending = M.EmptyList
+        extended = bindings
         if M.IsPair(edges)() is M.truth_value:
             edge = M.Head(edges)()
             if M.IsPair(edge)() is M.truth_value:
-                glued = GluedEndpoints(EdgeEndpoints(edge)(), bindings)()
-                if M.Head(glued)() is M.truth_value:
-                    remaining = GluedInsertionEdges(M.Tail(edges)(), bindings)()
+                if M.Head(MappedHostForPat(bindings, edge)())() is M.false_value:
+                    glued = GluedEndpoints(EdgeEndpoints(edge)(), bindings)()
+                    ready = M.Head(glued)()
+                    if ready is M.truth_value:
+                        fresh = M.Pair(M.Head(edge)(), M.Tail(glued)())
+                        extended = M.Pair(Send(edge, fresh)(), bindings)
+                    remaining = InsertionEdgePass(M.Tail(edges)(), extended)()
                     verdict = M.Head(remaining)()
                     if verdict is M.truth_value:
-                        result = M.Pair(
-                            M.Pair(M.Head(edge)(), M.Tail(glued)()), M.Tail(remaining)(),
-                        )
+                        pending = M.Head(M.Tail(remaining)())()
+                        extended = M.Tail(M.Tail(remaining)())()
+                        if ready is M.false_value:
+                            pending = M.Pair(edge, pending)
         super().__init__(
             inputs=M.Pair(edges, M.Pair(bindings, M.EmptyList)),
-            results=M.Pair(verdict, result),
+            results=M.Pair(verdict, M.Pair(pending, extended)),
+        )
+
+
+class ResolveInsertionEdges(M.Edge):
+    """Repeat a dependency pass only when it added at least one binding."""
+
+    def __init__(self, edges, bindings):
+        result = M.Pair(M.false_value, M.EmptyList)
+        scanned = InsertionEdgePass(edges, bindings)()
+        if M.Head(scanned)() is M.truth_value:
+            pending = M.Head(M.Tail(scanned)())()
+            extended = M.Tail(M.Tail(scanned)())()
+            if pending is M.EmptyList:
+                result = M.Pair(M.truth_value, extended)
+            elif extended is not bindings:
+                result = ResolveInsertionEdges(pending, extended)()
+        super().__init__(
+            inputs=M.Pair(edges, M.Pair(bindings, M.EmptyList)), results=result,
+        )
+
+
+class GluedInsertionEdges(M.Edge):
+    """Build an acyclic insertion, then project fresh edges in R order.
+
+    Intermediate bindings remain local until every dependency resolves. A
+    stalled or malformed remainder refuses the whole insertion.
+    """
+
+    def __init__(self, edges, bindings):
+        result = M.Pair(M.false_value, M.EmptyList)
+        if SurgeryUniqueStore(edges)() is M.truth_value:
+            resolved = ResolveInsertionEdges(edges, bindings)()
+            if M.Head(resolved)() is M.truth_value:
+                result = GluedEndpoints(edges, M.Tail(resolved)())()
+        super().__init__(
+            inputs=M.Pair(edges, M.Pair(bindings, M.EmptyList)), results=result,
         )
 
 

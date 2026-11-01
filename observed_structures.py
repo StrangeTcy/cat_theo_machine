@@ -6,9 +6,9 @@ the exact finite Nat carrier. A bundle supplies neither carrier closure nor
 a universal law, proof authority, theorem transfer, or graph mutation.
 """
 
+from . import defined_operations as DO
 from . import labels as L
 from . import machine as M
-from . import operation_catalog as OC
 from . import playground as PG
 from . import template_matching as TM
 from .math import arithmetic as A
@@ -34,7 +34,8 @@ class ObservedExecutableOperations(M.Edge):
 
     The supplied display names and formatting metadata carry no authority.
     Executable labels, formal arities and positional bodies must agree with
-    the implemented catalog. Result: verdict, canonical entries.
+    the implemented catalog or a revalidated registered definition.
+    Result: verdict, canonical entries.
     """
 
     def __init__(self, operations, registry, seen=M.EmptyList):
@@ -55,8 +56,9 @@ class ObservedExecutableOperations(M.Edge):
             if admitted is M.truth_value:
                 label = M.Head(body)()
                 admitted = M.NotAtom(PG.ChainHasTerm(seen, label)())()
-                admitted = M.AndAtom(admitted, M.Compare(M.Tail(body)(), formals)())()
-                canonical = OC.NatOperationDescription(label)()
+                admitted = M.AndAtom(admitted, DO.DefinedSyntaxIdentity(M.Tail(body)(), formals)())()
+                executable = DO.ExecutableNatOperationDescriptor(label, registry)()
+                canonical = M.Head(executable)()
                 admitted = M.AndAtom(admitted, M.IsPair(canonical)())()
             if admitted is M.truth_value:
                 canonical_formals = M.Head(M.Tail(canonical)())()
@@ -164,18 +166,37 @@ class ObservedArgumentOperations(M.Edge):
         )
 
 
-class ObservedWitnessSubset(M.Edge):
-    """Require each original witness to occur structurally in fresh replay."""
+class ObservedWitnessCursor(M.Edge):
+    """Follow replay order, retaining the full replay for arbitrary subsets."""
 
-    def __init__(self, witnesses, replayed):
+    def __init__(self, witnesses, replayed, cursor):
         verdict = M.false_value
         if M.IdentityCompare(witnesses, M.EmptyList)() is M.truth_value:
             verdict = M.truth_value
         elif M.IsPair(witnesses)() is M.truth_value:
-            if PG.ChainHasTerm(replayed, M.Head(witnesses)())() is M.truth_value:
-                verdict = ObservedWitnessSubset(M.Tail(witnesses)(), replayed)()
+            witness = M.Head(witnesses)()
+            matched = M.false_value
+            remaining = cursor
+            if M.IsPair(cursor)() is M.truth_value:
+                matched = M.Compare(witness, M.Head(cursor)())()
+                if matched is M.truth_value:
+                    remaining = M.Tail(cursor)()
+            if matched is M.false_value:
+                matched = PG.ChainHasTerm(replayed, witness)()
+            if matched is M.truth_value:
+                verdict = ObservedWitnessCursor(M.Tail(witnesses)(), replayed, remaining)()
         super().__init__(
-            inputs=M.Pair(witnesses, M.Pair(replayed, M.EmptyList)), results=verdict,
+            inputs=M.Pair(witnesses, M.Pair(replayed, M.Pair(cursor, M.EmptyList))), results=verdict,
+        )
+
+
+class ObservedWitnessSubset(M.Edge):
+    """Require each source witness in fresh replay, including duplicates."""
+
+    def __init__(self, witnesses, replayed):
+        result = ObservedWitnessCursor(witnesses, replayed, replayed)()
+        super().__init__(
+            inputs=M.Pair(witnesses, M.Pair(replayed, M.EmptyList)), results=result,
         )
 
 

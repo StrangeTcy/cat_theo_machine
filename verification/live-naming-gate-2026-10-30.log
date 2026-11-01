@@ -1,0 +1,7 @@
+PASS the real suggest-lemmas process stops at the name input after displaying its equation and examples
+PASS blank input and an empty naming phrase stay gated with no replay, structure work or next scan
+PASS a bare show-structure command stays gated without naming or command execution
+PASS an explicit naming phrase records the name before finite structure replay
+PASS the playground path also blocks immediately; EOF exits without recording a name or replaying a structure
+PASS existing call-this input scripts still name the playground discovery and resume afterward
+Live naming gate regressions passed.

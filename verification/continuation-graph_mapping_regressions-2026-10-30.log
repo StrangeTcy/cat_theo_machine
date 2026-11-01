@@ -1,0 +1,5 @@
+PASS identity-safe membership, lookup, and injectivity
+PASS graph roles and endpoint extension after edge matching
+PASS retained mixed/all-rejected attempts, inherited history, and repeated-attempt reuse
+PASS forged cached outcomes and malformed mapping evidence are rechecked or refused
+PASS file-backed exploration snapshot and failure reuse after restore
