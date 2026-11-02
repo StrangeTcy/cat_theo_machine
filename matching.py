@@ -82,26 +82,161 @@ class HypergraphIsomorphismMatch(M.Edge):
     """
     Level 2 Matching: Determines if two Hypergraph instances G1 and G2 are isomorphic
     under a consistent bijective renaming of entity carrier nodes across their hyperedges.
+
+    Isomorphism is defined over each graph's *complete* node carrier, not only over
+    the entities its edges happen to mention. A vertex with no incident edge is still
+    a vertex: two graphs whose edge collections agree but whose carriers differ in
+    size are not isomorphic, and a successful match returns a total bijection over the
+    carriers, isolated vertices included.
+
+    The carrier is read as the declared node store together with every entity an edge
+    mentions, deduplicated by the same equality the matcher uses for entities. Both
+    halves are needed: the declared store is what makes a vertex exist at all, while
+    the edge walk keeps fixtures that list edges but no node store comparable, exactly
+    as they were before carriers were considered.
+
+    No literal node identifier is compared anywhere in this edge: a match is a bijection
+    between carriers, so renamed but structurally equivalent graphs stay isomorphic.
+
     inputs: [hypergraph_1, hypergraph_2, registry]
     results: Pair(is_isomorphic, Pair(renaming_map, Pair(registry, EmptyList)))
     """
 
     def __init__(self, g1, g2, registry):
         self.registry = registry
-        self.result = self._match_hypergraphs(g1.edges, g2.edges, M.EmptyList, registry)
+        self.carrier_1 = self._carrier(g1.nodes, g1.edges)
+        self.carrier_2 = self._carrier(g2.nodes, g2.edges)
+        if self._chains_same_length(
+            self.carrier_1, self.carrier_2
+        ) is M.false_value:
+            # Carriers of different cardinality admit no bijection at all, so the
+            # edge search cannot rescue the match. Refuse before paying for it.
+            self.result = self._refuse(registry)
+        else:
+            self.result = self._match_hypergraphs(
+                g1.edges, g2.edges, M.EmptyList, registry
+            )
         super().__init__(
             inputs=M.Pair(g1, M.Pair(g2, M.Pair(registry, M.EmptyList))),
             results=self.result,
         )
 
+    def _refuse(self, reg):
+        return M.Pair(M.false_value, M.Pair(M.EmptyList, M.Pair(reg, M.EmptyList)))
+
+    def _accept(self, mapping, reg):
+        iso_node = M.Pair(L.IsomorphismLabel, M.Pair(mapping, M.EmptyList))
+        return M.Pair(M.truth_value, M.Pair(iso_node, M.Pair(reg, M.EmptyList)))
+
+    def _chains_same_length(self, left, right):
+        """Machine verdict on whether two chains run out together.
+
+        Walked in lockstep rather than counted, so cardinality agreement is a
+        machine term and no host integer carries graph information.
+        """
+        verdict = M.truth_value
+        remaining_left = left
+        remaining_right = right
+        while M.AndAtom(
+            M.IsPair(remaining_left)(), M.IsPair(remaining_right)()
+        )() is M.truth_value:
+            remaining_left = M.Tail(remaining_left)()
+            remaining_right = M.Tail(remaining_right)()
+        if M.OrAtom(
+            M.IsPair(remaining_left)(), M.IsPair(remaining_right)()
+        )() is M.truth_value:
+            verdict = M.false_value
+        return verdict
+
+    def _chain_contains(self, chain, value):
+        while M.IsPair(chain)() is M.truth_value:
+            if M.Compare(M.Head(chain)(), value)() is M.truth_value:
+                return M.truth_value
+            chain = M.Tail(chain)()
+        return M.false_value
+
+    def _store_values(self, store):
+        """Read a node/edge store as a chain, whether bare or Patricia-backed."""
+        if M.IsPair(store)() is M.truth_value:
+            return store
+        if M.IdentityCompare(store, M.EmptyList)() is M.truth_value:
+            return M.EmptyList
+        from .graph import GraphStoreValues
+
+        return GraphStoreValues(store)()
+
+    def _carrier(self, nodes, edges):
+        """The complete vertex carrier: declared nodes, then entities edges mention."""
+        carrier = M.EmptyList
+        remaining = self._store_values(nodes)
+        while M.IsPair(remaining)() is M.truth_value:
+            node = M.Head(remaining)()
+            if self._chain_contains(carrier, node) is M.false_value:
+                carrier = M.Pair(node, carrier)
+            remaining = M.Tail(remaining)()
+        remaining_edges = self._store_values(edges)
+        while M.IsPair(remaining_edges)() is M.truth_value:
+            edge = M.Head(remaining_edges)()
+            if M.IsPair(edge)() is M.truth_value:
+                remaining_args = M.Tail(edge)()
+                while M.IsPair(remaining_args)() is M.truth_value:
+                    argument = M.Head(remaining_args)()
+                    if self._chain_contains(carrier, argument) is M.false_value:
+                        carrier = M.Pair(argument, carrier)
+                    remaining_args = M.Tail(remaining_args)()
+            remaining_edges = M.Tail(remaining_edges)()
+        return carrier
+
+    def _unmapped(self, carrier, mapping, forward):
+        """Carrier vertices with no image (forward) or no preimage (reverse)."""
+        free = M.EmptyList
+        remaining = carrier
+        while M.IsPair(remaining)() is M.truth_value:
+            node = M.Head(remaining)()
+            if forward is M.truth_value:
+                found = self._lookup_forward(node, mapping)
+            else:
+                found = self._lookup_reverse(node, mapping)
+            if M.IdentityCompare(found, M.EmptyList)() is M.truth_value:
+                free = M.Pair(node, free)
+            remaining = M.Tail(remaining)()
+        return free
+
+    def _complete_mapping(self, mapping, reg):
+        """Extend an edge-consistent injection to a total bijection on the carriers.
+
+        Everything the edges constrain is already bound here. What remains on each
+        side are exactly the vertices no edge reached -- isolated vertices, and nodes
+        the store declares that no edge uses. Pairing them in carrier order keeps the
+        extension deterministic without consulting a single node identifier.
+        """
+        free_sources = self._unmapped(self.carrier_1, mapping, M.truth_value)
+        free_targets = self._unmapped(self.carrier_2, mapping, M.false_value)
+        if self._chains_same_length(
+            free_sources, free_targets
+        ) is M.false_value:
+            return self._refuse(reg)
+        extended = mapping
+        remaining_sources = free_sources
+        remaining_targets = free_targets
+        while M.IsPair(remaining_sources)() is M.truth_value:
+            extended = M.Pair(
+                M.Pair(M.Head(remaining_sources)(), M.Head(remaining_targets)()),
+                extended,
+            )
+            remaining_sources = M.Tail(remaining_sources)()
+            remaining_targets = M.Tail(remaining_targets)()
+        return self._accept(extended, reg)
+
     def _match_hypergraphs(self, remaining_e1, pool_e2, mapping, reg):
         # Base case: All edges in G1 matched
         if M.IdentityCompare(remaining_e1, M.EmptyList)() is M.truth_value:
-            # G2 must also have no unmatched edges left (bijective edge count)
+            # G2 must also have no unmatched edges left (bijective edge count).
             if M.IdentityCompare(pool_e2, M.EmptyList)() is M.truth_value:
-                iso_node = M.Pair(L.IsomorphismLabel, M.Pair(mapping, M.EmptyList))
-                return M.Pair(M.truth_value, M.Pair(iso_node, M.Pair(reg, M.EmptyList)))
-            return M.Pair(M.false_value, M.Pair(M.EmptyList, M.Pair(reg, M.EmptyList)))
+                # The edges are settled, but the graphs are only isomorphic if the
+                # whole carriers can still be put in bijection.
+                return self._complete_mapping(mapping, reg)
+            return self._refuse(reg)
 
         target_e1 = M.Head(remaining_e1)()
         rest_e1 = M.Tail(remaining_e1)()

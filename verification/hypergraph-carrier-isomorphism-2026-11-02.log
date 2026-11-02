@@ -1,0 +1,80 @@
+======================================================================
+Hypergraph isomorphism over the complete node carrier
+Run date: 2026-11-02 (Europe/Moscow)
+Branch:   arena/e32bd1c7-cat-theo-machine
+Base:     b3be7e7d3d46b3ed4f713981a32311aa9140edbb
+Interpreter: /usr/bin/python (Python 3.11.2), no conda
+
+Remote tip recorded before work (git ls-remote origin):
+  b3be7e7d3d46b3ed4f713981a32311aa9140edbb  refs/heads/arena/f42b3f12-cat-theo-machine
+======================================================================
+
+## 1. Extended regression against the patched matcher
+$ python -u cat_theo_machine/validation/test17_hypergraph_matching.py
+=== TEST 17: Hypergraph Matching Hierarchy & Cross-Domain Bridges ===
+
+[1] Initializing hypergraph runtime and registry...
+    Runtime and registry initialized.
+
+[2] Test Case 1: Level 2 Isomorphism Matching (G1 ≅ G2)...
+    Level 2 Isomorphism verified across reversed edge ordering: G1 ≅ G2 (Passed)
+
+[3] Test Case 2: Carrier-complete matching (isolated vertices included)...
+    [a] carriers of different cardinality are never isomorphic
+        same single edge, 2 vertices against 3: refused (Passed)
+        same two edges, 2 vertices against 4: refused (Passed)
+        edge-free, 1 vertex against 2: refused (Passed)
+    [b] edge-free graphs of equal size are isomorphic, with a complete map
+        edge-free, 1 vertex each: isomorphic, the vertex is bound (Passed)
+        edge-free, 2 vertices each: isomorphic, both bound (Passed)
+    [c] connected and isolated vertices are both carried
+        one edge plus one isolated vertex: isomorphic, 3 vertices bound (Passed)
+        one edge plus two isolated vertices: isomorphic, 4 bound (Passed)
+    [d] the established rejections keep their verdicts
+        an edge on one side only, equal carriers: refused (Passed)
+        different relation label: refused (Passed)
+        different arity on equal carriers: refused (Passed)
+        two sources onto one target, equal carriers: refused (Passed)
+        repeated entity on equal carriers: refused (Passed)
+        edge multiplicity, doubled against single: refused (Passed)
+    [e] renamed entities and reversed edge order still match
+        two identical edges on both sides: isomorphic (Passed)
+        renamed entities, reversed edges, one isolated vertex: isomorphic (Passed)
+        existing Test 17 fixture (edges only): renaming binds both (Passed)
+
+[4] Test Case 3: Level 4 Shared Structural Invariant Bridging...
+    Level 4 Shared Invariant Bridge verified: E -> rho <- f (Passed)
+
+=== ALL TEST 17 HYPERGRAPH MATCHING CHECKS PASSED in 8.673s ===
+exit status: 0
+
+## 2. The same regression against the pre-patch matcher (HEAD copy of matching.py)
+Worktree at b3be7e7, new test17 copied in, matching.py taken from git show HEAD:matching.py.
+exit status: 1 (expected: the defect is caught)
+
+[3] Test Case 2: Carrier-complete matching (isolated vertices included)...
+    [a] carriers of different cardinality are never isomorphic
+Traceback (most recent call last):
+  File "/tmp/iso/oldpkg/cat_theo_machine/validation/test17_hypergraph_matching.py", line 191, in <module>
+    assert M.Head(carrier_res)() is M.false_value, (
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: A single identical edge over 2 vertices must not match a 3-vertex carrier
+
+## 3. Directly affected graph regressions (unchanged code paths)
+$ python -u cat_theo_machine/validation/graph_mapping_regressions.py
+PASS retained mixed/all-rejected attempts, inherited history, and repeated-attempt reuse
+PASS forged cached outcomes and malformed mapping evidence are rechecked or refused
+PASS file-backed exploration snapshot and failure reuse after restore
+
+$ python -u cat_theo_machine/validation/graph_edge_dependencies_regressions.py
+PASS new-edge dependencies preserve K edge identity and the host snapshot
+PASS duplicate, malformed, and prebound insertion sources are refused
+Graph edge dependency regressions passed.
+
+$ python -u cat_theo_machine/validation/graph_surgery_regressions.py
+PASS: deletion closes over dependent edges and unproved obligations cannot fire
+PASS: malformed stores and interface incidence cannot authorize surgery
+Graph surgery regressions passed.
+
+Note: the three suites above import the historical package name 'hyge'; they were
+run through an import-path alias supplied by PYTHONPATH, with no repository edit.
