@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Machine hypergraph observer</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="identity">
+      <h1>Machine hypergraph observer</h1>
+      <div class="subline">
+        <span id="modeBadge" class="badge badge-live">live</span>
+        <span id="sourceText" class="muted">connecting…</span>
+      </div>
+    </div>
+    <div class="toolbar">
+      <input id="searchInput" class="search" type="search" placeholder="filter by id, label, relation, kind" autocomplete="off">
+      <span id="matchText" class="muted small"></span>
+      <span class="divider"></span>
+      <button id="fitButton" type="button" title="Fit graph to view (F)">Fit</button>
+      <button id="resetButton" type="button" title="Reset view and layout (R)">Reset</button>
+      <button id="zoomInButton" type="button" title="Zoom in (+)">+</button>
+      <button id="zoomOutButton" type="button" title="Zoom out (−)">−</button>
+      <span class="divider"></span>
+      <button id="recordButton" type="button" class="record" title="Start or stop recording this stream">● Record</button>
+      <button id="liveButton" type="button" title="Return to the live stream">Live</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="canvas-pane">
+      <svg id="canvas" role="img" aria-label="Machine hypergraph"></svg>
+      <div id="banner" class="banner" hidden></div>
+      <div id="legend" class="legend">
+        <div class="legend-title">Legend</div>
+        <div class="legend-row"><span class="swatch node"></span>declared node</div>
+        <div class="legend-row"><span class="swatch term"></span>edge argument term</div>
+        <div class="legend-row"><span class="swatch hyperedge"></span>hyperedge (n-ary)</div>
+        <div class="legend-row"><span class="swatch rule"></span>rule (premises → result)</div>
+        <div class="legend-row"><span class="line-swatch"></span>argument incidence, numbered by position</div>
+        <div class="legend-stats" id="legendStats"></div>
+      </div>
+    </section>
+
+    <aside class="side-pane">
+      <nav class="tabs" id="tabs">
+        <button type="button" class="tab active" data-tab="details">Details</button>
+        <button type="button" class="tab" data-tab="sessions">Recordings</button>
+        <button type="button" class="tab" data-tab="status">Status</button>
+        <button type="button" class="tab" data-tab="help">Help</button>
+      </nav>
+
+      <section class="tab-panel active" data-panel="details">
+        <div id="detailsBody" class="details">
+          <p class="muted">Select a node or a hyperedge in the graph.</p>
+        </div>
+        <div class="filter-row">
+          <span class="muted small">show kinds</span>
+          <label><input type="checkbox" class="kindFilter" value="node" checked> node</label>
+          <label><input type="checkbox" class="kindFilter" value="term" checked> term</label>
+          <label><input type="checkbox" class="kindFilter" value="hyperedge" checked> hyperedge</label>
+          <label><input type="checkbox" class="kindFilter" value="rule" checked> rule</label>
+        </div>
+        <div class="export-row">
+          <button id="exportStateButton" type="button">Export state JSON</button>
+          <button id="exportSvgButton" type="button">Export view SVG</button>
+        </div>
+      </section>
+
+      <section class="tab-panel" data-panel="sessions">
+        <div class="record-controls">
+          <input id="sessionName" type="text" placeholder="session name (optional)">
+          <div class="record-status" id="recordStatus">not recording</div>
+        </div>
+        <div class="section-header"><h2>Recorded sessions</h2><button id="refreshSessions" type="button">Refresh</button></div>
+        <div id="sessionList" class="session-list"></div>
+      </section>
+
+      <section class="tab-panel" data-panel="status">
+        <div id="statusBody" class="status-body"></div>
+      </section>
+
+      <section class="tab-panel" data-panel="help">
+        <div class="help">
+          <p><strong>The viewer never runs the Machine.</strong> A Machine script opts in to
+             observation; this page reads the journal it writes.</p>
+          <pre>python -m cat_theo_machine.visualiser.server --port 8801</pre>
+          <pre>python -m cat_theo_machine.visualiser.examples.machine_workload --delay 0.6</pre>
+          <p>Wheel = zoom, drag = pan, click = inspect. <kbd>F</kbd> fits, <kbd>R</kbd> resets.</p>
+          <p>Recording copies the observed stream into
+             <code>visualiser/sessions/</code>; playback reads that file and touches
+             nothing else.</p>
+        </div>
+      </section>
+    </aside>
+  </main>
+
+  <footer class="timeline" id="timeline" hidden>
+    <button id="playButton" type="button" title="Play / pause (space)">▶</button>
+    <button id="stepBackButton" type="button" title="Step back (←)">◀|</button>
+    <button id="stepForwardButton" type="button" title="Step forward (→)">|▶</button>
+    <input id="seekSlider" type="range" min="0" max="0" value="0" step="1">
+    <span id="timeText" class="muted small">0 / 0</span>
+    <label class="speed">speed
+      <select id="speedSelect">
+        <option value="0.25">0.25×</option>
+        <option value="0.5">0.5×</option>
+        <option value="1" selected>1×</option>
+        <option value="2">2×</option>
+        <option value="4">4×</option>
+        <option value="8">8×</option>
+      </select>
+    </label>
+    <span id="replayTitle" class="muted small"></span>
+  </footer>
+
+  <script src="/vendor/d3.min.js"></script>
+  <script src="/model.js"></script>
+  <script src="/app.js"></script>
+</body>
+</html>

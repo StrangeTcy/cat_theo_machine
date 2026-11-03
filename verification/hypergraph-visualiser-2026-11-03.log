@@ -1,0 +1,178 @@
+======================================================================
+Hypergraph visualiser — passive observation, recording and replay
+Run date: 2026-11-03 (Europe/Moscow), branch arena/e32bd1c7-cat-theo-machine
+HEAD before this work: b2cddfba06764fadc90c3fa58cf1e29f345c56d8
+Remote tips recorded before the work (git ls-remote origin):
+  b2cddfba06764fadc90c3fa58cf1e29f345c56d8  refs/heads/arena/e32bd1c7-cat-theo-machine
+  b3be7e7d3d46b3ed4f713981a32311aa9140edbb  refs/heads/arena/f42b3f12-cat-theo-machine
+Interpreter: /usr/bin/python (Python 3.11.2), no conda.  Node: v22.22.3
+======================================================================
+
+## 1. The pre-existing visualiser, measured
+
+Files: inspector/index.html (2420 B), inspector.css (3574 B), inspector.js (9555 B),
+served by `python main.py inspect` (the `inspector/` directory is untouched by
+this work).
+
+`python main.py inspect --cold-inspector --no-browser --port 8799` booted about
+60 s and returned 4155 bytes of JSON:
+
+  counts: {'nodes': 0, 'edges': 0, 'rules': 217, 'derivations': 0,
+           'search_history': 0, 'search_comparisons': 0, 'search_jobs': 0}
+  cytoscape elements: 15 nodes, 10 edges
+  node kinds: ['rule_hyperedge', 'term']; edge kinds: ['rule_incidence_in', 'rule_incidence_out']
+
+The graph pane can only show rule edges, because the packs load rules and no
+carrier content. The cause is in MachineRuntime.cytoscape_view, which calls
+M.EdgeInputs(edge) on every graph edge; a canonical hyperedge is a Pair. Repro
+against the public API (fresh runtime, two nodes, one Pair hyperedge):
+
+  $ python -u -  (add_node x2, add_edge(Pair(Linked, hub, spoke)), cytoscape_view())
+  cytoscape_view raised: AttributeError: 'Pair' object has no attribute 'inputs'
+
+Further gaps read off inspector.js: Cytoscape is loaded from https://unpkg.com,
+every refresh calls cy.destroy() and rebuilds the whole graph, there is no
+recording/timeline/replay, and the viewer boots its own runtime, so it shows a
+copy rather than a running Machine.
+
+## 2. Test 48 with jsdom available (every section executed)
+
+$ NODE_PATH=<jsdom> PYTHONPATH=/home/user python -u validation/test48_hypergraph_visualiser.py
+
+=== TEST 48: Passive hypergraph visualiser ===
+
+[1] The observer cannot execute the Machine
+    server imports no kernel module (only stdlib and its own package)
+    server.py has no kernel import and no process-launch call (Passed)
+
+[2] Browser model checks under node (fixture events, no Machine)
+    28 model checks passed (fixture stream)
+
+[3] Server-side state and session store round-trip
+    checkpoint rebuilds state, store round-trips, delete is idempotent (Passed)
+
+[4] A separately started Machine process is observed live
+    server up on http://127.0.0.1:32949, journal empty, waiting for a Machine run
+    received 24 item events over the stream, 24 of them before the script exited
+    carriers 13 vertices, 11 hyperedges, arities {"0": 1, "2": 9, "3": 1}
+    ternary arguments keep position order; nullary edge kept; computed nat kept as a term
+
+[5] Recording a live observed run
+    25 rules recorded with readable premise/replacement labels
+    saved 20 events (2 checkpoint) over 20.295s to test48-20261103-130812.json
+
+[6] Replay is independent, deterministic and non-mutating
+    39 model checks run on the recorded file; journal and session bytes unchanged
+    no Machine process alive during replay (both workload runs exited)
+
+[7] Browser DOM checks (jsdom, if available)
+    34 DOM checks passed (render, select, filter, zoom, replay)
+
+[8] Teardown
+    server stopped, temporary work directory /tmp/ctm-visualiser-test48-3419
+
+=== ALL TEST 48 VISUALISER CHECKS PASSED in 45.433s ===
+
+## 3. Test 48 with no jsdom on the module path (the DOM section reports SKIPPED)
+
+$ PYTHONPATH=/home/user python -u validation/test48_hypergraph_visualiser.py
+
+=== TEST 48: Passive hypergraph visualiser ===
+
+[1] The observer cannot execute the Machine
+    server imports no kernel module (only stdlib and its own package)
+    server.py has no kernel import and no process-launch call (Passed)
+
+[2] Browser model checks under node (fixture events, no Machine)
+    28 model checks passed (fixture stream)
+
+[3] Server-side state and session store round-trip
+    checkpoint rebuilds state, store round-trips, delete is idempotent (Passed)
+
+[4] A separately started Machine process is observed live
+    server up on http://127.0.0.1:39953, journal empty, waiting for a Machine run
+    received 24 item events over the stream, 23 of them before the script exited
+    carriers 13 vertices, 11 hyperedges, arities {"0": 1, "2": 9, "3": 1}
+    ternary arguments keep position order; nullary edge kept; computed nat kept as a term
+
+[5] Recording a live observed run
+    25 rules recorded with readable premise/replacement labels
+    saved 20 events (2 checkpoint) over 21.026s to test48-20261103-130859.json
+
+[6] Replay is independent, deterministic and non-mutating
+    39 model checks run on the recorded file; journal and session bytes unchanged
+    no Machine process alive during replay (both workload runs exited)
+
+[7] Browser DOM checks (jsdom, if available)
+    SKIPPED: jsdom is not installed for this interpreter
+    reproduce with: npm install --prefix /tmp/visdom jsdom && \
+      NODE_PATH=/tmp/visdom/node_modules node visualiser/tests/dom_check.js
+
+[8] Teardown
+    server stopped, temporary work directory /tmp/ctm-visualiser-test48-3496
+
+=== ALL TEST 48 VISUALISER CHECKS PASSED in 35.082s ===
+
+## 4. The matching suite is unaffected
+
+$ PYTHONPATH=/home/user python -u validation/test17_hypergraph_matching.py
+=== ALL TEST 17 HYPERGRAPH MATCHING CHECKS PASSED in 9.445s ===
+
+## 5. Manual run, as a user does it
+
+$ PYTHONPATH=/home/user python -m cat_theo_machine.visualiser.server --port 8801
+$ PYTHONPATH=/home/user python -m cat_theo_machine.visualiser.examples.machine_workload --delay 0.4 --rounds 2 --packs
+
+GET /api/state after that run, fetched from the same server:
+
+  nodes 9  {"node": 7, "term": 2}
+  edges 32 {"rule": 25, "hyperedge": 7}
+  hyperedge arities {0: 1, 2: 5, 3: 1}
+  counts {"nodes": 8, "edges": 32, "rule_total": 25, "derivations": 0,
+          "search_history": 0, "search_jobs": 0}
+  longest rule label 172 characters, rendered by proof.PrettyRule, e.g.
+    "0  ->  NonNegative(0)"
+
+DOM checks against that same live server (jsdom, VIS_BASE=http://127.0.0.1:8801):
+
+  graph renders elements 90
+  kinds {"node": 7, "term": 51, "rule": 25, "hyperedge": 7}
+  incidence links exist 72
+  legend: "shown 90 of 90 / nodes 7 · terms 51 / hyperedges 7 · rules 25 /
+           0-ary:1 2-ary:5 3-ary:1 / 1-premise:25"
+  labels compensate for zoom: 22px at 0.48x = 10.5px on screen
+  34 checks, 0 failed, 0 script errors
+
+## 6. Recording and replay of a rule-bearing run
+
+$ curl -s -X POST http://127.0.0.1:8801/api/recording/start -d '{"name":"rules-demo"}'
+  {"active": true, "id": "rules-demo-20261103-130247", "checkpoint_events": 2}
+$ PYTHONPATH=/home/user python -m cat_theo_machine.visualiser.examples.machine_workload --delay 0.4 --rounds 2 --packs
+$ curl -s -X POST http://127.0.0.1:8801/api/recording/stop
+  {"active": false, "events": 24, "path": ".../sessions/rules-demo-20261103-130247.json"}
+$ node visualiser/tests/model_check.js visualiser/sessions/rules-demo-20261103-130247.json
+  ok true, 39 checks (2026-11-03, after the arity histogram was restricted to
+  hyperedges so rule premises are not read as graph arity), including
+    recorded session keeps n-ary edges {"0":1,"2":5,"3":1}   (hyperedges only)
+    recorded rule labels are readable terms, not host reprs   25 rules
+    recorded rules keep premises and a replacement             25 rules
+    every seek prefix applies exactly its events
+    resuming from a seek reaches the full state
+    recorded timestamps never go backwards
+
+## 7. Boundary evidence
+
+$ PYTHONPATH=/home/user python -c "import cat_theo_machine.visualiser.server"
+  modules loaded from the kernel package: none
+  (test 48 section [1] asserts this, plus the absence of any process-launch call
+   in server.py)
+
+## 8. Reproducing by hand
+
+$ PYTHONPATH=/home/user python -m cat_theo_machine.visualiser.server --port 8801
+$ PYTHONPATH=/home/user python -m cat_theo_machine.visualiser.examples.machine_workload --delay 0.6
+
+The first serves http://127.0.0.1:8801/; the second is an ordinary Machine
+script started in another terminal. Record, stop the script, then Replay reads
+the session file with no Machine process alive.
+======================================================================

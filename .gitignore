@@ -11,3 +11,7 @@ logs/*.log
 
 # Scratch directories a snapshot restore leaves behind if its process is killed mid-boot
 hyge-*-restore-*/
+
+# Visualiser runtime artifacts: journals are per-run, recordings are user data
+visualiser/run/
+visualiser/sessions/*.json
