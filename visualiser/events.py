@@ -159,11 +159,18 @@ class GraphDigest:
         return self.graph.edges
 
     def _rules_chain(self):
+        # The runtime's compiled rule order is the fast read, but it only knows
+        # about rules added through the runtime. A pack loaded straight into the
+        # graph (which is what `main.py live` does) shows up in the graph's own
+        # rule order and not in the runtime's list, so an empty runtime chain
+        # falls back to the graph instead of hiding those rules.
         if self.runtime is not None:
             try:
-                return self.runtime.ordered_rules()
+                chain = self.runtime.ordered_rules()
             except Exception:
-                pass
+                chain = None
+            if chain is not None and M.IsPair(chain)() is M.truth_value:
+                return chain
         try:
             return M.FromContextGetRuleOrder(self.graph)()
         except Exception:

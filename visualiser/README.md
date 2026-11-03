@@ -80,6 +80,49 @@ Run the viewer from `/home/user` (as above), not from inside the package
 directory: the repository root has a `hyge.py` stub that shadows the package
 alias.
 
+### Watching the interactive live machine
+
+`main.py live` is a text REPL, not the viewer. It journals nothing by default;
+`--observe` adds the same read-only tap `observe()` installs, in the same
+process, and the viewer in terminal 1 follows it:
+
+```bash
+cd /home/user
+PYTHONPATH=/home/user python cat_theo_machine/main.py live \
+    --live-snapshot /tmp/live-check.json --observe
+```
+
+`--live-snapshot` is not needed for the flag; it is there because the default
+snapshot in this repository carries live-proof bundles and is expensive to read
+(see the last known limitation). Pointing it at a fresh path gives the graph
+below, and the file is written on `quit` like any other live session.
+
+```
+[machine] Starting a fresh live graph; no compatible named-law snapshot was restored.
+[machine] Observing to /home/user/cat_theo_machine/visualiser/run/observed.jsonl
+you> load pack arithmetic
+[machine] loaded pack arithmetic (12 rules); the tutor now reads it too
+you> quit
+[machine] goodbye
+```
+
+Everything typed at `you>` behaves exactly as it does without the flag: same
+output, same snapshot on exit, no extra prompt, no HTTP port, and the viewer is
+never consulted. `--observe` only appends to the journal, and on `quit` the
+journal closes with `session.stop` (`reason: process exited`), so the badge goes
+`offline` and the graph stays on screen for replay.
+
+A pack loaded this way lands in the graph's own rule order rather than the
+runtime's compiled list, and the digest reads the graph order when the compiled
+list is empty, so the 12 arithmetic rules appear as edges while the session runs.
+
+`--observe-journal PATH` writes somewhere other than
+`visualiser/run/observed.jsonl` — useful for keeping one journal per session.
+Point the viewer at it with `--journal PATH`.
+
+Without `--observe`, live mode writes no journal at all (measured: the file is
+not created), so the viewer shows whatever its own journal last held.
+
 ### Connecting the tap to your own script
 
 Any script that holds a runtime or a hypergraph can be observed. Add the import
@@ -367,6 +410,17 @@ D3 7.9.1 is vendored at `web/vendor/d3.min.js` (ISC, see
   and a name is dropped rather than overlapped. About 85% of names are placed at
   a fitted 100-element graph; the rest appear as soon as the view is zoomed or
   filtered.
+* **A graph carrying live-proof bundles is too heavy to digest.** Every node is
+  rendered with `PrettyTerm` to give it a stable text id, and one
+  `live-proof-outcome`/`observed-structure-bundle` node of a 6.2 MB restored
+  snapshot takes 19-20 s to render, and a full poll of that graph does not
+  finish in five minutes. Measured: the same snapshot boots and quits in 30 s
+  without the flag; with it, the journal held only `session.start` 240 s in and
+  the process had to be killed after a `quit` that was not honoured. Use
+  `--live-snapshot` at a fresh path, or a small snapshot, for interactive
+  observation. Ordinary sessions (packs, facts, rules, goals) poll in
+  milliseconds. A cost-aware label budget is not implemented; it needs care,
+  because ids are derived from the rendered text and must stay stable.
 * **No production caller.** `HypergraphIsomorphismMatch` and the search stack do
   not write to `graph.nodes`/`graph.edges`; the hypergraph content is whatever
   the script puts there. The viewer is faithful to that, not to a "run" that the

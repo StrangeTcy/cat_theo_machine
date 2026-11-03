@@ -1,0 +1,167 @@
+======================================================================
+Machine Visualiser — observing `main.py live` itself
+Date: 2026-11-03 (Europe/Moscow)
+Branch: arena/e32bd1c7-cat-theo-machine
+Remote tip before this change (git ls-remote):
+  1799c97054e4018d185570e9d6b58c073c7c0ead
+======================================================================
+
+## 0. Workspace reconciliation (no content was lost)
+
+The assigned worktree had been checked out at b3be7e7 while the remote branch
+was at 1799c97. Every path of 1799c97 was hashed against the files on disk:
+
+  $ git ls-tree -r -z 1799c97 | (hash-object each path and compare)
+  total tracked at 1799c97: 680
+  missing on disk: 0
+  content differs: 2  ['main.py', 'visualiser/events.py']
+
+Those two files are exactly the edits made in this session (--observe in
+main.py, the rule-order fallback in visualiser/events.py), saved to /tmp,
+restored after the branch ref was moved forward. The two untracked audit
+documents verification/playground-and-matching-audit-2026-11-01.md and
+verification/playground-finding-ledger-2026-11-01.txt were left untracked.
+
+## 1. What was added
+
+main.py, run_live_mode(): after the graph is restored (or reset) and before the
+`you> ` loop, when --observe is given:
+
+  from .visualiser.tap import observe as start_observation
+  observer = start_observation(runtime, journal_path=observe_journal,
+                               interval=0.2, source_note="main.py live")
+  print("[machine] Observing to " + observer.journal_path, flush=True)
+
+The import is inside the branch, so a normal live session never loads the
+visualiser package. Two flags were added to the parser:
+
+  $ PYTHONPATH=/home/user python cat_theo_machine/main.py live --help
+    --observe             For live mode, also write the graph changes to the
+                          visualiser's observation journal.
+    --observe-journal OBSERVE_JOURNAL
+                          Journal file for --observe (default: the visualiser's
+                          run/observed.jsonl).
+
+visualiser/events.py, GraphDigest._rules_chain(): the runtime's compiled rule
+list is used when it is a pair; when it is not (live mode loads packs straight
+into the graph through PackLoader, which never fills the runtime's compiled
+list) the graph's own rule order is read instead. Measured on the live path:
+
+  PackLoader.load_pack_file(path, runtime.graph)
+    runtime.ordered_rules()            -> not a pair (empty)
+    M.FromContextGetRuleOrder(graph)() -> 12 rules
+  GraphDigest(...).read()              -> 12 rule edges, counts.rule_total 12
+
+The same fallback also covers a restored graph on which the compiled list
+raises AttributeError ('Atom' object has no attribute 'inputs'); see section 5.
+
+## 2. A real live session, observed (this is the acceptance run)
+
+Terminal 1 (viewer, left running):
+  $ cd /home/user
+  $ PYTHONPATH=/home/user python -m cat_theo_machine.visualiser.server --port 8801
+
+Terminal 2 (the Machine, launched independently, fresh graph):
+  $ cd /home/user
+  $ PYTHONPATH=/home/user python cat_theo_machine/main.py live \
+        --live-snapshot /tmp/final-live.json --observe
+
+Transcript (unbuffered, verbatim):
+
+  [machine] Starting a fresh live graph; no compatible named-law snapshot was restored.
+  [machine] Observing to /home/user/cat_theo_machine/visualiser/run/observed.jsonl
+  you> Reading pack arithmetic...
+  Reading pack arithmetic, done in 0.35s
+  [machine] loaded pack arithmetic (12 rules); the tutor now reads it too
+  you> [machine] goodbye
+  exit code: 0
+
+Journal written by that session (6 records, whole file):
+
+  seq 0  session.start   (source.note "main.py live", machine.pid 2898)
+  seq 1  counts
+  seq 2  nodes.added
+  seq 3  edges.added
+  seq 4  counts
+  seq 5  session.stop    reason "process exited"
+
+Viewer state after the Machine process exited (GET /api/status):
+
+  nodes 28, edges 12, counts.rule_total 12, applied 6, last_seq 5,
+  stopped "process exited", machine pid 2898, resets 1
+
+A second, longer run in the same setup (load pack arithmetic, show goal,
+suggest lemmas) produced 23 journal records and was seen live by the viewer:
+
+  while the process was running: 16 events seen, 28 items, 12 edges, 12 rules
+
+So the viewer holds genuine events while the REPL is open, the graph changes
+while the user types, and the recording closes with the process.
+
+## 3. Without --observe nothing is written
+
+  $ python cat_theo_machine/main.py live --live-snapshot /tmp/fresh3.json   (quit)
+  exit 0 in 14.0 s
+  stdout: ['[machine] Starting a fresh live graph; ...', 'you> [machine] goodbye']
+  journal exists: False
+
+Live mode behaves exactly as before; the flag is the only difference.
+
+## 4. The observed process stays in charge
+
+The tap runs as a daemon thread that only reads graph.nodes, graph.edges and
+the rule order through public accessors. No HTTP request is made from the
+Machine, no port is opened (live mode still has no inspector port; --port is
+inspect-only, default 8765), and the viewer keeps working after the Machine
+exits because it only follows the journal file.
+
+## 5. Known limitation, measured: a graph full of live-proof bundles
+
+The default live snapshot here is 6.2 MB and carries `live-proof-*` and
+`observed-structure-*` bundle nodes. The digest gives every node a stable id
+taken from PrettyTerm, and those bundle terms are expensive to render.
+
+  restored graph: 10 nodes, 0 edges, 132 rules in the graph rule order
+  PrettyTerm per node: 18.9s, >20s, 0.8s, >20s, 6.3s, 0.8s, 0.7s, 7.1s, 0.9s, 0.7s
+  GraphDigest(...).read(): did not finish within 300 s
+
+  same snapshot, no --observe : boots and quits in 30.2 s (exit 0)
+  same snapshot, --observe    : journal still holds only session.start after
+                                240 s; the `quit` sent at t=120 s was not
+                                honoured within the next 120 s; killed by hand
+
+The cause of the slow poll is the text rendering above; the shutdown behaviour
+was not isolated further. Ordinary sessions (packs, facts, rules, goals) poll in
+milliseconds — the run in section 2 was interactive throughout. Documented in
+visualiser/README.md under Known limitations. No label budget was added: ids
+are derived from the rendered text, so a partial render would either move ids
+or emit false items.removed records.
+
+## 6. Tests run in this workspace (re-cloned sandbox)
+
+  $ PYTHONPATH=/home/user python -m cat_theo_machine.validation.test49_visualiser_churn
+    === ALL TEST 49 CHURN CHECKS PASSED ===            54.6 s
+  $ NODE_PATH=/tmp/jsdomtest/node_modules PYTHONPATH=/home/user \
+        python -m cat_theo_machine.validation.test48_hypergraph_visualiser
+    === ALL TEST 48 VISUALISER CHECKS PASSED in 99.545s ===   99.5 s
+      39 model checks, 56 DOM checks (jsdom), replay non-mutating
+  $ PYTHONPATH=/home/user python -m cat_theo_machine.validation.test17_hypergraph_matching
+    === ALL TEST 17 HYPERGRAPH MATCHING CHECKS PASSED in 33.635s ===
+  $ node cat_theo_machine/visualiser/tests/model_check.js
+    "failed": 0
+
+jsdom had to be reinstalled into /tmp/jsdomtest (npm registry only, nothing
+added to the repository or to requirements) because this sandbox was re-cloned
+and /tmp was empty. No JS file changed in this round; the DOM checks are the
+round-2 ones.
+
+## 7. Files changed in this round
+
+  main.py                                        --observe, --observe-journal
+  visualiser/events.py                           graph rule-order fallback
+  visualiser/README.md                           "Watching the interactive live machine",
+                                                 new Known-limitations entry
+  verification/visualiser-live-observe-2026-11-03.log   this file
+
+No core.py change, no new dependency, no orchestration mechanism: the user
+starts both processes.

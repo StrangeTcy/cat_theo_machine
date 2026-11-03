@@ -1611,7 +1611,7 @@ def _strip_naming_prefix(text, prefixes):
     return _strip_naming_prefix(text, prefixes[1:])
 
 
-def run_live_mode(debug: bool = False, snapshot_path=SNAPSHOT_PATH):
+def run_live_mode(debug: bool = False, snapshot_path=SNAPSHOT_PATH, observe_enabled: bool = False, observe_journal=None):
     if debug:
         P.SetDebugTrace(M.truth_value)()
     else:
@@ -1633,6 +1633,23 @@ def run_live_mode(debug: bool = False, snapshot_path=SNAPSHOT_PATH):
     runtime.graph._last_playground_domain = M.EmptyList
     runtime.graph._last_playground_goal = M.EmptyList
     runtime.graph._pending_discovery = M.EmptyList
+    observer = None
+    if observe_enabled:
+        # Opt-in, and only inside this process. The viewer is a separate
+        # read-only process that follows the journal this writes; the tap reads
+        # the graph through the public accessors and never calls anything that
+        # changes it. Imported here so a normal live session does not load the
+        # visualiser package at all.
+        from .visualiser.tap import observe as start_observation
+
+        observer = start_observation(
+            runtime,
+            journal_path=observe_journal,
+            interval=0.2,
+            source_note="main.py live",
+        )
+        print("[machine] Observing to " + observer.journal_path, flush=True)
+
     restored_request = LP.LatestLiveProofRequest(M.FromContextGetNodes(runtime.graph)())()
     if M.IdentityCompare(restored_request, M.EmptyList)() is M.false_value:
         runtime.graph._active_unproved_goal = LP.LiveProofRequestText(restored_request)()()
@@ -2448,6 +2465,16 @@ def main():
     parser.add_argument("arg2", nargs="?", default=None)
     parser.add_argument("arg3", nargs="?", default=None)
     parser.add_argument("--live-snapshot", default=SNAPSHOT_PATH, help="Graph snapshot to load and save in live mode.")
+    parser.add_argument(
+        "--observe",
+        action="store_true",
+        help="For live mode, also write the graph changes to the visualiser's observation journal.",
+    )
+    parser.add_argument(
+        "--observe-journal",
+        default=None,
+        help="Journal file for --observe (default: the visualiser's run/observed.jsonl).",
+    )
     parser.add_argument("--port", type=int, default=INSPECTOR_DEFAULT_PORT, help="Inspector port for inspect mode.")
     parser.add_argument(
         "--max-rule-edges",
@@ -2592,7 +2619,12 @@ def main():
         elif args.mode == "warm":
             run_warm_mode(debug_enabled)
         elif args.mode == "live":
-            run_live_mode(debug_enabled, args.live_snapshot)
+            run_live_mode(
+                debug_enabled,
+                args.live_snapshot,
+                observe_enabled=args.observe,
+                observe_journal=args.observe_journal,
+            )
         elif args.mode == "inspect":
             run_inspect_mode(
                 debug_enabled,
