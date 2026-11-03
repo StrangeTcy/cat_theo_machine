@@ -87,8 +87,11 @@ session bytes are compared before and after replay in the test suite, and no
 Machine process is alive at that point.
 
 `GET /api/sessions/<id>` returns the whole recording, so a session file can be
-inspected or re-served by anything. **Export state JSON** writes the current
-view out; **Export view SVG** writes what is on screen.
+inspected or re-served by anything. **Export state JSON** downloads the current
+state (`hypergraph-state.json`: nodes, edges with their argument order, counts,
+mode and source); **Export view SVG** downloads the canvas as a standalone
+`hypergraph-view.svg` with the stylesheet inlined. Both are exercised in the DOM
+checks.
 
 ## The event vocabulary
 

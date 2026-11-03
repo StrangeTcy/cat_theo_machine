@@ -204,7 +204,38 @@ async function main() {
     check("timeline hides in live mode", doc.getElementById("timeline").hidden);
   }
 
-  check("no script errors", errors.length === 0, errors.join("; "));
+  // ---- export ----------------------------------------------------------
+  const downloads = [];
+  win.URL.createObjectURL = function (blob) {
+    downloads.push({ type: blob && blob.type, size: blob && blob.size, download: "" });
+    return "blob:probe";
+  };
+  win.URL.revokeObjectURL = function () {};
+  // jsdom cannot follow a blob: navigation, so the anchor click is recorded
+  // here instead; the app still builds the blob, the href and the file name.
+  win.HTMLAnchorElement.prototype.click = function () {
+    if (downloads.length) downloads[downloads.length - 1].download = this.download;
+  };
+  doc.getElementById("exportStateButton").dispatchEvent(new win.MouseEvent("click", { bubbles: true }));
+  await wait(200);
+  const stateExport = downloads[downloads.length - 1];
+  check(
+    "export state writes a JSON download",
+    !!stateExport && /json/.test(stateExport.type) && stateExport.size > 100 &&
+      stateExport.download === "hypergraph-state.json",
+    stateExport ? stateExport.type + " " + stateExport.size + "B as " + stateExport.download : "no download"
+  );
+  doc.getElementById("exportSvgButton").dispatchEvent(new win.MouseEvent("click", { bubbles: true }));
+  await wait(200);
+  const svgExport = downloads[downloads.length - 1];
+  check(
+    "export view writes an SVG download",
+    !!svgExport && /svg/.test(svgExport.type) && svgExport.size > 100 &&
+      svgExport.download === "hypergraph-view.svg",
+    svgExport ? svgExport.type + " " + svgExport.size + "B as " + svgExport.download : "no download"
+  );
+
+  check("no script errors", errors.length === 0, errors.slice(0, 3).join("; "));
 
   const failed = checks.filter((c) => !c.ok);
   console.log(JSON.stringify({ skipped: false, ok: failed.length === 0, checks: checks, failed: failed.length }, null, 2));

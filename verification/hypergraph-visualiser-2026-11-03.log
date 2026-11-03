@@ -52,26 +52,26 @@ $ NODE_PATH=<jsdom> PYTHONPATH=/home/user python -u validation/test48_hypergraph
     checkpoint rebuilds state, store round-trips, delete is idempotent (Passed)
 
 [4] A separately started Machine process is observed live
-    server up on http://127.0.0.1:32949, journal empty, waiting for a Machine run
+    server up on http://127.0.0.1:39793, journal empty, waiting for a Machine run
     received 24 item events over the stream, 24 of them before the script exited
     carriers 13 vertices, 11 hyperedges, arities {"0": 1, "2": 9, "3": 1}
     ternary arguments keep position order; nullary edge kept; computed nat kept as a term
 
 [5] Recording a live observed run
     25 rules recorded with readable premise/replacement labels
-    saved 20 events (2 checkpoint) over 20.295s to test48-20261103-130812.json
+    saved 20 events (2 checkpoint) over 19.927s to test48-20261103-131249.json
 
 [6] Replay is independent, deterministic and non-mutating
     39 model checks run on the recorded file; journal and session bytes unchanged
     no Machine process alive during replay (both workload runs exited)
 
 [7] Browser DOM checks (jsdom, if available)
-    34 DOM checks passed (render, select, filter, zoom, replay)
+    36 DOM checks passed (render, select, filter, zoom, replay)
 
 [8] Teardown
-    server stopped, temporary work directory /tmp/ctm-visualiser-test48-3419
+    server stopped, temporary work directory /tmp/ctm-visualiser-test48-3790
 
-=== ALL TEST 48 VISUALISER CHECKS PASSED in 45.433s ===
+=== ALL TEST 48 VISUALISER CHECKS PASSED in 45.282s ===
 
 ## 3. Test 48 with no jsdom on the module path (the DOM section reports SKIPPED)
 
@@ -141,7 +141,9 @@ DOM checks against that same live server (jsdom, VIS_BASE=http://127.0.0.1:8801)
   legend: "shown 90 of 90 / nodes 7 · terms 51 / hyperedges 7 · rules 25 /
            0-ary:1 2-ary:5 3-ary:1 / 1-premise:25"
   labels compensate for zoom: 22px at 0.48x = 10.5px on screen
-  34 checks, 0 failed, 0 script errors
+  export state writes a JSON download   application/json 18168B as hypergraph-state.json
+  export view writes an SVG download    image/svg+xml 55585B as hypergraph-view.svg
+  36 checks, 0 failed, 0 script errors
 
 ## 6. Recording and replay of a rule-bearing run
 
