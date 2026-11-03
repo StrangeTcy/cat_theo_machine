@@ -1,0 +1,298 @@
+======================================================================
+Machine Visualiser — Round 2: browser QA, churn, layout continuity
+Date: 2026-11-03 (Europe/Moscow)
+Branch: arena/e32bd1c7-cat-theo-machine
+Starting remote tip (verified with git ls-remote before any change):
+  44bd9ae0a4a822ab2037908f94cd3fc0c2fe2222
+Workspace: the assigned worktree had been checked out at b3be7e7 while the
+remote branch was at 44bd9ae. Its tracked files and untracked visualiser/
+already matched 44bd9ae (verified file by file), so the branch ref was
+fast-forwarded to 44bd9ae with read-tree/update-ref; no content was reset,
+overwritten or lost, and the two untracked audit documents in verification/
+were left untouched.
+======================================================================
+
+## 1. Is there a browser in this sandbox?
+
+  $ for b in google-chrome chromium chromium-browser firefox; do which $b; done
+  (nothing)
+
+  $ ls /usr/lib/x86_64-linux-gnu | grep -E "lib(nss3|nssutil3|nspr4|gtk-3|gbm)"
+  (nothing: no NSS, no NSPR, no GTK, no GBM)
+
+  $ curl -m5 https://registry.npmjs.org/            -> 200
+  $ curl -m5 https://storage.googleapis.com/        -> 000 (no route)
+  $ curl -m5 https://deb.debian.org/                -> 000 (no route)
+
+Chromium's own download host and apt are unreachable, so a distro browser
+cannot be installed. The one reachable source of a Chromium binary is an npm
+tarball, so that was tested rather than assumed:
+
+  $ npm install @sparticuz/chromium puppeteer-core      (43 packages, 67 MB)
+  $ node -e "chromium.executablePath().then(console.log)"
+  /tmp/chromium                                          (209 MB, Chromium 153.0.8010.0)
+
+It does not start: the binary needs libnspr4/libnss3/libnssutil3, which the
+image lacks. Postponing symbol resolution with LD_BIND_NOW=0 buys nothing
+because the binary is linked -z now:
+
+  $ LD_BIND_NOW=0 /tmp/chromium --version
+  /tmp/chromium: error while loading shared libraries: libnspr4.so
+
+A minimal stand-in library was built to get past the loader and find out
+whether the rest of the runtime works (57 symbols, generated from the binary's
+own undefined-symbol table, returning zero):
+
+  $ gcc -shared -fPIC -Wl,--version-script=stub.map -o libnss3.so stub.c
+  $ LD_LIBRARY_PATH=<stub> /tmp/chromium --version
+  Chromium 153.0.8010.0
+
+Every page load then dies before rendering anything:
+
+  $ LD_LIBRARY_PATH=<stub> /tmp/chromium --headless=new --no-sandbox --no-zygote \
+        --single-process --disable-gpu --dump-dom 'data:text/html,<p>hi</p>'
+  Segmentation fault (exit 139), empty stdout
+  (same for --headless=old, --in-process-gpu, swiftshader, --disable-gpu,
+   --screenshot, --user-data-dir variants: four configurations, four SIGSEGV)
+
+Conclusion: no browser here can execute a page. No browser screenshot is
+claimed anywhere in this report.
+
+## 2. What the pixel evidence is, then
+
+The page is driven in jsdom: the real app.js, model.js, stylesheet and real
+served data. Each capture asks the page for its own "Export view SVG" (the same
+button a user presses), and @resvg/resvg-js rasterises that SVG. Geometry,
+colours, shapes, label positions and link layout in the PNGs are therefore the
+page's own output; the SVG next to each PNG can be opened in a browser to check
+the same thing. HTML chrome (sidebar, toolbar, legend box, timeline) is not in
+the images — jsdom has no layout engine — and is covered by the 56 DOM
+assertions plus capture.json, which records the badge, legend and timeline text
+at each capture.
+
+  $ NODE_PATH=<jsdom> VIS_BASE=http://127.0.0.1:8801 \
+      node visualiser/tests/pixel_capture.js \
+      --out verification/visualiser-round2 --session round2-residency-20261103-143947
+  {"ok": true, "captures": 7, "failed": 0, "errors": []}
+
+  $ NODE_PATH=<resvg> node visualiser/tests/rasterize.js verification/visualiser-round2 1440
+  {"rendered": 7, "width": 1440}
+
+Captures, all from the recorded run "round2-residency-20261103-143947"
+(a real script that exited before the captures were taken):
+
+  01-live-initial            marks {term 53, node 9, rule 25, hyperedge 11}
+  02-dense-rules-hyperedges  marks {term 55, node 12, rule 25, hyperedge 15}
+                             links 88, timeline "41 / 41 · 31.05s", mode replay
+  03-hyperedge-closeup       focus on a ternary Between edge at 1.6x, link
+                             labels ["1","2","3"] plus rule arrows, 107/107
+                             labels placed
+  04-fit-whole-graph         the same graph fitted, 95/107 labels placed
+  05-selection-provenance    one vertex selected and centred
+  06-replay-seek             seek to event 13 of 41: marks {term 52, node 8,
+                             rule 25, hyperedge 9}, timeline "13 / 41 · 17.61s"
+  07-live-evolution          a fresh page against the live server
+
+## 3. Visual defects found by looking at the rendered output
+
+Each of these was visible in a rendered PNG, not inferred from code.
+
+(a) The exported view was black-on-black: every mark invisible except amber
+    diamonds. Cause: the export copied the stylesheet out of
+    document.styleSheets/cssRules, which yields nothing in a non-browser DOM,
+    so the file had no colours at all. Fixed by fetching the stylesheet text and
+    inlining it, with the <style> element created in the SVG namespace, plus an
+    opaque backdrop rect so the file is not white-on-white in a viewer with no
+    page behind it. Pinned: "exported SVG carries the stylesheet".
+
+(b) Colours defined with CSS custom properties did not survive the export at
+    all (var(--hyperedge) resolves to black in a static SVG reader). Graph marks
+    and their legend swatches now use literal colours. Pinned by the same check,
+    which requires #f59e0b on .node-shape.kind-hyperedge inside the exported file.
+
+(c) Long rule labels smeared across the canvas as unbreakable 170-character
+    chains, overlapping each other and their neighbours. Rule labels are now cut
+    to 34 characters on the canvas with an ellipsis, the full text stays in the
+    details panel and the hover title. Pinned: "canvas labels are shortened".
+
+(d) Overlapping labels everywhere: the app painted every label unconditionally.
+    Placement is now a greedy pass in priority order (selection, vertices,
+    hyperedges, rules, terms) with three candidate positions per label, marks and
+    argument-position labels reserved as obstacles, and a label dropped rather
+    than overlapped. Re-solved on every tick while the layout is warm. Pinned:
+    "visible labels do not overlap each other" (0 of 81 boxes), "no placed label
+    box sits on a mark box", "placement keeps most names visible" (81 placed,
+    11 dropped).
+
+(e) Hyperedges were indistinguishable when fitted: at 0.32x a 9 px diamond is
+    3 px and the shapes read as noise. Marks now have an on-screen size floor
+    (3.6 px) with a growth cap, and link stroke width is divided by the zoom.
+    Pinned: "node marks stay at least 3px on screen when fitted" (3.60 px at
+    0.32x), "hyperedge shapes are drawn, not hidden".
+
+(f) The layout boiled: every arriving event reheated the force simulation, so
+    settled nodes drifted tens of pixels per delta. An incremental update that
+    adds nothing now only re-binds data; one that adds elements gets a short
+    0.08-alpha nudge; a fresh view or a large change still gets a full layout.
+    Pinned: "an incremental update keeps every node in place" (was 25.24 px, now
+    0.71-1.17 px over ~98 nodes), "a new vertex does not shake the whole layout",
+    "unrelated nodes keep their positions when one is added".
+
+(g) The legend sat on top of the graph and swallowed drags and clicks meant for
+    it. It is pointer-events: none now, and Fit measures its box and fits the
+    graph beside it (fitView inset).
+
+(h) The details panel was unusable on complex elements: a rule's 170-character
+    label became the panel heading, and long terms stretched the sidebar. The
+    heading is bounded to 120 characters with the full text on the title, table
+    values are clamped with the whole value on hover, the table is
+    table-layout: fixed with anywhere-wrapping, and a "Focus in graph" button
+    zooms to the element at 1.6x. Pinned: "a rule's details heading is bounded",
+    "the full rule text is available on the heading", "focus zooms in on the
+    selected element" (1.6).
+
+(i) A selected mark was a hairline at low zoom. Selection stroke is now
+    scaled against the zoom (up to 9 px) so it stays visible at fit-to-view.
+
+## 4. Graph-element churn: root cause and resolution
+
+The round-1 report said rule pattern terms churn "because the constructor
+registry grows". Measured, that is wrong. Two probes:
+
+  probe A: fresh runtime, one digest, polls around two pack loads
+    after order-sign      nodes=21 edges=13  -0/21 node items
+    quiet order-sign      nodes= 0 edges=13  -21/0 node items   <-- all gone
+    after arithmetic      nodes=28 edges=25  -0/28 node items
+    quiet arithmetic      nodes= 0 edges=25  -28/0 node items   <-- all gone
+
+  probe B: same, but a fresh GraphDigest for each reading
+    order-sign  -0 removals,  arithmetic  -0 removals
+
+So the loss was a function of reading the same graph twice through one digest,
+not of loading packs. In visualiser/events.py the rule path returned its premise
+and replacement objects on the cache-miss path only:
+
+  if cached is not None:
+      return cached, [], []        # no premises, no replacement
+
+read() builds term nodes from the objects a rule returns, so the second read of
+any rule-bearing graph dropped every premise term, and the third brought them
+back. On a 25-rule graph that is ~90 node items removed and re-added per pair of
+polls with no machine change at all. Measured before the fix: 21 removals after
+the first pack and 28 after the second.
+
+The objects that received unstable treatment were therefore the *premise and
+replacement terms of a rule*, and only while the digest's rule cache was warm.
+Their ids were never unstable — the identity caches also keyed on id() without
+holding the object, which could hand a freed term's rendering to a different
+term that reused the slot.
+
+Resolution:
+  - the rule cache stores the triple (item, premises, replacement) and returns
+    it whole on a hit;
+  - the text, anonymous-ordinal and rule-text caches hold the object alongside
+    the value and are only trusted when the object is the same one;
+  - nothing about the machine's state is hidden: an id that really leaves the
+    graph still appears in items.removed.
+
+After the fix, loading all 17 packs one at a time (17 loads, two polls each)
+produced 0 removals and 0 spurious additions, 426 node items and 205 edges:
+
+  $ PYTHONPATH=/home/user python -u probes/visualiser_churn_probe.py
+  ... total removed across all pack loads: 0
+
+Regression test: validation/test49_visualiser_churn.py, 6 sections:
+  [1] second poll of an unchanged graph is silent: 4 events, then 0
+  [2] second read keeps every premise of 13 rules, 23 node items unchanged
+  [3] pack 2 added 12 edges and removed nothing; 23 existing ids unchanged
+  [4] an id that really vanishes appears in items.removed
+  [5] one added node produces exactly one node item and no removals
+  [6] teardown
+The test was shown to fail with the defect reintroduced:
+  AssertionError: a poll with no machine change reported removals:
+  ['t:0', 't:NonNegative(0)', 't:IsReal(0)', 't:[<?>, ?n]', ...]
+
+## 5. Layout continuity and replay determinism
+
+Asserted in the DOM suite against positions read from the drawn transform and
+from the page's own placement record:
+
+  an incremental update keeps every node in place        0.71px worst of 90
+  a new vertex does not shake the whole layout           10.56px worst
+  unrelated nodes keep their positions when one is added 9.96px over 14 nodes
+  selection survives an unrelated update                 3 selected marks
+  the details panel still describes the selection        continuity_probe
+  seeking back to the same event rebuilds the same state ids identical
+  the end of the recording is the full recorded graph    66 nodes
+  replaying the same recording twice reaches the same state  66 nodes
+
+## 6. Real execution acceptance
+
+The Machine script was launched by the shell, never by the visualiser. While it
+ran, a separate SSE client counted the events that arrived before it exited:
+
+  script started, ran and exited independently; exit code 0
+  live arrivals while the script was alive: 58
+  live arrivals after it exited: 0
+  journal events: 32 | session.start True | session.stop True
+  removal events in the whole run: 0
+
+Representative recorded runs (recorded through the viewer while the script ran):
+
+  round2-packs-20261103-142801      30 events in 24.23 s
+  round2-residency-20261103-143947  41 events in 31.05 s,
+    66 items (55 terms, 11 vertices), 40 edges (25 rules, 15 hyperedges),
+    hyperedge arities {0:1, 2:13, 3:1}, machine pid 4732
+
+Replay after the Machine process exited:
+
+  $ node visualiser/tests/model_check.js visualiser/sessions/round2-residency-*.json
+  ok true, 39 checks
+    recorded session rebuilds 41
+    recorded session keeps n-ary edges {"0":1,"2":13,"3":1}
+    recorded rules keep premises and a replacement 25 rules
+    every seek prefix applies exactly its events
+    resuming from a seek reaches the full state
+    recorded timestamps never go backwards
+
+  $ md5sum -c (before/after replay)
+  visualiser/run/observed.jsonl: OK
+  visualiser/sessions/round2-residency-20261103-143947.json: OK
+  and no Machine process was alive during replay.
+
+## 7. Suites
+
+  $ NODE_PATH=<jsdom> PYTHONPATH=/home/user python -u validation/test48_hypergraph_visualiser.py
+  === ALL TEST 48 VISUALISER CHECKS PASSED in 58.895s
+    [1] boundary: the server imports no kernel module
+    [2] 28 model checks (fixture stream)
+    [3] state and session store round-trip
+    [4] 24 live item events from a separately started Machine process, all of
+        them before it exited; 13 vertices, 11 hyperedges, arities
+        {"0":1,"2":9,"3":1}
+    [5] recording with 25 rules, readable premise/replacement labels
+    [6] 39 model checks on the recorded file; journal and session bytes unchanged;
+        no Machine process alive during replay
+    [7] 56 DOM checks
+    [8] teardown
+
+  $ PYTHONPATH=/home/user python -u validation/test49_visualiser_churn.py
+  === ALL TEST 49 CHURN CHECKS PASSED
+
+  $ PYTHONPATH=/home/user python -u validation/test17_hypergraph_matching.py
+  === ALL TEST 17 HYPERGRAPH MATCHING CHECKS PASSED in 11.090s   (unaffected)
+
+## 8. Files
+
+Changed: visualiser/events.py (identity and rule cache), visualiser/web/app.js
+(export, labels, marks, layout continuity, details panel, legend inset),
+visualiser/web/style.css (literal mark colours, detail table, legend pointer
+events), visualiser/tests/dom_check.js (21 new checks),
+validation/test48_hypergraph_visualiser.py (label and failure reporting),
+visualiser/README.md (two-terminal workflow, tap connection, transformation
+inspection, screenshot provenance, churn limitation).
+Added: validation/test49_visualiser_churn.py, probes/visualiser_churn_probe.py,
+visualiser/tests/pixel_capture.js,
+visualiser/tests/rasterize.js, verification/visualiser-round2/ (7 SVG, 7 PNG,
+capture.json), verification/visualiser-round2-2026-11-03.log (this file).
+======================================================================

@@ -15,6 +15,7 @@
 
   var el = {
     svg: document.getElementById("canvas"),
+    legend: document.getElementById("legend"),
     badge: document.getElementById("modeBadge"),
     sourceText: document.getElementById("sourceText"),
     search: document.getElementById("searchInput"),
@@ -68,6 +69,8 @@
   var nodeLayer = rootG.append("g").attr("class", "nodes");
 
   var nodeData = new Map();
+  var previousNodeCount = 0;
+  var previousLinkCount = 0;
   var linkData = [];
   var modelById = {};
 
@@ -236,10 +239,13 @@
     });
 
     nodeAll.select("text.node-label")
-      .text(function (d) { return d.label; })
+      .text(function (d) { return canvasLabel(d); })
       .attr("x", function (d) { return radiusOf(d) + 5; })
       .attr("y", 3)
       .attr("class", function (d) { return "node-label kind-" + d.kind; });
+
+    nodeAll.selectAll("title").remove();
+    nodeAll.append("title").text(function (d) { return d.term || d.label || d.id; });
 
     nodeAll
       .classed("dim", false)
@@ -284,16 +290,57 @@
     updateLabelVisibility();
     simulation.nodes(nodes);
     simulation.force("link").links(links);
-    var alpha = withRestart ? 0.9 : 0.18;
-    simulation.alpha(alpha).restart();
-    if (withRestart) {
+
+    // Layout continuity. A fresh view (a session load, a reset) is allowed to
+    // lay the graph out from scratch. An incremental delta must not: reheating
+    // the simulation for every arriving event dragged settled nodes around by
+    // tens of pixels and made the graph look like it was boiling. So an update
+    // that adds nothing only re-binds the data, and one that adds a few elements
+    // gets a short, low-energy nudge that lets the newcomers find a place.
+    var added = nodes.length - previousNodeCount + links.length - previousLinkCount;
+    var bigChange = Math.abs(nodes.length - previousNodeCount) > 40 || added < 0;
+    previousNodeCount = nodes.length;
+    previousLinkCount = links.length;
+    if (withRestart || bigChange) {
+      simulation.alpha(0.9).restart();
       window.setTimeout(fitView, 550);
+    } else if (added > 0) {
+      simulation.alpha(0.08).restart();
     }
+    // added === 0: positions are already the ones on screen; leave them alone.
+  }
+
+  // A mark is drawn inside the zoomed group, so at fit-to-view on a real graph it
+  // shrinks to a couple of pixels and a hyperedge stops looking like a hyperedge.
+  // Keep the on-screen size above a floor, and let the shape grow at most three
+  // times so a deep zoom-out does not turn the layout into one blob.
+  var MARK_FLOOR = 3.6;
+  function markRadius(d) {
+    var base = radiusOf(d);
+    var scale = currentScale > 0 ? currentScale : 1;
+    if (base * scale >= MARK_FLOOR) { return base; }
+    return Math.min(base * 3, MARK_FLOOR / scale);
+  }
+
+  function scaleMarks() {
+    var zoom = currentScale || 1;
+    var selectionWidth = Math.min(9, Math.max(1.6, 3.2 / zoom));
+    nodeLayer.selectAll("g.node").each(function (d) {
+      var r = markRadius(d);
+      d3.select(this).select("circle.node-shape")
+        .attr("r", r)
+        .style("stroke-width", d.id === selectedId ? selectionWidth : null);
+      d3.select(this).select("path.node-diamond")
+        .attr("d", diamondPath(r + 1))
+        .style("stroke-width", d.id === selectedId ? selectionWidth : null);
+    });
+    var stroke = Math.min(6, Math.max(0.6, 1.1 / zoom));
+    linkLayer.selectAll("line.link-line").style("stroke-width", stroke);
   }
 
   function shapeFor(selection, d) {
     var kind = d.kind;
-    var r = radiusOf(d);
+    var r = markRadius(d);
     selection.select("circle.node-shape")
       .style("display", kind === "node" || kind === "term" ? null : "none")
       .attr("r", r)
@@ -306,10 +353,21 @@
       .style("display", "none");
   }
 
+  // A rule label can be a 170-character premise/replacement chain. On the canvas
+  // it is cut to a recognisable length; the full text stays in the details panel
+  // and in the hover title, so nothing is lost, only shortened.
+  var LABEL_LIMIT = 30;
+  function canvasLabel(d) {
+    var text = d.label || d.id || "";
+    var limit = d.kind === "rule" ? 34 : d.kind === "hyperedge" ? 26 : LABEL_LIMIT;
+    return text.length > limit ? text.slice(0, limit - 1) + "\u2026" : text;
+  }
+
   function diamondPath(r) {
     return "M0," + (-r) + " L" + r + ",0 L0," + r + " L" + (-r) + ",0 Z";
   }
 
+  var labelPass = 0;
   function ticked() {
     linkLayer.selectAll("line.link-line")
       .attr("x1", function (d) { return d.source.x; })
@@ -321,6 +379,117 @@
       .attr("y", function (d) { return d.source.y + (d.target.y - d.source.y) * 0.62; });
     nodeLayer.selectAll("g.node")
       .attr("transform", function (d) { return "translate(" + d.x + "," + d.y + ")"; });
+    // While the simulation is warm the nodes move under their labels, so the
+    // boxes have to be solved again or two labels can drift into each other.
+    // Once it is cold, positions stop changing and a single pass is enough.
+    labelPass = (labelPass + 1) % 2;
+    if (simulation.alpha() > 0.01 || labelPass === 0) {
+      placeLabels();
+    }
+  }
+
+  // Greedy label placement: walk the visible nodes in priority order and keep a
+  // label only when its box does not hit one already kept. Without this, a pack
+  // of long rule labels piles up into an unreadable smear in the middle of the
+  // canvas. Boxes are estimated from the text length and the current font size,
+  // which is enough at these sizes and costs nothing per frame.
+  var lastPlacement = { boxes: [], marks: [], placed: 0, dropped: 0 };
+
+  function placeLabels() {
+    var keep = [];
+    // Obstacles that labels must avoid: link labels and every mark.
+    var boxes = [];
+    var marks = [];
+    // Boxes this pass accepted for node labels.
+    var labelBoxes = [];
+    var candidates = [];
+    labelLayer.selectAll("text.link-label").each(function (d) {
+      if (!d || d3.select(this).classed("hidden")) { return; }
+      var node = this;
+      var text = node.textContent || "";
+      if (!text) { return; }
+      var size = parseFloat(node.style.fontSize || "9") || 9;
+      var x = Number(node.getAttribute("x"));
+      var y = Number(node.getAttribute("y"));
+      if (!isFinite(x) || !isFinite(y)) { return; }
+      boxes.push([x - 2, y - size, x + text.length * size * 0.6 + 2, y + 2]);
+    });
+    // Marks are obstacles too: a label laid across a neighbouring diamond hides
+    // the very distinction the shapes are meant to carry.
+    nodeLayer.selectAll("g.node").each(function (d) {
+      if (!d || typeof d.x !== "number") { return; }
+      var r = markRadius(d) + 2;
+      boxes.push([d.x - r, d.y - r, d.x + r, d.y + r]);
+      marks.push([d.x - r, d.y - r, d.x + r, d.y + r]);
+    });
+    nodeLayer.selectAll("g.node").each(function (d) {
+      if (!d || typeof d.x !== "number" || typeof d.y !== "number") { return; }
+      var text = canvasLabel(d);
+      if (!text) { return; }
+      candidates.push({
+        node: this,
+        d: d,
+        text: text,
+        priority: d.id === selectedId ? 0 : d.kind === "node" ? 1 : d.kind === "hyperedge" ? 2 : d.kind === "rule" ? 3 : 4
+      });
+    });
+    candidates.sort(function (a, b) {
+      return a.priority - b.priority || String(a.d.id).localeCompare(String(b.d.id));
+    });
+    var fontSize = Math.max(5, Math.min(22, 11 / currentScale));
+    // Measure the text where the engine can, so a box is the box that is drawn;
+    // a DOM without text metrics (jsdom) falls back to a per-character estimate.
+    candidates.forEach(function (candidate) {
+      var node = d3.select(candidate.node).select("text.node-label").node();
+      var measured = 0;
+      if (node && typeof node.getComputedTextLength === "function") {
+        try { measured = node.getComputedTextLength(); } catch (error) { measured = 0; }
+      }
+      // 2px of slack on top of the glyph run: a browser's measured width can
+      // differ slightly from the character estimate used by a DOM without text
+      // metrics, and two boxes that merely touch still look like a collision.
+      candidate.width = measured > 0 ? measured + 8 : candidate.text.length * fontSize * 0.62 + 8;
+      candidate.height = measured > 0 ? fontSize + 4 : fontSize + 3;
+    });
+    var dropped = 0;
+    var taken = function (box) {
+      return boxes.some(function (other) {
+        return !(box[2] < other[0] || box[0] > other[2] || box[3] < other[1] || box[1] > other[3]);
+      });
+    };
+    candidates.forEach(function (candidate) {
+      var d = candidate.d;
+      var width = candidate.width;
+      var height = candidate.height;
+      var r = markRadius(d);
+      // Right of the mark first (the usual reading position), then below it,
+      // then to its left. A label is dropped only when all three are taken, so
+      // a dense cluster keeps more names visible than a single-position rule.
+      var places = [
+        [d.x + r + 5, d.y - height / 2],
+        [d.x + r + 5, d.y + r + 1],
+        [d.x - r - 5 - width, d.y - height / 2]
+      ];
+      var label = d3.select(candidate.node).select("text.node-label");
+      for (var i = 0; i < places.length; i += 1) {
+        var x = places[i][0];
+        var y = places[i][1];
+        var box = [x, y, x + width, y + height];
+        if (taken(box)) { continue; }
+        boxes.push(box);
+        labelBoxes.push(box);
+        keep.push(candidate.d.id);
+        label.attr("x", x - d.x).attr("y", y - d.y + height / 2 - 1).classed("hidden", false);
+        return;
+      }
+      label.classed("hidden", true);
+      dropped += 1;
+    });
+    // Kept for the inspection tests: the boxes this pass decided on, so a
+    // regression can assert against the placement the page made
+    // instead of re-deriving baseline arithmetic from attributes.
+    lastPlacement = { boxes: labelBoxes, marks: marks, placed: keep.length, dropped: dropped };
+    return keep.length;
   }
 
   function updateLabelVisibility() {
@@ -337,6 +506,8 @@
         return false;
       })
       .style("font-size", nodeSize + "px");
+    scaleMarks();
+    placeLabels();
     labelLayer.selectAll("text.link-label")
       .classed("hidden", currentScale < 0.7)
       .style("font-size", linkSize + "px");
@@ -356,6 +527,14 @@
     return { x: minX, y: minY, dx: Math.max(maxX - minX, 60), dy: Math.max(maxY - minY, 60) };
   }
 
+  // Space the floating legend occupies, so the graph is fitted beside it rather
+  // than under it. Zero when there is no layout (tests, headless DOM).
+  function legendInset() {
+    var box = el.legend ? el.legend.getBoundingClientRect() : null;
+    if (!box || !box.height) { return 0; }
+    return box.height + 22;
+  }
+
   function fitView() {
     var nodes = Array.from(nodeData.values());
     var bounds = boundsOf(nodes);
@@ -366,9 +545,10 @@
       return;
     }
     var pad = 70;
-    var scale = Math.min(2.4, 0.92 * Math.min(width / (bounds.dx + pad * 2), height / (bounds.dy + pad * 2)));
+    var usable = Math.max(height - legendInset(), 200);
+    var scale = Math.min(2.4, 0.92 * Math.min(width / (bounds.dx + pad * 2), usable / (bounds.dy + pad * 2)));
     var tx = width / 2 - scale * (bounds.x + bounds.dx / 2);
-    var ty = height / 2 - scale * (bounds.y + bounds.dy / 2);
+    var ty = usable / 2 - scale * (bounds.y + bounds.dy / 2);
     svg.transition().duration(320).call(
       zoom.transform,
       d3.zoomIdentity.translate(tx, ty).scale(scale)
@@ -392,9 +572,18 @@
     renderDetails(id);
   }
 
+  function shorten(text, limit) {
+    var value = String(text == null ? "" : text);
+    if (value.length <= limit) { return value; }
+    return value.slice(0, limit - 1) + "\u2026 (" + value.length + " characters)";
+  }
+
   function detailRow(label, value) {
-    return "<tr><th>" + escapeHtml(label) + "</th><td class=\"mono\">" +
-      escapeHtml(value) + "</td></tr>";
+    var text = String(value == null ? "" : value);
+    var shown = shorten(text, 90);
+    var title = text.length > 90 ? " class=\"mono clamp\" title=\"" + escapeHtml(text) + "\"" : " class=\"mono\"";
+    return "<tr><th>" + escapeHtml(label) + "</th><td" + title + ">" +
+      escapeHtml(shown) + "</td></tr>";
   }
 
   function renderDetails(id) {
@@ -425,8 +614,12 @@
       rows.push(detailRow("arity", String(node.arity || 0)));
     }
 
-    var html = "<h3>" + escapeHtml(node.label) + "</h3><table class=\"detail-table\">" +
-      rows.join("") + "</table>";
+    // A rule label is a full premise/replacement chain and a term can be longer
+    // still. The panel shows a readable head with the whole value on click, so a
+    // complex element cannot stretch the sidebar to nothing.
+    var heading = shorten(node.label, 120);
+    var html = "<h3 title=\"" + escapeHtml(node.term || node.label) + "\">" + escapeHtml(heading) +
+      "</h3><table class=\"detail-table\">" + rows.join("") + "</table>";
 
     if (node.kind === "hyperedge" || node.kind === "rule") {
       var args = node.arguments || [];
@@ -435,7 +628,7 @@
       args.forEach(function (argId, index) {
         var arg = state.nodes[argId] || modelById[argId] || { label: argId };
         html += "<div class=\"incidence-item\">" + (index + 1) + ". " +
-          escapeHtml(arg.label || argId) + "</div>";
+          escapeHtml(shorten(arg.label || argId, 120)) + "</div>";
       });
       html += "</div>";
       var results = node.results || [];
@@ -464,7 +657,13 @@
       });
       html += "</div>";
     }
+    html += "<div class=\"detail-actions\"><button type=\"button\" id=\"focusSelected\">Focus in graph</button>" +
+      "</div>";
     el.details.innerHTML = html;
+    var focusButton = document.getElementById("focusSelected");
+    if (focusButton) {
+      focusButton.addEventListener("click", function () { centerOn(id, true); });
+    }
   }
 
   // ------------------------------------------------------------- live data
@@ -778,21 +977,43 @@
     download(JSON.stringify(document_, null, 2), "hypergraph-state.json", "application/json");
   }
 
+  // The exported file has to carry the stylesheet, or every mark falls back to
+  // the SVG default of black on black. Reading cssRules works only for sheets the
+  // browser parses, so the same-origin stylesheet is fetched as text and cached.
+  var styleText = null;
+  function stylesheetText() {
+    if (styleText !== null) { return Promise.resolve(styleText); }
+    var sheet = document.querySelector('link[rel="stylesheet"]');
+    if (!sheet) { return Promise.resolve(""); }
+    return fetch(sheet.href, { cache: "force-cache" })
+      .then(function (response) { return response.ok ? response.text() : ""; })
+      .then(function (text) { styleText = text; return text; })
+      .catch(function () { return ""; });
+  }
+
   function exportSvg() {
-    var clone = el.svg.cloneNode(true);
-    clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
-    clone.setAttribute("width", String(el.svg.clientWidth));
-    clone.setAttribute("height", String(el.svg.clientHeight));
-    var style = document.createElement("style");
-    style.textContent = Array.prototype.map
-      .call(document.styleSheets, function (sheet) {
-        try {
-          return Array.prototype.map.call(sheet.cssRules, function (rule) { return rule.cssText; }).join("\n");
-        } catch (error) { return ""; }
-      })
-      .join("\n");
-    clone.insertBefore(style, clone.firstChild);
-    download(new XMLSerializer().serializeToString(clone), "hypergraph-view.svg", "image/svg+xml");
+    return stylesheetText().then(function (css) {
+      var clone = el.svg.cloneNode(true);
+      clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+      clone.setAttribute("width", String(el.svg.clientWidth || 1200));
+      clone.setAttribute("height", String(el.svg.clientHeight || 800));
+      // A background, so the export is not white-on-white in a viewer that has
+      // no page behind it.
+      var backdrop = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+      backdrop.setAttribute("x", "0");
+      backdrop.setAttribute("y", "0");
+      backdrop.setAttribute("width", "100%");
+      backdrop.setAttribute("height", "100%");
+      backdrop.setAttribute("fill", "#0b0f14");
+      // SVG namespace: an HTML-namespaced <style> inside an SVG document is
+      // ignored by strict readers, which is exactly how an export loses its
+      // colours.
+      var style = document.createElementNS("http://www.w3.org/2000/svg", "style");
+      style.textContent = css;
+      clone.insertBefore(backdrop, clone.firstChild);
+      clone.insertBefore(style, clone.firstChild);
+      download(new XMLSerializer().serializeToString(clone), "hypergraph-view.svg", "image/svg+xml");
+    });
   }
 
   function download(text, filename, mime) {
@@ -899,12 +1120,15 @@
     if (mode === "replay" && event.key === "ArrowLeft") { pause(); seek(replay.index - 1); }
   });
 
-  function centerOn(id) {
+  // Bring one element into view. `zoomIn` is used by the details panel's "focus"
+  // action, where the point of the move is to read a single hyperedge's argument
+  // links; search keeps the current scale so the surrounding context stays put.
+  function centerOn(id, zoomIn) {
     var node = nodeData.get(id);
     if (!node || typeof node.x !== "number") { return; }
     var width = el.svg.clientWidth || 800;
     var height = el.svg.clientHeight || 600;
-    var scale = Math.max(0.6, Math.min(2, currentScale));
+    var scale = zoomIn ? 1.6 : Math.max(0.6, Math.min(2, currentScale));
     svg.transition().duration(300).call(
       zoom.transform,
       d3.zoomIdentity.translate(width / 2 - node.x * scale, height / 2 - node.y * scale).scale(scale)
@@ -935,6 +1159,10 @@
       mode: function () { return mode; },
       render: renderGraph,
       fit: fitView,
+      centerOn: centerOn,
+      alpha: function () { return simulation.alpha(); },
+      placement: function () { return lastPlacement; },
+      focus: function (id) { centerOn(id, true); },
       select: select,
       seek: seek,
       loadSession: loadSession,

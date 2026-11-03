@@ -437,10 +437,18 @@ if NODE is not None and node_jsdom.returncode == 0:
         env=dict(os.environ, VIS_BASE=base),
         cwd=IMPORT_ROOT,
     )
-    assert dom_check.returncode == 0, dom_check.stdout[-2500:] + dom_check.stderr[-800:]
-    dom_report = json.loads(dom_check.stdout)
+    try:
+        dom_report = json.loads(dom_check.stdout)
+    except ValueError:
+        raise AssertionError("the DOM suite did not report JSON: " + dom_check.stdout[-1500:] + dom_check.stderr[-500:])
+    failed_checks = [check for check in dom_report["checks"] if not check["ok"]]
+    assert dom_check.returncode == 0 and not failed_checks, failed_checks or dom_check.stderr[-800:]
     assert dom_report["ok"], [check for check in dom_report["checks"] if not check["ok"]]
-    print("    " + str(len(dom_report["checks"])) + " DOM checks passed (render, select, filter, zoom, replay)")
+    print(
+        "    "
+        + str(len(dom_report["checks"]))
+        + " DOM checks passed (render, select, filter, zoom, labels, layout continuity, replay)"
+    )
 else:
     reason = "no node executable on PATH" if NODE is None else "jsdom is not installed for this interpreter"
     print("    SKIPPED: " + reason)

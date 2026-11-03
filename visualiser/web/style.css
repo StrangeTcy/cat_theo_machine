@@ -83,6 +83,11 @@ button.record.armed { border-color: var(--danger); color: var(--danger); }
 .detail-table th { text-align: left; color: var(--muted); font-weight: 500; width: 34%; padding: 3px 0; vertical-align: top; }
 .detail-table td { padding: 3px 0; word-break: break-word; }
 .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }
+/* Long terms break instead of stretching the sidebar, and the table stays put. */
+.detail-table { table-layout: fixed; width: 100%; }
+.detail-table td { overflow-wrap: anywhere; }
+.detail-table td.clamp { cursor: help; }
+.detail-actions { margin-top: 10px; display: flex; justify-content: flex-end; }
 
 .incidence-list, .session-list { display: flex; flex-direction: column; gap: 6px; }
 .incidence-item { background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 5px 7px; font-size: 12px; }
@@ -124,6 +129,10 @@ kbd { background: var(--panel-2); border: 1px solid var(--line); border-radius: 
   position: absolute; left: 14px; bottom: 14px;
   background: rgba(18, 24, 33, 0.92); border: 1px solid var(--line); border-radius: 6px;
   padding: 8px 10px; font-size: 11px; min-width: 220px;
+  /* The legend floats over the canvas; it must not swallow drags or clicks
+     meant for the graph underneath it. fitView insets the drawing area by its
+     measured box so nothing important is parked behind it. */
+  pointer-events: none;
 }
 .legend-title { color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; font-size: 10px; margin-bottom: 5px; }
 .legend-row { display: flex; align-items: center; gap: 7px; padding: 1px 0; }
@@ -132,10 +141,10 @@ kbd { background: var(--panel-2); border: 1px solid var(--line); border-radius: 
 .swatch.term { border-radius: 2px; }
 .swatch.hyperedge { border-radius: 1px; transform: rotate(45deg); }
 .swatch.rule { border-radius: 1px; transform: rotate(45deg); }
-.swatch.node { background: var(--node); }
-.swatch.term { background: var(--term); }
-.swatch.hyperedge { background: var(--hyperedge); }
-.swatch.rule { background: var(--rule); }
+.swatch.node { background: #2dd4bf; }
+.swatch.term { background: #94a3b8; }
+.swatch.hyperedge { background: #f59e0b; }
+.swatch.rule { background: #a78bfa; }
 .line-swatch { width: 18px; height: 0; border-top: 1px dashed var(--muted); display: inline-block; }
 
 .timeline {
@@ -151,10 +160,10 @@ kbd { background: var(--panel-2); border: 1px solid var(--line); border-radius: 
 .link-line.dim { stroke: #2a3442; }
 .link-label { fill: #64748b; font-size: 9px; pointer-events: none; }
 .node-shape { stroke: #0b0f14; stroke-width: 1.5; cursor: pointer; }
-.node-shape.kind-node { fill: var(--node); }
-.node-shape.kind-term { fill: var(--term); }
-.node-shape.kind-hyperedge { fill: var(--hyperedge); }
-.node-shape.kind-rule { fill: var(--rule); }
+.node-shape.kind-node { fill: #2dd4bf; }
+.node-shape.kind-term { fill: #94a3b8; }
+.node-shape.kind-hyperedge { fill: #f59e0b; }
+.node-shape.kind-rule { fill: #a78bfa; }
 .node-shape.selected { stroke: #f8fafc; stroke-width: 3; }
 .node.dim { opacity: 0.15; }
 .node-label { fill: #dbeafe; font-size: 10px; pointer-events: none; paint-order: stroke; stroke: #0b0f14; stroke-width: 3px; stroke-linejoin: round; }

@@ -86,13 +86,15 @@ class TermNamer:
     def text(self, term):
         key = id(term)
         cached = self._text_by_object.get(key)
-        if cached is not None:
-            return cached
+        if cached is not None and cached[0] is term:
+            return cached[1]
         try:
             rendered = M.PrettyTerm(term, self.registry)()
         except Exception:
             rendered = str(term)
-        self._text_by_object[key] = rendered
+        # Holding the term keeps its id() from being reused by a different
+        # object, so a stale rendering can never be inherited.
+        self._text_by_object[key] = (term, rendered)
         return rendered
 
     def key(self, term):
@@ -101,11 +103,12 @@ class TermNamer:
         if rendered != ANON_TEXT:
             return "t:" + rendered
         marker = id(term)
-        ordinal = self._anon_by_object.get(marker)
-        if ordinal is None:
-            ordinal = self._anon_count
-            self._anon_by_object[marker] = ordinal
-            self._anon_count = ordinal + 1
+        held = self._anon_by_object.get(marker)
+        if held is not None and held[0] is term:
+            return "anon:" + str(held[1])
+        ordinal = self._anon_count
+        self._anon_by_object[marker] = (term, ordinal)
+        self._anon_count = ordinal + 1
         return "anon:" + str(ordinal)
 
     def label(self, term):
@@ -284,17 +287,24 @@ class GraphDigest:
     def _rule_item(self, rule):
         # Compiling can hand back a fresh object per call, so remember the text
         # against the object to keep both the cost and the ids stable.
-        text = self._rule_text_cache.get(id(rule))
-        if text is None:
+        held = self._rule_text_cache.get(id(rule))
+        if held is not None and held[0] is rule:
+            text = held[1]
+        else:
             try:
                 text = Proofmod.PrettyRule(rule, self.registry)()
             except Exception:
                 text = "<rule>"
-            self._rule_text_cache[id(rule)] = text
+            self._rule_text_cache[id(rule)] = (rule, text)
         key = "r:" + text
         cached = self._rule_cache.get(key)
         if cached is not None:
-            return cached, [], []
+            # The caller builds term nodes from these objects, so a cache hit has
+            # to hand them back too. Returning empty lists here made every
+            # premise term vanish on the second poll and reappear on the next,
+            # which the reader saw as a burst of items.removed: churn that no
+            # machine change caused.
+            return cached
         try:
             premises = ChainReader.items(M.RulePremises(rule)())
         except Exception:
@@ -314,8 +324,9 @@ class GraphDigest:
             "results": [self.namer.key(term) for term in replacement],
             "source": "rule store",
         }
-        self._rule_cache[key] = item
-        return item, premises, replacement
+        triple = (item, premises, replacement)
+        self._rule_cache[key] = triple
+        return triple
 
     # -- read -------------------------------------------------------------
     def read(self):

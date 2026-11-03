@@ -35,30 +35,77 @@ script behaves identically. That is the passive-observer property, and it is
 tested: `validation/test48_hypergraph_visualiser.py` asserts that the viewer
 server imports no kernel module at all.
 
-## Run it
+## Run it: two terminals, two processes
 
-Terminal 1 — the viewer (reads only):
+The visualiser and the Machine are separate processes started separately. The
+viewer never launches the script, and the script runs exactly as it would if the
+viewer were not there.
+
+**Terminal 1 — the viewer.** Start it first; it is a plain HTTP server that reads
+files.
 
 ```bash
 cd /home/user/cat_theo_machine
 PYTHONPATH=/home/user python -m cat_theo_machine.visualiser.server --port 8801
 ```
 
-Terminal 2 — a Machine script, started by you:
+It prints the journal path and session directory it is following and then waits.
+Leave it running.
+
+**Terminal 2 — a Machine script, started by you.**
 
 ```bash
 cd /home/user/cat_theo_machine
-PYTHONPATH=/home/user python -m cat_theo_machine.visualiser.examples.machine_workload --delay 0.6
+PYTHONPATH=/home/user python -m cat_theo_machine.visualiser.examples.machine_workload \
+    --delay 0.6 --rounds 6 --packs
 ```
 
-Open <http://127.0.0.1:8801/>. The graph grows while the script runs, one
-`nodes.added`/`edges.added` event at a time.
+`--packs` loads two knowledge packs before the graph work, which is what puts 25
+rules on screen; `--delay` is the pause between steps, so the growth is visible.
+Its output looks like:
 
-To observe **your own** script, add the two lines from the previous section and
-point the tap at the journal the server follows:
+```
+[workload] observing to /home/user/cat_theo_machine/visualiser/run/observed.jsonl
+[workload] loaded pack order-sign.pack.yaml
+[workload] declared four vertices
+[workload] added a ternary hyperedge Between(point_a, midpoint_m, point_b)
+...
+```
+
+**Browser.** Open <http://127.0.0.1:8801/>. The badge reads `live`, the legend
+counts what is drawn, and the graph grows one event at a time while the script
+runs. When the script exits the badge goes `offline` and the graph stays.
+
+Run the viewer from `/home/user` (as above), not from inside the package
+directory: the repository root has a `hyge.py` stub that shadows the package
+alias.
+
+### Connecting the tap to your own script
+
+Any script that holds a runtime or a hypergraph can be observed. Add the import
+and one call near the top, before the work that builds the graph:
+
+```python
+from cat_theo_machine.runtime import make_fresh_runtime
+from cat_theo_machine.visualiser.tap import observe
+
+runtime = make_fresh_runtime()
+observe(runtime, interval=0.2)        # or observe(runtime.graph) for a bare graph
+```
+
+That is the entire integration. It starts a daemon thread inside your process
+that polls the graph roots and appends deltas to
+`visualiser/run/observed.jsonl`, the file the viewer is already following. Then
+run your script as usual in terminal 2:
 
 ```bash
-python -m cat_theo_machine.visualiser.server --journal /tmp/my-run.jsonl
+PYTHONPATH=/home/user python my_script.py
+```
+
+Use a different journal when you do not want the default one to be reused:
+
+```bash
+PYTHONPATH=/home/user python -m cat_theo_machine.visualiser.server --port 8801 --journal /tmp/my-run.jsonl
 ```
 
 ```python
@@ -67,17 +114,40 @@ observe(runtime, journal_path="/tmp/my-run.jsonl", interval=0.15)
 
 The journal is truncated when a new run starts; the server notices and begins a
 new session instead of appending, so a restart is never mistaken for growth.
+`observe` returns the tap; call `tap.stop()` if your script should stop being
+observed before it exits (a normal exit does this automatically).
+
+### Inspecting one transformation
+
+Rules are drawn by default: violet diamonds whose incoming links are premises and
+whose outgoing link is the replacement. To look at one closely:
+
+1. Click it. The **Details** tab shows the full premise → replacement text, its
+   arity, the provenance of the rule store, and the first event sequence number
+   at which it appeared.
+2. Press **Focus in graph** in the panel (or search for part of its text and
+   press `Enter`). The view zooms to 1.6× on it.
+3. At that scale the argument-position numbers on each link are visible, so a
+   ternary hyperedge reads `1`, `2`, `3` on its three argument links.
+
+`F` fits the whole graph, `R` resets the layout, the wheel zooms, dragging pans,
+and the search box filters by id, label, relation, kind and constructor.
 
 ## Recording and replay
 
-1. With a script running, press **● Record** in the viewer (or `POST
-   /api/recording/start`). The recorder copies the live stream into memory and
-   opens the recording with a **checkpoint**: the state that existed at that
-   moment, so the file replays on its own.
-2. Let the script run. Press **■ Stop**. The recording is written to
-   `visualiser/sessions/<name>-<timestamp>.json`.
-3. Stop the Machine script. Nothing else needs it.
-4. Open the **Recordings** tab and press **Replay**.
+With the viewer in terminal 1 and your script in terminal 2 (previous section):
+
+1. In the browser, press **● Record**. The recorder copies the live stream into
+   memory and opens the recording with a **checkpoint**: the state that existed
+   at that moment, so the file replays on its own. From a shell:
+   `curl -s -X POST http://127.0.0.1:8801/api/recording/start -d '{"name":"my-run"}'`.
+2. Let the script run. Press **■ Stop** (`POST /api/recording/stop`). The
+   recording is written to `visualiser/sessions/my-run-<timestamp>.json`.
+3. Stop the Machine script — close terminal 2, or let it finish. Nothing of the
+   Machine is needed from here on.
+4. Open the **Recordings** tab and press **Replay**. `loadSession` fetches the
+   JSON and the browser rebuilds the states itself; `GET /api/sessions/<id>`
+   returns the same file, so it can be inspected or re-served by anything.
 
 Replay controls: play/pause, step forward and back, a seek slider over the event
 sequence, and 0.25×–8× speed. Times shown are the recorded timestamps, and the
@@ -195,6 +265,51 @@ visualiser/
 `web/model.js` is loaded both by the browser and by the node tests, so the
 replay logic that ships is the logic that is checked.
 
+## How these screenshots were made
+
+The sandbox has no runnable browser. Chromium, Chrome and Firefox are absent from
+the image; a Chromium binary was obtained from an npm package
+(`@sparticuz/chromium`, 209 MB, Chromium 153) and it starts far enough to print
+`--version`, but every page load dies with SIGSEGV (exit 139) after the stub NSS
+shift, so no page was rendered in it. That is why there is no browser screenshot
+in this repository.
+
+What the images in `verification/visualiser-round2/` are instead:
+
+* the page is driven in jsdom — the real `app.js`, `model.js`, stylesheet and the
+  real data from the server;
+* the app's **own** `Export view SVG` produces the file (the same button a user
+  clicks, including the inlined stylesheet);
+* `@resvg/resvg-js` rasterises that SVG to PNG.
+
+So the geometry, colours, shapes, label positions and link layout in the PNGs are
+the page's own output, and the SVG beside each PNG can be opened in a browser to
+check. What is **not** in them is HTML chrome — sidebar, toolbar, legend box,
+timeline — because jsdom has no layout engine. Those are covered by text and
+geometry assertions in `tests/dom_check.js` (56 checks) and by
+`capture.json`, which records the mode badge, legend counts and timeline text at
+each capture.
+
+To reproduce:
+
+```bash
+# terminal 1: viewer
+PYTHONPATH=/home/user python -m cat_theo_machine.visualiser.server --port 8801
+# terminal 2: a real Machine run, recorded
+curl -s -X POST http://127.0.0.1:8801/api/recording/start -d '{"name":"round2-residency"}'
+PYTHONPATH=/home/user python -m cat_theo_machine.visualiser.examples.machine_workload --delay 0.5 --rounds 6 --packs
+curl -s -X POST http://127.0.0.1:8801/api/recording/stop
+
+# capture + rasterise
+npm install --prefix /tmp/visdom jsdom
+npm install --prefix /tmp/resvg @resvg/resvg-js
+NODE_PATH=/tmp/visdom/node_modules VIS_BASE=http://127.0.0.1:8801 \
+  node visualiser/tests/pixel_capture.js --out verification/visualiser-round2 \
+  --session round2-residency-20261103-143947
+NODE_PATH=/tmp/resvg/node_modules node visualiser/tests/rasterize.js \
+  verification/visualiser-round2 1440
+```
+
 ## Tests
 
 ```bash
@@ -212,6 +327,16 @@ NODE_PATH=/tmp/visdom/node_modules \
   PYTHONPATH=/home/user python -u validation/test48_hypergraph_visualiser.py
 ```
 
+`validation/test49_visualiser_churn.py` covers observation identity and churn on
+a real runtime and real packs: two polls of an unchanged graph, the round-1
+"premises vanish on the second read" defect, pack growth adding without removing,
+a genuine disappearance still being reported, and one graph edit producing
+exactly one event.
+
+```bash
+PYTHONPATH=/home/user python -u validation/test49_visualiser_churn.py
+```
+
 D3 7.9.1 is vendored at `web/vendor/d3.min.js` (ISC, see
 `web/vendor/LICENSE.d3`), so the viewer works without a network.
 
@@ -221,16 +346,27 @@ D3 7.9.1 is vendored at `web/vendor/d3.min.js` (ISC, see
   in jsdom, which has no SVG geometry: element kinds, counts, labels, selection,
   filtering, zoom transforms, label sizing and the whole replay path are checked,
   but the visual layout itself is not.
-* **Rule pattern terms churn while packs load.** Rule premises are re-rendered as
-  the constructor registry grows, so a loading phase can emit a few
-  `items.removed` for term nodes before settling. Steady state is stable; a graph
-  built through `add_node`/`add_edge` never churns.
+* **The round-1 "term churn while packs load" report was a colouring defect, not
+  a machine one.** Rule premise terms were handed back only on the first read of
+  a rule, so the second poll lost every premise term and the third brought it
+  back — a burst of `items.removed` for a graph nobody touched. Fixed and pinned
+  by `validation/test49_visualiser_churn.py`; loading all 17 packs now produces
+  zero removals. Genuine surgery is still reported: `items.removed` fires for an
+  id that really disappears.
 * **Two clients, one journal.** The journal is a single append-only file per run;
   two servers following the same file is fine (both only read), two Machine
   processes writing the same file is not, and the second truncates the first.
 * **Derivations and search history are counted, not itemised.** They are trees,
   not carrier vertices; the viewer reports their root sizes in the counts stream
   and in the Details/Status panels.
+* **Screenshots are the page's SVG, not a browser screenshot.** See "How these
+  screenshots were made": no browser here can execute a page, so the HTML chrome
+  is verified by assertions rather than by pixels.
+* **Label placement is greedy, not optimal.** Names are placed in priority order
+  (selection, vertices, hyperedges, rules, terms) with three candidate positions,
+  and a name is dropped rather than overlapped. About 85% of names are placed at
+  a fitted 100-element graph; the rest appear as soon as the view is zoomed or
+  filtered.
 * **No production caller.** `HypergraphIsomorphismMatch` and the search stack do
   not write to `graph.nodes`/`graph.edges`; the hypergraph content is whatever
   the script puts there. The viewer is faithful to that, not to a "run" that the
